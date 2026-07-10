@@ -189,5 +189,70 @@ for (let s = 1; s <= 8; s++) {
   ok('diff seed diff board', mk(42) !== mk(43));
 }
 
+
+// ── 9) 图鉴特性一致性:文案里承诺的,游戏里逐条兑现 ──
+for (let s = 30; s <= 37; s++) { // 8 个种子查放置类承诺
+  const c = freshCtx(s);
+  vm.runInContext('initRun()', c);
+  const g = c.G.grid, W = c.G.w;
+  const near = (i, j) => Math.abs(Math.floor(i / W) - Math.floor(j / W)) <= 1 && Math.abs(i % W - j % W) <= 1;
+  const jellies = g.map((x, i) => x.mon === 'jelly' ? i : -1).filter(i => i >= 0);
+  const sage = g.findIndex(x => x.mon === 'sage');
+  eq(`s${s} 果冻冻恰好五只`, jellies.length, 5);
+  ok(`s${s} 五只全贴着贤者`, jellies.every(j => near(j, sage)));
+  const moobos = g.map((x, i) => x.mon === 'moobo' ? i : -1).filter(i => i >= 0);
+  const chests = g.map((x, i) => (x.item === 'chest' || x.item === 'medichest') ? i : -1).filter(i => i >= 0);
+  ok(`s${s} 每只哞哞霸都贴宝箱`, moobos.every(m => chests.some(ch => near(m, ch))));
+}
+{ // 鼠大王掉落揭示全场小鼠鼠
+  const c = freshCtx(40);
+  vm.runInContext('initRun()', c);
+  const k = c.G.grid.findIndex(x => x.mon === 'mouseking');
+  c.G.hp = 15; c.G.maxHp = 15; c.G.grid[k].rev = true;
+  vm.runInContext(`clickCell(${k})`, c);
+  vm.runInContext(`clickCell(${k})`, c);
+  eq('鼠大王掉卷轴', c.G.grid[k].spell, 'mice');
+  vm.runInContext(`clickCell(${k})`, c);
+  ok('全场小鼠鼠现形', c.G.grid.filter(x => x.mon === 'mousey' && !x.defeated).every(x => x.rev));
+}
+{ // 老贤者:等级1、掉落揭示全部布丁丁
+  const c = freshCtx(41);
+  vm.runInContext('initRun()', c);
+  eq('贤者等级 1', c.M.sage.lv, 1);
+  const sg = c.G.grid.findIndex(x => x.mon === 'sage');
+  c.G.hp = 15; c.G.maxHp = 15; c.G.grid[sg].rev = true;
+  vm.runInContext(`clickCell(${sg})`, c);
+  vm.runInContext(`clickCell(${sg})`, c);
+  eq('贤者掉卷轴', c.G.grid[sg].spell, 'pudding');
+  vm.runInContext(`clickCell(${sg})`, c);
+  ok('全场布丁丁现形', c.G.grid.filter(x => x.mon === 'pudding' && !x.defeated).every(x => x.rev));
+}
+{ // 大软软掉医疗包;礼盒盒两段式;龙蛋敲碎3经验
+  const c = freshCtx(42); lab(c);
+  c.G.hp = 15; c.G.maxHp = 15; c.G.level = 99;
+  vm.runInContext('setMonster(G.grid[0], "giant", "romeo")', c);
+  c.G.grid[0].rev = true;
+  vm.runInContext('clickCell(0)', c);
+  vm.runInContext('clickCell(0)', c);
+  eq('大软软掉医疗包', c.G.grid[0].item, 'medikit');
+
+  c.G.hp = 15; c.G.phase = 'PLAYING'; // 打巨人掉过血,重置再测礼盒盒
+  vm.runInContext('setMonster(G.grid[4], "mimic")', c);
+  vm.runInContext('clickCell(4)', c);
+  eq('礼盒盒第一击不掉血', c.G.hp, 15);
+  ok('翻开后仍在伪装', c.G.grid[4].mimicHidden && c.G.grid[4].rev);
+  vm.runInContext('clickCell(4)', c);
+  eq('第二击现形并造成 11 伤害', c.G.hp, 4);
+  ok('伪装解除', !c.G.grid[4].mimicHidden);
+
+  c.G.hp = 15; c.G.xp = 0; c.G.phase = 'PLAYING';
+  vm.runInContext('setMonster(G.grid[8], "egg")', c);
+  c.G.grid[8].rev = true;
+  vm.runInContext('clickCell(8)', c);
+  eq('龙蛋零伤害', c.G.hp, 15);
+  vm.runInContext('clickCell(8)', c);
+  eq('龙蛋 3 经验', c.G.xp, 3);
+}
+
 console.log(`\n${pass} pass, ${fail} fail`);
 process.exit(fail ? 1 : 0);

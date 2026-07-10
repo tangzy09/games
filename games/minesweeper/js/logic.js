@@ -88,7 +88,9 @@ function genBoard() {
   const edges = [];
   for (let x = 1; x < G.w - 1; x++) edges.push(idx(x, 0), idx(x, G.h - 1));
   for (let y = 1; y < G.h - 1; y++) edges.push(idx(0, y), idx(G.w - 1, y));
-  const sI = putMon(rand(edges.filter(i => isEmptyCell(G.grid[i]))), 'sage');
+  // codex promise: FIVE jellies hug the sage → the spot must have ≥5 free neighbors
+  const sageSpots = edges.filter(i => isEmptyCell(G.grid[i]) && freeNear(i, 1.5).length >= 5);
+  const sI = putMon(rand(sageSpots.length ? sageSpots : edges.filter(i => isEmptyCell(G.grid[i]))), 'sage');
   for (let k = 0; k < 5; k++) { const s = freeNear(sI, 1.5); if (s.length) putMon(rand(s), 'jelly'); }
   // giants: same random row, symmetric about the center column, romeo left / juliet right
   {
@@ -115,7 +117,12 @@ function genBoard() {
   const chestIs = [];
   for (let k = 0; k < ITEMS.chest.count; k++) chestIs.push(putItem(rand(freeIdx()), 'chest'));
   for (let k = 0; k < ITEMS.medichest.count; k++) chestIs.push(putItem(rand(freeIdx()), 'medichest'));
-  for (let k = 0; k < 5; k++) { const c = rand(chestIs), s = freeNear(c, 1.5); putMon(s.length ? rand(s) : rand(freeIdx()), 'moobo'); }
+  for (let k = 0; k < 5; k++) { // codex promise: every moobo stands beside a chest
+    const withRoom = chestIs.filter(ci => freeNear(ci, 1.5).length > 0);
+    const ci = withRoom.length ? rand(withRoom) : rand(chestIs);
+    const s = freeNear(ci, 1.5);
+    putMon(s.length ? rand(s) : rand(freeIdx()), 'moobo');
+  }
   for (let p = 1; p <= MONSTERS.cuddle.pairs; p++) {
     let a;
     do { a = rand(freeIdx()); } while (!freeNear(a, 1.5).length);
