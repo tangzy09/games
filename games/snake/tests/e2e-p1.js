@@ -87,8 +87,13 @@ async function main() {
   log(`AI cleared level in ${elapsedSec}s, deaths stayed at ${deathsDuring}`);
 
   await page.evaluate(() => dispatch('NEXT'));
-  await page.waitForTimeout(500);
-  const afterNext = await page.evaluate(() => ({ phase: window.G.phase, level: window.G.run.level }));
+  // NEXT 先过 LOADING 中间态(防连点守卫)再回 PLAYING——轮询等待而非固定 sleep
+  let afterNext = null;
+  for (let i = 0; i < 20; i++) {
+    await page.waitForTimeout(250);
+    afterNext = await page.evaluate(() => ({ phase: window.G.phase, level: window.G.run.level }));
+    if (afterNext.phase === 'PLAYING') break;
+  }
   assert(afterNext.phase === 'PLAYING', `phase back to PLAYING after NEXT (got ${afterNext.phase})`);
   assert(afterNext.level === 2, `G.run.level === 2 after first NEXT (got ${afterNext.level})`);
 

@@ -1,5 +1,5 @@
 // games/snake/js/render.js — renderAll 契约:每帧从 G 全量重画。
-// 依赖引擎全局:ctx/GameGlobal/clearHits/addHit/fillRR/roundRect/txt/txtL/drawDim/T
+// 依赖引擎全局:ctx/GameGlobal/clearHits/addHit/fillRR/txt/txtL/drawDim/T
 // 依赖 main.js 全局:G(状态)
 const PAL = { bg:'#fdf3f7', cloud:'#f3e0ef', cloudEdge:'#e6c8e0', snake:'#f7b8d4',
   accent:'#e79cc2', accent2:'#b39ddb', text:'#7a5c72', bar:'#f6d5e5', card:'#ffffff',

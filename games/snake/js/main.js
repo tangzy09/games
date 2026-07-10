@@ -19,7 +19,11 @@ function dispatch(action) {
       Core.respawn(G.run);
       punchCell(G.run.snake[0].x, G.run.snake[0].y);
       G.phase = 'PLAYING'; loopState.last = 0; break;
-    case 'NEXT': nextLevel(); break;
+    case 'NEXT':
+      // 防连点:先离开 LEVEL_DONE,二次点击时覆盖层不再渲染、hit 已不存在;
+      // frame 对 LOADING 天然安全(非 PLAYING 早退),nextLevel 完成时置回 PLAYING。
+      if (G.phase === 'LEVEL_DONE') { G.phase = 'LOADING'; nextLevel(); }
+      break;
     default: break;
   }
   renderAll();
@@ -77,39 +81,53 @@ function bindBoost() {
     return b && e.clientX >= b.x && e.clientX <= b.x + b.w && e.clientY >= b.y && e.clientY <= b.y + b.h;
   };
   cv.addEventListener('pointerdown', e => { if (inBoost(e)) G.boostHeld = true; });
-  cv.addEventListener('pointerup',   () => { G.boostHeld = false; });
-  cv.addEventListener('pointercancel', () => { G.boostHeld = false; });
+  // 松手监听挂 window 而非 canvas:手指/鼠标移出画布再松手,canvas 收不到
+  // pointerup,boost 会永久卡住。
+  window.addEventListener('pointerup',     () => { G.boostHeld = false; });
+  window.addEventListener('pointercancel', () => { G.boostHeld = false; });
   document.addEventListener('keydown', e => { if (e.key === ' ') { G.boostHeld = true; e.preventDefault(); } });
   document.addEventListener('keyup',   e => { if (e.key === ' ') G.boostHeld = false; });
 }
 
 async function boot() {
-  await Platform.hydrate([CFG.key('lang'), CFG.key('sfx')]);
-  restoreAudioPrefs();
-  Portal.boot();
-  await Ads.init();
-  I18N.onChange(() => { Controls.render(); renderAll(); });
-  await I18N.setLang(I18N.detect());
-  initCanvas();
-  const mf = await fetch('assets/angels/manifest.json').then(r => r.json());
-  G.imgList = mf.images;
-  G.run = Core.createGame({ seed: G.seed });
-  G.cyc = AI.buildCycle(G.run.cols, G.run.rows);
-  G.aiMem = AI.createMem();
-  await loadImage();
-  initLayers(G.img);
-  Input.bind({
-    liveSwipe: true,
-    onAction: dispatch,
-    onSwipe: d => { if (!G.ai && G.phase === 'PLAYING') Core.setDir(G.run, d); },
-    canSwipe: () => G.phase === 'PLAYING',
-  });
-  bindBoost();
-  document.addEventListener('visibilitychange', () => { if (document.hidden) dispatch('PAUSE'); });
-  window.addEventListener('resize', () => { initCanvas(); if (G.run) initLayers(G.img); renderAll(); });
-  Controls.render();
-  G.phase = 'PLAYING';
-  requestAnimationFrame(frame);
+  try {
+    await Platform.hydrate([CFG.key('lang'), CFG.key('sfx')]);
+    restoreAudioPrefs();
+    Portal.boot();
+    await Ads.init();
+    I18N.onChange(() => { Controls.render(); renderAll(); });
+    await I18N.setLang(I18N.detect());
+    initCanvas();
+    const mf = await fetch('assets/angels/manifest.json').then(r => r.json());
+    G.imgList = mf.images;
+    G.run = Core.createGame({ seed: G.seed });
+    G.cyc = AI.buildCycle(G.run.cols, G.run.rows);
+    G.aiMem = AI.createMem();
+    await loadImage();
+    initLayers(G.img);
+    Input.bind({
+      liveSwipe: true,
+      onAction: dispatch,
+      onSwipe: d => { if (!G.ai && G.phase === 'PLAYING') Core.setDir(G.run, d); },
+      canSwipe: () => G.phase === 'PLAYING',
+    });
+    bindBoost();
+    document.addEventListener('visibilitychange', () => { if (document.hidden) dispatch('PAUSE'); });
+    window.addEventListener('resize', () => { initCanvas(); if (G.run) initLayers(G.img); renderAll(); });
+    Controls.render();
+    G.phase = 'PLAYING';
+    requestAnimationFrame(frame);
+  } catch (err) {
+    // boot 任何异常(manifest fetch 失败等)不许静默白屏:能画就画到屏幕上
+    console.error('snake boot failed:', err);
+    if (typeof ctx !== 'undefined' && ctx) {
+      ctx.fillStyle = '#7a5c72';
+      ctx.font = '16px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('Load failed: ' + err.message,
+        (GameGlobal.SW || window.innerWidth) / 2, (GameGlobal.SH || window.innerHeight) / 2);
+    }
+  }
 }
 
 boot();
