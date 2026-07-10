@@ -19,6 +19,10 @@ for (let i = all.length - 1; i > 0; i--) {
 }
 const picked = all.slice(0, count).sort();
 fs.mkdirSync(DST, { recursive: true });
+// 重跑前清空旧素材,防不同参数重抽后残留孤儿文件
+fs.readdirSync(DST)
+  .filter(f => f.endsWith('.webp') || f === 'manifest.json')
+  .forEach(f => fs.unlinkSync(path.join(DST, f)));
 for (const f of picked) fs.copyFileSync(path.join(SRC, f), path.join(DST, f));
 fs.writeFileSync(path.join(DST, 'manifest.json'),
   JSON.stringify({ v: 1, images: picked }, null, 1));
