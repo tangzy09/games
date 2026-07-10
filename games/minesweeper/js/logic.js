@@ -108,6 +108,26 @@ function collect(i) {
 
 function heal(n) { G.hp = Math.min(G.maxHp, G.hp + n); }
 
+// Numbers are dynamic (they drop when monsters die). Whenever a revealed cell's
+// number reaches 0, its safe neighbors auto-open — the satisfying "ripple" after
+// a kill, and it keeps the invariant "0-cell ⇒ all safe neighbors revealed".
+function expandZeros() {
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (let i = 0; i < G.grid.length; i++) {
+      const cell = G.grid[i];
+      if (!cell.rev || cell.t !== 'empty') continue;
+      if (cell.mon && !cell.dead) continue;
+      if (cellNumber(i) !== 0) continue;
+      for (const n of neighbors(i)) {
+        const nb = G.grid[n];
+        if (!nb.rev && !nb.mon) { reveal(n); changed = true; }
+      }
+    }
+  }
+}
+
 // ── combat ──
 function fight(i) {
   const cell = G.grid[i];
@@ -123,7 +143,8 @@ function fight(i) {
     G.level++; G.maxHp++; G.hp = G.maxHp;
     G.pendingFloat = { key: 'float.levelUp', params: { n: G.level } };
   }
-  if (MONSTERS[id].boss) { G.phase = 'WIN'; G.souls += 20; }
+  if (MONSTERS[id].boss) { G.phase = 'WIN'; G.souls += 20; return; }
+  expandZeros(); // kill may drop nearby numbers to 0 → ripple open
 }
 
 // ── run / floor flow ──

@@ -11,7 +11,9 @@ const MONSTERS = {
   skel:   { power: 3,  icon: '💀' },
   mimic:  { power: 4,  icon: '🎁', looksLike: 'coin' }, // shows as coin until revealed
   ghost:  { power: 5,  icon: '👻', phantom: true },
-  dragon: { power: 13, icon: '🐉', boss: true },
+  // boss power must stay below what a full-clear run can reach in maxHp
+  // (full clear ≈ level 4-5 → 8-9 maxHp, +2 with 'tough'): 8 = winnable but tense.
+  dragon: { power: 8, icon: '🐉', boss: true },
 };
 
 // Floor layouts. counts = how many of each monster to place.

@@ -86,8 +86,9 @@ function ok(name, cond) { cond ? pass++ : (fail++, console.log(`❌ ${name}`)); 
   eq('gold from kill', c.G.gold, 3);
   eq('souls from kill', c.G.souls, 3);
 
+  // kill ripple (expandZeros) already revealed the rest of the 2x2 — reset cell 1
   c.G.hp = 2;
-  c.G.grid[1].mon = 'ghost'; // power 5 > hp
+  c.G.grid[1].rev = false; c.G.grid[1].mon = 'ghost'; c.G.grid[1].dead = false; // power 5 > hp
   vm.runInContext('reveal(1)', c);
   eq('death → LOSE', c.G.phase, 'LOSE');
   eq('hp floored at 0', c.G.hp, 0);
@@ -106,7 +107,7 @@ function ok(name, cond) { cond ? pass++ : (fail++, console.log(`❌ ${name}`)); 
   eq('weaken damage 2', c.G.hp, 7);
 
   c.G.relics = ['greed']; c.G.gold = 0;
-  c.G.grid[2].t = 'coin';
+  c.G.grid[2].rev = false; c.G.grid[2].t = 'coin'; // kill ripple had revealed it — reset
   vm.runInContext('reveal(2)', c);
   eq('greed double gold', c.G.gold, 4);
 
