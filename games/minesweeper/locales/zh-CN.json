@@ -17,7 +17,9 @@
     "codex": "萌物图鉴"
   },
   "ui": {
-    "levelUp": "升级！"
+    "levelUp": "升级！",
+    "markTitle": "把这格标记为…",
+    "clearMark": "清除"
   },
   "codex": {
     "title": "萌物图鉴",

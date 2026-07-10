@@ -117,6 +117,7 @@ function dispatch(action, data) {
       break;
     case 'CELL': {
       if (G.phase !== 'PLAYING') break;
+      if (G.markMenu != null) { G.markMenu = null; break; }
       const revBefore = G.revealCount, hpBefore = G.hp;
       const deadBefore = G.grid.filter(x => x.defeated).length;
       clickCell(data.i);
@@ -150,6 +151,18 @@ function dispatch(action, data) {
     case 'GO_HOME': G.phase = 'HOME'; G.overlay = null; G.reviewMode = false; break;
     case 'OPEN_CODEX': G.overlay = 'codex'; G.codexPage = 0; break;
     case 'CODEX_PAGE': G.codexPage = (G.codexPage || 0) + data.d; break;
+    case 'MARK_MENU': { // long-press a hidden tile → mark picker
+      if (G.phase !== 'PLAYING') break;
+      const cell = G.grid[data.i];
+      G.markMenu = (cell && !cell.rev) ? data.i : null;
+      break;
+    }
+    case 'SET_MARK': {
+      if (G.markMenu != null && G.grid[G.markMenu]) G.grid[G.markMenu].mark = data.m || null;
+      G.markMenu = null;
+      break;
+    }
+    case 'MARK_CLOSE': G.markMenu = null; break;
     case 'CLOSE_OVERLAY': G.overlay = null; break;
     default: break;
   }
@@ -170,7 +183,7 @@ async function boot() {
   await I18N.setLang(I18N.detect());
   initCanvas();
   loadRun();
-  Input.bind({ onAction: dispatch });
+  Input.bind({ onAction: dispatch, onLongPress: (action, data) => { if (action === 'CELL') dispatch('MARK_MENU', data); } });
   window.addEventListener('resize', () => { initCanvas(); renderAll(); });
   Controls.render();
   flushFloat();

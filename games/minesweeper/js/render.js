@@ -61,7 +61,11 @@ function drawGrid(L) {
     const c = G.grid[i];
     if (!c.rev) {
       fillRR(x, y, ts, ts, rad, C.tile);
-      strokeRR(x, y, ts, ts, rad, C.tileEdge);
+      strokeRR(x, y, ts, ts, rad, G.markMenu === i ? '#f5b301' : C.tileEdge, G.markMenu === i ? 2.5 : 1);
+      if (c.mark) { // player's pencil note: dark ink on the tile back
+        fillRR(x + 3, y + 3, ts - 6, ts - 6, rad * 0.7, 'rgba(107,83,64,0.14)');
+        txt(c.mark === 'bomb' ? '💣' : c.mark, x + ts / 2, y + ts / 2, '#6b5340', `bold ${Math.round(ts * 0.5)}px sans-serif`);
+      }
       addHit(x, y, ts, ts, 'CELL', { i });
       continue;
     }
@@ -216,6 +220,31 @@ function drawEnd(win) {
   addHit(SW / 2 - 96, y, 192, 38, 'GO_HOME', {});
 }
 
+// mark picker: appears after long-pressing a hidden tile
+function drawMarkMenu(L) {
+  if (G.markMenu == null || G.phase !== 'PLAYING') return;
+  const { SW, SH } = GameGlobal;
+  const opts = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '13', 'bomb', '?'];
+  const cols = 6, bw2 = 52, bh2 = 46, gap = 8;
+  const menuW = cols * bw2 + (cols - 1) * gap;
+  const x0 = (SW - menuW) / 2, y0 = SH - 190;
+  fillRR(x0 - 14, y0 - 34, menuW + 28, 2 * bh2 + gap + 92, 18, 'rgba(80,55,35,0.96)');
+  txt(T('ui.markTitle'), SW / 2, y0 - 16, '#ffe0b8', 'bold 13px sans-serif');
+  opts.forEach((m, k) => {
+    const x = x0 + (k % cols) * (bw2 + gap), y = y0 + Math.floor(k / cols) * (bh2 + gap);
+    fillRR(x, y, bw2, bh2, 12, 'rgba(255,250,240,0.95)');
+    txt(m === 'bomb' ? '💣' : m, x + bw2 / 2, y + bh2 / 2, '#6b5340', 'bold 18px sans-serif');
+    addHit(x, y, bw2, bh2, 'SET_MARK', { m });
+  });
+  const cy = y0 + 2 * (bh2 + gap) + 4;
+  fillRR(x0 - 2, cy, menuW / 2 - 4, 36, 18, 'rgba(255,255,255,0.22)');
+  txt(T('ui.clearMark'), x0 - 2 + (menuW / 2 - 4) / 2, cy + 18, '#fff', 'bold 12px sans-serif');
+  addHit(x0 - 2, cy, menuW / 2 - 4, 36, 'SET_MARK', { m: null });
+  fillRR(x0 + menuW / 2 + 6, cy, menuW / 2 - 4, 36, 18, 'rgba(255,255,255,0.22)');
+  txt(T('tut.next'), x0 + menuW / 2 + 6 + (menuW / 2 - 4) / 2, cy + 18, '#fff', 'bold 12px sans-serif');
+  addHit(x0 + menuW / 2 + 6, cy, menuW / 2 - 4, 36, 'MARK_CLOSE', {});
+}
+
 function drawTut(L) {
   if (!G.tut || G.phase !== 'PLAYING') return;
   const { SW, SH } = GameGlobal;
@@ -258,6 +287,7 @@ function renderAll() {
   drawHud(L);
   if (G.grid.length) drawGrid(L);
   drawTut(L);
+  drawMarkMenu(L);
   if (G.overlay === 'codex') drawCodex();
   else if (G.phase === 'LOSE' && G.reviewMode) { // post-mortem: full board + bottom bar
     const y = SH - 62;

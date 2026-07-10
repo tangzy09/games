@@ -17,7 +17,9 @@
     "codex": "Critterpedia"
   },
   "ui": {
-    "levelUp": "Level up!"
+    "levelUp": "Level up!",
+    "markTitle": "Mark this tile as…",
+    "clearMark": "Clear"
   },
   "codex": {
     "title": "Critterpedia",
