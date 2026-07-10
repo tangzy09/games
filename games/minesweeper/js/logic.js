@@ -81,7 +81,7 @@ function genBoard() {
   const putItem = (i, id) => { setItem(G.grid[i], id); return i; };
 
   // dragon exactly at (6,4); sage on a random edge non-corner; jellies hug the sage
-  const dI = putMon(idx(6, 4), 'dragon');
+  const dI = putMon(idx(Math.floor(G.w / 2), Math.floor(G.h / 2) - 1), 'dragon'); // (6,4) on 13x10, centered on any board
   const edges = [];
   for (let x = 1; x < G.w - 1; x++) edges.push(idx(x, 0), idx(x, G.h - 1));
   for (let y = 1; y < G.h - 1; y++) edges.push(idx(0, y), idx(G.w - 1, y));
@@ -91,8 +91,9 @@ function genBoard() {
   {
     let placed = false;
     while (!placed) {
-      const y = Math.floor(G.rng() * G.h), off = 1 + Math.floor(G.rng() * 6);
-      const a = idx(6 - off, y), b = idx(6 + off, y);
+      const cx0 = Math.floor(G.w / 2);
+      const y = Math.floor(G.rng() * G.h), off = 1 + Math.floor(G.rng() * (cx0 - 1));
+      const a = idx(cx0 - off, y), b = idx(cx0 + off, y);
       if (isEmptyCell(G.grid[a]) && isEmptyCell(G.grid[b])) {
         putMon(a, 'giant', 'romeo'); putMon(b, 'giant', 'juliet'); placed = true;
       }
@@ -100,7 +101,8 @@ function genBoard() {
   }
   putMon(rand(freeIdx()), 'mineking');
   // guards: one per quadrant
-  const quads = [[0, 6, 0, 4], [7, 13, 0, 4], [7, 13, 5, 10], [0, 6, 5, 10]];
+  const mx = Math.floor(G.w / 2), my = Math.floor(G.h / 2) - 1;
+  const quads = [[0, mx, 0, my], [mx + 1, G.w, 0, my], [mx + 1, G.w, my + 1, G.h], [0, mx, my + 1, G.h]];
   quads.forEach(([x0, x1, y0, y1], q) => {
     const cells = [];
     for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) if (isEmptyCell(G.grid[idx(x, y)])) cells.push(idx(x, y));
