@@ -14,7 +14,8 @@
     "start": "Play",
     "daily": "Daily Dungeon",
     "dailyDone": "Daily done — back tomorrow",
-    "codex": "Critterpedia"
+    "codex": "Critterpedia",
+    "help": "How to play"
   },
   "ui": {
     "levelUp": "Level up!",
@@ -156,5 +157,43 @@
     "revive": "You got back up!",
     "resumed": "Run resumed",
     "adNoReward": "No reward — ad not completed"
+  },
+  "help": {
+    "title": "How to Play",
+    "p1t": "Goal & Controls",
+    "p1": [
+      "One board, one life. The 🐉 dragon is visible from the start — defeat it and tap its 👑 crown to win.",
+      "Tap a dark tile to flip it. Flipping a monster means fighting it instantly, so the numbers are your eyes.",
+      "Long-press (right-click on desktop) a dark tile to place a note mark, e.g. a monster level you deduced.",
+      "Closing the page is safe: your run auto-saves and resumes."
+    ],
+    "p2t": "Numbers & Combat",
+    "p2": [
+      "A number = total strength of ALL monsters in the 8 tiles around it. Two level-3s nearby → 6.",
+      "Corpses still count until collected — numbers drop when you pick them up, not when you kill.",
+      "Tapping a monster attacks it: you lose HP equal to its level. You must have STRICTLY more HP than its level — a tie kills you.",
+      "Tap a defeated monster again to collect its XP in gold.",
+      "💣 has strength 100: nearby numbers explode (103 = one bomb + 3 real). Unfightable — only the Boomfather's scroll defuses them.",
+      "? = the Peeper's fog: numbers within two tiles are hidden until you pop it."
+    ],
+    "p3t": "Leveling & Items",
+    "p3": [
+      "Fill the gold row, then press ⬆ Level up: full heal + higher max HP (even levels grow half a heart). Timing this is the core strategy.",
+      "💊 Medikit: tap for a full heal — wasted at full HP, save it for emergencies.",
+      "🎀 Chest: opens to a gem (+5 XP); 🧱 Wall: each dig costs 1 HP, three digs to break, can't dig at 1 HP.",
+      "🔮 The orb reveals a circle around it; ✨ the spell orb prefers to light up bomb country.",
+      "Boss drops are scrolls: Mouse King reveals all mousies, the Sage all croakies, the Boomfather defuses all bombs."
+    ],
+    "p4t": "Deduction & Badges",
+    "p4": [
+      "Red frames cost HP, green frames are pure gain — but beware the Boxer posing as a present (a gift that won't open isn't a gift).",
+      "Placement rules are reliable clues: the Boomfather is always in a corner; a Moobo always stands beside a chest (never straight above/below); one Doorman per quarter; the giant lovers face each other in one row.",
+      "The Snickerdoo always hops toward the nearest medikit — chase it to find medicine.",
+      "After falling, tap 'See the whole board' for a full post-mortem.",
+      "Four badges: 🧹 clear everything · 💞 spare the giant lovers · 🥚 keep the egg whole · 🕊️ harm no mousey."
+    ],
+    "next": "Next",
+    "prev": "Back",
+    "close": "Adventure!"
   }
 }

@@ -150,6 +150,8 @@ function dispatch(action, data) {
     case 'REVEAL_ALL': if (G.phase === 'LOSE') { G.reviewMode = true; G.grid.forEach(c => { c.rev = true; }); } break;
     case 'GO_HOME': G.phase = 'HOME'; G.overlay = null; G.reviewMode = false; break;
     case 'OPEN_CODEX': G.overlay = 'codex'; G.codexPage = 0; break;
+    case 'OPEN_HELP': G.overlay = 'help'; G.helpPage = 0; break;
+    case 'HELP_PAGE': G.helpPage = (G.helpPage || 0) + data.d; break;
     case 'CODEX_PAGE': G.codexPage = (G.codexPage || 0) + data.d; break;
     case 'MARK_MENU': { // long-press a hidden tile → mark picker
       if (G.phase !== 'PLAYING') break;

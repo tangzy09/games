@@ -220,10 +220,47 @@ function drawHome() {
   fillRR(SW / 2 - 96, dy, 192, 42, 21, can ? C.purple : 'rgba(180,140,232,0.3)');
   txt(can ? T('home.daily') : T('home.dailyDone'), SW / 2, dy + 21, '#fff', 'bold 13px sans-serif');
   if (can) addHit(SW / 2 - 96, dy, 192, 42, 'START_DAILY', {});
-  fillRR(SW / 2 - 96, dy + 52, 192, 38, 19, C.surface);
-  strokeRR(SW / 2 - 96, dy + 52, 192, 38, 19, C.border);
-  txt(`📖 ${T('home.codex')}`, SW / 2, dy + 71, C.text, 'bold 13px sans-serif');
-  addHit(SW / 2 - 96, dy + 52, 192, 38, 'OPEN_CODEX', {});
+  fillRR(SW / 2 - 96, dy + 52, 92, 38, 19, C.surface);
+  strokeRR(SW / 2 - 96, dy + 52, 92, 38, 19, C.border);
+  txt(`📖 ${T('home.codex')}`, SW / 2 - 50, dy + 71, C.text, 'bold 12px sans-serif');
+  addHit(SW / 2 - 96, dy + 52, 92, 38, 'OPEN_CODEX', {});
+  fillRR(SW / 2 + 4, dy + 52, 92, 38, 19, C.surface);
+  strokeRR(SW / 2 + 4, dy + 52, 92, 38, 19, C.border);
+  txt(`❓ ${T('home.help')}`, SW / 2 + 50, dy + 71, C.text, 'bold 12px sans-serif');
+  addHit(SW / 2 + 4, dy + 52, 92, 38, 'OPEN_HELP', {});
+}
+
+// how-to-play: paginated manual, big readable text (same pattern as the codex)
+function drawHelp() {
+  drawDim('rgba(80,55,35,0.97)');
+  const { SW, SH } = GameGlobal;
+  const page = G.helpPage || 0, pages = 4;
+  txt(T('help.title') + `  ·  ${T('help.p' + (page + 1) + 't')}`, SW / 2, 46, '#ffe0b8', 'bold 17px sans-serif');
+  const lines = I18N.get('help.p' + (page + 1)) || [];
+  let y = 84;
+  const w = SW - 44;
+  lines.forEach(par => {
+    ctx.font = '13px sans-serif';
+    txtL('•', 26, y, '#ffce7a', 'bold 13px sans-serif'); // bullet drawn separately: CJK wrap stays clean
+    const ls = wrapLines(par, w - 34, 6);
+    ls.forEach(ln => { txtL(ln, 42, y, '#ffe9c7', '13px sans-serif'); y += 19; });
+    y += 9;
+  });
+  const navY = Math.min(SH - 120, Math.max(y + 8, SH - 160));
+  if (page > 0) {
+    fillRR(24, navY, 96, 40, 20, 'rgba(255,255,255,0.25)');
+    txt('◀ ' + T('help.prev'), 24 + 48, navY + 20, '#fff', 'bold 12px sans-serif');
+    addHit(24, navY, 96, 40, 'HELP_PAGE', { d: -1 });
+  }
+  txt(`${page + 1} / ${pages}`, SW / 2, navY + 20, '#ffe0b8', 'bold 13px sans-serif');
+  if (page < pages - 1) {
+    fillRR(SW - 24 - 96, navY, 96, 40, 20, 'rgba(255,255,255,0.25)');
+    txt(T('help.next') + ' ▶', SW - 24 - 48, navY + 20, '#fff', 'bold 12px sans-serif');
+    addHit(SW - 24 - 96, navY, 96, 40, 'HELP_PAGE', { d: 1 });
+  }
+  fillRR(SW / 2 - 80, navY + 50, 160, 42, 21, C.accent);
+  txt(T('help.close'), SW / 2, navY + 71, '#fff', 'bold 14px sans-serif');
+  addHit(SW / 2 - 80, navY + 50, 160, 42, 'CLOSE_OVERLAY', {});
 }
 
 function drawCodex() {
@@ -357,6 +394,7 @@ function renderAll() {
   if (G.phase === 'HOME') {
     drawHome();
     if (G.overlay === 'codex') drawCodex();
+    else if (G.overlay === 'help') drawHelp();
     drawFloat();
     return;
   }
