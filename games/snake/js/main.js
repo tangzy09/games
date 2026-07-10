@@ -65,7 +65,13 @@ function dispatch(action) {
     case 'NEXT':
       // 防连点:先离开 LEVEL_DONE,二次点击时覆盖层不再渲染、hit 已不存在;
       // frame 对 LOADING 天然安全(非 PLAYING 早退),nextLevel 完成时进 READY。
-      if (G.phase === 'LEVEL_DONE') { G.imgFull = false; G.phase = 'LOADING'; nextLevel(); }
+      if (G.phase === 'LEVEL_DONE') {
+        G.imgFull = false; G.phase = 'LOADING';
+        G.save.stats.levelsSinceAd = (G.save.stats.levelsSinceAd || 0) + 1;
+        const wantAd = !G.ai && G.save.stats.levelsSinceAd >= 2;   // 每 2 关一插屏;AI 代打不弹(设计 §10)
+        (wantAd ? Ads.showInterstitial().then(() => { G.save.stats.levelsSinceAd = 0; persist(); })
+                : Promise.resolve()).finally(() => nextLevel());
+      }
       break;
     case 'SHARE':
       if (G.phase === 'LEVEL_DONE')

@@ -21,6 +21,7 @@ function defaults() {
       revives: 0, meteorsCaught: 0, ghostPassed: 0, setsDone: 0,
       playtimeMs: 0, langSwitched: 0, skinClears: {},
       distinctImgs: 0,                                // 不同图张数(=gallery.unlocked.length,img 族用)
+      levelsSinceAd: 0,                               // 距上次插屏的过关数(P3a,每 2 关一插屏)
       maxCombo: 0, maxLen: 0,                         // 历史纪录(AI 局不刷)
       lastPlayDay: '', streakDays: 0, dayClears: 0, dayClearsDate: '',
       day5Done: 0,

@@ -51,6 +51,9 @@ function memBackend() {
   assert.strictEqual(s2.stats.specials.gold, 7, 'specials 动态 key 保留');
   assert.strictEqual(s2.stats.specials.twin, 3);
   assert.strictEqual(s2.stats.skinClears.star, 2, 'skinClears 动态 key 保留');
+  s.stats.levelsSinceAd = 1;                          // 插屏计数 round-trip(P3a)
+  Storage.save(be, 'k', s);
+  assert.strictEqual(Storage.load(be, 'k').stats.levelsSinceAd, 1, 'levelsSinceAd 保留');
 }
 // --- 当局快照:序列化 core state → 恢复后逐字段一致且可继续 step ---
 {
