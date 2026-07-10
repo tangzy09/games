@@ -46,15 +46,16 @@ function drawHud(L) {
     ctx.globalAlpha = 1;
   }
   if (G.xp > need) txtL(`+${G.xp - need}`, goldX(need) + 4, by + 8, '#e8a13c', 'bold 10px sans-serif');
+  // right column: codex on top, level-up below — same size, neatly aligned
+  const btnW = 100, btnH = 32, btnX = SW - PAD - btnW - 8, btnMidX = btnX + btnW / 2;
+  fillRR(btnX, y + 8, btnW, btnH, 16, C.surface);
+  strokeRR(btnX, y + 8, btnW, btnH, 16, C.border);
+  txt(`📖 ${T('home.codex')}`, btnMidX, y + 8 + btnH / 2, C.text, 'bold 12px sans-serif');
+  addHit(btnX, y + 8, btnW, btnH, 'OPEN_CODEX', {});
   const can = canLevelUp();
-  fillRR(SW - PAD - 104, by - 6, 94, 30, 15, can ? C.xp : '#e8dcc9');
-  txt(`⬆ ${T('ui.levelUp')}`, SW - PAD - 57, by + 9, can ? '#fff' : C.muted, 'bold 12px sans-serif');
-  if (can) addHit(SW - PAD - 104, by - 6, 94, 30, 'LEVEL_UP', {});
-  // codex
-  fillRR(SW - PAD - 104, y + 58, 94, 22, 11, C.surface);
-  strokeRR(SW - PAD - 104, y + 58, 94, 22, 11, C.border);
-  txt(`📖 ${T('home.codex')}`, SW - PAD - 57, y + 69, C.text, 'bold 10px sans-serif');
-  addHit(SW - PAD - 104, y + 58, 94, 22, 'OPEN_CODEX', {});
+  fillRR(btnX, y + 46, btnW, btnH, 16, can ? C.xp : '#e8dcc9');
+  txt(`⬆ ${T('ui.levelUp')}`, btnMidX, y + 46 + btnH / 2, can ? '#fff' : C.muted, 'bold 12px sans-serif');
+  if (can) addHit(btnX, y + 46, btnW, btnH, 'LEVEL_UP', {});
 }
 
 function drawGrid(L) {
