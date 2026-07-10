@@ -81,11 +81,17 @@ function frame(ts) {
 
 function tick(nowMs) {
   G.nowMs = nowMs;
-  if (G.ai) Core.setDir(G.run, AI.nextMove(G.run, G.cyc, G.aiMem));
-  Core.step(G.run, { nowMs, scoreScale: G.ai ? 0.5 : 1 });
+  const run = G.run;
+  const before = { apples: run.stats.apples, milestones: run.milestones };
+  if (G.ai) Core.setDir(run, AI.nextMove(run, G.cyc, G.aiMem));
+  Core.step(run, { nowMs, scoreScale: G.ai ? 0.5 : 1 });
   syncRevealDiff();
-  if (G.run.levelJustDone) { G.phase = 'LEVEL_DONE'; revealAllMask(); return; }
-  if (G.run.dead) { G.phase = 'DEAD'; }
+  if (run.stats.apples > before.apples) Sfx.play('eat');
+  if (run.lastSpecialEaten) Sfx.play('special');
+  if (run.shieldJustUsed) { Sfx.play('shield'); Haptics.light(); }
+  if (run.milestones > before.milestones && !run.levelJustDone) Sfx.play('milestone');
+  if (run.levelJustDone) { Sfx.play('level'); G.phase = 'LEVEL_DONE'; revealAllMask(); return; }
+  if (run.dead) { Sfx.play('death'); Haptics.medium(); G.phase = 'DEAD'; }
 }
 
 async function boot() {
@@ -117,7 +123,12 @@ async function boot() {
     });
     document.addEventListener('visibilitychange', () => { if (document.hidden) dispatch('PAUSE'); });
     window.addEventListener('resize', () => { initCanvas(); if (G.run) initLayers(G.img); renderAll(); });
-    Controls.render();
+    Controls.render(
+      `<div class="ctl-btn" id="sfx-btn">${Sfx.on ? '🔊' : '🔇'}</div>`,
+      bar => {
+        const b = bar.querySelector('#sfx-btn');
+        if (b) b.onclick = () => { b.textContent = Sfx.toggle() ? '🔊' : '🔇'; };
+      });
     enterReady();
     requestAnimationFrame(frame);
   } catch (err) {
