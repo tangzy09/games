@@ -13,11 +13,14 @@ function defaults() {
     gallery: { unlocked: [], imgPos: 0 },            // unlocked: 图片文件名列表(P2c 消费)
     ach: { unlocked: [] },
     stats: {                                          // 累计计数(成就引擎消费)
+      // ⚠️ specials/skinClears 是「开放 map」(动态 key):默认值必须保持空对象 {},
+      //    merge 对空对象整体透传;塞了非空默认就会退回逐 key 递归、丢掉存档动态 key
       apples: 0, specials: {}, cellsRevealed: 0, steps: 0,
       deaths: 0, shieldSaves: 0, levelsCleared: 0, levelsStarted: 0,
       totalScore: 0, noDeathClears: 0, speedClears: 0, aiClears: 0,
       revives: 0, meteorsCaught: 0, ghostPassed: 0, setsDone: 0,
       playtimeMs: 0, langSwitched: 0, skinClears: {},
+      distinctImgs: 0,                                // 不同图张数(=gallery.unlocked.length,img 族用)
       maxCombo: 0, maxLen: 0,                         // 历史纪录(AI 局不刷)
       lastPlayDay: '', streakDays: 0, dayClears: 0, dayClearsDate: '',
       day5Done: 0,
@@ -29,8 +32,9 @@ function defaults() {
 // 保守合并:default 里有而 saved 缺 → 补;类型不符 → 用 default
 function merge(def, saved) {
   if (saved == null || typeof saved !== 'object') return def;
-  // 开放 map(defaults 里是空对象,如 specials/skinClears)整体透传——
-  // 否则「只遍历 default 的 key」会把已累计的动态 key 全部清掉(P2b 审查 Critical)
+  // ⚠️ 开放 map(specials/skinClears/…)整体透传——判据是「defaults 里是空对象」。
+  // 这些字段的默认值必须保持空对象;若未来给它塞非空默认,会退回下面的逐 key 递归、
+  // 重新丢掉存档里的动态 key(P2b 审查 Critical 复发)。新增开放 map 时也照此保持 {}。
   if (!Array.isArray(def) && Object.keys(def).length === 0)
     return (saved && typeof saved === 'object' && !Array.isArray(saved)) ? { ...saved } : def;
   const out = Array.isArray(def) ? saved : { ...def };

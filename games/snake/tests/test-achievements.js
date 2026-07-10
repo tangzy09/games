@@ -28,6 +28,18 @@ const Storage = require('../js/storage.js');
   s.stats.specials = { gold: 20 };
   assert(Ach.checkCum(s).unlocked.includes('f_gold_1'), 'specials.gold 点路径生效');
 }
+// --- img 族数「不同图张数」(distinctImgs),不跟通关次数走(重温不虚增) ---
+{
+  const s = Storage.defaults();
+  s.stats.levelsCleared = 500;                        // 哪怕重温刷了 500 次通关
+  assert.deepStrictEqual(Ach.checkCum(s).unlocked.filter(id => id.startsWith('img_')), [],
+    'levelsCleared 不驱动 img 族');
+  s.stats.distinctImgs = 5;                           // 收集 5 张不同图
+  const r = Ach.checkCum(s);
+  assert(r.unlocked.includes('img_1') && r.unlocked.includes('img_2'), 'distinctImgs 驱动 img 族');
+  assert(!r.unlocked.includes('img_3'), '10 张档未到');
+  assert.strictEqual(Ach.tierInfo('img_10').counter, 'distinctImgs', 'tierInfo 同步');
+}
 // --- 纪录类 AI 局不刷 ---
 {
   const s = Storage.defaults();

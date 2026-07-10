@@ -318,6 +318,7 @@ function tick(nowMs, interval) {
     G.save.stats.skinClears[th] = (G.save.stats.skinClears[th] || 0) + 1;
     Gallery.recordUnlock(G.save, G.imgList[G.imgPos % G.imgList.length]);
     Gallery.updateSetsDone(G.save, G.manifest);
+    G.save.stats.distinctImgs = G.save.gallery.unlocked.length;   // img 族数「不同图」,重温不虚增
     const r1 = Ach.onLevelClear(G.tracker, G.save, nowMs, { aiRun });
     newly = r1.unlocked;
   }

@@ -3,7 +3,9 @@
 
 // 累计成就:20 族 → 100 个(阈值与名字严格对应设计 §6.2)
 const FAMILIES = [
-  { id: 'img',    counter: 'levelsCleared', tiers: [1, 5, 10, 25, 50, 75, 100, 200, 350, 500] },
+  // img 族数「不同图张数」(gallery.unlocked.length,main 过关时同步)——
+  // 不能用 levelsCleared:重温同一张图会虚增,「天国全图鉴」语义是收集 500 张不同图
+  { id: 'img',    counter: 'distinctImgs',  tiers: [1, 5, 10, 25, 50, 75, 100, 200, 350, 500] },
   { id: 'set',    counter: 'setsDone',      tiers: [1, 3, 5, 10, 15, 25] },
   { id: 'games',  counter: 'levelsStarted', tiers: [10, 50, 100, 500, 1000] },
   { id: 'score',  counter: 'totalScore',    tiers: [10000, 100000, 500000, 1000000, 5000000] },
