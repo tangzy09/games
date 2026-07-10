@@ -150,6 +150,51 @@ function drawEnd(win) {
   addHit(SW / 2 - 100, SH * 0.55 + 58, 200, 38, 'GO_HOME', {});
 }
 
+// ── inline tutorial: highlight ring on the suggested cell + bottom banner ──
+function tutTarget(L) {
+  if (!G.tut) return null;
+  let i = -1;
+  if (G.tut.step === 1) {
+    // a safe unrevealed cell touching the revealed frontier
+    i = G.grid.findIndex((cell, k) => !cell.rev && !cell.mon &&
+      neighbors(k).some(n => G.grid[n].rev));
+  } else if (G.tut.step === 3) {
+    // the weakest unrevealed monster
+    let best = 99;
+    G.grid.forEach((cell, k) => {
+      if (!cell.rev && cell.mon && !cell.dead && monPower(cell.mon) < best) { best = monPower(cell.mon); i = k; }
+    });
+  }
+  if (i < 0) return null;
+  const s = G.size, GAP = 3, ts = (L.boardSize - GAP * (s - 1)) / s;
+  return { x: L.boardX + (i % s) * (ts + GAP), y: L.boardY + Math.floor(i / s) * (ts + GAP), ts };
+}
+
+function drawTut(L) {
+  if (!G.tut || G.phase !== 'PLAYING') return;
+  const { SW, SH } = GameGlobal;
+  const tg = tutTarget(L);
+  if (tg) {
+    strokeRR(tg.x - 3, tg.y - 3, tg.ts + 6, tg.ts + 6, 10, '#f5b301', 3);
+    strokeRR(tg.x - 7, tg.y - 7, tg.ts + 14, tg.ts + 14, 12, 'rgba(245,179,1,0.35)', 3);
+  }
+  // banner — skip link owns the top strip, body text starts below it
+  const bh = 104, by = SH - bh - 14, bx = 14, bw = SW - 28;
+  fillRR(bx, by, bw, bh, 14, 'rgba(40,30,20,0.92)');
+  strokeRR(bx, by, bw, bh, 14, '#f5b301');
+  ctx.font = '13px sans-serif';
+  const lines = wrapLines(T('tut.s' + G.tut.step), bw - 32, 3);
+  lines.forEach((ln, k) => txtL(ln, bx + 16, by + 32 + k * 17, '#ffe9c7', '13px sans-serif'));
+  const isInfo = G.tut.step === 2 || G.tut.step === 4;
+  if (isInfo) {
+    fillRR(bx + bw - 96, by + bh - 32, 84, 24, 12, '#f5b301');
+    txt(T('tut.next'), bx + bw - 54, by + bh - 20, '#3d2b00', 'bold 12px sans-serif');
+    addHit(bx + bw - 96, by + bh - 32, 84, 24, 'TUT_NEXT', {});
+  }
+  txtR(T('tut.skip'), bx + bw - 12, by + 14, 'rgba(255,233,199,0.55)', '10px sans-serif');
+  addHit(bx + bw - 110, by + 4, 100, 20, 'TUT_SKIP', {});
+}
+
 function drawFloat() {
   if (!G.floatMsg) return;
   const { SW, SH } = GameGlobal;
@@ -169,6 +214,7 @@ function renderAll() {
   drawHud(L);
   if (G.grid.length) drawGrid(L);
   drawRelicBar(L);
+  drawTut(L);
   if (G.phase === 'LEVEL_INTRO') drawIntro();
   else if (G.phase === 'PICK_RELIC') drawRelicPick();
   else if (G.phase === 'WIN') { drawEnd(true); return; }   // end screens own the frame:

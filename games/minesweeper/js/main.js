@@ -25,6 +25,23 @@ function settleRun() {
   Meta.save();
 }
 
+// Inline tutorial: 4 steps woven into floor 1 (never a separate level, never modal).
+// step 1: reveal a tile → 2: read numbers [next] → 3: step on a weak monster → 4: stairs/goal [done]
+const Tut = {
+  start() { if (Platform.storage.get(CFG.key('tut')) !== '1') G.tut = { step: 1 }; },
+  advance(revealedSomething, fought) {
+    if (!G.tut) return;
+    if (G.tut.step === 1 && revealedSomething) G.tut.step = fought ? 4 : 2;
+    else if (G.tut.step === 3 && fought) G.tut.step = 4;
+  },
+  next() {
+    if (!G.tut) return;
+    if (G.tut.step === 2) G.tut.step = 3;
+    else if (G.tut.step === 4) Tut.done();
+  },
+  done() { G.tut = null; Platform.storage.set(CFG.key('tut'), '1'); },
+};
+
 let floatTimer = null;
 function flushFloat() {
   if (!G.pendingFloat) return;
@@ -36,18 +53,23 @@ function flushFloat() {
 
 function dispatch(action, data) {
   switch (action) {
-    case 'START_RUN': G.settled = false; initRun(); break;
+    case 'START_RUN': G.settled = false; initRun(); Tut.start(); break;
     case 'ENTER_FLOOR': startFloor(); break;
     case 'CELL': {
       if (G.phase !== 'PLAYING') break;
-      const before = G.hp;
+      const before = G.hp, revBefore = G.revealCount;
+      const deadBefore = G.grid.filter(x => x.dead).length;
       clickCell(data.i);
       if (G.hp < before) Haptics.medium();
+      // level-up refills HP, so "fought" must come from the kill count, not HP delta
+      Tut.advance(G.revealCount > revBefore, G.grid.filter(x => x.dead).length > deadBefore);
       if (G.phase === 'LOSE') { Haptics.heavy(); settleRun(); }
       if (G.phase === 'WIN') settleRun();
       break;
     }
-    case 'PICK_RELIC': pickRelic(data.id); break;
+    case 'TUT_NEXT': Tut.next(); break;
+    case 'TUT_SKIP': Tut.done(); break;
+    case 'PICK_RELIC': if (G.tut) Tut.done(); pickRelic(data.id); break;
     case 'RESTART': G.settled = false; initRun(); startFloor(); break; // one tap → straight into a fresh floor
     case 'GO_HOME': G.phase = 'HOME'; break;
     default: break;

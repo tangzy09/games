@@ -20,6 +20,14 @@
     "scout":  { "name": "Spyglass",     "desc": "Each floor starts with an extra area revealed." },
     "vamp":   { "name": "Blood Fang",   "desc": "Killing a monster of strength 3+ heals 1 HP." }
   },
+  "tut": {
+    "s1": "Welcome to the dungeon. Tap the glowing dark tile to reveal it.",
+    "s2": "Numbers show the TOTAL strength of monsters in the 8 tiles around them (👻 ghosts don't count).",
+    "s3": "HP is a resource: step on the highlighted weak monster. You lose a little HP but gain XP and gold.",
+    "s4": "Leveling up fully heals you. Find the 🪜 stairs and click them to descend. Slay the dragon!",
+    "next": "Got it",
+    "skip": "Skip tutorial"
+  },
   "float": { "gold": "+{n} gold", "heal": "+{n} HP", "levelUp": "Level {n}! Fully healed" },
   "lose": { "title": "You fell…", "gap": "Only {n} floor(s) from the dragon" },
   "win": { "title": "Dragon slain!" },
