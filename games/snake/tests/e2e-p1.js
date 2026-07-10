@@ -36,10 +36,10 @@ async function main() {
   // 嵌套结构——扁平 key("snake.score": ...)查不到时 t() 原样返回 key,界面满屏 key 原文。
   // NB: dispatch/I18N/Controls 是顶层 const/function——只有 var/函数声明挂 window,
   // 在 evaluate() 里用裸名调用;window.G 能用是因为 main.js 特意声明 var G。
-  const i18nProbe = await page.evaluate(() => ({ score: I18N.t('snake.score'), ai: I18N.t('snake.ai'), start: I18N.t('snake.start') }));
+  const i18nProbe = await page.evaluate(() => ({ score: I18N.t('snake.score'), ai: I18N.t('snake.ai'), hint: I18N.t('snake.hintStart') }));
   assert(i18nProbe.score !== 'snake.score', `I18N.t('snake.score') resolves to a translation (got "${i18nProbe.score}")`);
   assert(i18nProbe.ai.includes('AI'), `I18N.t('snake.ai') includes "AI" (got "${i18nProbe.ai}")`);
-  assert(i18nProbe.start !== 'snake.start', `I18N.t('snake.start') resolves to a translation (got "${i18nProbe.start}")`);
+  assert(i18nProbe.hint !== 'snake.hintStart', `I18N.t('snake.hintStart') resolves to a translation (got "${i18nProbe.hint}")`);
 
   // READY 待机:蛇不动,START 后才开跑
   await page.evaluate(() => dispatch('START'));
@@ -83,6 +83,13 @@ async function main() {
   assert(reachedLevelDone, `AI reached LEVEL_DONE within ${timeoutMs / 1000}s (took ${elapsedSec}s)`);
   assert(deathsDuring === deathsAtAiStart, `deaths unchanged across AI clear run (${deathsAtAiStart} -> ${deathsDuring})`);
   log(`AI cleared level in ${elapsedSec}s, deaths stayed at ${deathsDuring}`);
+
+  // 过关图片全屏欣赏:点图放大,再点收回
+  await page.evaluate(() => dispatch('IMG_FULL'));
+  assert(await page.evaluate(() => window.G.imgFull) === true, 'IMG_FULL enters fullscreen view');
+  await page.screenshot({ path: path.join(SHOT_DIR, 'e2e-img-full.png') });
+  await page.evaluate(() => dispatch('IMG_CLOSE'));
+  assert(await page.evaluate(() => window.G.imgFull) === false, 'IMG_CLOSE restores overlay');
 
   await page.evaluate(() => dispatch('NEXT'));
   // NEXT 先过 LOADING(防连点守卫)→ READY → AI 开着会自动 START 回 PLAYING——轮询等待

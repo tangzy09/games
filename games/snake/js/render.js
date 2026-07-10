@@ -69,13 +69,26 @@ function renderAll() {
   drawHud(safeTop);
   drawBoardArea();
   drawButtons();
-  if (G.phase === 'READY') drawOverlay(T('snake.ready'), '', T('snake.start'), 'START', false);
-  else if (G.phase === 'PAUSED') drawOverlay(T('snake.paused'), '', T('snake.resume'), 'RESUME', false);
+  if (G.phase === 'READY') drawHint(T('snake.hintStart'));
+  else if (G.phase === 'PAUSED') drawOverlay(T('snake.paused'), T('snake.hintResume'), T('snake.resume'), 'RESUME', false);
   else if (G.phase === 'DEAD') {
     const from = G.run.snake.length, to = Math.max(3, Math.floor(from / 2));
     drawOverlay(T('snake.dead'), T('snake.deadHint', { from, to }), T('snake.respawn'), 'RESPAWN', false);
-  } else if (G.phase === 'LEVEL_DONE')
-    drawOverlay(T('snake.levelDone', { n: G.run.level - 1 }), T('snake.scoreVal', { n: G.run.score }), T('snake.next'), 'NEXT', true);
+  } else if (G.phase === 'LEVEL_DONE') {
+    if (G.imgFull) drawImgFull();
+    else drawOverlay(T('snake.levelDone', { n: G.run.level - 1 }), T('snake.scoreVal', { n: G.run.score }), T('snake.next'), 'NEXT', true);
+  }
+}
+
+// 过关图片全屏欣赏:点图放大,再点任意处收回
+function drawImgFull() {
+  const { SW, SH } = GameGlobal;
+  drawDim('rgba(50,35,48,0.92)');
+  if (G.img) {
+    const size = Math.min(SW, SH) - 16;
+    ctx.drawImage(G.img, (SW - size) / 2, (SH - size) / 2, size, size);
+  }
+  addHit(0, 0, SW, SH, 'IMG_CLOSE', {});
 }
 
 function drawHud(safeTop) {
@@ -156,6 +169,17 @@ function drawButtons() {
   addHit(a.x, a.y, a.w, a.h, 'AI_TOGGLE', {});
 }
 
+// 非模态提示条(READY 用):不遮盘面、无按钮,任何方向输入即开始
+function drawHint(text) {
+  const { SW } = GameGlobal;
+  const y = Layout.by + Layout.bsize / 2;
+  const w = Math.min(SW * 0.8, 320);
+  ctx.globalAlpha = 0.92;
+  fillRR((SW - w) / 2, y - 24, w, 48, 24, PAL.card);
+  ctx.globalAlpha = 1;
+  txt(text, SW / 2, y, PAL.text, 'bold 15px sans-serif');
+}
+
 function drawOverlay(title, sub, btnLabel, action, showImg) {
   const { SW, SH } = GameGlobal;
   drawDim('rgba(122,92,114,0.45)');
@@ -168,6 +192,7 @@ function drawOverlay(title, sub, btnLabel, action, showImg) {
   if (showImg && G.img) {
     const iw = cw - 44;
     ctx.drawImage(G.img, cx + 22, cy + 52, iw, iw);
+    addHit(cx + 22, cy + 52, iw, iw, 'IMG_FULL', {});   // 点图全屏欣赏
     by = cy + 52 + iw + 24;
   }
   if (sub) { txt(sub, cx + cw / 2, by, PAL.text, '14px sans-serif'); by += 30; }

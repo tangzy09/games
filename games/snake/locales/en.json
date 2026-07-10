@@ -3,8 +3,8 @@
   "ads": { "simWatch": "[Ad simulation] Watch a rewarded ad?", "simInterstitial": "[Ad simulation] Interstitial ad" },
   "snake": {
     "score": "Score",
-    "ready": "Ready?",
-    "start": "Start!",
+    "hintStart": "Swipe or press an arrow key to start",
+    "hintResume": "or swipe / arrow key to resume",
     "combo": "×{n}",
     "pause": "⏸",
     "paused": "Paused",

@@ -6,6 +6,8 @@ var G = {
   run: null, cyc: null, aiMem: null,
   ai: false,
   img: null, imgList: [], imgPos: 0,
+  imgFull: false,          // LEVEL_DONE 时点图全屏欣赏中
+
   seed: (Date.now() % 2147483647),
 };
 const loopState = { last: 0, acc: 0 };
@@ -23,8 +25,10 @@ function dispatch(action) {
     case 'NEXT':
       // 防连点:先离开 LEVEL_DONE,二次点击时覆盖层不再渲染、hit 已不存在;
       // frame 对 LOADING 天然安全(非 PLAYING 早退),nextLevel 完成时进 READY。
-      if (G.phase === 'LEVEL_DONE') { G.phase = 'LOADING'; nextLevel(); }
+      if (G.phase === 'LEVEL_DONE') { G.imgFull = false; G.phase = 'LOADING'; nextLevel(); }
       break;
+    case 'IMG_FULL':  if (G.phase === 'LEVEL_DONE') G.imgFull = true; break;
+    case 'IMG_CLOSE': G.imgFull = false; break;
     default: break;
   }
   renderAll();
@@ -100,12 +104,13 @@ async function boot() {
     Input.bind({
       liveSwipe: true,
       onAction: dispatch,
-      // READY 时按方向键/滑动即开始(桌面友好),开始后立即应用该方向
+      // READY/PAUSED 时任何方向输入即开始/继续(不用点按钮),并立即应用该方向
       onSwipe: d => {
         if (G.phase === 'READY') dispatch('START');
+        else if (G.phase === 'PAUSED') dispatch('RESUME');
         if (!G.ai && G.phase === 'PLAYING') Core.setDir(G.run, d);
       },
-      canSwipe: () => G.phase === 'PLAYING' || G.phase === 'READY',
+      canSwipe: () => G.phase === 'PLAYING' || G.phase === 'READY' || G.phase === 'PAUSED',
     });
     document.addEventListener('visibilitychange', () => { if (document.hidden) dispatch('PAUSE'); });
     window.addEventListener('resize', () => { initCanvas(); if (G.run) initLayers(G.img); renderAll(); });
