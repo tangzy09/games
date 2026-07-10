@@ -146,7 +146,11 @@ function eatAt(s, x, y, now, o) {
 }
 
 function gainApple(s, now, o, demonX) {
-  s.targetLen++; s.stats.apples++;
+  // 蛇长几何上限:棋盘容量 - 8(留果子刷新空间;10 万步长跑发现的真死因——
+  // targetLen 一旦 > 棋盘格数,grow 恒真、尾巴永不让位,蛇填满棋盘后四向皆死,
+  // 护盾也救不了。封顶后吃苹果只得分不再增长。上限低于初始 3 时取 3(小棋盘)。
+  s.targetLen = Math.min(s.targetLen + 1, Math.max(3, s.cols * s.rows - 8));
+  s.stats.apples++;
   if (!o.freezeCombo && now - s.lastEatMs <= COMBO_WINDOW_MS) s.combo++;
   s.lastEatMs = now;
   s.score += Math.round(10 * (1 + 0.1 * s.combo) * demonX * (o.scoreScale || 1));
@@ -164,13 +168,14 @@ function onAppleEaten(s, now) {
   s.nextSpecialAt = 4 + Math.floor(s.rand() * 3);
 }
 
-// 权重选型:前期偏得分,后期(揭图>60% 或蛇>30% 棋盘)偏生存/揭图;稀有果类内打折
+// 权重选型:前期偏得分,后期(揭图>60% 或蛇>30% 棋盘)偏生存/揭图;
+// 稀有果类内按数值系数打折(rare: 0.35 稀有 / 0.12 极稀有,省略 = 1)
 function pickSpecialType(s) {
   const late = s.revealedCount / (s.cols * s.rows) > 0.6
             || s.snake.length > s.cols * s.rows * 0.3;
   const w = late ? FR_.CAT_WEIGHTS.late : FR_.CAT_WEIGHTS.early;
   const entries = Object.entries(FR_.FRUITS).map(([type, def]) =>
-    [type, w[def.cat] * (def.rare ? FR_.RARE_FACTOR : 1)]);
+    [type, w[def.cat] * (def.rare || 1)]);
   let total = 0; for (const [, wt] of entries) total += wt;
   let r = s.rand() * total;
   for (const [type, wt] of entries) { r -= wt; if (r <= 0) return type; }
@@ -183,9 +188,9 @@ function applyFruit(s, type, now, o) {
     case 'twin':
       for (let i = 0; i < 2; i++) { const c = randomFreeCell(s); if (c) s.extraApples.push(c); }
       break;
-    case 'gold':
+    case 'gold':   // 恶魔期 ×2,与苹果/流星的 demonX 语义一致
       s.combo += 2;
-      s.score += Math.round(50 * (o.scoreScale || 1));
+      s.score += Math.round(50 * (now < fx.demonUntil ? 2 : 1) * (o.scoreScale || 1));
       break;
     case 'demon':  fx.demonUntil = now + T.demon; break;
     case 'meteor': spawnMeteor(s, now); break;
@@ -306,6 +311,6 @@ function respawn(s) {
   revealCell(s, best.x, best.y);
 }
 
-const Core = { createGame, setDir, step, respawn, applyFruit,
+const Core = { createGame, setDir, step, respawn, applyFruit, pickSpecialType,
                DIRS: SNAKE_DIRS, COMBO_WINDOW_MS };
 if (typeof module !== 'undefined' && module.exports) module.exports = Core;

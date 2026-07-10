@@ -225,3 +225,68 @@ console.log('OK test-fruits(八效果)');
   assert.strictEqual(g2.apple.x, h2.x + 5, '目标被特殊果占用,苹果原地不动(或走纵轴——y 相同故不动)');
 }
 console.log('OK test-fruits(流星/磁力)');
+
+// --- 稀有两档:gold(0.12 极稀有)显著稀于 meteor(0.35 稀有)——同类同基础权重,仅系数不同 ---
+{
+  const g = Core.createGame({ seed: 17 });
+  const counts = {};
+  for (let i = 0; i < 1000; i++) {
+    const t = Core.pickSpecialType(g);
+    counts[t] = (counts[t] || 0) + 1;
+  }
+  assert(counts.gold > 0 && counts.meteor > 0,
+    `两种稀有果都能出现(gold=${counts.gold}, meteor=${counts.meteor})`);
+  assert(counts.gold < counts.meteor * 0.6,
+    `gold 显著稀于 meteor(gold=${counts.gold}, meteor=${counts.meteor},期望比≈0.34)`);
+  console.log(`  稀有度抽样 1000 次:gold=${counts.gold}, meteor=${counts.meteor}`);
+}
+
+// --- 恶魔期金苹果也 ×2(与苹果/流星 demonX 同语义) ---
+{
+  const g = Core.createGame({ seed: 18 });
+  Core.applyFruit(g, 'demon', 1000, {});
+  const sc = g.score;
+  Core.applyFruit(g, 'gold', 1100, {});   // 恶魔生效期内
+  assert.strictEqual(g.score, sc + 100, '恶魔期金苹果 50×2=100');
+  const g2 = Core.createGame({ seed: 18 });
+  Core.applyFruit(g2, 'gold', 1100, {});  // 无恶魔对照
+  assert.strictEqual(g2.score, 50, '非恶魔期金苹果 +50');
+}
+
+// --- 光环到期宽限:到期时头仍与身体重叠,走向空格不死(宽限至脱离);走向身体格死 ---
+{
+  const g = Core.createGame({ seed: 16 });
+  g.apple = { x: 0, y: 0 };               // 挪开苹果防路径干扰
+  g.targetLen = 6;
+  for (let i = 0; i < 6; i++) Core.step(g, { nowMs: 1000 + i });   // 直行养长,头 (9,8)
+  Core.setDir(g, 'down'); Core.step(g, { nowMs: 2000 });           // (9,9)
+  Core.setDir(g, 'left'); Core.step(g, { nowMs: 2001 });           // (8,9)
+  Core.applyFruit(g, 'halo', 2002, {});
+  Core.setDir(g, 'up');   Core.step(g, { nowMs: 2002 });           // (8,8)——幽灵穿进身体,头与身体重叠
+  assert(!g.dead, 'sanity: 光环期穿身');
+  const expired = 2002 + Fruits.FRUIT_TIMES.halo + 1;
+  Core.step(g, { nowMs: expired });        // 已到期,头仍重叠,向上走空格 (8,7)
+  assert(!g.dead, '光环到期后头与身体重叠,走向空格不死(宽限至脱离——碰撞只判新格)');
+  Core.setDir(g, 'left');  Core.step(g, { nowMs: expired + 1 });   // (7,7) 空格
+  Core.setDir(g, 'down');  Core.step(g, { nowMs: expired + 2 });   // (7,8) 空格
+  assert(!g.dead, 'sanity: 绕行两步仍活');
+  Core.setDir(g, 'right'); Core.step(g, { nowMs: expired + 3 });   // (8,8) 身体格
+  assert(g.dead, '光环过期后撞身应死');
+}
+console.log('OK test-fruits(稀有两档/恶魔gold/光环宽限)');
+
+// --- 蛇长几何上限:targetLen 封顶在 棋盘容量-8,封顶后吃苹果只得分不增长 ---
+// (10 万步长跑发现的真死因:targetLen 超棋盘格数 → grow 恒真 → 蛇填满棋盘四向皆死)
+{
+  const g = Core.createGame({ seed: 19 });
+  const cap = g.cols * g.rows - 8;        // 16×16 → 248
+  g.targetLen = cap;
+  const d = Core.DIRS[g.nextDir], h = g.snake[0];
+  g.apple = { x: h.x + d.x, y: h.y + d.y };
+  const sc = g.score, ap = g.stats.apples;
+  Core.step(g, { nowMs: 1000 });          // 封顶状态下吃苹果
+  assert.strictEqual(g.targetLen, cap, `targetLen 封顶 ${cap} 不再增长`);
+  assert.strictEqual(g.stats.apples, ap + 1, '苹果计数照常');
+  assert(g.score > sc, '得分照常');
+}
+console.log('OK test-fruits(蛇长上限)');

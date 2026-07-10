@@ -124,3 +124,21 @@ console.log('OK test-ai(180°防御)');
   assert.strictEqual(mv, 'right', `半包围局面必须选追得到尾巴的 'right',实际 ${mv}`);
 }
 console.log('OK test-ai(BFS追尾兜底)');
+
+{
+  // --- 10 万步长跑(规格 §12「连打 10 万步」):单种子连续跑满,过关自动继续,死亡即 fail ---
+  const g = Core.createGame({ seed: 42 });
+  const mem = AI.createMem();
+  let levels = 0;
+  const t0 = Date.now();
+  for (let i = 1; i <= 100000; i++) {
+    Core.setDir(g, AI.nextMove(g, cyc, mem));
+    Core.step(g);
+    if (g.dead) assert(false, `长跑第 ${i} 步死亡(已通 ${levels} 关)`);
+    if (g.levelJustDone) levels++;
+  }
+  const sec = ((Date.now() - t0) / 1000).toFixed(1);
+  assert(levels >= 10, `10 万步至少通 10 关(实际 ${levels})`);
+  console.log(`  长跑 100000 步零死亡,通关 ${levels} 次,用时 ${sec}s`);
+}
+console.log('OK test-ai(10万步长跑)');
