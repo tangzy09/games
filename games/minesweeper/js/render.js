@@ -1,376 +1,210 @@
 // ════════════════════════════════════════
-// render.js — immediate-mode canvas renderer. Pure function of G.
+// render.js — v2 cute pastel renderer. Pure function of G.
 // ════════════════════════════════════════
 
-const NUM_COLORS = { 1:'#2b7de9', 2:'#2f9e44', 3:'#e8590c', 4:'#9c36b5', 5:'#c92a2a', 6:'#0b7285' };
+const NUM_COLORS = { 1:'#5b9bd5', 2:'#66b98a', 3:'#e8a13c', 4:'#c77bc2', 5:'#e2726e', 6:'#5ec3c9', 7:'#9b8cf0', 8:'#e88bb0', 9:'#8a9a5b' };
 const C = {
-  bg: '#f2ede4', surface: '#ffffff', border: '#d8cfc0', text: '#3d3529', muted: '#8a7f6d',
-  tile: '#b8a888', tileEdge: '#a29372', open: '#efe9dd',
-  accent: '#c9552e', gold: '#c9922e', hp: '#c92a2a', xp: '#2f9e44', purple: '#9c36b5',
+  bg: '#fdf3e7', surface: '#fffdf9', border: '#ecd9c0', text: '#6b5340', muted: '#b09a83',
+  tile: '#ffd9b8', tileEdge: '#f0b98c', open: '#fbf0df',
+  accent: '#ff8fab', hp: '#ff6b81', xp: '#7cc98f', gold: '#e8a13c', purple: '#b48ce8',
 };
 
 function layout() {
-  const SW = GameGlobal.SW, SH = GameGlobal.SH, PAD = 14;
-  const hudY = GameGlobal.safeTop + 8, hudH = 74;
-  const itemH = 50, relicH = 30;
-  const availH = SH - hudY - hudH - itemH - relicH - PAD * 4;
-  const bs = Math.min(SW - PAD * 2, availH);
-  const boardY = hudY + hudH + PAD;
-  const itemY = boardY + bs + PAD;
-  return { SW, SH, PAD, hudY, hudH, boardX: (SW - bs) / 2, boardY, boardSize: bs, itemY, itemH, relicY: itemY + itemH + PAD };
+  const SW = GameGlobal.SW, SH = GameGlobal.SH, PAD = 10;
+  const hudY = GameGlobal.safeTop + 6, hudH = 66;
+  const barH = 44;
+  const availH = SH - hudY - hudH - barH - PAD * 3;
+  const GAP = 2;
+  const ts = Math.min((SW - PAD * 2 - GAP * (G.w - 1)) / G.w, (availH - GAP * (G.h - 1)) / G.h);
+  const bw = ts * G.w + GAP * (G.w - 1), bh = ts * G.h + GAP * (G.h - 1);
+  return { SW, SH, PAD, hudY, hudH, GAP, ts, boardX: (SW - bw) / 2, boardY: hudY + hudH + PAD, barY: hudY + hudH + PAD * 2 + bh };
 }
 
 function drawHud(L) {
   const { PAD, SW, hudY: y, hudH: h } = L;
-  fillRR(PAD, y, SW - PAD * 2, h, 14, C.surface);
-  strokeRR(PAD, y, SW - PAD * 2, h, 14, C.border);
-  const half = y + 22;
-  txtL(`❤️ ${G.hp}/${G.maxHp}${G.shieldUp ? ' 🛡️' : ''}`, PAD + 12, half, C.hp, 'bold 15px sans-serif');
-  txt(`${T('ui.floor')} ${G.floorIdx + 1}/${FLOORS.length}`, SW / 2, half, C.text, 'bold 13px sans-serif');
-  txtR(`🪙 ${G.gold}   🔮 ${G.souls}`, SW - PAD - 12, half, C.gold, 'bold 13px sans-serif');
+  fillRR(PAD, y, SW - PAD * 2, h, 18, C.surface);
+  strokeRR(PAD, y, SW - PAD * 2, h, 18, C.border, 1.5);
+  // hearts row: filled / empty up to maxHp (cap 15 fits)
+  const hs = Math.min(18, (SW - PAD * 2 - 24) / 15);
+  for (let k = 0; k < G.maxHp; k++)
+    txt(k < G.hp ? '❤️' : '🤍', PAD + 20 + k * hs, y + 18, C.text, `${Math.round(hs * 0.9)}px sans-serif`);
+  if (G.hp === 0) txt(T('ui.zeroOk'), SW - PAD - 46, y + 18, C.accent, 'bold 10px sans-serif');
   // xp bar
-  const bx = PAD + 12, bw = SW - PAD * 2 - 24, by = y + 42, need = G.level * XP_PER_LEVEL;
-  txtL(`${T('ui.level')} ${G.level}`, bx, by + 6, C.xp, 'bold 11px sans-serif');
-  const barX = bx + 54, barW = bw - 54;
-  fillRR(barX, by, barW, 12, 6, C.open);
-  fillRR(barX, by, Math.max(6, barW * Math.min(1, G.xp / need)), 12, 6, C.xp);
-  txt(`${G.xp}/${need}`, barX + barW / 2, by + 6, '#fff', 'bold 9px sans-serif');
+  const bx = PAD + 14, bw = SW - PAD * 2 - 28, by = y + 38;
+  txtL(`Lv${G.level}`, bx, by + 7, C.xp, 'bold 12px sans-serif');
+  fillRR(bx + 36, by, bw - 36, 14, 7, '#efe3d2');
+  fillRR(bx + 36, by, Math.max(8, (bw - 36) * Math.min(1, G.xp / xpNeed())), 14, 7, C.xp);
+  txt(`${G.xp}/${xpNeed()}`, bx + 36 + (bw - 36) / 2, by + 7, '#fff', 'bold 9px sans-serif');
 }
 
 function drawGrid(L) {
-  const { boardX: bx, boardY: by, boardSize: bs } = L;
-  const s = G.size, GAP = 3;
-  const ts = (bs - GAP * (s - 1)) / s;
-  const fs = Math.round(ts * 0.42);
-  for (let i = 0; i < s * s; i++) {
-    const r = Math.floor(i / s), c = i % s;
-    const x = bx + c * (ts + GAP), y = by + r * (ts + GAP), rad = Math.min(8, ts * 0.2);
+  const { boardX: bx, boardY: by, ts, GAP } = L;
+  const fs = Math.round(ts * 0.55);
+  for (let i = 0; i < G.grid.length; i++) {
+    const r = Math.floor(i / G.w), c = i % G.w;
+    const x = bx + c * (ts + GAP), y = by + r * (ts + GAP), rad = Math.max(5, ts * 0.24);
     const cell = G.grid[i];
     if (!cell.rev) {
       fillRR(x, y, ts, ts, rad, C.tile);
-      strokeRR(x, y, ts, ts, rad, G.itemMode ? '#f5b301' : C.tileEdge);
-      if (cell.peek) { // probe/scan intel: faint preview of what's hiding here
-        ctx.globalAlpha = 0.55;
-        const pk = cell.mon && !cell.dead ? MONSTERS[cell.mon].icon
-          : cell.t === 'coin' ? '🪙' : cell.t === 'potion' ? '🧪'
-          : cell.t === 'stairs' ? '🪜' : cell.t === 'shop' ? '🏪' : '·';
-        txt(pk, x + ts / 2, y + ts / 2, C.text, `${Math.round(ts * 0.34)}px sans-serif`);
+      strokeRR(x, y, ts, ts, rad, G.orbMode ? '#f5b301' : C.tileEdge);
+      if (cell.peek) { // drop-intel: show what's hiding
+        ctx.globalAlpha = 0.6;
+        txt(cell.mon ? MONSTERS[cell.mon].icon : '·', x + ts / 2, y + ts / 2, C.text, `${fs}px sans-serif`);
         ctx.globalAlpha = 1;
       }
       addHit(x, y, ts, ts, 'CELL', { i });
       continue;
     }
     fillRR(x, y, ts, ts, rad, C.open);
-    if (cell.t === 'shop') {
-      fillRR(x, y, ts, ts, rad, '#e7f0ff');
-      strokeRR(x, y, ts, ts, rad, '#2b7de9', 2);
-      txt('🏪', x + ts / 2, y + ts / 2, C.text, `${fs}px sans-serif`);
+    if (cell.mon && !cell.dead) { // revealed live monster: shown, tap again to fight
+      const M = MONSTERS[cell.mon];
+      fillRR(x, y, ts, ts, rad, M.boss ? '#ffe3ec' : '#fff4e0');
+      strokeRR(x, y, ts, ts, rad, M.boss ? C.accent : C.gold, 1.5);
+      const icon = (M.disguise && !cell.mimicPoked) ? '🎁' : M.icon;
+      txt(icon, x + ts / 2, y + ts / 2 - 2, C.text, `${fs}px sans-serif`);
+      if (!(M.disguise && !cell.mimicPoked))
+        txt(String(M.lv), x + ts - 6, y + 8, C.hp, `bold ${Math.max(8, Math.round(ts * 0.3))}px sans-serif`);
       addHit(x, y, ts, ts, 'CELL', { i });
-      continue;
-    }
-    if (cell.mon && cell.dead) {
-      ctx.globalAlpha = MONSTERS[cell.mon].boss ? 1 : 0.35;
+    } else if (cell.mon && cell.dead) {
+      ctx.globalAlpha = 0.22;
       txt(MONSTERS[cell.mon].icon, x + ts / 2, y + ts / 2, C.text, `${fs}px sans-serif`);
       ctx.globalAlpha = 1;
-    } else if (cell.t === 'coin') {
-      txt('🪙', x + ts / 2, y + ts / 2, C.text, `${fs}px sans-serif`);
+    } else if (cell.t === 'chest') {
+      txt('🎀', x + ts / 2, y + ts / 2, C.text, `${fs}px sans-serif`);
       addHit(x, y, ts, ts, 'CELL', { i });
-    } else if (cell.t === 'potion') {
-      txt('🧪', x + ts / 2, y + ts / 2, C.text, `${fs}px sans-serif`);
-      addHit(x, y, ts, ts, 'CELL', { i });
-    } else if (cell.t === 'stairs') {
-      fillRR(x, y, ts, ts, rad, '#ffe9c7');
-      strokeRR(x, y, ts, ts, rad, C.accent, 2);
-      txt('🪜', x + ts / 2, y + ts / 2, C.text, `${fs}px sans-serif`);
+    } else if (cell.t === 'heartscroll') {
+      fillRR(x, y, ts, ts, rad, '#ffe9f0');
+      txt('💗', x + ts / 2, y + ts / 2, C.text, `${fs}px sans-serif`);
       addHit(x, y, ts, ts, 'CELL', { i });
     } else {
       const n = cellNumber(i);
-      if (n > 0) txt(String(n), x + ts / 2, y + ts / 2, NUM_COLORS[Math.min(n, 6)] || C.purple, `bold ${fs}px sans-serif`);
+      if (n === null) txt('?', x + ts / 2, y + ts / 2, C.purple, `bold ${fs}px sans-serif`);
+      else if (n > 0) txt(String(n), x + ts / 2, y + ts / 2, NUM_COLORS[Math.min(n, 9)] || C.purple, `bold ${fs}px sans-serif`);
     }
   }
 }
 
-function drawItemBar(L) {
-  const { PAD, itemY: y, itemH: h } = L;
-  txtL(T('ui.items'), PAD, y + h / 2, C.muted, '10px sans-serif');
-  const slotW = 46, gap = 8, startX = PAD + 44;
-  for (let s = 0; s < ITEM_SLOTS; s++) {
-    const x = startX + s * (slotW + gap);
-    const id = G.items[s];
-    const armed = G.itemMode && G.itemMode.slot === s;
-    fillRR(x, y + 2, slotW, h - 4, 12, C.surface);
-    strokeRR(x, y + 2, slotW, h - 4, 12, armed ? '#f5b301' : (id ? C.purple : C.border), armed ? 2.5 : 1);
-    if (id) {
-      const it = ITEMS.find(v => v.id === id);
-      txt(it.icon, x + slotW / 2, y + h / 2 - 4, C.text, '20px sans-serif');
-      txt(T('item.' + id + '.name'), x + slotW / 2, y + h - 11, C.muted, '7px sans-serif');
-      addHit(x, y + 2, slotW, h - 4, 'USE_ITEM', { slot: s });
-    } else {
-      txt('·', x + slotW / 2, y + h / 2, C.border, '16px sans-serif');
-    }
+function drawBar(L) {
+  const { PAD, SW, barY: y } = L;
+  // orb buttons
+  for (let k = 0; k < START_ORBS; k++) {
+    const x = PAD + k * 46;
+    const has = k < G.orbs;
+    fillRR(x, y, 40, 36, 12, has ? '#e8f4ff' : '#f1ece4');
+    strokeRR(x, y, 40, 36, 12, G.orbMode && has ? '#f5b301' : C.border, G.orbMode && has ? 2.5 : 1);
+    ctx.globalAlpha = has ? 1 : 0.3;
+    txt('🔮', x + 20, y + 18, C.text, '18px sans-serif');
+    ctx.globalAlpha = 1;
+    if (has) addHit(x, y, 40, 36, 'USE_ORB', {});
   }
-  if (G.itemMode) txtR(T('ui.pickTarget'), L.SW - PAD, y + h / 2, '#b8860b', 'bold 11px sans-serif');
+  if (G.orbMode) txtL(T('ui.orbAim'), PAD + 100, y + 18, '#b8860b', 'bold 11px sans-serif');
+  // codex
+  fillRR(SW - PAD - 44, y, 44, 36, 12, C.surface);
+  strokeRR(SW - PAD - 44, y, 44, 36, 12, C.border);
+  txt('📖', SW - PAD - 22, y + 18, C.text, '17px sans-serif');
+  addHit(SW - PAD - 44, y, 44, 36, 'OPEN_CODEX', {});
 }
 
-function drawShop() {
-  drawDim('rgba(20,30,50,0.9)');
-  const { SW, SH } = GameGlobal;
-  txt('🏪', SW / 2, 76, C.text, '38px sans-serif');
-  txt(T('shop.title'), SW / 2, 118, '#a8ccff', 'bold 20px sans-serif');
-  txt(`🪙 ${G.gold}`, SW / 2, 144, C.gold, 'bold 14px sans-serif');
-  const stock = (G.shopAt != null && G.grid[G.shopAt].shopStock) || [];
-  const cardW = SW - 48, cardH = 68, startY = 168;
-  if (!stock.length) txt(T('shop.soldOut'), SW / 2, startY + 30, '#8ea8cc', '13px sans-serif');
-  stock.forEach((id, k) => {
-    const it = ITEMS.find(v => v.id === id);
-    const y = startY + k * (cardH + 10);
-    const afford = G.gold >= it.cost && G.items.length < ITEM_SLOTS;
-    fillRR(24, y, cardW, cardH, 12, C.surface);
-    strokeRR(24, y, cardW, cardH, 12, afford ? '#2b7de9' : C.border, afford ? 2 : 1);
-    ctx.globalAlpha = afford ? 1 : 0.55;
-    txt(it.icon, 24 + 28, y + cardH / 2, C.text, '26px sans-serif');
-    txtL(T('item.' + id + '.name'), 24 + 54, y + 20, C.text, 'bold 13px sans-serif');
-    txtLWrap(T('item.' + id + '.desc'), 24 + 54, y + 44, cardW - 130, C.muted, '10px sans-serif', 13);
-    txtR(`🪙 ${it.cost}`, 24 + cardW - 12, y + cardH / 2, afford ? C.gold : C.muted, 'bold 13px sans-serif');
-    ctx.globalAlpha = 1;
-    if (afford) addHit(24, y, cardW, cardH, 'SHOP_BUY', { id });
-  });
-  if (G.items.length >= ITEM_SLOTS) txt(T('shop.full'), SW / 2, startY + stock.length * (cardH + 10) + 12, '#ff9f6e', '11px sans-serif');
-  const backY = startY + Math.max(1, stock.length) * (cardH + 10) + 30;
-  fillRR(SW / 2 - 90, backY, 180, 42, 11, '#2b7de9');
-  txt(T('shop.leave'), SW / 2, backY + 21, '#fff', 'bold 14px sans-serif');
-  addHit(SW / 2 - 90, backY, 180, 42, 'SHOP_LEAVE', {});
-}
-
-function drawCodex() {
-  drawDim('rgba(40,30,20,0.97)');
+function bigButton(cy, key, action, color) {
   const { SW } = GameGlobal;
-  txt(T('codex.title'), SW / 2, 64, '#ffd9a0', 'bold 20px sans-serif');
-  const ids = Object.keys(MONSTERS);
-  const cardW = SW - 44, cardH = 56, startY = 92;
-  ids.forEach((id, k) => {
-    const y = startY + k * (cardH + 7);
-    const known = Meta.seen.has(id);
-    fillRR(22, y, cardW, cardH, 11, C.surface);
-    strokeRR(22, y, cardW, cardH, 11, known ? C.purple : C.border);
-    ctx.globalAlpha = known ? 1 : 0.5;
-    txt(known ? MONSTERS[id].icon : '❓', 22 + 26, y + cardH / 2, C.text, '22px sans-serif');
-    if (known) {
-      txtL(T('mon.' + id + '.name'), 22 + 50, y + 18, C.text, 'bold 13px sans-serif');
-      txtLWrap(T('mon.' + id + '.trait'), 22 + 50, y + 38, cardW - 120, C.muted, '10px sans-serif', 12);
-      txtR(`⚔️ ${MONSTERS[id].power}`, 22 + cardW - 12, y + cardH / 2, C.hp, 'bold 13px sans-serif');
-    } else {
-      txtL(T('codex.unknown'), 22 + 50, y + cardH / 2, C.muted, '12px sans-serif');
-    }
-    ctx.globalAlpha = 1;
-  });
-  const backY = startY + ids.length * (cardH + 7) + 10;
-  fillRR(SW / 2 - 80, backY, 160, 38, 10, 'rgba(255,255,255,0.16)');
-  txt(T('upg.back'), SW / 2, backY + 19, '#fff', 'bold 13px sans-serif');
-  addHit(SW / 2 - 80, backY, 160, 38, 'CLOSE_OVERLAY', {});
-}
-
-function drawRelicBar(L) {
-  if (!G.relics.length) return;
-  let x = L.PAD;
-  G.relics.forEach(id => {
-    const rl = RELICS.find(r => r.id === id);
-    const lbl = `${rl.icon} ${T('relic.' + id + '.name')}`;
-    ctx.font = '11px sans-serif';
-    const w = ctx.measureText(lbl).width + 18;
-    fillRR(x, L.relicY, w, 26, 13, 'rgba(156,54,181,0.10)');
-    strokeRR(x, L.relicY, w, 26, 13, C.purple);
-    txt(lbl, x + w / 2, L.relicY + 13, C.purple, '11px sans-serif');
-    x += w + 6;
-  });
-}
-
-function bigButton(cy, key, action, data, color) {
-  const { SW } = GameGlobal;
-  fillRR(SW / 2 - 100, cy, 200, 48, 12, color || C.accent);
+  fillRR(SW / 2 - 96, cy, 192, 48, 24, color || C.accent);
   txt(T(key), SW / 2, cy + 24, '#fff', 'bold 15px sans-serif');
-  addHit(SW / 2 - 100, cy, 200, 48, action, data || {});
+  addHit(SW / 2 - 96, cy, 192, 48, action, {});
 }
 
 function drawHome() {
   const { SW, SH } = GameGlobal;
-  txt('💣', SW / 2, SH * 0.18, C.text, '54px sans-serif');
-  txt(T('home.title'), SW / 2, SH * 0.27, C.accent, 'bold 26px sans-serif');
-  { // subtitle: up to 3 lines (ru/de run long; txtLWrap caps at 2)
-    ctx.font = '13px sans-serif';
-    const ls = wrapLines(T('home.subtitle'), 280, 3);
-    ls.forEach((ln, k) => txt(ln, SW / 2, SH * 0.34 + (k - (ls.length - 1) / 2) * 17, C.muted, '13px sans-serif'));
-  }
-  txt(`🔮 ${T('home.souls', { n: Meta.souls })}    🏆 ${T('home.best', { n: Meta.best })}`, SW / 2, SH * 0.43, C.purple, 'bold 13px sans-serif');
-  if (Meta.streak > 0) txt(T('home.streak', { n: Meta.streak }), SW / 2, SH * 0.47, C.accent, 'bold 14px sans-serif');
+  txt('🐉', SW / 2, SH * 0.2, C.text, '58px sans-serif');
+  txt(T('home.title'), SW / 2, SH * 0.29, C.accent, 'bold 27px sans-serif');
+  ctx.font = '13px sans-serif';
+  wrapLines(T('home.subtitle'), 290, 3).forEach((ln, k) =>
+    txt(ln, SW / 2, SH * 0.36 + k * 17, C.muted, '13px sans-serif'));
+  txt(`🏆 ${T('home.wins', { n: Meta.wins })}` + (Meta.streak > 0 ? `   🔥 ${Meta.streak}` : ''), SW / 2, SH * 0.46, C.purple, 'bold 13px sans-serif');
   bigButton(SH * 0.52, 'home.start', 'START_RUN');
-  // daily challenge (one try per day)
-  const dy = SH * 0.52 + 62;
+  const dy = SH * 0.52 + 60;
   const can = Meta.canDaily();
-  fillRR(SW / 2 - 100, dy, 200, 44, 12, can ? '#9c36b5' : 'rgba(156,54,181,0.25)');
-  txt(can ? T('home.daily') : T('home.dailyDone'), SW / 2, dy + 22, '#fff', 'bold 14px sans-serif');
-  if (can) addHit(SW / 2 - 100, dy, 200, 44, 'START_DAILY', {});
-  // upgrades + codex side by side
-  const uy = dy + 56;
-  fillRR(SW / 2 - 100, uy, 96, 40, 12, C.surface);
-  strokeRR(SW / 2 - 100, uy, 96, 40, 12, C.border);
-  txt(`⚒️ ${T('home.upgrades')}`, SW / 2 - 52, uy + 20, C.text, 'bold 12px sans-serif');
-  addHit(SW / 2 - 100, uy, 96, 40, 'OPEN_UPGRADES', {});
-  fillRR(SW / 2 + 4, uy, 96, 40, 12, C.surface);
-  strokeRR(SW / 2 + 4, uy, 96, 40, 12, C.border);
-  txt(`📖 ${T('home.codex')}`, SW / 2 + 52, uy + 20, C.text, 'bold 12px sans-serif');
-  addHit(SW / 2 + 4, uy, 96, 40, 'OPEN_CODEX', {});
+  fillRR(SW / 2 - 96, dy, 192, 42, 21, can ? C.purple : 'rgba(180,140,232,0.3)');
+  txt(can ? T('home.daily') : T('home.dailyDone'), SW / 2, dy + 21, '#fff', 'bold 13px sans-serif');
+  if (can) addHit(SW / 2 - 96, dy, 192, 42, 'START_DAILY', {});
+  fillRR(SW / 2 - 96, dy + 52, 192, 38, 19, C.surface);
+  strokeRR(SW / 2 - 96, dy + 52, 192, 38, 19, C.border);
+  txt(`📖 ${T('home.codex')}`, SW / 2, dy + 71, C.text, 'bold 13px sans-serif');
+  addHit(SW / 2 - 96, dy + 52, 192, 38, 'OPEN_CODEX', {});
 }
 
-function drawUpgrades() {
-  drawDim('rgba(40,30,20,0.97)'); // near-opaque: translucent cards must not show HOME through
+function drawCodex() {
+  drawDim('rgba(80,55,35,0.96)');
   const { SW, SH } = GameGlobal;
-  txt(T('upg.title'), SW / 2, 66, '#ffd9a0', 'bold 20px sans-serif');
-  txt(`🔮 ${Meta.souls}`, SW / 2, 94, '#e5b3ff', 'bold 14px sans-serif');
-  const cardW = SW - 44, cardH = 64, startY = 118;
-  UPGRADES.forEach((u, k) => {
-    const y = startY + k * (cardH + 8);
-    const owned = Meta.upgrades.has(u.id);
-    const locked = u.req && !Meta.upgrades.has(u.req);
-    const afford = Meta.canBuy(u);
-    fillRR(22, y, cardW, cardH, 12, owned ? 'rgba(47,158,68,0.18)' : C.surface);
-    strokeRR(22, y, cardW, cardH, 12, owned ? '#2f9e44' : (afford ? C.purple : C.border), afford && !owned ? 2 : 1);
-    ctx.globalAlpha = locked ? 0.45 : 1;
-    txt(u.icon, 22 + 26, y + cardH / 2, C.text, '24px sans-serif');
-    txtL(T('upg.' + u.id + '.name'), 22 + 50, y + 20, C.text, 'bold 13px sans-serif');
-    txtLWrap(T('upg.' + u.id + '.desc'), 22 + 50, y + 42, cardW - 130, C.muted, '10px sans-serif', 13);
-    const right = owned ? '✓' : (locked ? '🔒' : `🔮 ${u.cost}`);
-    txtR(right, 22 + cardW - 12, y + cardH / 2, owned ? '#2f9e44' : (afford ? C.purple : C.muted), 'bold 13px sans-serif');
+  txt(T('codex.title'), SW / 2, 54, '#ffe0b8', 'bold 19px sans-serif');
+  const ids = Object.keys(MONSTERS);
+  const colW = (SW - 44) / 2, cardH = Math.min(52, (SH - 140) / Math.ceil(ids.length / 2) - 6);
+  ids.forEach((id, k) => {
+    const col = k % 2, row = Math.floor(k / 2);
+    const x = 22 + col * (colW + 4), y = 78 + row * (cardH + 6);
+    const known = Meta.seen.has(id);
+    fillRR(x, y, colW - 4, cardH, 12, 'rgba(255,250,240,0.95)');
+    ctx.globalAlpha = known ? 1 : 0.45;
+    txt(known ? MONSTERS[id].icon : '❓', x + 18, y + cardH / 2, C.text, '17px sans-serif');
+    if (known) {
+      txtL(`${T('mon.' + id + '.name')}  ${MONSTERS[id].lv || '?'}`, x + 34, y + 14, C.text, 'bold 10px sans-serif');
+      txtLWrap(T('mon.' + id + '.trait'), x + 34, y + cardH / 2 + 8, colW - 44, C.muted, '8px sans-serif', 10);
+    } else {
+      txtL(T('codex.unknown'), x + 34, y + cardH / 2, C.muted, '9px sans-serif');
+    }
     ctx.globalAlpha = 1;
-    if (!owned && !locked) addHit(22, y, cardW, cardH, 'BUY_UPGRADE', { id: u.id });
   });
-  const backY = startY + UPGRADES.length * (cardH + 8) + 10;
-  fillRR(SW / 2 - 80, backY, 160, 38, 10, 'rgba(255,255,255,0.16)');
-  txt(T('upg.back'), SW / 2, backY + 19, '#fff', 'bold 13px sans-serif');
-  addHit(SW / 2 - 80, backY, 160, 38, 'CLOSE_OVERLAY', {});
+  const backY = 78 + Math.ceil(ids.length / 2) * (cardH + 6) + 8;
+  fillRR(SW / 2 - 70, backY, 140, 36, 18, 'rgba(255,255,255,0.2)');
+  txt(T('codex.back'), SW / 2, backY + 18, '#fff', 'bold 12px sans-serif');
+  addHit(SW / 2 - 70, backY, 140, 36, 'CLOSE_OVERLAY', {});
 }
 
-function drawIntro() {
-  drawDim('rgba(40,30,20,0.82)');
-  const { SW, SH } = GameGlobal;
-  if (G.mode === 'daily') {
-    txt(T('intro.daily'), SW / 2, SH * 0.34, '#e5b3ff', 'bold 22px sans-serif');
-    txt(`${DAILY_FLOOR.size} × ${DAILY_FLOOR.size}`, SW / 2, SH * 0.42, '#fff', 'bold 16px sans-serif');
-    txtLWrap(T('intro.dailyGoal'), SW / 2 - 130, SH * 0.48, 260, '#ffd9a0', '12px sans-serif', 16);
-  } else {
-    const f = FLOORS[G.floorIdx];
-    txt(T('intro.floor', { n: G.floorIdx + 1 }), SW / 2, SH * 0.34, '#ffd9a0', 'bold 24px sans-serif');
-    txt(`${f.size} × ${f.size}`, SW / 2, SH * 0.42, '#fff', 'bold 16px sans-serif');
-    if (G.floorIdx === FLOORS.length - 1) txt(T('intro.boss'), SW / 2, SH * 0.48, '#ff8787', 'bold 13px sans-serif');
-  }
-  bigButton(SH * 0.56, 'intro.enter', 'ENTER_FLOOR');
-}
-
-function drawRelicPick() {
-  drawDim('rgba(40,30,20,0.85)');
-  const { SW, SH } = GameGlobal;
-  txt(T('relic.pick'), SW / 2, 90, '#ffd9a0', 'bold 20px sans-serif');
-  const cardW = SW - 48, cardH = 78, startY = 130;
-  G.relicChoices.forEach((rl, k) => {
-    const y = startY + k * (cardH + 12);
-    fillRR(24, y, cardW, cardH, 14, C.surface);
-    strokeRR(24, y, cardW, cardH, 14, C.purple, 2);
-    txt(rl.icon, 24 + 32, y + cardH / 2, C.text, '30px sans-serif');
-    txtL(T('relic.' + rl.id + '.name'), 24 + 62, y + 24, C.text, 'bold 15px sans-serif');
-    txtLWrap(T('relic.' + rl.id + '.desc'), 24 + 62, y + 50, cardW - 84, C.muted, '11px sans-serif', 14);
-    addHit(24, y, cardW, cardH, 'PICK_RELIC', { id: rl.id });
-  });
-  const skipY = startY + G.relicChoices.length * (cardH + 12) + 8;
-  txt(T('relic.skip'), SW / 2, skipY + 14, '#d8cfc0', '13px sans-serif');
-  addHit(SW / 2 - 80, skipY, 160, 28, 'PICK_RELIC', { id: null });
-}
-
-// The most important screen in the game: earnings + gap narrative + one-tap restart.
 function drawEnd(win) {
-  drawDim(win ? 'rgba(20,60,30,0.88)' : 'rgba(40,20,20,0.88)');
+  drawDim(win ? 'rgba(90,150,110,0.92)' : 'rgba(120,70,80,0.92)');
   const { SW, SH } = GameGlobal;
-  txt(win ? '🏆' : '💀', SW / 2, SH * 0.2, '#fff', '50px sans-serif');
-  txt(T(win ? 'win.title' : 'lose.title'), SW / 2, SH * 0.29, win ? '#8ce99a' : '#ff8787', 'bold 24px sans-serif');
-  if (G.mode === 'daily') txt(win ? T('end.streakUp', { n: Meta.streak }) : T('end.streakLost'), SW / 2, SH * 0.35, win ? '#ffd43b' : '#ffd9a0', 'bold 13px sans-serif');
-  else if (!win) txt(T('lose.gap', { n: FLOORS.length - G.floorIdx }), SW / 2, SH * 0.35, '#ffd9a0', '13px sans-serif');
-  // earnings
-  fillRR(SW / 2 - 120, SH * 0.4, 240, 54, 12, 'rgba(255,255,255,0.12)');
-  txt(T('end.souls', { n: G.souls }), SW / 2, SH * 0.4 + 18, '#e5b3ff', 'bold 15px sans-serif');
-  txt(T('end.total', { n: Meta.souls }), SW / 2, SH * 0.4 + 38, '#c8b8d8', '11px sans-serif');
-  let y = SH * 0.52;
-  // rewarded-ad hooks: revive (LOSE, normal mode, once) and souls-double (once)
+  txt(win ? '🎉' : '😵', SW / 2, SH * 0.2, '#fff', '52px sans-serif');
+  txt(T(win ? 'win.title' : 'lose.title'), SW / 2, SH * 0.29, '#fff', 'bold 24px sans-serif');
+  if (G.mode === 'daily') txt(win ? T('end.streakUp', { n: Meta.streak }) : T('end.streakLost'), SW / 2, SH * 0.35, '#ffe08a', 'bold 13px sans-serif');
+  else txt(T('end.sub', { n: G.level }), SW / 2, SH * 0.35, 'rgba(255,255,255,0.85)', '13px sans-serif');
+  let y = SH * 0.46;
   if (!win && G.mode === 'normal' && !G.adRevived) {
-    fillRR(SW / 2 - 100, y, 200, 44, 12, '#9c36b5');
+    fillRR(SW / 2 - 96, y, 192, 44, 22, C.purple);
     txt(`📺 ${T('end.adRevive')}`, SW / 2, y + 22, '#fff', 'bold 13px sans-serif');
-    addHit(SW / 2 - 100, y, 200, 44, 'AD_REVIVE', {});
-    y += 52;
+    addHit(SW / 2 - 96, y, 192, 44, 'AD_REVIVE', {});
+    y += 54;
   }
-  if (!G.soulsDoubled && G.souls > 0) {
-    fillRR(SW / 2 - 100, y, 200, 40, 12, 'rgba(229,179,255,0.25)');
-    strokeRR(SW / 2 - 100, y, 200, 40, 12, '#e5b3ff');
-    txt(`📺 ${T('end.adDouble', { n: G.souls })}`, SW / 2, y + 20, '#e5b3ff', 'bold 12px sans-serif');
-    addHit(SW / 2 - 100, y, 200, 40, 'AD_DOUBLE', {});
-    y += 48;
-  }
-  bigButton(y, 'end.retry', 'RESTART', {}, win ? '#2f9e44' : C.accent);
+  bigButton(y, 'end.retry', 'RESTART', win ? '#66b98a' : C.accent);
   y += 58;
-  fillRR(SW / 2 - 100, y, 200, 38, 10, 'rgba(255,255,255,0.14)');
+  fillRR(SW / 2 - 96, y, 192, 38, 19, 'rgba(255,255,255,0.22)');
   txt(T('end.home'), SW / 2, y + 19, '#fff', '13px sans-serif');
-  addHit(SW / 2 - 100, y, 200, 38, 'GO_HOME', {});
-}
-
-// ── inline tutorial: highlight ring on the suggested cell + bottom banner ──
-function tutTarget(L) {
-  if (!G.tut) return null;
-  let i = -1;
-  if (G.tut.step === 1) {
-    // a safe unrevealed cell touching the revealed frontier
-    i = G.grid.findIndex((cell, k) => !cell.rev && !cell.mon &&
-      neighbors(k).some(n => G.grid[n].rev));
-  } else if (G.tut.step === 3) {
-    // the weakest unrevealed monster
-    let best = 99;
-    G.grid.forEach((cell, k) => {
-      if (!cell.rev && cell.mon && !cell.dead && monPower(cell.mon) < best) { best = monPower(cell.mon); i = k; }
-    });
-  }
-  if (i < 0) return null;
-  const s = G.size, GAP = 3, ts = (L.boardSize - GAP * (s - 1)) / s;
-  return { x: L.boardX + (i % s) * (ts + GAP), y: L.boardY + Math.floor(i / s) * (ts + GAP), ts };
+  addHit(SW / 2 - 96, y, 192, 38, 'GO_HOME', {});
 }
 
 function drawTut(L) {
   if (!G.tut || G.phase !== 'PLAYING') return;
   const { SW, SH } = GameGlobal;
-  const tg = tutTarget(L);
-  if (tg) {
-    strokeRR(tg.x - 3, tg.y - 3, tg.ts + 6, tg.ts + 6, 10, '#f5b301', 3);
-    strokeRR(tg.x - 7, tg.y - 7, tg.ts + 14, tg.ts + 14, 12, 'rgba(245,179,1,0.35)', 3);
+  const bh = 96, by = SH - bh - 10, bx = 12, bw = SW - 24;
+  fillRR(bx, by, bw, bh, 16, 'rgba(80,55,35,0.94)');
+  strokeRR(bx, by, bw, bh, 16, '#ffce7a');
+  ctx.font = '12px sans-serif';
+  wrapLines(T('tut.s' + G.tut.step), bw - 28, 3).forEach((ln, k) =>
+    txtL(ln, bx + 14, by + 30 + k * 15, '#ffe9c7', '12px sans-serif'));
+  if (G.tut.step !== 1 && G.tut.step !== 3) {
+    fillRR(bx + bw - 86, by + bh - 30, 76, 22, 11, '#ffce7a');
+    txt(T('tut.next'), bx + bw - 48, by + bh - 19, '#5a3d1e', 'bold 11px sans-serif');
+    addHit(bx + bw - 86, by + bh - 30, 76, 22, 'TUT_NEXT', {});
   }
-  // banner — skip link owns the top strip, body text starts below it
-  const bh = 104, by = SH - bh - 14, bx = 14, bw = SW - 28;
-  fillRR(bx, by, bw, bh, 14, 'rgba(40,30,20,0.92)');
-  strokeRR(bx, by, bw, bh, 14, '#f5b301');
-  ctx.font = '13px sans-serif';
-  const lines = wrapLines(T('tut.s' + G.tut.step), bw - 32, 3);
-  lines.forEach((ln, k) => txtL(ln, bx + 16, by + 32 + k * 17, '#ffe9c7', '13px sans-serif'));
-  const isInfo = G.tut.step === 2 || G.tut.step === 4;
-  if (isInfo) {
-    fillRR(bx + bw - 96, by + bh - 32, 84, 24, 12, '#f5b301');
-    txt(T('tut.next'), bx + bw - 54, by + bh - 20, '#3d2b00', 'bold 12px sans-serif');
-    addHit(bx + bw - 96, by + bh - 32, 84, 24, 'TUT_NEXT', {});
-  }
-  txtR(T('tut.skip'), bx + bw - 12, by + 14, 'rgba(255,233,199,0.55)', '10px sans-serif');
-  addHit(bx + bw - 110, by + 4, 100, 20, 'TUT_SKIP', {});
+  txtR(T('tut.skip'), bx + bw - 10, by + 13, 'rgba(255,233,199,0.5)', '9px sans-serif');
+  addHit(bx + bw - 100, by + 3, 92, 18, 'TUT_SKIP', {});
 }
 
 function drawFloat() {
   if (!G.floatMsg) return;
   const { SW, SH } = GameGlobal;
   ctx.font = 'bold 13px sans-serif';
-  const w = ctx.measureText(G.floatMsg).width + 32;
-  fillRR((SW - w) / 2, SH / 2 - 80, w, 40, 13, 'rgba(40,30,20,0.9)');
-  txt(G.floatMsg, SW / 2, SH / 2 - 60, '#ffd9a0', 'bold 13px sans-serif');
+  const w = ctx.measureText(G.floatMsg).width + 30;
+  fillRR((SW - w) / 2, SH * 0.12, w, 38, 19, 'rgba(80,55,35,0.92)');
+  txt(G.floatMsg, SW / 2, SH * 0.12 + 19, '#ffe9c7', 'bold 13px sans-serif');
 }
 
 function renderAll() {
@@ -380,21 +214,17 @@ function renderAll() {
   ctx.fillRect(0, 0, SW, SH);
   if (G.phase === 'HOME') {
     drawHome();
-    if (G.overlay === 'upgrades') drawUpgrades();
-    else if (G.overlay === 'codex') drawCodex();
+    if (G.overlay === 'codex') drawCodex();
     drawFloat();
     return;
   }
   const L = layout();
   drawHud(L);
   if (G.grid.length) drawGrid(L);
-  drawItemBar(L);
-  drawRelicBar(L);
+  drawBar(L);
   drawTut(L);
-  if (G.phase === 'LEVEL_INTRO') drawIntro();
-  else if (G.phase === 'SHOP') drawShop();
-  else if (G.phase === 'PICK_RELIC') drawRelicPick();
-  else if (G.phase === 'WIN') { drawEnd(true); return; }   // end screens own the frame:
-  else if (G.phase === 'LOSE') { drawEnd(false); return; } // no float toast on top
+  if (G.overlay === 'codex') drawCodex();
+  else if (G.phase === 'WIN') { drawEnd(true); return; }
+  else if (G.phase === 'LOSE') { drawEnd(false); return; }
   drawFloat();
 }

@@ -101,9 +101,10 @@ function genBoard() {
     const [r, c] = rc(i);
     for (const [dr, dc] of PEEPER_STAR) if (inB(r + dr, c + dc)) G.grid[idx(r + dr, c + dc)].fogged = true;
   });
-  // opening: reveal one safe cell far from the dragon (numbers do the rest)
-  const safe = freeCells().filter(i => cellNumber(i) !== null);
-  reveal(safe.length ? rand(safe) : freeCells()[0]);
+  // opening: prefer a 0-cell so the ripple gives a real foothold, not one lonely number
+  const free = freeCells().filter(i => !G.grid[i].fogged);
+  const zeros = free.filter(i => cellNumber(i) === 0);
+  reveal((zeros.length ? rand(zeros) : (free.length ? rand(free) : freeCells()[0])));
 }
 
 function initRun() {

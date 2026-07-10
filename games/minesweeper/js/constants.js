@@ -4,7 +4,8 @@
 // All names/art original; emoji are placeholders for the cute art pass.
 // ════════════════════════════════════════
 
-const BOARD_W = 13, BOARD_H = 10;
+// let (not const): main.js swaps to 10×13 on portrait phones before initRun
+let BOARD_W = 13, BOARD_H = 10;
 const START_HP = 5;
 const MAX_LEVEL_HP = 15; // hp cap via level-ups
 

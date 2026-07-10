@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-<title>Minesweeper Rogue</title>
+<title>Dungeon Sweep</title>
 <link rel="stylesheet" href="../../engine/engine.css">
 <style>
-  :root { --eng-bg: #f2ede4; --eng-ctl-text: #6b5d48; --eng-ctl-shadow: rgba(150,130,100,0.3); }
+  :root { --eng-bg: #fdf3e7; --eng-ctl-text: #8a6a4e; --eng-ctl-shadow: rgba(200,160,120,0.35); }
 </style>
 </head>
 <body>
@@ -15,7 +15,8 @@
 
 <script>
   window.GAME_CONFIG = {
-    id: 'mines', // 语言集不指定 = engine 默认十语
+    id: 'mines',
+    languages: ['en', 'zh-CN'], // v2 文案定型后再扩十语重翻
   };
 </script>
 <script src="../../engine/config.js"></script>
