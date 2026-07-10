@@ -15,7 +15,6 @@
     "levelDone": "Level {n} clear!",
     "scoreVal": "Score {n}",
     "next": "Next angel →",
-    "ai": "🤖 AI Play",
-    "boost": "💨 Boost"
+    "ai": "🤖 AI Play"
   }
 }

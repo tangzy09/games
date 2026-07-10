@@ -5,7 +5,7 @@ const PAL = { bg:'#fdf3f7', cloud:'#f3e0ef', cloudEdge:'#e6c8e0', snake:'#f7b8d4
   accent:'#e79cc2', accent2:'#b39ddb', text:'#7a5c72', bar:'#f6d5e5', card:'#ffffff',
   apple:'#ff8fab', leaf:'#a5d6a7', glow:'#fff59d', eye:'#5d4a57', btnOn:'#b39ddb' };
 
-const Layout = { bx:0, by:0, bsize:0, cell:0, btnAI:null, btnBoost:null, btnPause:null };
+const Layout = { bx:0, by:0, bsize:0, cell:0, btnAI:null, btnPause:null };
 let bgLayer = null, maskLayer = null, layerPx = 0;
 
 function layoutBoard() {
@@ -15,9 +15,8 @@ function layoutBoard() {
   Layout.bsize = size; Layout.cell = size / G.run.cols;
   Layout.bx = Math.floor((SW - size) / 2);
   Layout.by = safeTop + hudH;
-  const bw = (size - 12) / 2, byy = Layout.by + size + 14;
-  Layout.btnAI    = { x: Layout.bx,           y: byy, w: bw, h: 52 };
-  Layout.btnBoost = { x: Layout.bx + bw + 12, y: byy, w: bw, h: 52 };
+  const byy = Layout.by + size + 14;
+  Layout.btnAI    = { x: Layout.bx, y: byy, w: size, h: 52 };   // 占满整行
   Layout.btnPause = { x: Layout.bx + size - 40, y: safeTop + 8, w: 40, h: 36 };
 }
 
@@ -151,13 +150,10 @@ function drawSnake() {
 }
 
 function drawButtons() {
-  const a = Layout.btnAI, b = Layout.btnBoost;
+  const a = Layout.btnAI;
   fillRR(a.x, a.y, a.w, a.h, 14, G.ai ? PAL.btnOn : PAL.accent);
   txt(T('snake.ai'), a.x + a.w / 2, a.y + a.h / 2, '#fff', 'bold 15px sans-serif');
   addHit(a.x, a.y, a.w, a.h, 'AI_TOGGLE', {});
-  fillRR(b.x, b.y, b.w, b.h, 14, G.boostHeld ? PAL.btnOn : PAL.accent);
-  txt(T('snake.boost'), b.x + b.w / 2, b.y + b.h / 2, '#fff', 'bold 15px sans-serif');
-  // boost 不 addHit——按住逻辑由 main.js 原生 pointer 事件按 Layout.btnBoost 矩形处理
 }
 
 function drawOverlay(title, sub, btnLabel, action, showImg) {

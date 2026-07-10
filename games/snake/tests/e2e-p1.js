@@ -30,18 +30,21 @@ async function main() {
   assert(consoleErrors.length === 0, `console errors == 0 (got ${consoleErrors.length}: ${consoleErrors.join(' | ')})`);
 
   const phase1 = await page.evaluate(() => window.G && window.G.phase);
-  // NB: default board (cols=16, snake starts at x=3 heading right, wall at x=16,
-  // base speed ~7 cell/s) dies at ~1.85s with zero player input — deterministically
-  // before this 2s mark. That's correct game behavior (a human swipes long before
-  // then), not a bug, so DEAD counts as "booted and running" here too, same as the
-  // next check's explicit allowance.
-  assert(phase1 === 'PLAYING' || phase1 === 'DEAD', `window.G.phase reaches PLAYING (or DEAD from wall-hit) after 2s, not stuck LOADING (got ${phase1})`);
+  assert(phase1 === 'READY', `window.G.phase === 'READY' after load (waiting for player, got ${phase1})`);
 
   // 翻译渲染防回归:引擎 I18N.get 是嵌套解析(dict.snake.score),locale 文件必须
   // 嵌套结构——扁平 key("snake.score": ...)查不到时 t() 原样返回 key,界面满屏 key 原文。
-  const i18nProbe = await page.evaluate(() => ({ score: I18N.t('snake.score'), ai: I18N.t('snake.ai') }));
+  // NB: dispatch/I18N/Controls 是顶层 const/function——只有 var/函数声明挂 window,
+  // 在 evaluate() 里用裸名调用;window.G 能用是因为 main.js 特意声明 var G。
+  const i18nProbe = await page.evaluate(() => ({ score: I18N.t('snake.score'), ai: I18N.t('snake.ai'), start: I18N.t('snake.start') }));
   assert(i18nProbe.score !== 'snake.score', `I18N.t('snake.score') resolves to a translation (got "${i18nProbe.score}")`);
   assert(i18nProbe.ai.includes('AI'), `I18N.t('snake.ai') includes "AI" (got "${i18nProbe.ai}")`);
+  assert(i18nProbe.start !== 'snake.start', `I18N.t('snake.start') resolves to a translation (got "${i18nProbe.start}")`);
+
+  // READY 待机:蛇不动,START 后才开跑
+  await page.evaluate(() => dispatch('START'));
+  const phaseStarted = await page.evaluate(() => window.G.phase);
+  assert(phaseStarted === 'PLAYING', `phase === 'PLAYING' after START (got ${phaseStarted})`);
 
   const revealed1 = await page.evaluate(() => window.G.run.revealedCount);
   const snakeHead1 = await page.evaluate(() => JSON.stringify(window.G.run.snake[0]));
@@ -53,11 +56,6 @@ async function main() {
   assert(moved, `game is actually running after 3s more (revealed ${revealed1}->${revealed2}, head ${snakeHead1}->${snakeHead2}, phase=${phase2})`);
 
   // turn on AI to autoplay; respawn first if we died from no input
-  // NB: dispatch/I18N/Controls are declared via const/function at top-level of a
-  // classic <script> — only `var`/function-declarations land on `window`, const
-  // does not (verified: window.X undefined but bare X resolves via the page's
-  // shared global lexical scope). So call them bare inside evaluate(), and only
-  // rely on window.G specifically (main.js declares it `var G` for this reason).
   const phaseBeforeAi = await page.evaluate(() => window.G.phase);
   if (phaseBeforeAi === 'DEAD') {
     await page.evaluate(() => dispatch('RESPAWN'));
@@ -87,7 +85,7 @@ async function main() {
   log(`AI cleared level in ${elapsedSec}s, deaths stayed at ${deathsDuring}`);
 
   await page.evaluate(() => dispatch('NEXT'));
-  // NEXT 先过 LOADING 中间态(防连点守卫)再回 PLAYING——轮询等待而非固定 sleep
+  // NEXT 先过 LOADING(防连点守卫)→ READY → AI 开着会自动 START 回 PLAYING——轮询等待
   let afterNext = null;
   for (let i = 0; i < 20; i++) {
     await page.waitForTimeout(250);

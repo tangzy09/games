@@ -4,7 +4,7 @@
 var G = {
   phase: 'LOADING',        // LOADING | READY | PLAYING | PAUSED | DEAD | LEVEL_DONE
   run: null, cyc: null, aiMem: null,
-  ai: false, boostHeld: false,
+  ai: false,
   img: null, imgList: [], imgPos: 0,
   seed: (Date.now() % 2147483647),
 };
@@ -30,9 +30,8 @@ function dispatch(action) {
   renderAll();
 }
 
-function speed() {   // 格/秒:基础7,随长缓升,封顶12(待校准);boost ×1.6
-  const base = Math.min(12, 7 + 0.03 * G.run.snake.length);
-  return base * (G.boostHeld && !G.ai ? 1.6 : 1);
+function speed() {   // 格/秒:基础7,随长缓升,封顶12(待校准)
+  return Math.min(12, 7 + 0.03 * G.run.snake.length);
 }
 
 function loadImage() {
@@ -75,27 +74,11 @@ function frame(ts) {
 function tick(nowMs) {
   const prev = G.run.revealedCount;
   if (G.ai) Core.setDir(G.run, AI.nextMove(G.run, G.cyc, G.aiMem));
-  Core.step(G.run, { nowMs, freezeCombo: G.boostHeld && !G.ai, scoreScale: G.ai ? 0.5 : 1 });
+  Core.step(G.run, { nowMs, scoreScale: G.ai ? 0.5 : 1 });
   if (G.run.revealedCount > prev && !G.run.levelJustDone)
     punchCell(G.run.snake[0].x, G.run.snake[0].y);
   if (G.run.levelJustDone) { G.phase = 'LEVEL_DONE'; revealAllMask(); return; }
   if (G.run.dead) { G.phase = 'DEAD'; }
-}
-
-// boost 按住:canvas 原生 pointer 事件(引擎 Input 不管 hold)+ 空格
-function bindBoost() {
-  const cv = document.getElementById(CFG.canvasId);
-  const inBoost = (e) => {
-    const b = Layout.btnBoost;
-    return b && e.clientX >= b.x && e.clientX <= b.x + b.w && e.clientY >= b.y && e.clientY <= b.y + b.h;
-  };
-  cv.addEventListener('pointerdown', e => { if (inBoost(e)) G.boostHeld = true; });
-  // 松手监听挂 window 而非 canvas:手指/鼠标移出画布再松手,canvas 收不到
-  // pointerup,boost 会永久卡住。
-  window.addEventListener('pointerup',     () => { G.boostHeld = false; });
-  window.addEventListener('pointercancel', () => { G.boostHeld = false; });
-  document.addEventListener('keydown', e => { if (e.key === ' ') { G.boostHeld = true; e.preventDefault(); } });
-  document.addEventListener('keyup',   e => { if (e.key === ' ') G.boostHeld = false; });
 }
 
 async function boot() {
@@ -124,7 +107,6 @@ async function boot() {
       },
       canSwipe: () => G.phase === 'PLAYING' || G.phase === 'READY',
     });
-    bindBoost();
     document.addEventListener('visibilitychange', () => { if (document.hidden) dispatch('PAUSE'); });
     window.addEventListener('resize', () => { initCanvas(); if (G.run) initLayers(G.img); renderAll(); });
     Controls.render();
