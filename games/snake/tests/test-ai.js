@@ -32,6 +32,7 @@ console.log('OK test-ai(纯回路)');
 
 {
   let totalSteps = 0;
+  let spawnedTotal = 0, eatenTotal = 0;   // 特殊果集成:跨 5 种子累计
   for (const seed of [1, 2, 3, 4, 5]) {
     const g = Core.createGame({ seed });
     const mem = AI.createMem();
@@ -46,9 +47,14 @@ console.log('OK test-ai(纯回路)');
     }
     totalSteps += steps;
     assert(g.stats.apples > 0, '捷径模式应吃到苹果');
+    spawnedTotal += g.stats.specialsSpawned;
+    eatenTotal += Object.values(g.stats.specials).reduce((a, b) => a + b, 0);
   }
   assert(totalSteps >= 2048, 'sanity:至少走完理论下限');
+  assert(spawnedTotal > 0, `特殊果在 AI 局中确实刷新(spawned=${spawnedTotal})`);
+  assert(eatenTotal > 0, `AI 确实吃到特殊果(eaten=${eatenTotal})——目标选择生效`);
   console.log(`  完整 AI 5 种子 ×2 关,总步数 ${totalSteps},零死亡`);
+  console.log(`  特殊果:刷新 ${spawnedTotal} 个,AI 吃到 ${eatenTotal} 个`);
 }
 console.log('OK test-ai(捷径+保证通关)');
 

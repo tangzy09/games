@@ -136,9 +136,10 @@ function shortcutMove(s, cyc, mem, hi, head) {
   const headToTail = relDist(cyc, hi, ti);
   const margin = (s.targetLen - s.snake.length) + 4;
 
-  // 目标:苹果;停滞时改打最近未揭格(防停滞保险 b)
-  let target = s.apple;
-  if (mem.sinceReveal > STALL_STEPS) target = nearestUnrevealed(s, head) || s.apple;
+  // 目标:场上特殊果(限时,最紧迫)> 最近苹果(含副苹果);停滞时改打最近未揭格。
+  // 流星不追(移动目标,只在 eatAt 顺路截击)。
+  let target = s.special ? { x: s.special.x, y: s.special.y } : nearestApple(s, head);
+  if (mem.sinceReveal > STALL_STEPS) target = nearestUnrevealed(s, head) || target;
   if (!target) return null;
   const tIdx = cyc.indexOf[target.y * s.cols + target.x];
 
@@ -158,6 +159,16 @@ function shortcutMove(s, cyc, mem, hi, head) {
     }
     const score = relDist(cyc, ni, tIdx) * 2 + (s.revealed[ny * s.cols + nx] ? 1 : 0);
     if (score < bestScore) { bestScore = score; best = dir; }
+  }
+  return best;
+}
+
+function nearestApple(s, from) {
+  let best = s.apple;
+  let bd = best ? Math.abs(best.x - from.x) + Math.abs(best.y - from.y) : Infinity;
+  for (const a of s.extraApples) {
+    const d2 = Math.abs(a.x - from.x) + Math.abs(a.y - from.y);
+    if (d2 < bd) { bd = d2; best = a; }
   }
   return best;
 }
