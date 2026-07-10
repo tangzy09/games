@@ -42,6 +42,7 @@ function nextMove(s, cyc, mem) {
   // 已知坑:蛇起点不一定在回路起点上,回路建议方向可能与当前 dir 成 180°
   // (setDir 会忽略这种转向,导致蛇直行偏离回路)。此时挑一个安全的过渡方向:
   // 优先选一个不出界、不撞身、且能让蛇尽快汇入回路前进方向的邻格方向。
+  let move = null;
   if (s.snake.length > 1 && suggestion === OPP_[s.dir]) {
     let best = null, bestFwd = Infinity;
     for (const dir of ['up', 'down', 'left', 'right']) {
@@ -54,12 +55,74 @@ function nextMove(s, cyc, mem) {
       const fwd = relDist(cyc, hi, ni);
       if (fwd < bestFwd) { bestFwd = fwd; best = dir; }
     }
-    if (best) return best;
+    move = best;
   }
+  if (!move) {
+    const pure = mem.forcePure || s.snake.length > cyc.n / 2 || mem.sinceReveal > STALL_STEPS * 2;
+    move = pure ? suggestion : (shortcutMove(s, cyc, mem, hi, head) || suggestion);
+  }
+  return survivalMove(s, move);   // 兜底的兜底:仅在原建议致死时介入(设计 §4)
+}
 
-  const pure = mem.forcePure || s.snake.length > cyc.n / 2 || mem.sinceReveal > STALL_STEPS * 2;
-  if (pure) return suggestion;
-  return shortcutMove(s, cyc, mem, hi, head) || suggestion;
+// 单步致死判定:出界或撞身(与 core.step 同口径——不长身时尾格让位)
+function isLethalMove(s, dir) {
+  const d = AIDIRS[dir], head = s.snake[0];
+  const nx = head.x + d.x, ny = head.y + d.y;
+  if (nx < 0 || ny < 0 || nx >= s.cols || ny >= s.rows) return true;
+  const grow = s.snake.length < s.targetLen;
+  return s.snake.some((c, i) => {
+    if (!grow && i === s.snake.length - 1) return false;   // 尾格同步让位
+    return c.x === nx && c.y === ny;
+  });
+}
+
+// BFS:从 (sx,sy) 出发,把当前蛇身(尾格除外)视为障碍,能否走到蛇尾所在格。
+// 追得到尾巴 ⇒ 永远有活路(尾巴每步都会让出新格)。
+function canReachTail(s, sx, sy) {
+  const tail = s.snake[s.snake.length - 1];
+  if (sx === tail.x && sy === tail.y) return true;
+  const blocked = new Uint8Array(s.cols * s.rows);
+  for (let i = 0; i < s.snake.length - 1; i++) {   // 尾格是终点,不算障碍
+    const c = s.snake[i];
+    blocked[c.y * s.cols + c.x] = 1;
+  }
+  if (blocked[sy * s.cols + sx]) return false;
+  const seen = new Uint8Array(s.cols * s.rows);
+  const qx = [sx], qy = [sy];
+  seen[sy * s.cols + sx] = 1;
+  for (let qi = 0; qi < qx.length; qi++) {
+    const x = qx[qi], y = qy[qi];
+    for (const k of ['up', 'down', 'left', 'right']) {
+      const d = AIDIRS[k];
+      const nx = x + d.x, ny = y + d.y;
+      if (nx < 0 || ny < 0 || nx >= s.cols || ny >= s.rows) continue;
+      if (nx === tail.x && ny === tail.y) return true;
+      const i = ny * s.cols + nx;
+      if (seen[i] || blocked[i]) continue;
+      seen[i] = 1; qx.push(nx); qy.push(ny);
+    }
+  }
+  return false;
+}
+
+// 兜底的兜底(设计 §4):若即将返回的方向直接致死,或是会被 setDir 忽略的 180°
+// (导致直行送死风险),改选「BFS 能追到尾巴」的邻格方向;都追不到则任选不立即
+// 致死的;连这都没有才原样返回(必死局面,上层不变式下理论不可达)。
+// 纯函数:除入参读取外无任何副作用。
+function survivalMove(s, move) {
+  const len = s.snake.length;
+  const doomed = (len > 1 && move === OPP_[s.dir]) || isLethalMove(s, move);
+  if (!doomed) return move;
+  const head = s.snake[0];
+  let anySafe = null;
+  for (const dir of ['up', 'down', 'left', 'right']) {
+    if (len > 1 && dir === OPP_[s.dir]) continue;   // 会被 setDir 忽略,无意义
+    if (isLethalMove(s, dir)) continue;
+    const d = AIDIRS[dir];
+    if (canReachTail(s, head.x + d.x, head.y + d.y)) return dir;   // 追尾优先
+    if (!anySafe) anySafe = dir;
+  }
+  return anySafe || move;   // 全堵死:原样返回
 }
 // 安全不变式:候选格回路前向距离 < 头→尾前向距离 - 余量(身体全部留在前向区间之外);
 // 捷径只穿已揭格(目标格例外);等价代价偏好未揭格(顺路揭,防停滞保险 a)。

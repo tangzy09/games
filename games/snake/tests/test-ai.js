@@ -72,3 +72,49 @@ console.log('OK test-ai(捷径+保证通关)');
   console.log(`  压力测试 3 种子 ×3 关,总步数 ${totalSteps},零死亡`);
 }
 console.log('OK test-ai(压力测试)');
+
+{
+  // --- 确定性用例 a:180° 冲突——回路建议方向恰为 OPP[dir] ---
+  // 回路第 0 行是 x 0→15 正向段,(5,0) 的后继是 (6,0),建议 'right'。
+  // 手工构造 dir='left' 的蛇(neck 在 (6,0)),建议 'right' === OPP['left'],
+  // 会被 setDir 忽略导致直行——nextMove 必须给出一个安全的替代方向。
+  const g = Core.createGame({ seed: 42 });
+  g.snake = [{ x: 5, y: 0 }, { x: 6, y: 0 }];
+  g.dir = 'left'; g.nextDir = 'left';
+  g.targetLen = 2;
+  g.apple = { x: 0, y: 15 };
+  const mem = AI.createMem();
+  const mv = AI.nextMove(g, cyc, mem);
+  assert.notStrictEqual(mv, 'right', '不许返回会被 setDir 忽略的 180° 方向');
+  const d = Core.DIRS[mv];
+  const nx = g.snake[0].x + d.x, ny = g.snake[0].y + d.y;
+  assert(nx >= 0 && ny >= 0 && nx < 16 && ny < 16, `方向 ${mv} 不出界`);
+  assert(!g.snake.some(c => c.x === nx && c.y === ny), `方向 ${mv} 不撞身`);
+}
+console.log('OK test-ai(180°防御)');
+
+{
+  // --- 确定性用例 b:BFS 追尾兜底——头被半包围,唯一活路是能追到尾巴的方向 ---
+  // 头 (3,3),dir='down'(neck (3,2),'up' 是 OPP)。回路 y=3 行是 x 15→1 反向段,
+  // (3,3) 的后继是 (2,3)——已被身体占据,建议方向直接致死。
+  // forcePure 跳过捷径层,让致死建议原样传到兜底层。
+  // 'down'→(3,4) 不立即致死,但 {(3,4),(3,5)} 是身体围成的死口袋(BFS 到不了尾巴);
+  // 'right'→(4,3) 开阔,可绕到尾巴 (6,4)。兜底必须选 'right' 而非口袋。
+  const g = Core.createGame({ seed: 43 });
+  g.snake = [
+    { x: 3, y: 3 },                                   // 头
+    { x: 3, y: 2 }, { x: 2, y: 2 }, { x: 2, y: 3 },   // (2,3) 挡死回路建议
+    { x: 2, y: 4 }, { x: 2, y: 5 }, { x: 2, y: 6 },   // 口袋左壁
+    { x: 3, y: 6 },                                   // 口袋底
+    { x: 4, y: 6 }, { x: 4, y: 5 }, { x: 4, y: 4 },   // 口袋右壁
+    { x: 5, y: 4 }, { x: 6, y: 4 },                   // 尾巴在开阔区
+  ];
+  g.dir = 'down'; g.nextDir = 'down';
+  g.targetLen = g.snake.length;
+  g.apple = { x: 15, y: 15 };
+  const mem = AI.createMem();
+  mem.forcePure = true;
+  const mv = AI.nextMove(g, cyc, mem);
+  assert.strictEqual(mv, 'right', `半包围局面必须选追得到尾巴的 'right',实际 ${mv}`);
+}
+console.log('OK test-ai(BFS追尾兜底)');
