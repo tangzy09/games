@@ -20,12 +20,12 @@ const MONSTERS = {
   flitter:  { lv: 2,  xp: 2,  icon: '🦇', count: 12 },
   rattle:   { lv: 3,  xp: 3,  icon: '🦴', count: 10 },
   cuddle:   { lv: 4,  xp: 4,  icon: '🐨', count: 8, pairs: 4 },   // named twins, face each other
-  pudding:  { lv: 5,  xp: 5,  icon: '🍮', count: 8 },             // sage's drop reveals them
+  pudding:  { lv: 5,  xp: 5,  icon: '🐸', count: 8 },             // sage's drop reveals them
   gazer:    { lv: 5,  xp: 5,  icon: '👁️', count: 2 },             // radius-2 fog of ?
-  mouseking:{ lv: 5,  xp: 5,  icon: '👑', count: 1 },             // drop: reveal all mousies
+  mouseking:{ lv: 5,  xp: 5,  icon: '🐀', count: 1 },             // drop: reveal all mousies
   moobo:    { lv: 6,  xp: 6,  icon: '🐮', count: 5 },             // placed beside a chest, faces it
-  guard:    { lv: 7,  xp: 7,  icon: '🛡️', count: 4 },             // one per quadrant
-  jelly:    { lv: 8,  xp: 8,  icon: '🫧', count: 5 },             // huddle around the sage
+  guard:    { lv: 7,  xp: 7,  icon: '🐺', count: 4 },             // one per quadrant
+  jelly:    { lv: 8,  xp: 8,  icon: '🦑', count: 5 },             // huddle around the sage
   giant:    { lv: 9,  xp: 9,  icon: '🗿', count: 2 },             // romeo+juliet, symmetric same row; drop: medikit
   mineking: { lv: 10, xp: 10, icon: '🎩', count: 1 },             // drop: disarm-all scroll
   mimic:    { lv: 11, xp: 11, icon: '🎁', count: 1 },             // poses as a chest until poked / until you lose

@@ -23,24 +23,29 @@ function drawHud(L) {
   const { PAD, SW, hudY: y, hudH: h } = L;
   fillRR(PAD, y, SW - PAD * 2, h, 16, C.surface);
   strokeRR(PAD, y, SW - PAD * 2, h, 16, C.border, 1.5);
-  // hearts (halfHeart: a budding half after the last full one)
-  const hs = Math.min(17, (SW - PAD * 2 - 130) / MAX_HP);
+  // hearts, grouped in fives for easy counting (a small gap every 5)
+  const GAP5 = 7;
+  const hGroups = Math.floor((MAX_HP - 1) / 5);
+  const hs = Math.min(17, (SW - PAD * 2 - 130 - hGroups * GAP5) / MAX_HP);
+  const heartX = (k) => PAD + 16 + k * hs + Math.floor(k / 5) * GAP5;
   for (let k = 0; k < G.maxHp; k++)
-    txt(k < G.hp ? '❤️' : '🤍', PAD + 16 + k * hs, y + 17, C.text, `${Math.round(hs * 0.85)}px sans-serif`);
+    txt(k < G.hp ? '❤️' : '🤍', heartX(k), y + 17, C.text, `${Math.round(hs * 0.85)}px sans-serif`);
   if (G.halfHeart && G.maxHp < MAX_HP)
-    txt('💗', PAD + 16 + G.maxHp * hs, y + 17, C.text, `${Math.round(hs * 0.6)}px sans-serif`);
+    txt('💗', heartX(G.maxHp), y + 17, C.text, `${Math.round(hs * 0.6)}px sans-serif`);
   // xp as gold nuggets (original style): earned bright, still-needed dim
   const bx = PAD + 14, bw = SW - PAD * 2 - 126, by = y + 36;
   txtL(`Lv${G.level}`, bx, by + 8, C.xp, 'bold 12px sans-serif');
   const need = xpNeed(), shown = Math.min(G.xp, need);
-  const gs = Math.max(9, Math.min(14, (bw - 40) / need));
+  const gGroups = Math.floor((need - 1) / 5);
+  const gs = Math.max(8, Math.min(14, (bw - 40 - gGroups * 7) / need));
+  const goldX = (k) => bx + 36 + k * gs + Math.floor(k / 5) * 7; // gap every 5: countable at a glance
   const gfont = `${Math.round(gs * 0.95)}px sans-serif`;
   for (let k = 0; k < need; k++) {
     if (k >= shown) ctx.globalAlpha = 0.22;
-    txt('🪙', bx + 36 + k * gs, by + 8, C.text, gfont);
+    txt('🪙', goldX(k), by + 8, C.text, gfont);
     ctx.globalAlpha = 1;
   }
-  if (G.xp > need) txtL(`+${G.xp - need}`, bx + 40 + need * gs, by + 8, '#e8a13c', 'bold 10px sans-serif');
+  if (G.xp > need) txtL(`+${G.xp - need}`, goldX(need) + 4, by + 8, '#e8a13c', 'bold 10px sans-serif');
   const can = canLevelUp();
   fillRR(SW - PAD - 104, by - 6, 94, 30, 15, can ? C.xp : '#e8dcc9');
   txt(`⬆ ${T('ui.levelUp')}`, SW - PAD - 57, by + 9, can ? '#fff' : C.muted, 'bold 12px sans-serif');
@@ -74,13 +79,20 @@ function drawGrid(L) {
     if (c.mon && !c.defeated) {
       const M = MONSTERS[c.mon];
       const disguised = c.mimicHidden;
-      fillRR(x, y, ts, ts, rad, c.mon === 'dragon' ? '#ffe3ec' : '#fff4e0');
-      strokeRR(x, y, ts, ts, rad, c.mon === 'dragon' ? C.accent : '#f0c987', 1.5);
+      // color language: red-ish = costs HP; green = pure benefit (lv 0);
+      // a disguised mimic paints itself green like a real chest — that IS its lie
+      const harmless = M.lv === 0;
+      const bg = disguised || harmless ? '#e9f6e7' : (c.mon === 'dragon' ? '#ffe3ec' : '#ffe9e0');
+      const bd = disguised || harmless ? '#9ccc9c' : (c.mon === 'dragon' ? C.accent : '#f0a58f');
+      fillRR(x, y, ts, ts, rad, bg);
+      strokeRR(x, y, ts, ts, rad, bd, 1.5);
       txt(disguised ? ITEMS.chest.icon : M.icon, mid, midy - 1, C.text, `${fs}px sans-serif`);
       if (!disguised && M.lv > 0)
         txt(String(M.lv), x + ts - 6, y + 7, C.hp, `bold ${sm}px sans-serif`);
       addHit(x, y, ts, ts, 'CELL', { i });
-    } else if (c.mon && c.defeated) { // corpse: tap to collect its XP
+    } else if (c.mon && c.defeated) { // corpse: tap to collect its XP — pure benefit now
+      fillRR(x, y, ts, ts, rad, '#e9f6e7');
+      strokeRR(x, y, ts, ts, rad, '#9ccc9c');
       ctx.globalAlpha = 0.45;
       txt(MONSTERS[c.mon].icon, mid, midy, C.text, `${fs}px sans-serif`);
       ctx.globalAlpha = 1;
@@ -92,18 +104,24 @@ function drawGrid(L) {
       txt('👑', mid, midy, C.text, `${fs}px sans-serif`);
       addHit(x, y, ts, ts, 'CELL', { i });
     } else if (c.spell) {
+      fillRR(x, y, ts, ts, rad, '#e9f6e7');
+      strokeRR(x, y, ts, ts, rad, '#9ccc9c');
       txt('📜', mid, midy, C.text, `${fs}px sans-serif`);
       addHit(x, y, ts, ts, 'CELL', { i });
     } else if (c.treasureXp) {
+      fillRR(x, y, ts, ts, rad, '#e9f6e7');
+      strokeRR(x, y, ts, ts, rad, '#9ccc9c');
       txt('💎', mid, midy, C.text, `${fs}px sans-serif`);
       txt('+' + c.treasureXp, x + ts - 7, y + 7, '#66b98a', `bold ${sm}px sans-serif`);
       addHit(x, y, ts, ts, 'CELL', { i });
     } else if (c.item) {
-      if (c.item === 'wall') {
+      if (c.item === 'wall') { // wall costs HP to dig: warm tone, not green
         fillRR(x, y, ts, ts, rad, '#eadcCB');
         txt(ITEMS.wall.icon, mid, midy, C.text, `${fs}px sans-serif`);
         txt(String(c.wallHP), x + ts - 6, y + 7, C.muted, `bold ${sm}px sans-serif`);
       } else {
+        fillRR(x, y, ts, ts, rad, '#e9f6e7');
+        strokeRR(x, y, ts, ts, rad, '#9ccc9c');
         txt(ITEMS[c.item].icon, mid, midy, C.text, `${fs}px sans-serif`);
       }
       addHit(x, y, ts, ts, 'CELL', { i });

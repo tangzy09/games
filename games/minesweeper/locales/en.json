@@ -44,8 +44,8 @@
       "trait": "Never alone — its twin is always in a touching tile."
     },
     "pudding": {
-      "name": "Pudding",
-      "trait": "Wobbly 5. The Sage's scroll reveals every pudding."
+      "name": "Croaky",
+      "trait": "A wobbly 5. The Sage’s scroll reveals every croaky."
     },
     "gazer": {
       "name": "Peeper",
@@ -53,7 +53,7 @@
     },
     "mouseking": {
       "name": "Mouse King",
-      "trait": "Drops a scroll that reveals every mousey on the board."
+      "trait": "The big boss rat. Drops a scroll that reveals every mousey."
     },
     "moobo": {
       "name": "Moobo",
@@ -61,7 +61,7 @@
     },
     "guard": {
       "name": "Doorman",
-      "trait": "Four of them, one napping in each quarter of the dungeon."
+      "trait": "Four wolf doormen, one napping in each quarter of the dungeon."
     },
     "jelly": {
       "name": "Jubjub",
@@ -85,7 +85,7 @@
     },
     "sage": {
       "name": "Sage",
-      "trait": "Level 1 — but guarded by five Jubjubs. Drops the pudding-finder."
+      "trait": "Level 1 — but guarded by five Jubjubs. Drops the croaky-finder."
     },
     "boomy": {
       "name": "Bombom",
