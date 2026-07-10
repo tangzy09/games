@@ -12,7 +12,9 @@ function createGame(opts = {}) {
   const s = {
     cols, rows,
     rand: PRNG_.create(opts.seed == null ? 1 : opts.seed),
-    snake: [{ x: 3, y: 8 }],       // 头在前;身体随前进长出
+    // 头在前;身体随前进长出。起点按棋盘尺寸取(16×16 = {3,8},同原硬编码;
+    // 小棋盘如 4×4 = {1,2},避免硬编码 y:8 越界)
+    snake: [{ x: Math.min(3, Math.floor(cols / 4)), y: Math.floor(rows / 2) }],
     dir: 'right', nextDir: 'right',
     targetLen: 3,
     revealed: new Uint8Array(cols * rows), revealedCount: 0, milestones: 0,
