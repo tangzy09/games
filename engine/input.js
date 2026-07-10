@@ -22,7 +22,7 @@ const Input = (() => {
       }
       if (!H.onSwipe) return;
       if (H.canSwipe && !H.canSwipe()) return;
-      if (dist < 28) return;
+      if (dist < 28 || movedLive) return;
       let dir;
       if (Math.abs(dx) > Math.abs(dy)) dir = dx > 0 ? 'right' : 'left';
       else dir = dy > 0 ? 'down' : 'up';
