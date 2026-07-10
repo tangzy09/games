@@ -1,7 +1,7 @@
 const path = require('path');
 const http = require('http');
 const fs = require('fs');
-const { chromium } = require('C:/Users/tangz/Documents/Projects/2048/node_modules/playwright');
+const { chromium } = require('playwright');
 
 const ROOT = 'C:/Users/tangz/Documents/Projects/games';
 const OUT = 'C:/tmp/roguelite-minigames';

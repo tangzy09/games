@@ -2,11 +2,11 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-const PRNG = require('../engine/prng.js');
+const PRNG = require('../../../engine/prng.js');
 
 function freshCtx(seed) {
   const ctx = vm.createContext({ console });
-  const dir = path.join(__dirname, '..', 'games', 'minesweeper', 'js');
+  const dir = path.join(__dirname, '..', 'js');
   for (const f of ['constants.js', 'logic.js'])
     vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx, { filename: f });
   ctx.G = vm.runInContext('G', ctx);

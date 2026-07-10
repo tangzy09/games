@@ -1,5 +1,11 @@
 {
   "devDependencies": {
     "playwright": "^1.61.1"
+  },
+  "scripts": {
+    "test": "npm run test:mines && npm run test:snake",
+    "test:mines": "node games/minesweeper/tests/test-mines.js && node games/minesweeper/tests/test-mines-sim.js 100",
+    "test:mines:e2e": "node games/minesweeper/tests/test-mines-e2e.cjs",
+    "test:snake": "node games/snake/tests/test-prng.js"
   }
 }

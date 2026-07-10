@@ -7,12 +7,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 常用命令
 
 ```bash
+# 一键全量（改 engine/ 后必跑）
+npm test                                  # = test:mines + test:snake
 # 扫雷验证三件套（改动 games/minesweeper 后全部要绿）
-node tools/test-mines.js                 # 单测（含盘面生态放置断言 + 图鉴特性一致性套件）
-node tools/test-mines-sim.js 100         # 神谕蒙特卡洛 = 可赢性门禁（全知 bot，必须 ~100% 胜）
-node tools/test-mines-sim.js 300 --novice --debug   # 演绎 bot 下界 / 带终局账本
+npm run test:mines                        # 单测 + 神谕蒙特卡洛（可赢性门禁，必须 ~100% 胜）
+npm run test:mines:e2e                    # Playwright 端到端（起本地服务，真点击真断言）
+node games/minesweeper/tests/test-mines-sim.js 300 --novice --debug   # 演绎 bot 下界/终局账本
 node tools/check-locales.js games/minesweeper/locales   # locale 键集校验（en.json 为基准）
-node tools/test-mines-e2e.cjs            # Playwright 端到端（起本地服务，真点击真断言）
 
 # 本地跑游戏：必须 http（locale 走 fetch，file:// 白屏）
 npx http-server -p 8080   # 然后开 http://localhost:8080/games/minesweeper/
@@ -22,8 +23,8 @@ node games/snake/tests/test-prng.js
 
 # 美术管线（需本机 ComfyUI，见 ~/.claude/skills/comfyui-flux-local）
 C:/ComfyUI/venv/Scripts/python.exe main.py --disable-auto-launch   # 起服务(8188)
-C:/ComfyUI/venv/Scripts/python.exe tools/art/gen-mines-art.py --only giant   # 生成(可指定 id)
-C:/ComfyUI/venv/Scripts/python.exe tools/art/cutout-direct.py   # 抠图→512webp 直接入 assets/sprites/
+C:/ComfyUI/venv/Scripts/python.exe games/minesweeper/tools/art/gen-mines-art.py --only giant   # 生成(可指定 id)
+C:/ComfyUI/venv/Scripts/python.exe games/minesweeper/tools/art/cutout-direct.py   # 抠图→512webp 直接入 assets/sprites/
 ```
 
 ## 部署（手动，绝不自动）
@@ -52,5 +53,6 @@ ssh -i /c/Users/tangz/Documents/credentials/ec2_1.pem ec2-user@3.26.95.240 "sudo
 ## 本仓库的协作坑（都真实发生过）
 
 - **多个 Claude 会话并行共用本仓**（贪吃蛇在 `games/snake/`）。提交只 `git add` 精确路径，**禁止 `git add -A`**（曾把别会话的未提交文件夹带进提交）。改 `engine/` 前先看当前文件内容——别的会话可能刚改过（input.js 曾因此被贴进孤儿代码）。
+- **约定：游戏专属的测试/工具放 `games/<name>/{tests,tools}/`，共享层 `tools/` 只放跨游戏工具**（如 check-locales）。
 - 用脚本批量改代码时，**替换后必须 grep 验证生效**——`str.replace` 没匹配不报错，本仓已静默失败四次。
 - locale 十语重翻未做（v2.1 文案定型后 `GAME_CONFIG.languages` 锁在 en/zh-CN）；扩语言按 `~/.claude/skills/i18n` 流程派并行 agent，完后必跑 check-locales 认账。
