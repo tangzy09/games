@@ -205,9 +205,27 @@ function bigButton(cy, key, action, color) {
   addHit(SW / 2 - 96, cy, 192, 48, action, {});
 }
 
+// home key art = app icon (assets/icons); rounded-clip hides the source's white corners
+let keyArt = null, keyArtStarted = false;
+function drawKeyArt(cx, cy, size) {
+  if (!keyArtStarted) {
+    keyArtStarted = true;
+    const im = new Image();
+    im.onload = () => { keyArt = im; try { renderAll(); } catch (e) {} };
+    im.onerror = () => {};
+    im.src = 'assets/icons/icon-512.png';
+  }
+  if (!keyArt) { txt('🐉', cx, cy, C.text, `${Math.round(size * 0.4)}px sans-serif`); return; }
+  ctx.save();
+  roundRect(cx - size / 2, cy - size / 2, size, size, size * 0.24);
+  ctx.clip();
+  ctx.drawImage(keyArt, cx - size / 2, cy - size / 2, size, size);
+  ctx.restore();
+}
+
 function drawHome() {
   const { SW, SH } = GameGlobal;
-  txt('🐉', SW / 2, SH * 0.18, C.text, '58px sans-serif');
+  drawKeyArt(SW / 2, SH * 0.145, Math.min(SW * 0.52, SH * 0.21));
   txt(T('home.title'), SW / 2, SH * 0.27, C.accent, 'bold 27px sans-serif');
   ctx.font = '13px sans-serif';
   wrapLines(T('home.subtitle'), 290, 3).forEach((ln, k) =>
