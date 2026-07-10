@@ -49,6 +49,7 @@
 | canvas.js | `canvas` `ctx` `GameGlobal` `initCanvas` `clearHits` `addHit` `hitTest` `roundRect/fillRR/strokeRR` `txt/txtL/txtR` `wrapLines` `txtLWrap` `drawDim` `makeArt` `drawArtIcon` `T` | 画布与绘制基建 |
 | input.js | `Input` | tap→hitTest→onAction；滑动/方向键→onSwipe（canSwipe 门控）|
 | controls.js | `Controls` | 顶栏 DOM：语言菜单 + 游戏附加控件 |
+| prng.js | `PRNG` | 可注种子随机(mulberry32);测试/每日种子/AI 验证用,替代 Math.random |
 
 ## 暂未抽取（等第一个游戏驱动）
 

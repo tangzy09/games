@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<title>Minesweeper Rogue</title>
+<link rel="stylesheet" href="../../engine/engine.css">
+<style>
+  :root { --eng-bg: #f2ede4; --eng-ctl-text: #6b5d48; --eng-ctl-shadow: rgba(150,130,100,0.3); }
+</style>
+</head>
+<body>
+<canvas id="game-canvas"></canvas>
+<div id="controls"></div>
+
+<script>
+  window.GAME_CONFIG = {
+    id: 'mines',
+    languages: ['en', 'zh-CN'], // 玩法定型后扩到十语(engine 默认集)并批量翻译
+  };
+</script>
+<script src="../../engine/config.js"></script>
+<script src="../../engine/platform.js"></script>
+<script src="../../engine/i18n.js"></script>
+<script src="../../engine/portal.js"></script>
+<script src="../../engine/ads.js"></script>
+<script src="../../engine/audio.js"></script>
+<script src="../../engine/canvas.js"></script>
+<script src="../../engine/input.js"></script>
+<script src="../../engine/controls.js"></script>
+<script src="js/constants.js"></script>
+<script src="js/logic.js"></script>
+<script src="js/render.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

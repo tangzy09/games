@@ -1,0 +1,27 @@
+{
+  "lang": { "name": "English", "toggle": "Language" },
+  "ads": { "simWatch": "[Ad simulation] Watch a rewarded ad?", "simInterstitial": "[Ad simulation] Interstitial ad" },
+  "home": {
+    "title": "Minesweeper Rogue",
+    "subtitle": "Numbers show the total strength of nearby monsters. Your HP is a resource — spend it wisely, reach the dragon.",
+    "souls": "Souls: {n}",
+    "best": "Best: floor {n}",
+    "start": "Descend"
+  },
+  "ui": { "floor": "Floor", "level": "Lv" },
+  "intro": { "floor": "Floor {n}", "boss": "The dragon sleeps here…", "enter": "Enter" },
+  "relic": {
+    "pick": "Choose a relic",
+    "skip": "Skip",
+    "tough":  { "name": "Iron Heart",   "desc": "+2 max HP, right now and for the rest of the run." },
+    "weaken": { "name": "Dull Blades",  "desc": "All monsters lose 1 strength (numbers update too)." },
+    "regen":  { "name": "Moss Charm",   "desc": "Every 12 tiles revealed, recover 1 HP." },
+    "greed":  { "name": "Greedy Purse", "desc": "Coins give double gold." },
+    "scout":  { "name": "Spyglass",     "desc": "Each floor starts with an extra area revealed." },
+    "vamp":   { "name": "Blood Fang",   "desc": "Killing a monster of strength 3+ heals 1 HP." }
+  },
+  "float": { "gold": "+{n} gold", "heal": "+{n} HP", "levelUp": "Level {n}! Fully healed" },
+  "lose": { "title": "You fell…", "gap": "Only {n} floor(s) from the dragon" },
+  "win": { "title": "Dragon slain!" },
+  "end": { "souls": "+{n} souls this run", "total": "Total souls: {n}", "retry": "Run it back", "home": "Home" }
+}
