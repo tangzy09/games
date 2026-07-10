@@ -32,7 +32,7 @@
 - **`dispatch(action, data)`**：所有交互入口。`Input.bind({ onAction: dispatch, onSwipe, canSwipe })`。
 - **boot 流程**（参考 2048 main.js）：
   `Platform.hydrate([CFG.key('lang'), CFG.key('sfx'), ...CFG.hydrateKeys])` → `restoreAudioPrefs()` → `Portal.boot()` → `await Ads.init()` → `I18N.onChange(重渲染)` → `await I18N.setLang(I18N.detect())` → `initCanvas()` → 初始化 G → `Input.bind(...)` → `Controls.render(extraHtml?)` → `renderAll()`。
-- **零硬编码文案**：全走 `T('dotted.key', {params})`（= `I18N.t`），locale 文件 `locales/<lang>.json`，以 en 为基准，`node tools/check-locales.js games/<name>/locales` 必须 0 fail。
+- **零硬编码文案**：全走 `T('dotted.key', {params})`（= `I18N.t`），locale 文件 `locales/<lang>.json`，以 en 为基准，`node tools/check-locales.js games/<name>/locales` 必须 0 fail。⚠️ **locale JSON 必须是嵌套结构**（`{"snake":{"score":"分数"}}`）——`I18N.get` 按点路径逐层解析，扁平写法 `{"snake.score":"分数"}` 查不到、满屏 key 原文且 console 零报错（snake P1 实踩；check-locales 查不出这个,它只比对 key 集合）。
 - **canvas 上所有非定长文案过 `wrapLines`/`txtLWrap`**（德/俄膨胀、canvas 不自动换行）。
 - **美术**：`makeArt('items', [ids])` 预载 `assets/items/<id>.webp`，`drawArtIcon(art, id, emoji, ...)` 画图、缺图回退 emoji——先用 emoji 占位开发，美术后补零改码。
 
