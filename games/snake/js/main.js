@@ -9,6 +9,7 @@ var G = {
   imgFull: false,          // LEVEL_DONE 时点图全屏欣赏中
   save: null, tracker: null, saveKey: null,   // P2b:存档 + 单局成就 tracker
   revivesThisLevel: 0,                        // P3a:复活广告位,每局(每张图)限 2 次
+  rescueUntil: 0,                             // P3a:AI 救场 10s(游戏时钟),期间 AI 代驾但仍算人工局
 
   seed: (Date.now() % 2147483647),
 };
@@ -46,6 +47,18 @@ function dispatch(action) {
           if (u.length) showAchToasts(u);
           persist();
           G.phase = 'PLAYING'; loopState.last = 0; renderAll();
+        });
+      }
+      break;
+    case 'RESCUE':
+      // AI 救场 10s:看广告换短时代驾;不是 AI 局(全分、不碰 tracker.aiRun)
+      if (G.phase === 'PLAYING' && !G.ai && !(G.nowMs < G.rescueUntil)) {
+        Ads.showRewarded().then(ok => {
+          if (ok && G.phase === 'PLAYING') {
+            G.rescueUntil = G.nowMs + 10000;
+            G.aiMem = AI.createMem();
+            renderAll();
+          }
         });
       }
       break;
@@ -308,7 +321,9 @@ function tick(nowMs, interval) {
   G.nowMs = nowMs;
   const run = G.run;
   const before = { score: run.score, revealed: run.revealedCount };
-  if (G.ai) Core.setDir(run, AI.nextMove(run, G.cyc, G.aiMem));
+  // 救场期间 AI 代驾,但不是 AI 局:全分、不碰 tracker.aiRun;交还瞬间不改方向(AI 最后设的 dir 自然延续)
+  const rescue = nowMs < G.rescueUntil;
+  if (G.ai || rescue) Core.setDir(run, AI.nextMove(run, G.cyc, G.aiMem));
   Core.step(run, { nowMs, scoreScale: G.ai ? 0.5 : 1 });
   syncRevealDiff();
   // 事件驱动:音效与成就统一消费 run.events(取代散落 flag 判定)

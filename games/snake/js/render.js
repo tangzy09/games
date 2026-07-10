@@ -10,7 +10,7 @@ const IS_TOUCH = typeof navigator !== 'undefined' && (navigator.maxTouchPoints >
 let PAL = THEMES.cloud.pal;
 function applyThemePal(key) { PAL = (THEMES[key] || THEMES.cloud).pal; }
 
-const Layout = { bx:0, by:0, bsize:0, cell:0, btnAI:null, btnPause:null };
+const Layout = { bx:0, by:0, bsize:0, cell:0, btnAI:null, btnRescue:null, btnPause:null };
 let bgLayer = null, maskLayer = null, layerPx = 0;
 
 function layoutBoard() {
@@ -21,8 +21,10 @@ function layoutBoard() {
   Layout.bx = Math.floor((SW - size) / 2);
   Layout.by = safeTop + hudH;
   const byy = Layout.by + size + 14;
-  Layout.btnAI    = { x: Layout.bx, y: byy, w: size, h: 52 };   // 占满整行
-  Layout.btnPause = { x: Layout.bx + size - 40, y: safeTop + 8, w: 40, h: 36 };
+  const half = (size - 10) / 2;                                  // AI 开关 | AI 救场 两键半宽
+  Layout.btnAI     = { x: Layout.bx, y: byy, w: half, h: 52 };
+  Layout.btnRescue = { x: Layout.bx + half + 10, y: byy, w: half, h: 52 };
+  Layout.btnPause  = { x: Layout.bx + size - 40, y: safeTop + 8, w: 40, h: 36 };
 }
 
 // 每关/每次 resize 调:重建底图+遮罩 offscreen,并按 G.run.revealed 同步已揭格
@@ -187,6 +189,13 @@ function drawEffectsRow(safeTop) {
     if (now < fx[key]) items.push(emo + Math.ceil((fx[key] - now) / 1000));
   if (items.length)   // y=+42:棋盘白卡从 safeTop+50 起,+48 时 12px 字形下缘被卡片压住
     txtL(items.join('  '), Layout.bx, safeTop + 42, PAL.text, '12px sans-serif');
+  // AI 救场倒计时(最后 1 秒放大一档预警,设计 §4)
+  if (now < G.rescueUntil) {
+    const remainMs = G.rescueUntil - now;
+    const label = '🤖⏱' + Math.ceil(remainMs / 1000);
+    txtL(label, Layout.bx + Layout.bsize * 0.6, safeTop + 42, PAL.accent,
+         remainMs <= 1000 ? 'bold 17px sans-serif' : 'bold 12px sans-serif');
+  }
 }
 
 function drawSnake() {
@@ -217,8 +226,17 @@ function drawSnake() {
 function drawButtons() {
   const a = Layout.btnAI;
   fillRR(a.x, a.y, a.w, a.h, 14, G.ai ? PAL.btnOn : PAL.accent);
-  txt(`${T('snake.ai')} · ${G.ai ? T('snake.on') : T('snake.off')}`, a.x + a.w / 2, a.y + a.h / 2, '#fff', 'bold 15px sans-serif');
+  txt(`${T('snake.ai')} · ${G.ai ? T('snake.on') : T('snake.off')}`, a.x + a.w / 2, a.y + a.h / 2, '#fff', 'bold 14px sans-serif');
   addHit(a.x, a.y, a.w, a.h, 'AI_TOGGLE', {});
+  // AI 救场 10s(rewarded):AI 模式开启或救场进行中时画灰不可点(不加 hit)
+  const r = Layout.btnRescue;
+  const rescueActive = (G.nowMs || 0) < G.rescueUntil;
+  const disabled = G.ai || rescueActive;
+  ctx.globalAlpha = disabled ? 0.45 : 1;
+  fillRR(r.x, r.y, r.w, r.h, 14, PAL.bar);
+  txt(T('ads.rescue'), r.x + r.w / 2, r.y + r.h / 2, PAL.text, 'bold 14px sans-serif');
+  ctx.globalAlpha = 1;
+  if (!disabled) addHit(r.x, r.y, r.w, r.h, 'RESCUE', {});
 }
 
 // 非模态提示条(READY 用):不遮盘面、无按钮,任何方向输入即开始
