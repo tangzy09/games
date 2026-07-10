@@ -1,6 +1,6 @@
 {
   "appId": "com.aispeeds.angelsnake",
-  "appName": "Angel Snake",
+  "appName": "Snake Angel",
   "webDir": "www",
   "backgroundColor": "#fdf3f7",
   "plugins": {
@@ -10,7 +10,7 @@
       "showSpinner": false
     },
     "AdMob": {
-      "initializeForTesting": true
+      "initializeForTesting": false
     }
   }
 }

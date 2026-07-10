@@ -24,6 +24,12 @@
   window.GAME_CONFIG = {
     id: 'snake',
     languages: ['en', 'zh-CN'],   // P3 扩到 10 语
+    // Angel Snake 专属 AdMob 广告位(iOS;Android 上架时再补)——绝不复用他游戏 ID。
+    // 引擎按「该平台有真值即关测试模式」自动切换;web 端不走这里(confirm 模拟)。
+    adUnits: {
+      rewarded:     { ios: 'ca-app-pub-2141208066469648/4457804077' },
+      interstitial: { ios: 'ca-app-pub-2141208066469648/5188431812' },
+    },
     sfx: {
       eat: 'assets/audio/eat.wav', special: 'assets/audio/special.wav',
       shield: 'assets/audio/shield.wav', milestone: 'assets/audio/milestone.wav',

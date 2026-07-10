@@ -117,13 +117,8 @@ workflows:
       vars:
         GAME_DIR: "games/snake"
         BUNDLE_ID: "com.aispeeds.angelsnake"
-        # ⚠ 占位:App Store Connect 建 App 记录后由协调者回填数字 Apple ID;
-        #   占位期间「递增构建号」步会兜底为 0,publishing 到 TestFlight 需真 ID 才能过。
-        APP_STORE_APP_ID: "TBD_BY_COORDINATOR"
-        # ⚠ 占位:Google 官方测试 App ID(可启动、出测试广告,开发期安全);
-        #   AdMob 后台建 app 后由协调者替换为 Angel Snake 自己的真 App ID——
-        #   绝不复用其它游戏的 ID(一 app 一 AdMob 记录)。
-        GAD_APP_ID: "ca-app-pub-3940256099942544~1458002511"
+        APP_STORE_APP_ID: "6789757716"       # ASC「Snake Angel: Retro Arcade」数字 Apple ID
+        GAD_APP_ID: "ca-app-pub-2141208066469648~2322595323"   # Angel Snake 专属 AdMob App ID(~号)
     scripts: *ios_scripts
     artifacts: *ios_artifacts
     publishing: *ios_publishing
