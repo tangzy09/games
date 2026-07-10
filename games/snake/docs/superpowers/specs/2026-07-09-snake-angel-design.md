@@ -224,18 +224,26 @@
 
 ## 12. 工程结构与测试
 
+monorepo:`Projects\games\`(引擎与全部游戏一仓)。snake 结构:
+
 ```
-snake/
-├─ www/
-│  ├─ index.html          # 5 屏 + <script> 依序引入,零构建
-│  ├─ css/style.css
-│  ├─ js/ main.js game.js ai.js fruits.js achievements.js
-│  │     themes.js gallery.js i18n.js ads.js audio.js storage.js
-│  ├─ locales/{en,zh,ja,ko,es,fr,de,pt,ru,id}.json
-│  └─ images/angels/ (500 webp + manifest.json)
-├─ tools/pick-images.js
-└─ docs/superpowers/specs/
+games/                        ← monorepo 根
+├─ engine/                    ← 共享引擎(config/platform/i18n/portal/ads/audio/canvas/input/controls)
+│  └─ prng.js                 ← 本项目新增:可注种子 PRNG(全系列可用)
+├─ tools/check-locales.js     ← 已有:locale 完整性校验
+└─ games/snake/
+   ├─ index.html              # engine 加载序 + GAME_CONFIG + 游戏脚本
+   ├─ css/game.css            # 主题覆盖(engine.css 之上)
+   ├─ js/ core.js ai.js fruits.js achievements.js render.js main.js
+   │     (themes/gallery/share 等 P2 再加;i18n/ads/audio/storage 用引擎,不重写)
+   ├─ locales/{en,zh-CN,...}.json
+   ├─ assets/angels/ (500 webp + manifest.json)
+   ├─ tools/pick-images.js
+   ├─ tests/
+   └─ docs/superpowers/
 ```
+
+**引擎契约遵守**:`G` 单一状态对象 + `G.phase` 状态机;全局 `renderAll()` 每帧全量重画 + `addHit` 注册可点区域;所有交互过 `dispatch(action,data)`;boot 流程照引擎 README(Platform.hydrate → restoreAudioPrefs → Portal.boot → Ads.init → I18N → initCanvas → Input.bind → Controls.render → renderAll)。**引擎缺口在 engine/ 补**(P1:`prng.js` 新模块、`input.js` 加可选 `liveSwipe` 滑动即转向模式;P3:AdSense 适配)。
 
 **工程约定**:
 - 游戏内所有随机(果子刷新/选图/流星轨迹)统一走**可注种子 PRNG**(mulberry32),测试可复现、AI 断言确定性成立;
@@ -268,7 +276,7 @@ snake/
 
 ## 15. 分期
 
-- **P1**:核心玩法 + AI(网页可玩:揭图/过关/死亡/加速/基础果子)
+- **P1**:核心玩法 + AI,接引擎契约(网页可玩:揭图/过关/死亡/加速/基础果子;en+zh-CN 双语)
 - **P2**:13 果子全量 + 成就 + 图鉴 + 4 皮肤 + 音效 + 分享卡片
-- **P3**:i18n ×10 + 广告双适配 + EC2 部署上线
-- **P4**:Capacitor iOS/Android 打包上架
+- **P3**:i18n 补满 10 语 + 广告接真(Portal/AdSense/AdMob)+ EC2 部署(`/var/www/games` 子域名)+ 门户投稿
+- **P4**:(数据验证后)Capacitor iOS/Android 打包上架
