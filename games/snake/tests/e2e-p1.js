@@ -25,6 +25,9 @@ async function main() {
 
   log('--- snake P1 e2e ---');
   await page.goto(BASE + '/games/snake/', { waitUntil: 'load' });
+  // 每次 E2E 从干净档开始:P2b 引入持久存档,不清的话 img_1 断言在第二次跑时无法区分
+  await page.evaluate(() => localStorage.clear());
+  await page.reload({ waitUntil: 'load' });
   await page.waitForTimeout(2000);
 
   assert(consoleErrors.length === 0, `console errors == 0 (got ${consoleErrors.length}: ${consoleErrors.join(' | ')})`);
@@ -112,6 +115,25 @@ async function main() {
   }
   assert(afterNext.phase === 'PLAYING', `phase back to PLAYING after NEXT (got ${afterNext.phase})`);
   assert(afterNext.level === 2, `G.run.level === 2 after first NEXT (got ${afterNext.level})`);
+
+  // 成就:AI 通关也解锁图鉴类累计成就(img_1),但单局成就为零
+  const achProbe = await page.evaluate(() => ({
+    unlocked: window.G.save.ach.unlocked.slice(),
+    runAchs: window.G.save.ach.unlocked.filter(id => id.startsWith('r_')).length,
+  }));
+  assert(achProbe.unlocked.includes('img_1'), `img_1 unlocked after first clear (got ${achProbe.unlocked.join(',')})`);
+  assert(achProbe.runAchs === 0, `AI run unlocks no per-level achievements (got ${achProbe.runAchs})`);
+  // 存档续玩:reload 后 stats 保留
+  const applesBefore = await page.evaluate(() => window.G.save.stats.apples);
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForTimeout(2000);
+  const applesAfter = await page.evaluate(() => window.G.save.stats.apples);
+  assert(applesAfter >= applesBefore && applesBefore > 0, `save persists across reload (${applesBefore} -> ${applesAfter})`);
+  // 成就墙可打开
+  await page.evaluate(() => openAchievements('cum'));
+  const items = await page.evaluate(() => document.querySelectorAll('.ach-item').length);
+  assert(items === 100, `cum tab renders 100 badges (got ${items})`);
+  await page.evaluate(() => document.getElementById('panel-close').click());
 
   const shot1 = path.join(SHOT_DIR, 'e2e-p1.png');
   await page.screenshot({ path: shot1 });
