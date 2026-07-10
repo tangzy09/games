@@ -1,7 +1,9 @@
 // core.js — 纯游戏状态机(无 DOM,双导出)
-// 浏览器:PRNG 来自 engine/prng.js 全局;node:直接 require
+// 浏览器:PRNG/Fruits 来自前置 <script> 全局;node:直接 require
 const PRNG_ = (typeof module !== 'undefined' && module.exports)
   ? require('../../../engine/prng.js') : PRNG;
+const FR_ = (typeof module !== 'undefined' && module.exports)
+  ? require('./fruits.js') : Fruits;
 
 const SNAKE_DIRS = { up:{x:0,y:-1}, down:{x:0,y:1}, left:{x:-1,y:0}, right:{x:1,y:0} };
 const OPP  = { up:'down', down:'up', left:'right', right:'left' };
@@ -12,18 +14,21 @@ function createGame(opts = {}) {
   const s = {
     cols, rows,
     rand: PRNG_.create(opts.seed == null ? 1 : opts.seed),
-    // 头在前;身体随前进长出。起点按棋盘尺寸取(16×16 = {3,8},同原硬编码;
-    // 小棋盘如 4×4 = {1,2},避免硬编码 y:8 越界)
     snake: [{ x: Math.min(3, Math.floor(cols / 4)), y: Math.floor(rows / 2) }],
     dir: 'right', nextDir: 'right',
     targetLen: 3,
     revealed: new Uint8Array(cols * rows), revealedCount: 0, milestones: 0,
-    apple: null,
+    apple: null, extraApples: [], special: null, meteor: null,
+    applesSinceSpecial: 0, nextSpecialAt: 0,
+    effects: { slowUntil: 0, demonUntil: 0, ghostUntil: 0, trailUntil: 0,
+               magnetUntil: 0, shield: 0, lastDriftAt: 0 },
     score: 0, combo: 0, lastEatMs: -Infinity,
     level: 1, levelJustDone: false,
     dead: false, deaths: 0,
-    stats: { apples: 0, steps: 0 },
+    shieldJustUsed: false, lastSpecialEaten: null,   // 每步重置,供 UI/音效读取
+    stats: { apples: 0, steps: 0, specialsSpawned: 0, specials: {} },
   };
+  s.nextSpecialAt = 4 + Math.floor(s.rand() * 3);   // 每 4~6 苹果刷 1 个特殊果
   revealCell(s, s.snake[0].x, s.snake[0].y);
   spawnApple(s);
   return s;
@@ -31,18 +36,25 @@ function createGame(opts = {}) {
 
 function idx(s, x, y) { return y * s.cols + x; }
 function occupied(s, x, y) { return s.snake.some(c => c.x === x && c.y === y); }
+function fruitOccupied(s, x, y) {
+  if (s.apple && s.apple.x === x && s.apple.y === y) return true;
+  if (s.extraApples.some(a => a.x === x && a.y === y)) return true;
+  if (s.special && s.special.x === x && s.special.y === y) return true;
+  return false;
+}
+function randomFreeCell(s) {
+  const free = [];
+  for (let y = 0; y < s.rows; y++) for (let x = 0; x < s.cols; x++)
+    if (!occupied(s, x, y) && !fruitOccupied(s, x, y)) free.push({ x, y });
+  return free.length ? free[Math.floor(s.rand() * free.length)] : null;
+}
 
 function revealCell(s, x, y) {
   const i = idx(s, x, y);
   if (!s.revealed[i]) { s.revealed[i] = 1; s.revealedCount++; }
 }
 
-function spawnApple(s) {
-  const free = [];
-  for (let y = 0; y < s.rows; y++) for (let x = 0; x < s.cols; x++)
-    if (!occupied(s, x, y)) free.push({ x, y });
-  s.apple = free.length ? free[Math.floor(s.rand() * free.length)] : null;
-}
+function spawnApple(s) { s.apple = randomFreeCell(s); }
 
 function setDir(s, dir) {
   if (!SNAKE_DIRS[dir]) return;
@@ -50,37 +62,211 @@ function setDir(s, dir) {
   s.nextDir = dir;
 }
 
-// o: {nowMs, freezeCombo, scoreScale, ghost} — 后两者供 AI 代打/光环(P2)用
+// 与 step 同口径的致死判定(尾巴让位;ghost 穿身;墙恒死)
+function isLethalCell(s, x, y, ghost) {
+  if (x < 0 || y < 0 || x >= s.cols || y >= s.rows) return true;
+  if (ghost) return false;
+  const grow = s.snake.length < s.targetLen;
+  return s.snake.some((c, i) => {
+    if (!grow && i === s.snake.length - 1) return false;
+    return c.x === x && c.y === y;
+  });
+}
+
+// o: {nowMs, freezeCombo, scoreScale, ghost}
 function step(s, o = {}) {
   if (s.dead) return;
   s.levelJustDone = false;
+  s.shieldJustUsed = false; s.lastSpecialEaten = null;
+  const now = o.nowMs != null ? o.nowMs : s.stats.steps * 140;
+  const fx = s.effects;
+  tickMeteor(s, now, o);
+  tickMagnet(s, now);
+  if (s.special && now >= s.special.expiresAt) s.special = null;   // 限时消失
+  // 光环:到期时蛇头若仍与身体重叠,天然安全——碰撞只判「新格」,重叠本身不判死
+  const ghost = !!o.ghost || now < fx.ghostUntil;
   s.dir = s.nextDir;
-  const d = SNAKE_DIRS[s.dir], head = s.snake[0];
-  const nx = head.x + d.x, ny = head.y + d.y;
-  if (nx < 0 || ny < 0 || nx >= s.cols || ny >= s.rows) return die(s);
-  // 不变式: snake.length ≤ targetLen(targetLen 单调增, respawn 重置 length=1),故无需收缩路径
+  let d = SNAKE_DIRS[s.dir];
+  const head = s.snake[0];
+  let nx = head.x + d.x, ny = head.y + d.y;
+  if (isLethalCell(s, nx, ny, ghost) && fx.shield > 0) {
+    // 守护爱心:该步不执行,自动转任一安全方向;四向皆死则不消耗、照死
+    for (const alt of ['up', 'down', 'left', 'right']) {
+      if (s.snake.length > 1 && alt === OPP[s.dir]) continue;
+      const ad = SNAKE_DIRS[alt];
+      if (!isLethalCell(s, head.x + ad.x, head.y + ad.y, ghost)) {
+        fx.shield--; s.shieldJustUsed = true;
+        s.dir = s.nextDir = alt; d = ad;
+        nx = head.x + ad.x; ny = head.y + ad.y;
+        break;
+      }
+    }
+  }
+  if (isLethalCell(s, nx, ny, ghost)) return die(s);
+  // 不变式: snake.length ≤ targetLen(targetLen 单调增;respawn 重置 length=1;
+  // scissors 减 targetLen 时同步修剪身体),故 step 无需收缩路径
   const grow = s.snake.length < s.targetLen;
-  const hitSelf = s.snake.some((c, i) => {
-    if (!grow && i === s.snake.length - 1) return false;  // 尾巴同步让位
-    return c.x === nx && c.y === ny;
-  });
-  if (hitSelf && !o.ghost) return die(s);
   s.snake.unshift({ x: nx, y: ny });
   if (!grow) s.snake.pop();
   s.stats.steps++;
   revealCell(s, nx, ny);
+  if (now < fx.trailUntil) {              // 圣光足迹:3 格宽光带(垂直于行进方向)
+    const px2 = d.y !== 0 ? 1 : 0, py2 = d.x !== 0 ? 1 : 0;
+    for (const sgn of [-1, 1]) {
+      const tx = nx + sgn * px2, ty = ny + sgn * py2;
+      if (tx >= 0 && ty >= 0 && tx < s.cols && ty < s.rows) revealCell(s, tx, ty);
+    }
+  }
   checkMilestone(s, o);
-  if (s.apple && s.apple.x === nx && s.apple.y === ny) eatApple(s, o);
+  eatAt(s, nx, ny, now, o);
   if (s.revealedCount === s.cols * s.rows) completeLevel(s, o);
 }
 
-function eatApple(s, o) {
+function eatAt(s, x, y, now, o) {
+  const demonX = now < s.effects.demonUntil ? 2 : 1;   // 小恶魔期间得分 ×2
+  if (s.apple && s.apple.x === x && s.apple.y === y) {
+    gainApple(s, now, o, demonX); spawnApple(s); onAppleEaten(s, now); return;
+  }
+  const ei = s.extraApples.findIndex(a => a.x === x && a.y === y);
+  if (ei >= 0) {
+    s.extraApples.splice(ei, 1);
+    gainApple(s, now, o, demonX); onAppleEaten(s, now); return;   // 副苹果不重生
+  }
+  if (s.special && s.special.x === x && s.special.y === y) {
+    const t = s.special.type; s.special = null;
+    s.stats.specials[t] = (s.stats.specials[t] || 0) + 1;
+    s.lastSpecialEaten = t;
+    applyFruit(s, t, now, o);
+    return;
+  }
+  if (s.meteor && s.meteor.x === x && s.meteor.y === y) {
+    s.meteor = null;
+    s.score += Math.round(40 * demonX * (o.scoreScale || 1));   // 追上流星 +40
+  }
+}
+
+function gainApple(s, now, o, demonX) {
   s.targetLen++; s.stats.apples++;
-  const now = o.nowMs != null ? o.nowMs : s.stats.steps * 140;
   if (!o.freezeCombo && now - s.lastEatMs <= COMBO_WINDOW_MS) s.combo++;
   s.lastEatMs = now;
-  s.score += Math.round(10 * (1 + 0.1 * s.combo) * (o.scoreScale || 1));
-  spawnApple(s);
+  s.score += Math.round(10 * (1 + 0.1 * s.combo) * demonX * (o.scoreScale || 1));
+}
+
+function onAppleEaten(s, now) {
+  s.applesSinceSpecial++;
+  if (s.special || s.applesSinceSpecial < s.nextSpecialAt) return;
+  const cell = randomFreeCell(s);
+  if (!cell) return;
+  s.special = { type: pickSpecialType(s), x: cell.x, y: cell.y,
+                expiresAt: now + FR_.FRUIT_TIMES.specialLife };
+  s.stats.specialsSpawned++;
+  s.applesSinceSpecial = 0;
+  s.nextSpecialAt = 4 + Math.floor(s.rand() * 3);
+}
+
+// 权重选型:前期偏得分,后期(揭图>60% 或蛇>30% 棋盘)偏生存/揭图;稀有果类内打折
+function pickSpecialType(s) {
+  const late = s.revealedCount / (s.cols * s.rows) > 0.6
+            || s.snake.length > s.cols * s.rows * 0.3;
+  const w = late ? FR_.CAT_WEIGHTS.late : FR_.CAT_WEIGHTS.early;
+  const entries = Object.entries(FR_.FRUITS).map(([type, def]) =>
+    [type, w[def.cat] * (def.rare ? FR_.RARE_FACTOR : 1)]);
+  let total = 0; for (const [, wt] of entries) total += wt;
+  let r = s.rand() * total;
+  for (const [type, wt] of entries) { r -= wt; if (r <= 0) return type; }
+  return entries[entries.length - 1][0];
+}
+
+function applyFruit(s, type, now, o) {
+  const fx = s.effects, T = FR_.FRUIT_TIMES;
+  switch (type) {
+    case 'twin':
+      for (let i = 0; i < 2; i++) { const c = randomFreeCell(s); if (c) s.extraApples.push(c); }
+      break;
+    case 'gold':
+      s.combo += 2;
+      s.score += Math.round(50 * (o.scoreScale || 1));
+      break;
+    case 'demon':  fx.demonUntil = now + T.demon; break;
+    case 'meteor': spawnMeteor(s, now); break;
+    case 'feather': {                     // 彩虹羽毛:随机一片 3×3 未揭区域
+      const c = randomUnrevealed(s);
+      if (c) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const tx = c.x + dx, ty = c.y + dy;
+        if (tx >= 0 && ty >= 0 && tx < s.cols && ty < s.rows) revealCell(s, tx, ty);
+      }
+      checkMilestone(s, o);
+      break;
+    }
+    case 'trail':  fx.trailUntil = now + T.trail; break;
+    case 'cloud':  fx.slowUntil = now + T.cloud; break;
+    case 'scissors':                      // 蛇身 -3:同步修剪身体,维持 length≤targetLen 不变式
+      s.targetLen = Math.max(3, s.targetLen - 3);
+      while (s.snake.length > s.targetLen) s.snake.pop();
+      break;
+    case 'halo':   fx.ghostUntil = now + T.halo; break;
+    case 'heart':  fx.shield++; break;
+    case 'magnet': fx.magnetUntil = now + T.magnet; break;
+    case 'gift': {                        // 天国礼盒:随机触发其他任意一种
+      const others = Object.keys(FR_.FRUITS).filter(k => k !== 'gift');
+      applyFruit(s, others[Math.floor(s.rand() * others.length)], now, o);
+      break;
+    }
+    default: break;
+  }
+}
+
+function randomUnrevealed(s) {
+  const cells = [];
+  for (let y = 0; y < s.rows; y++) for (let x = 0; x < s.cols; x++)
+    if (!s.revealed[y * s.cols + x]) cells.push({ x, y });
+  return cells.length ? cells[Math.floor(s.rand() * cells.length)] : null;
+}
+
+// 流星:随机左/右缘起点,45° 对角斜穿;飞过即沿途揭开(不论是否追上)
+function spawnMeteor(s, now) {
+  const fromLeft = s.rand() < 0.5;
+  s.meteor = {
+    x: fromLeft ? 0 : s.cols - 1,
+    y: Math.floor(s.rand() * s.rows),
+    dx: fromLeft ? 1 : -1,
+    dy: s.rand() < 0.5 ? 1 : -1,
+    nextAt: now,
+  };
+}
+function tickMeteor(s, now, o) {
+  while (s.meteor && now >= s.meteor.nextAt) {
+    const m = s.meteor;
+    revealCell(s, m.x, m.y);
+    m.x += m.dx; m.y += m.dy;
+    m.nextAt += FR_.FRUIT_TIMES.meteorStep;
+    if (m.x < 0 || m.y < 0 || m.x >= s.cols || m.y >= s.rows) { s.meteor = null; break; }
+  }
+  if (o) checkMilestone(s, o);            // 流星揭格也计里程碑
+}
+
+// 磁力圣环:每 magnetStep ms 所有果子向蛇头挪 1 格(先大差轴;占用/出界则不动)
+function tickMagnet(s, now) {
+  const fx = s.effects;
+  if (now >= fx.magnetUntil || now - fx.lastDriftAt < FR_.FRUIT_TIMES.magnetStep) return;
+  fx.lastDriftAt = now;
+  const head = s.snake[0];
+  const drift = (f) => {
+    if (!f) return;
+    const dx = Math.sign(head.x - f.x), dy = Math.sign(head.y - f.y);
+    const tryMove = (mx, my) => {
+      if (mx === 0 && my === 0) return false;
+      const tx = f.x + mx, ty = f.y + my;
+      if (tx < 0 || ty < 0 || tx >= s.cols || ty >= s.rows) return false;
+      if (occupied(s, tx, ty) || fruitOccupied(s, tx, ty)) return false;
+      f.x = tx; f.y = ty; return true;
+    };
+    if (Math.abs(head.x - f.x) >= Math.abs(head.y - f.y)) { tryMove(dx, 0) || tryMove(0, dy); }
+    else { tryMove(0, dy) || tryMove(dx, 0); }
+  };
+  drift(s.apple);
+  s.extraApples.forEach(drift);
+  drift(s.special);
 }
 
 function checkMilestone(s, o) {
@@ -95,16 +281,21 @@ function completeLevel(s, o) {
   s.score += Math.round(500 * (o.scoreScale || 1));
   s.level++; s.levelJustDone = true;
   s.revealed.fill(0); s.revealedCount = 0; s.milestones = 0;
-  for (const c of s.snake) revealCell(s, c.x, c.y);  // 蛇站着的格子即时揭开
+  s.special = null; s.meteor = null;      // 换图清场上限时物;副苹果/效果跨关保留
+  for (const c of s.snake) revealCell(s, c.x, c.y);
 }
 
-function die(s) { s.dead = true; s.deaths++; s.combo = 0; }
+function die(s) {
+  s.dead = true; s.deaths++; s.combo = 0;
+  const fx = s.effects;                   // 死亡清定时效果;护盾保留(它没能触发说明四向皆死或为 0)
+  fx.slowUntil = fx.demonUntil = fx.ghostUntil = fx.trailUntil = fx.magnetUntil = 0;
+}
 
-function respawn(s) {  // 半长重生:头置最空旷格,身体随前进长出
+function respawn(s) {
   const newLen = Math.max(3, Math.floor(s.snake.length / 2));
   let best = null, bestD = -1;
   for (let y = 0; y < s.rows; y++) for (let x = 0; x < s.cols; x++) {
-    if (s.apple && s.apple.x === x && s.apple.y === y) continue;
+    if (fruitOccupied(s, x, y)) continue;
     let d = Infinity;
     for (const c of s.snake) d = Math.min(d, Math.abs(c.x - x) + Math.abs(c.y - y));
     if (d > bestD) { bestD = d; best = { x, y }; }
@@ -115,5 +306,6 @@ function respawn(s) {  // 半长重生:头置最空旷格,身体随前进长出
   revealCell(s, best.x, best.y);
 }
 
-const Core = { createGame, setDir, step, respawn, DIRS: SNAKE_DIRS, COMBO_WINDOW_MS };
+const Core = { createGame, setDir, step, respawn, applyFruit,
+               DIRS: SNAKE_DIRS, COMBO_WINDOW_MS };
 if (typeof module !== 'undefined' && module.exports) module.exports = Core;
