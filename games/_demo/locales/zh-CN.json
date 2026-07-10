@@ -1,0 +1,11 @@
+{
+  "lang": { "name": "中文", "toggle": "语言" },
+  "ads": { "simWatch": "【广告模拟】观看激励视频？", "simInterstitial": "【广告模拟】插屏广告" },
+  "demo": {
+    "title": "引擎演示",
+    "subtitle": "验证共享引擎契约跑得通的最小游戏。",
+    "start": "开始",
+    "taps": "点击数：{n}",
+    "back": "返回"
+  }
+}

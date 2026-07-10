@@ -1,0 +1,61 @@
+/* engine.css — base reset + canvas + top control bar (lang menu).
+   Theme via CSS vars: override :root values in the game's own stylesheet. */
+:root {
+  --eng-bg: #dff1ff;
+  --eng-ctl-text: #3a6480;
+  --eng-ctl-bg: rgba(255, 255, 255, 0.6);
+  --eng-ctl-btn-bg: rgba(255, 255, 255, 0.75);
+  --eng-ctl-border: rgba(140, 185, 215, 0.4);
+  --eng-ctl-shadow: rgba(120, 170, 200, 0.28);
+  --eng-menu-bg: rgba(255, 255, 255, 0.92);
+  --eng-menu-hover: rgba(140, 185, 215, 0.18);
+  --eng-menu-sel-bg: rgba(0, 229, 255, 0.16);
+  --eng-menu-sel-text: #0091a7;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { width: 100%; height: 100%; background: var(--eng-bg); overflow: hidden; }
+body {
+  display: flex; justify-content: center; align-items: center;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+  /* respect device safe areas (notch) */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+canvas { display: block; touch-action: none; }
+
+#controls {
+  position: fixed;
+  top: calc(8px + env(safe-area-inset-top));
+  right: calc(8px + env(safe-area-inset-right));
+  z-index: 20;
+  display: flex; gap: 6px; align-items: center;
+  padding: 5px 8px; border-radius: 18px;
+  background: var(--eng-ctl-bg); backdrop-filter: blur(6px);
+  box-shadow: 0 3px 12px var(--eng-ctl-shadow);
+  font-size: 11px; color: var(--eng-ctl-text); user-select: none;
+}
+#controls .ctl-btn {
+  padding: 3px 8px; border-radius: 12px; cursor: pointer;
+  background: var(--eng-ctl-btn-bg); border: 1px solid var(--eng-ctl-border);
+  white-space: nowrap;
+}
+#controls .ctl-btn.lang { display: flex; align-items: center; gap: 3px; }
+#controls .ctl-btn.lang .caret { font-size: 9px; opacity: 0.6; }
+
+/* language dropdown menu — anchored inside the fixed #controls, opens down-left
+   (right:0; left:0 would push past the screen edge on narrow bars) */
+.lang-menu {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 30;
+  min-width: 120px; max-height: 60vh; overflow-y: auto;
+  padding: 5px; border-radius: 14px;
+  background: var(--eng-menu-bg); backdrop-filter: blur(10px);
+  box-shadow: 0 6px 22px var(--eng-ctl-shadow);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.lang-menu[hidden] { display: none; }
+.lang-menu .lang-item {
+  padding: 8px 12px; border-radius: 9px; cursor: pointer;
+  font-size: 13px; color: var(--eng-ctl-text); white-space: nowrap;
+}
+.lang-menu .lang-item:hover { background: var(--eng-menu-hover); }
+.lang-menu .lang-item.sel { background: var(--eng-menu-sel-bg); color: var(--eng-menu-sel-text); font-weight: 600; }

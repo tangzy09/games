@@ -1,0 +1,11 @@
+{
+  "lang": { "name": "English", "toggle": "Language" },
+  "ads": { "simWatch": "[Ad simulation] Watch a rewarded ad?", "simInterstitial": "[Ad simulation] Interstitial ad" },
+  "demo": {
+    "title": "Engine Demo",
+    "subtitle": "Minimal game proving the shared engine contract works.",
+    "start": "Start",
+    "taps": "Taps: {n}",
+    "back": "Back"
+  }
+}
