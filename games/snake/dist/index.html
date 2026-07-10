@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<title>Angel Snake</title>
+<link rel="stylesheet" href="engine/engine.css">
+<link rel="stylesheet" href="css/game.css">
+</head>
+<body>
+<canvas id="game-canvas"></canvas>
+<div id="controls"></div>
+<div id="toasts"></div>
+<div id="panel" class="hidden">
+  <div id="panel-card">
+    <div id="panel-head"><span id="panel-title"></span><button id="panel-close" type="button">✕</button></div>
+    <div id="panel-tabs"></div>
+    <div id="panel-body"></div>
+  </div>
+</div>
+<div id="lightbox" class="hidden"></div>
+
+<script>
+  window.GAME_CONFIG = {
+    id: 'snake',
+    languages: ['en', 'zh-CN'],   // P3 扩到 10 语
+    sfx: {
+      eat: 'assets/audio/eat.wav', special: 'assets/audio/special.wav',
+      shield: 'assets/audio/shield.wav', milestone: 'assets/audio/milestone.wav',
+      level: 'assets/audio/level.wav', death: 'assets/audio/death.wav',
+    },
+  };
+</script>
+<script src="engine/config.js"></script>
+<script src="engine/platform.js"></script>
+<script src="engine/i18n.js"></script>
+<script src="engine/portal.js"></script>
+<script src="engine/ads.js"></script>
+<script src="engine/audio.js"></script>
+<script src="engine/canvas.js"></script>
+<script src="engine/input.js"></script>
+<script src="engine/controls.js"></script>
+<script src="engine/prng.js"></script>
+<script src="js/fruits.js"></script>
+<script src="js/core.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/achievements.js"></script>
+<script src="js/themes.js"></script>
+<script src="js/gallery.js"></script>
+<script src="js/render.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

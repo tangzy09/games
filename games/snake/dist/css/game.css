@@ -1,0 +1,65 @@
+/* games/snake/css/game.css — 云朵粉彩(engine.css 之上的页面级覆盖)
+   engine.css 默认 --eng-bg/--eng-ctl-text/--eng-menu-sel-* 是蓝青色调,
+   与粉彩页面明显冲突,这里只覆盖这几个,其余(边框/阴影等中性色)不动。 */
+:root {
+  --eng-bg: #fdf3f7;
+  --eng-ctl-text: #a85d7a;
+  --eng-menu-sel-bg: rgba(255, 158, 196, 0.2);
+  --eng-menu-sel-text: #d6336c;
+}
+
+body { background: #fdf3f7; }
+
+/* 成就解锁 toast */
+#toasts { position: fixed; top: 52px; left: 50%; transform: translateX(-50%);
+  z-index: 30; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.ach-toast { background: #fff; color: #7a5c72; border-radius: 14px; padding: 10px 18px;
+  font: 600 14px/1.2 sans-serif; box-shadow: 0 6px 20px rgba(183,142,180,.35);
+  animation: toastIn .3s ease; }
+.ach-toast.out { opacity: 0; transition: opacity .4s; }
+@keyframes toastIn { from { transform: translateY(-12px); opacity: 0; } }
+
+/* 成就墙浮层(DOM:120 徽章滚动列表) */
+.hidden { display: none !important; }
+#panel { position: fixed; inset: 0; background: rgba(122,92,114,.45); z-index: 20;
+  display: flex; align-items: center; justify-content: center; }
+#panel-card { background: #fff; border-radius: 22px; width: min(92vw, 420px); height: min(80vh, 640px);
+  display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 12px 40px rgba(0,0,0,.18); }
+#panel-head { display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px; font: 800 18px sans-serif; color: #7a5c72; }
+#panel-close { border: 0; background: #f6d5e5; border-radius: 10px; width: 32px; height: 32px; font-size: 14px; }
+#panel-tabs { display: flex; gap: 8px; padding: 0 18px 10px; }
+.ptab { flex: 1; border: 0; border-radius: 12px; padding: 8px 0; font: 600 14px sans-serif;
+  background: #f6d5e5; color: #7a5c72; }
+.ptab.on { background: #e79cc2; color: #fff; }
+#panel-body { flex: 1; overflow-y: auto; padding: 6px 14px 18px; }
+.ach-item { display: flex; align-items: center; gap: 10px; padding: 8px 6px;
+  border-bottom: 1px solid #f6d5e5; }
+.ach-item .medal { font-size: 22px; filter: grayscale(1) opacity(.35); }
+.ach-item.got .medal { filter: none; }
+.ach-item .nm { font: 600 14px sans-serif; color: #7a5c72; }
+.ach-item.got .nm { color: #d6336c; }
+.ach-item .pg { margin-left: auto; font: 500 12px sans-serif; color: #b39ddb; white-space: nowrap; }
+
+/* 皮肤面板 */
+.skin-card { display: flex; align-items: center; gap: 12px; padding: 12px 10px;
+  border: 2px solid transparent; border-radius: 14px; margin-bottom: 8px; }
+.skin-card.on { border-color: #e79cc2; }
+.skin-card.locked { opacity: .55; }
+.skin-sw { width: 56px; height: 36px; border-radius: 10px; display: flex; overflow: hidden; }
+.skin-sw i { flex: 1; }
+.skin-nm { font: 600 14px sans-serif; color: #7a5c72; }
+.skin-tip { margin-left: auto; font: 500 12px sans-serif; color: #7a5c72; opacity: .8; }
+
+/* 图鉴 */
+.gal-set { display: flex; align-items: center; gap: 10px; padding: 10px 8px;
+  border-bottom: 1px solid #f6d5e5; font: 600 14px sans-serif; color: #7a5c72; }
+.gal-set .pg { margin-left: auto; font-weight: 500; font-size: 12px; color: #b39ddb; }
+.gal-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding-top: 8px; }
+.gal-grid img { width: 100%; aspect-ratio: 1; border-radius: 10px; object-fit: cover; }
+.gal-grid img.locked { filter: grayscale(1) brightness(.35); }
+#lightbox { position: fixed; inset: 0; background: rgba(30,20,28,.92); z-index: 40;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
+#lightbox img { width: min(92vw, 80vh); border-radius: 16px; }
+#lightbox button { border: 0; border-radius: 14px; padding: 12px 32px;
+  font: 700 15px sans-serif; color: #fff; background: #e79cc2; }
