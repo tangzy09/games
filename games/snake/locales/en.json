@@ -1,6 +1,6 @@
 {
   "lang": { "name": "English", "toggle": "Language" },
-  "ads": { "simWatch": "[Ad simulation] Watch a rewarded ad?", "simInterstitial": "[Ad simulation] Interstitial ad" },
+  "ads": { "simWatch": "[Ad simulation] Watch a rewarded ad?", "simInterstitial": "[Ad simulation] Interstitial ad", "revive": "📺 Revive (ad)" },
   "snake": {
     "score": "Score",
     "hintStartTouch": "Swipe to start",

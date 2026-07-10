@@ -325,10 +325,18 @@ function completeLevel(s, o) {
 }
 
 function die(s) {
+  s.comboBeforeDeath = s.combo;           // 供 revive 恢复(看广告复活保连击)
   s.dead = true; s.deaths++; s.combo = 0;
   const fx = s.effects;                   // 死亡清定时效果;护盾保留(它没能触发说明四向皆死或为 0)
   fx.slowUntil = fx.demonUntil = fx.ghostUntil = fx.trailUntil = fx.magnetUntil = 0;
   s.events.push({ t: 'death' });
+}
+
+// 看广告复活:蛇原地原长、连击恢复;deaths 计数保留(复活也算死过,
+// 不影响「无死亡通关」语义);定时效果已在 die 清空(已接受偏差)。
+function revive(s) {
+  s.dead = false;
+  s.combo = s.comboBeforeDeath || 0;
 }
 
 function respawn(s) {
@@ -346,6 +354,6 @@ function respawn(s) {
   revealCell(s, best.x, best.y);
 }
 
-const Core = { createGame, setDir, step, respawn, applyFruit, pickSpecialType,
+const Core = { createGame, setDir, step, respawn, revive, applyFruit, pickSpecialType,
                resetBoard, DIRS: SNAKE_DIRS, COMBO_WINDOW_MS };
 if (typeof module !== 'undefined' && module.exports) module.exports = Core;

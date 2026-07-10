@@ -88,7 +88,8 @@ function renderAll() {
   else if (G.phase === 'PAUSED') drawOverlay(T('snake.paused'), T(IS_TOUCH ? 'snake.hintResumeTouch' : 'snake.hintResumeKey'), T('snake.resume'), 'RESUME', false);
   else if (G.phase === 'DEAD') {
     const from = G.run.snake.length, to = Math.max(3, Math.floor(from / 2));
-    drawOverlay(T('snake.dead'), T('snake.deadHint', { from, to }), T('snake.respawn'), 'RESPAWN', false);
+    drawOverlay(T('snake.dead'), T('snake.deadHint', { from, to }), T('snake.respawn'), 'RESPAWN', false,
+                G.revivesThisLevel < 2 ? { label: T('ads.revive'), action: 'REVIVE' } : null);
   } else if (G.phase === 'LEVEL_DONE') {
     if (G.imgFull) drawImgFull();
     else drawOverlay(T('snake.levelDone', { n: G.run.level - 1 }), T('snake.scoreVal', { n: G.run.score }), T('snake.next'), 'NEXT', true,

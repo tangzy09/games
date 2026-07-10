@@ -169,3 +169,34 @@ Core.setDir(g, 'up');
   assert.deepStrictEqual({ ...g.snake[0] }, target, 'ghost 时头照常前进到身体格');
 }
 console.log('OK test-core(ghost)');
+
+// --- revive:看广告原地复活——蛇原地原长、连击恢复、deaths 保留、可继续 step(P3a 复活广告位)---
+{
+  const g = Core.createGame({ seed: 30 });
+  g.targetLen = 6;
+  for (let i = 0; i < 6; i++) Core.step(g, { nowMs: 1000 + i });   // 直行养长
+  // 制造连击
+  const d = Core.DIRS[g.nextDir], h = g.snake[0];
+  g.apple = { x: h.x + d.x, y: h.y + d.y };
+  Core.step(g, { nowMs: 2000 });
+  g.apple = { x: g.snake[0].x + Core.DIRS[g.nextDir].x, y: g.snake[0].y + Core.DIRS[g.nextDir].y };
+  Core.step(g, { nowMs: 2100 });                                   // 10s 窗口内连吃 → combo=1
+  assert(g.combo >= 1, 'sanity: 已有连击');
+  const comboBefore = g.combo;
+  // 撞死:向下→向左→向上撞回身体(走位期间蛇可能仍在长,「原长」基准取死亡时刻)
+  Core.setDir(g, 'down'); Core.step(g, { nowMs: 3000 });
+  Core.setDir(g, 'left'); Core.step(g, { nowMs: 3001 });
+  Core.setDir(g, 'up');   Core.step(g, { nowMs: 3002 });
+  assert(g.dead, 'sanity: 已撞死');
+  assert.strictEqual(g.combo, 0, '死亡清连击');
+  const lenAtDeath = g.snake.length, headAtDeath = { ...g.snake[0] };
+  Core.revive(g);
+  assert(!g.dead, '复活后活着');
+  assert.strictEqual(g.snake.length, lenAtDeath, '蛇原长不减半');
+  assert.deepStrictEqual({ ...g.snake[0] }, headAtDeath, '蛇原地不挪窝');
+  assert.strictEqual(g.combo, comboBefore, '连击恢复');
+  assert.strictEqual(g.deaths, 1, 'deaths 计数保留');
+  Core.setDir(g, 'right'); Core.step(g, { nowMs: 4000 });          // 复活后可继续走
+  assert(!isNaN(g.score) && g.stats.steps > 0, '复活后可继续 step');
+}
+console.log('OK test-core(revive)');

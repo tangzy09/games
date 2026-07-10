@@ -8,6 +8,7 @@ var G = {
   img: null, imgList: [], imgPos: 0,
   imgFull: false,          // LEVEL_DONE 时点图全屏欣赏中
   save: null, tracker: null, saveKey: null,   // P2b:存档 + 单局成就 tracker
+  revivesThisLevel: 0,                        // P3a:复活广告位,每局(每张图)限 2 次
 
   seed: (Date.now() % 2147483647),
 };
@@ -33,6 +34,21 @@ function dispatch(action) {
       persist();
       break;
     }
+    case 'REVIVE':
+      // 看广告原地满状态复活,每局(每张图)限 2 次
+      if (G.phase === 'DEAD' && G.revivesThisLevel < 2) {
+        Ads.showRewarded().then(ok => {
+          if (!ok || G.phase !== 'DEAD') return;
+          G.revivesThisLevel++;
+          Core.revive(G.run);
+          G.save.stats.revives++;
+          const u = Ach.checkCum(G.save).unlocked;      // rev_* 成就
+          if (u.length) showAchToasts(u);
+          persist();
+          G.phase = 'PLAYING'; loopState.last = 0; renderAll();
+        });
+      }
+      break;
     case 'NEXT':
       // 防连点:先离开 LEVEL_DONE,二次点击时覆盖层不再渲染、hit 已不存在;
       // frame 对 LOADING 天然安全(非 PLAYING 早退),nextLevel 完成时进 READY。
@@ -74,6 +90,7 @@ function loadImage() {
 // resumed=true:reload 续玩恢复——重建 tracker 但不计新开局(否则反复刷新虚增 levelsStarted)
 function enterReady(resumed) {
   G.phase = 'READY';
+  G.revivesThisLevel = 0;
   loopState.last = 0;
   if (G.save) {
     if (!resumed) G.save.stats.levelsStarted++;
