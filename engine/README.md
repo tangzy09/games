@@ -55,3 +55,7 @@
 
 - **肉鸽 meta 框架**（天赋/遗物/局间奖励/永久进阶/存档）——2048 里与玩法耦合太深，抄结构不抄代码：`TALENTS/ITEMS_DEF` 数值表 + `applyLocale()` 注入文案 + `REWARD` phase 的模式。做扫雷时先在游戏内实现，第二个游戏再回头抽公共部分。
 - IAP（RevenueCat）——只有上 store 的赢家才需要，见 2048 的 iap.js 与 appstore-connect-iap-api skill。
+
+## 存档版本纪律（踩坑沉淀）
+
+run 存档（`CFG.key('run')`）**必须带版本号**（`v: N`），loadRun 校验 `v` + 关键形状（如 `grid.length === w*h`），不匹配就 `clearRunSave()` 丢弃、绝不迁移——玩法重构后老玩家带着旧档打开会「恢复」成畸形状态（0×0 盘面 = 无报错的白屏，E2E 全新档案测不出来）。同理：改了 G 的形状就 bump 版本 + 给 `<script src>` 加 `?v=N` 防浏览器缓存混装新旧 JS。
