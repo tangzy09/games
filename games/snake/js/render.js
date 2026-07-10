@@ -91,7 +91,8 @@ function renderAll() {
     drawOverlay(T('snake.dead'), T('snake.deadHint', { from, to }), T('snake.respawn'), 'RESPAWN', false);
   } else if (G.phase === 'LEVEL_DONE') {
     if (G.imgFull) drawImgFull();
-    else drawOverlay(T('snake.levelDone', { n: G.run.level - 1 }), T('snake.scoreVal', { n: G.run.score }), T('snake.next'), 'NEXT', true);
+    else drawOverlay(T('snake.levelDone', { n: G.run.level - 1 }), T('snake.scoreVal', { n: G.run.score }), T('snake.next'), 'NEXT', true,
+                     { label: T('share.btn'), action: 'SHARE' });
   }
 }
 
@@ -230,11 +231,12 @@ function drawHint(text) {
   txt(text, SW / 2, y, PAL.text, 'bold 15px sans-serif');
 }
 
-function drawOverlay(title, sub, btnLabel, action, showImg) {
+// extra: 可选第二按钮 { label, action }(次级样式,主按钮下方)
+function drawOverlay(title, sub, btnLabel, action, showImg, extra) {
   const { SW, SH } = GameGlobal;
   drawDim('rgba(122,92,114,0.45)');
   const cw = Math.min(SW * 0.86, 360);
-  const ch = showImg ? cw + 150 : 190;
+  const ch = (showImg ? cw + 150 : 190) + (extra ? 58 : 0);
   const cx = (SW - cw) / 2, cy = (SH - ch) / 2;
   fillRR(cx, cy, cw, ch, 22, PAL.card);
   txt(title, cx + cw / 2, cy + 34, PAL.text, 'bold 20px sans-serif');
@@ -250,4 +252,10 @@ function drawOverlay(title, sub, btnLabel, action, showImg) {
   fillRR(cx + (cw - bw2) / 2, by, bw2, bh2, 14, PAL.accent);
   txt(btnLabel, cx + cw / 2, by + bh2 / 2, '#fff', 'bold 15px sans-serif');
   addHit(cx + (cw - bw2) / 2, by, bw2, bh2, action, {});
+  if (extra) {
+    const ey = by + bh2 + 12;
+    fillRR(cx + (cw - bw2) / 2, ey, bw2, bh2, 14, PAL.bar);
+    txt(extra.label, cx + cw / 2, ey + bh2 / 2, PAL.text, 'bold 15px sans-serif');
+    addHit(cx + (cw - bw2) / 2, ey, bw2, bh2, extra.action, {});
+  }
 }

@@ -38,6 +38,14 @@ function dispatch(action) {
       // frame 对 LOADING 天然安全(非 PLAYING 早退),nextLevel 完成时进 READY。
       if (G.phase === 'LEVEL_DONE') { G.imgFull = false; G.phase = 'LOADING'; nextLevel(); }
       break;
+    case 'SHARE':
+      if (G.phase === 'LEVEL_DONE')
+        Gallery.shareCard(G.img, G.run.score, PAL, {
+          title: 'Angel Snake',
+          score: `${T('snake.score')} ${G.run.score}`,
+          url: location.origin + location.pathname,
+        });
+      break;
     case 'IMG_FULL':  if (G.phase === 'LEVEL_DONE') G.imgFull = true; break;
     case 'IMG_CLOSE': G.imgFull = false; break;
     default: break;

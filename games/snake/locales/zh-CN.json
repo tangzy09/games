@@ -22,6 +22,7 @@
     "off": "关"
   },
   "menu": { "achievements": "成就", "gallery": "图鉴", "skins": "皮肤" },
+  "share": { "btn": "分享 📤" },
   "skins": {
     "title": "皮肤",
     "cloud": "云朵粉彩",
