@@ -37,7 +37,7 @@ definitions:
         set -e
         cd $GAME_DIR
         npx @capacitor/assets generate --ios --assetPath resources
-    - name: 注入 Info.plist(AdMob + ATT + 免出口合规)
+    - name: 注入 Info.plist(AdMob + ATT + SKAdNetwork + 免出口合规)
       script: |
         set -e
         cd $GAME_DIR
@@ -45,6 +45,10 @@ definitions:
         plutil -replace ITSAppUsesNonExemptEncryption -bool false "$PLIST"
         plutil -replace GADApplicationIdentifier -string "$GAD_APP_ID" "$PLIST"
         plutil -replace NSUserTrackingUsageDescription -string "Your device identifier is used to deliver and measure more relevant ads." "$PLIST"
+        # SKAdNetwork 归因清单(Google 官方 50 家,tools/skadnetworks.json 为唯一事实源)
+        SKAD=$(node -e "console.log(JSON.stringify(require('../../tools/skadnetworks.json').map(i=>({SKAdNetworkIdentifier:i}))))")
+        plutil -replace SKAdNetworkItems -json "$SKAD" "$PLIST"
+        plutil -p "$PLIST" | grep -cE "skadnetwork" || true
         plutil -p "$PLIST" | grep -E "GADApplicationIdentifier|NSUserTrackingUsageDescription|ITSApp" || true
     - name: 签名(建证书 + 描述文件)
       script: |
