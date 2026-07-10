@@ -122,6 +122,74 @@ function renderAchTab(tab) {
   }).join('');
 }
 
+// ——图鉴——
+function openGallery() {
+  const panel = document.getElementById('panel');
+  document.getElementById('panel-title').textContent = T('gal.title');
+  document.getElementById('panel-tabs').innerHTML = '';
+  document.getElementById('panel-close').onclick = () => {
+    panel.classList.add('hidden');
+    if (G.phase === 'PAUSED') renderAll();
+  };
+  panel.classList.remove('hidden');
+  renderGalSets();
+  if (G.phase === 'PLAYING') dispatch('PAUSE');       // 看图鉴时暂停
+}
+// 一级视图:25 集列表(集名 + 解锁进度)
+function renderGalSets() {
+  const body = document.getElementById('panel-body');
+  body.innerHTML = ((G.manifest && G.manifest.sets) || []).map((s, i) => {
+    const pg = Gallery.setProgress(G.save, s);
+    return `<div class="gal-set" data-i="${i}"><span>${T('gal.' + s.key)}</span>
+      <span class="pg">${T('gal.progress', { cur: pg, max: s.images.length })}</span></div>`;
+  }).join('');
+  body.querySelectorAll('.gal-set').forEach(el => {
+    el.onclick = () => renderGalSet(parseInt(el.dataset.i, 10));
+  });
+}
+// 二级视图:集内 20 缩略图(未解锁灰剪影;已解锁点开 lightbox)
+function renderGalSet(i) {
+  const body = document.getElementById('panel-body');
+  const set = G.manifest.sets[i];
+  const got = new Set(G.save.gallery.unlocked);
+  body.innerHTML = `<div class="gal-set" id="gal-back">${T('gal.back')}</div>
+    <div class="gal-grid">` + set.images.map(f => {
+      const un = got.has(f);
+      return `<img loading="lazy" src="assets/angels/${f}"${un ? ` data-f="${f}"` : ' class="locked"'} alt="">`;
+    }).join('') + `</div>`;
+  document.getElementById('gal-back').onclick = () => renderGalSets();
+  body.querySelectorAll('.gal-grid img[data-f]').forEach(el => {
+    el.onclick = () => openLightbox(el.dataset.f);
+  });
+}
+function openLightbox(file) {
+  const lb = document.getElementById('lightbox');
+  lb.innerHTML = `<img src="assets/angels/${file}" alt="">
+    <button id="lb-replay" type="button">${T('gal.replay')}</button>`;
+  lb.classList.remove('hidden');
+  lb.onclick = e => { if (e.target === lb || e.target.tagName === 'IMG') lb.classList.add('hidden'); };
+  document.getElementById('lb-replay').onclick = () => {
+    lb.classList.add('hidden');
+    document.getElementById('panel').classList.add('hidden');
+    replayImage(file);
+  };
+}
+// 重温:跳到该图开局。保留蛇长与分数(与过关换图行为一致),只重开遮罩。
+function replayImage(file) {
+  const idx = G.imgList.indexOf(file);
+  if (idx < 0) return;
+  G.imgPos = idx;
+  G.imgFull = false;
+  G.phase = 'LOADING';
+  loadImage().then(() => {
+    if (G.run.dead) Core.respawn(G.run);   // 死亡态重温:先重生,否则 step 恒早退卡死
+    Core.resetBoard(G.run);
+    if (G.save) G.save.stats.cellsRevealed += G.run.revealedCount;   // 新盘开局蛇身格(tick 外)入账
+    initLayers(G.img);
+    enterReady();
+  });
+}
+
 // ——皮肤——
 // 应用主题:调色板 + body 背景;切肤后由调用方 initLayers 重建遮罩纹理
 function applyTheme(key) {
@@ -237,9 +305,11 @@ function tick(nowMs, interval) {
   Ach.accumulate(G.save, run, ev, { aiRun, scoreDelta, revealDelta, dtMs: interval });
   let newly = [];
   if (run.levelJustDone) {
-    // 皮肤通关计数(sk_* 成就)——放 checkCum 之前当场触发
+    // 皮肤通关计数 + 图鉴解锁/集齐检测(sk_*/set_* 成就)——放 checkCum 之前当场触发
     const th = G.save.settings.theme || 'cloud';
     G.save.stats.skinClears[th] = (G.save.stats.skinClears[th] || 0) + 1;
+    Gallery.recordUnlock(G.save, G.imgList[G.imgPos % G.imgList.length]);
+    Gallery.updateSetsDone(G.save, G.manifest);
     const r1 = Ach.onLevelClear(G.tracker, G.save, nowMs, { aiRun });
     newly = r1.unlocked;
   }
@@ -275,6 +345,7 @@ async function boot() {
     await I18N.setLang(I18N.detect());
     initCanvas();
     const mf = await fetch('assets/angels/manifest.json').then(r => r.json());
+    G.manifest = mf;
     G.imgList = mf.images;
     let resumed = false;
     if (G.save.run) {                       // 有当局快照 → 恢复续玩
@@ -313,11 +384,14 @@ async function boot() {
     window.addEventListener('resize', () => { initCanvas(); if (G.run) initLayers(G.img); renderAll(); });
     Controls.render(
       `<div class="ctl-btn" id="ach-btn" title="${T('menu.achievements')}">🏅</div>
+       <div class="ctl-btn" id="gal-btn" title="${T('menu.gallery')}">🖼️</div>
        <div class="ctl-btn" id="skin-btn" title="${T('menu.skins')}">🎨</div>
        <div class="ctl-btn" id="sfx-btn">${Sfx.on ? '🔊' : '🔇'}</div>`,
       bar => {
         const a = bar.querySelector('#ach-btn');
         if (a) a.onclick = () => openAchievements();
+        const g = bar.querySelector('#gal-btn');
+        if (g) g.onclick = () => openGallery();
         const s = bar.querySelector('#skin-btn');
         if (s) s.onclick = () => openSkins();
         const b = bar.querySelector('#sfx-btn');

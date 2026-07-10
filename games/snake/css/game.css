@@ -50,3 +50,16 @@ body { background: #fdf3f7; }
 .skin-sw i { flex: 1; }
 .skin-nm { font: 600 14px sans-serif; color: #7a5c72; }
 .skin-tip { margin-left: auto; font: 500 12px sans-serif; color: #7a5c72; opacity: .8; }
+
+/* 图鉴 */
+.gal-set { display: flex; align-items: center; gap: 10px; padding: 10px 8px;
+  border-bottom: 1px solid #f6d5e5; font: 600 14px sans-serif; color: #7a5c72; }
+.gal-set .pg { margin-left: auto; font-weight: 500; font-size: 12px; color: #b39ddb; }
+.gal-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding-top: 8px; }
+.gal-grid img { width: 100%; aspect-ratio: 1; border-radius: 10px; object-fit: cover; }
+.gal-grid img.locked { filter: grayscale(1) brightness(.35); }
+#lightbox { position: fixed; inset: 0; background: rgba(30,20,28,.92); z-index: 40;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
+#lightbox img { width: min(92vw, 80vh); border-radius: 16px; }
+#lightbox button { border: 0; border-radius: 14px; padding: 12px 32px;
+  font: 700 15px sans-serif; color: #fff; background: #e79cc2; }

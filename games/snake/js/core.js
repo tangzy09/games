@@ -309,12 +309,18 @@ function checkMilestone(s, o) {
   }
 }
 
-function completeLevel(s, o) {
-  s.score += Math.round(500 * (o.scoreScale || 1));
-  s.level++; s.levelJustDone = true;
+// 换图重开盘面:清遮罩+清场上限时物+蛇身格揭开(保留蛇/分数/效果)。
+// completeLevel 与图鉴「重温」共用。
+function resetBoard(s) {
   s.revealed.fill(0); s.revealedCount = 0; s.milestones = 0;
   s.special = null; s.meteor = null;      // 换图清场上限时物;副苹果/效果跨关保留
   for (const c of s.snake) revealCell(s, c.x, c.y);
+}
+
+function completeLevel(s, o) {
+  s.score += Math.round(500 * (o.scoreScale || 1));
+  s.level++; s.levelJustDone = true;
+  resetBoard(s);
   s.events.push({ t: 'level' });
 }
 
@@ -341,5 +347,5 @@ function respawn(s) {
 }
 
 const Core = { createGame, setDir, step, respawn, applyFruit, pickSpecialType,
-               DIRS: SNAKE_DIRS, COMBO_WINDOW_MS };
+               resetBoard, DIRS: SNAKE_DIRS, COMBO_WINDOW_MS };
 if (typeof module !== 'undefined' && module.exports) module.exports = Core;
