@@ -42,6 +42,8 @@ for (let s = 1; s <= 8; s++) {
     && Math.abs(giants[0] % 13 - 6) === Math.abs(giants[1] % 13 - 6));
   const egg = g.findIndex(x => x.mon === 'egg');
   ok(`s${s} egg beside dragon`, vm.runInContext(`dist(${egg}, ${d})`, c) <= 1.5);
+  const mk = g.findIndex(x => x.mon === 'mineking');
+  ok(`s${s} mineking in a corner`, [0, c.G.w - 1, (c.G.h - 1) * c.G.w, c.G.h * c.G.w - 1].includes(mk));
   const gn = g.findIndex(x => x.mon === 'gnome');
   ok(`s${s} gnome beside medikit`, g.some((x, j) => x.item === 'medikit' && vm.runInContext(`dist(${gn}, ${j})`, c) <= 1.5));
 }

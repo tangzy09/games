@@ -80,8 +80,11 @@ function genBoard() {
   const putMon = (i, id, name) => { setMonster(G.grid[i], id, name); return i; };
   const putItem = (i, id) => { setItem(G.grid[i], id); return i; };
 
-  // dragon exactly at (6,4); sage on a random edge non-corner; jellies hug the sage
+  // dragon at the center; mineking ALWAYS in a corner (original hard rule —
+  // its dev build literally asserts "mine king not in corner")
   const dI = putMon(idx(Math.floor(G.w / 2), Math.floor(G.h / 2) - 1), 'dragon'); // (6,4) on 13x10, centered on any board
+  const corners = [idx(0, 0), idx(G.w - 1, 0), idx(0, G.h - 1), idx(G.w - 1, G.h - 1)];
+  putMon(corners[Math.floor(G.rng() * corners.length)], 'mineking');
   const edges = [];
   for (let x = 1; x < G.w - 1; x++) edges.push(idx(x, 0), idx(x, G.h - 1));
   for (let y = 1; y < G.h - 1; y++) edges.push(idx(0, y), idx(G.w - 1, y));
@@ -99,7 +102,6 @@ function genBoard() {
       }
     }
   }
-  putMon(rand(freeIdx()), 'mineking');
   // guards: one per quadrant
   const mx = Math.floor(G.w / 2), my = Math.floor(G.h / 2) - 1;
   const quads = [[0, mx, 0, my], [mx + 1, G.w, 0, my], [mx + 1, G.w, my + 1, G.h], [0, mx, my + 1, G.h]];
