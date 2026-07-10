@@ -100,8 +100,8 @@ workflows:
       vars:
         GAME_DIR: "games/minesweeper"
         BUNDLE_ID: "com.aispeeds.dungeonsweep"
-        APP_STORE_APP_ID: "PLACEHOLDER"      # ⚠ ASC 建完 App 记录后回填数字 Apple ID
-        GAD_APP_ID: "ca-app-pub-3940256099942544~1458002511"  # ⚠ Google 测试 ID,提审前换真实 AdMob App ID
+        APP_STORE_APP_ID: "6789722105"
+        GAD_APP_ID: "ca-app-pub-2141208066469648~9504869782"
     scripts: *ios_scripts
     artifacts: *ios_artifacts
     publishing: *ios_publishing
