@@ -195,7 +195,14 @@ function drawEnd(win) {
       txt(`${T('badge.' + b + '.icon')} ${T('badge.' + b + '.name')}`, SW / 2, y, '#fff3c2', 'bold 12px sans-serif');
     });
   }
-  let y = SH * 0.52;
+  let y = SH * 0.5;
+  if (!win) {
+    fillRR(SW / 2 - 96, y, 192, 40, 20, 'rgba(255,255,255,0.25)');
+    strokeRR(SW / 2 - 96, y, 192, 40, 20, 'rgba(255,255,255,0.5)');
+    txt(`🔍 ${T('end.review')}`, SW / 2, y + 20, '#fff', 'bold 13px sans-serif');
+    addHit(SW / 2 - 96, y, 192, 40, 'REVEAL_ALL', {});
+    y += 50;
+  }
   if (!win && G.mode === 'normal' && !G.adRevived) {
     fillRR(SW / 2 - 96, y, 192, 44, 22, C.purple);
     txt(`📺 ${T('end.adRevive')}`, SW / 2, y + 22, '#fff', 'bold 13px sans-serif');
@@ -252,6 +259,17 @@ function renderAll() {
   if (G.grid.length) drawGrid(L);
   drawTut(L);
   if (G.overlay === 'codex') drawCodex();
+  else if (G.phase === 'LOSE' && G.reviewMode) { // post-mortem: full board + bottom bar
+    const y = SH - 62;
+    fillRR(12, y, SW / 2 - 18, 46, 23, C.accent);
+    txt(T('end.retry'), 12 + (SW / 2 - 18) / 2, y + 23, '#fff', 'bold 14px sans-serif');
+    addHit(12, y, SW / 2 - 18, 46, 'RESTART', {});
+    fillRR(SW / 2 + 6, y, SW / 2 - 18, 46, 23, C.surface);
+    strokeRR(SW / 2 + 6, y, SW / 2 - 18, 46, 23, C.border);
+    txt(T('end.home'), SW / 2 + 6 + (SW / 2 - 18) / 2, y + 23, C.text, 'bold 14px sans-serif');
+    addHit(SW / 2 + 6, y, SW / 2 - 18, 46, 'GO_HOME', {});
+    return;
+  }
   else if (G.phase === 'WIN') { drawEnd(true); return; }
   else if (G.phase === 'LOSE') { drawEnd(false); return; }
   drawFloat();

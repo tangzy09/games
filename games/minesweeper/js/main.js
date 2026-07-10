@@ -109,10 +109,10 @@ function orientBoard() { // portrait phones get 10×13
 
 function dispatch(action, data) {
   switch (action) {
-    case 'START_RUN': orientBoard(); G.settled = false; G.rng = Math.random; G.adRevived = false; initRun(); Tut.start(); break;
+    case 'START_RUN': orientBoard(); G.reviewMode = false; G.settled = false; G.rng = Math.random; G.adRevived = false; initRun(); Tut.start(); break;
     case 'START_DAILY':
       if (!Meta.canDaily()) break;
-      orientBoard(); G.settled = false; G.adRevived = false;
+      orientBoard(); G.reviewMode = false; G.settled = false; G.adRevived = false;
       initDaily(PRNG.create(dailySeed()));
       break;
     case 'CELL': {
@@ -145,8 +145,9 @@ function dispatch(action, data) {
       })();
       break;
     }
-    case 'RESTART': orientBoard(); G.settled = false; G.rng = Math.random; G.adRevived = false; initRun(); break;
-    case 'GO_HOME': G.phase = 'HOME'; G.overlay = null; break;
+    case 'RESTART': orientBoard(); G.reviewMode = false; G.settled = false; G.rng = Math.random; G.adRevived = false; initRun(); break;
+    case 'REVEAL_ALL': if (G.phase === 'LOSE') { G.reviewMode = true; G.grid.forEach(c => { c.rev = true; }); } break;
+    case 'GO_HOME': G.phase = 'HOME'; G.overlay = null; G.reviewMode = false; break;
     case 'OPEN_CODEX': G.overlay = 'codex'; G.codexPage = 0; break;
     case 'CODEX_PAGE': G.codexPage = (G.codexPage || 0) + data.d; break;
     case 'CLOSE_OVERLAY': G.overlay = null; break;

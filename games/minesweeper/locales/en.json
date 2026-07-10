@@ -1,6 +1,12 @@
 {
-  "lang": { "name": "English", "toggle": "Language" },
-  "ads": { "simWatch": "[Ad simulation] Watch a rewarded ad?", "simInterstitial": "[Ad simulation] Interstitial ad" },
+  "lang": {
+    "name": "English",
+    "toggle": "Language"
+  },
+  "ads": {
+    "simWatch": "[Ad simulation] Watch a rewarded ad?",
+    "simInterstitial": "[Ad simulation] Interstitial ad"
+  },
   "home": {
     "title": "Dungeon Sweep",
     "subtitle": "One board, one life. Numbers show the total strength of monsters nearby — even the ones you already know about. Grow strong, then take the dragon's crown.",
@@ -10,48 +16,128 @@
     "dailyDone": "Daily done — back tomorrow",
     "codex": "Critterpedia"
   },
-  "ui": { "levelUp": "Level up!" },
-  "codex": { "title": "Critterpedia", "unknown": "Not met yet", "back": "Back" },
+  "ui": {
+    "levelUp": "Level up!"
+  },
+  "codex": {
+    "title": "Critterpedia",
+    "unknown": "Not met yet",
+    "back": "Back"
+  },
   "mon": {
-    "mousey":   { "name": "Mousey",     "trait": "A tiny snack of XP. The Mouse King's crown reveals them all." },
-    "flitter":  { "name": "Flitter",    "trait": "A flappy little thing. Honest 2 damage." },
-    "rattle":   { "name": "Rattle",     "trait": "Bones with opinions. Hits for 3." },
-    "cuddle":   { "name": "Cuddlekin",  "trait": "Never alone — its twin is always in a touching tile." },
-    "pudding":  { "name": "Pudding",    "trait": "Wobbly 5. The Sage's scroll reveals every pudding." },
-    "gazer":    { "name": "Peeper",     "trait": "Numbers near it read as ?. Pop it to see clearly again." },
-    "mouseking":{ "name": "Mouse King", "trait": "Drops a scroll that reveals every mousey on the board." },
-    "moobo":    { "name": "Moobo",      "trait": "Always stands beside a chest — and stares right at it." },
-    "guard":    { "name": "Doorman",    "trait": "Four of them, one napping in each quarter of the dungeon." },
-    "jelly":    { "name": "Jubjub",     "trait": "Five of them huddle around the Sage." },
-    "giant":    { "name": "Big Softie", "trait": "Two lovers resting in the same row, mirrored around the middle. Each drops a medikit… if you have the heart." },
-    "mineking": { "name": "Boomfather", "trait": "Drops the scroll that defuses every bomb on the board." },
-    "mimic":    { "name": "Boxer",      "trait": "Poses as a lovely present. A gift that won't open… isn't a gift." },
-    "dragon":   { "name": "The Dragon", "trait": "Visible from the very start. 13 damage. Take its crown to win." },
-    "sage":     { "name": "Sage",       "trait": "Level 1 — but guarded by five Jubjubs. Drops the pudding-finder." },
-    "boomy":    { "name": "Bombom",     "trait": "Poisons nearby numbers sky-high. Only the Boomfather's scroll can defuse it." },
-    "gnome":    { "name": "Snickerdoo", "trait": "Hops away toward the nearest medikit. Corner it for 9 XP, free." },
-    "egg":      { "name": "Dragon Egg", "trait": "Harmless. Breakable for 3 XP — but keeping it whole earns a badge." }
+    "mousey": {
+      "name": "Mousey",
+      "trait": "A tiny snack of XP. The Mouse King's crown reveals them all."
+    },
+    "flitter": {
+      "name": "Flitter",
+      "trait": "A flappy little thing. Honest 2 damage."
+    },
+    "rattle": {
+      "name": "Rattle",
+      "trait": "Bones with opinions. Hits for 3."
+    },
+    "cuddle": {
+      "name": "Cuddlekin",
+      "trait": "Never alone — its twin is always in a touching tile."
+    },
+    "pudding": {
+      "name": "Pudding",
+      "trait": "Wobbly 5. The Sage's scroll reveals every pudding."
+    },
+    "gazer": {
+      "name": "Peeper",
+      "trait": "Numbers near it read as ?. Pop it to see clearly again."
+    },
+    "mouseking": {
+      "name": "Mouse King",
+      "trait": "Drops a scroll that reveals every mousey on the board."
+    },
+    "moobo": {
+      "name": "Moobo",
+      "trait": "Always stands beside a chest — and stares right at it."
+    },
+    "guard": {
+      "name": "Doorman",
+      "trait": "Four of them, one napping in each quarter of the dungeon."
+    },
+    "jelly": {
+      "name": "Jubjub",
+      "trait": "Five of them huddle around the Sage."
+    },
+    "giant": {
+      "name": "Big Softie",
+      "trait": "Two lovers resting in the same row, mirrored around the middle. Each drops a medikit… if you have the heart."
+    },
+    "mineking": {
+      "name": "Boomfather",
+      "trait": "Drops the scroll that defuses every bomb on the board."
+    },
+    "mimic": {
+      "name": "Boxer",
+      "trait": "Poses as a lovely present. A gift that won't open… isn't a gift."
+    },
+    "dragon": {
+      "name": "The Dragon",
+      "trait": "Visible from the very start. 13 damage. Take its crown to win."
+    },
+    "sage": {
+      "name": "Sage",
+      "trait": "Level 1 — but guarded by five Jubjubs. Drops the pudding-finder."
+    },
+    "boomy": {
+      "name": "Bombom",
+      "trait": "Poisons nearby numbers sky-high. Only the Boomfather's scroll can defuse it."
+    },
+    "gnome": {
+      "name": "Snickerdoo",
+      "trait": "Hops away toward the nearest medikit. Corner it for 9 XP, free."
+    },
+    "egg": {
+      "name": "Dragon Egg",
+      "trait": "Harmless. Breakable for 3 XP — but keeping it whole earns a badge."
+    }
   },
   "badge": {
-    "clear":    { "icon": "🧹", "name": "Spotless — cleared everything" },
-    "lovers":   { "icon": "💞", "name": "Love wins — both softies spared" },
-    "egg":      { "icon": "🥚", "name": "Guardian — the egg survived" },
-    "pacifist": { "icon": "🕊️", "name": "Pacifist — no mousey harmed" }
+    "clear": {
+      "icon": "🧹",
+      "name": "Spotless — cleared everything"
+    },
+    "lovers": {
+      "icon": "💞",
+      "name": "Love wins — both softies spared"
+    },
+    "egg": {
+      "icon": "🥚",
+      "name": "Guardian — the egg survived"
+    },
+    "pacifist": {
+      "icon": "🕊️",
+      "name": "Pacifist — no mousey harmed"
+    }
   },
-  "win": { "title": "The crown is yours!" },
-  "lose": { "title": "You fainted…" },
+  "win": {
+    "title": "The crown is yours!"
+  },
+  "lose": {
+    "title": "You fainted…"
+  },
   "end": {
     "sub": "Reached level {n}",
     "adRevive": "Watch ad: get back up",
-    "retry": "Play again", "home": "Home",
-    "streakUp": "🔥 {n}-day streak!", "streakLost": "Streak broken — try again tomorrow"
+    "retry": "Play again",
+    "home": "Home",
+    "streakUp": "🔥 {n}-day streak!",
+    "streakLost": "Streak broken — try again tomorrow",
+    "review": "See the whole board"
   },
   "tut": {
     "s1": "Welcome! Tap any dark tile to flip it. The 🐉 is already visible — that's your final goal.",
     "s2": "Numbers = total strength of ALL monsters around them (corpses count until you collect them, and 💣 make numbers huge).",
     "s3": "Tapping a monster attacks it: you lose HP equal to its strength. You must have MORE HP than its level to survive — try a small one.",
     "s4": "Tap corpses to collect their XP, then press ⬆ Level up to grow (it also fully heals you). Beat the dragon, tap its 👑, and win!",
-    "next": "Got it", "skip": "Skip"
+    "next": "Got it",
+    "skip": "Skip"
   },
   "float": {
     "levelUp": "Level {n}! Fully healed",
