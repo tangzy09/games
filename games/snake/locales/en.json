@@ -3,6 +3,8 @@
   "ads": { "simWatch": "[Ad simulation] Watch a rewarded ad?", "simInterstitial": "[Ad simulation] Interstitial ad" },
   "snake": {
     "score": "Score",
+    "ready": "Ready?",
+    "start": "Start!",
     "combo": "×{n}",
     "pause": "⏸",
     "paused": "Paused",

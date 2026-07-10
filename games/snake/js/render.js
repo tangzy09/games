@@ -70,7 +70,8 @@ function renderAll() {
   drawHud(safeTop);
   drawBoardArea();
   drawButtons();
-  if (G.phase === 'PAUSED') drawOverlay(T('snake.paused'), '', T('snake.resume'), 'RESUME', false);
+  if (G.phase === 'READY') drawOverlay(T('snake.ready'), '', T('snake.start'), 'START', false);
+  else if (G.phase === 'PAUSED') drawOverlay(T('snake.paused'), '', T('snake.resume'), 'RESUME', false);
   else if (G.phase === 'DEAD') {
     const from = G.run.snake.length, to = Math.max(3, Math.floor(from / 2));
     drawOverlay(T('snake.dead'), T('snake.deadHint', { from, to }), T('snake.respawn'), 'RESPAWN', false);

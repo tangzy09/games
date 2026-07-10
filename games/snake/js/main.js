@@ -2,7 +2,7 @@
 // 注:G 用 var(非 const/let)——顶层 const/let 不会挂到 window 上,
 // 而 E2E/调试都要能从 window.G 读状态,实测验证过(见 render.js 提交同批 E2E)。
 var G = {
-  phase: 'LOADING',        // LOADING | PLAYING | PAUSED | DEAD | LEVEL_DONE
+  phase: 'LOADING',        // LOADING | READY | PLAYING | PAUSED | DEAD | LEVEL_DONE
   run: null, cyc: null, aiMem: null,
   ai: false, boostHeld: false,
   img: null, imgList: [], imgPos: 0,
@@ -12,6 +12,7 @@ const loopState = { last: 0, acc: 0 };
 
 function dispatch(action) {
   switch (action) {
+    case 'START':  if (G.phase === 'READY') { G.phase = 'PLAYING'; loopState.last = 0; } break;
     case 'PAUSE':  if (G.phase === 'PLAYING') G.phase = 'PAUSED'; break;
     case 'RESUME': if (G.phase === 'PAUSED') { G.phase = 'PLAYING'; loopState.last = 0; } break;
     case 'AI_TOGGLE': G.ai = !G.ai; G.aiMem = AI.createMem(); break;
@@ -21,7 +22,7 @@ function dispatch(action) {
       G.phase = 'PLAYING'; loopState.last = 0; break;
     case 'NEXT':
       // 防连点:先离开 LEVEL_DONE,二次点击时覆盖层不再渲染、hit 已不存在;
-      // frame 对 LOADING 天然安全(非 PLAYING 早退),nextLevel 完成时置回 PLAYING。
+      // frame 对 LOADING 天然安全(非 PLAYING 早退),nextLevel 完成时进 READY。
       if (G.phase === 'LEVEL_DONE') { G.phase = 'LOADING'; nextLevel(); }
       break;
     default: break;
@@ -42,11 +43,19 @@ function loadImage() {
     img.src = 'assets/angels/' + G.imgList[G.imgPos % G.imgList.length];
   });
 }
+// 每关开局待机态:玩家看清盘面再动手;AI 挂机时不停下等人,直接开跑。
+// RESPAWN 不走这里——死亡重生是玩家主动点的按钮,已有准备,直接 PLAYING。
+function enterReady() {
+  G.phase = 'READY';
+  loopState.last = 0;
+  if (G.ai) dispatch('START');
+}
+
 async function nextLevel() {
   G.imgPos++;
   await loadImage();
   initLayers(G.img);
-  G.phase = 'PLAYING'; loopState.last = 0;
+  enterReady();
 }
 
 function frame(ts) {
@@ -108,14 +117,18 @@ async function boot() {
     Input.bind({
       liveSwipe: true,
       onAction: dispatch,
-      onSwipe: d => { if (!G.ai && G.phase === 'PLAYING') Core.setDir(G.run, d); },
-      canSwipe: () => G.phase === 'PLAYING',
+      // READY 时按方向键/滑动即开始(桌面友好),开始后立即应用该方向
+      onSwipe: d => {
+        if (G.phase === 'READY') dispatch('START');
+        if (!G.ai && G.phase === 'PLAYING') Core.setDir(G.run, d);
+      },
+      canSwipe: () => G.phase === 'PLAYING' || G.phase === 'READY',
     });
     bindBoost();
     document.addEventListener('visibilitychange', () => { if (document.hidden) dispatch('PAUSE'); });
     window.addEventListener('resize', () => { initCanvas(); if (G.run) initLayers(G.img); renderAll(); });
     Controls.render();
-    G.phase = 'PLAYING';
+    enterReady();
     requestAnimationFrame(frame);
   } catch (err) {
     // boot 任何异常(manifest fetch 失败等)不许静默白屏:能画就画到屏幕上
