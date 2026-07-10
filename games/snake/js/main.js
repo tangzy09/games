@@ -63,11 +63,12 @@ function loadImage() {
 }
 // 每关开局待机态:玩家看清盘面再动手;AI 挂机时不停下等人,直接开跑。
 // RESPAWN 不走这里——死亡重生是玩家主动点的按钮,已有准备,直接 PLAYING。
-function enterReady() {
+// resumed=true:reload 续玩恢复——重建 tracker 但不计新开局(否则反复刷新虚增 levelsStarted)
+function enterReady(resumed) {
   G.phase = 'READY';
   loopState.last = 0;
   if (G.save) {
-    G.save.stats.levelsStarted++;
+    if (!resumed) G.save.stats.levelsStarted++;
     G.tracker = Ach.newTracker(loopState.gameMs || 0, G.ai);
     persist();
   }
@@ -228,7 +229,8 @@ function tick(nowMs, interval) {
   if (ev.some(e => e.t === 'apple')) Sfx.play('eat');
   if (ev.some(e => e.t === 'special')) Sfx.play('special');
   if (ev.some(e => e.t === 'shield')) { Sfx.play('shield'); Haptics.light(); }
-  if (ev.some(e => e.t === 'milestone') && !run.levelJustDone) Sfx.play('milestone');
+  const milestonePlayed = ev.some(e => e.t === 'milestone') && !run.levelJustDone;
+  if (milestonePlayed) Sfx.play('milestone');
   const aiRun = G.ai || !!(G.tracker && G.tracker.aiRun);   // 粘性:本关开过 AI 即整关按 AI 局算
   G.tracker.scoreGained += scoreDelta;   // onStep 不处理 scoreGained(签名无 ctx),接线方负责
   Ach.onStep(G.tracker, run, ev, nowMs);
@@ -242,7 +244,7 @@ function tick(nowMs, interval) {
     newly = r1.unlocked;
   }
   newly = newly.concat(Ach.checkCum(G.save).unlocked);
-  if (newly.length) { showAchToasts(newly); Sfx.play('milestone'); }
+  if (newly.length) { showAchToasts(newly); if (!milestonePlayed) Sfx.play('milestone'); }   // 本 tick 播过就不双播
   if (run.levelJustDone) {
     Sfx.play('level'); G.phase = 'LEVEL_DONE'; revealAllMask();
     G.save.run = null; persist(); return;
@@ -274,11 +276,13 @@ async function boot() {
     initCanvas();
     const mf = await fetch('assets/angels/manifest.json').then(r => r.json());
     G.imgList = mf.images;
+    let resumed = false;
     if (G.save.run) {                       // 有当局快照 → 恢复续玩
       try {
         const r = Storage.restoreRun(G.save.run);
         G.run = r.state; G.imgPos = r.imgPos;
         loopState.gameMs = r.gameMs || 0;
+        resumed = true;
       } catch (e) { console.error('restore failed', e); G.run = null; }
     }
     if (!G.run) {
@@ -294,6 +298,9 @@ async function boot() {
       onAction: dispatch,
       // READY/PAUSED 时任何方向输入即开始/继续(不用点按钮),并立即应用该方向
       onSwipe: d => {
+        // 浮层(成就墙/图鉴/皮肤)开着时方向键不许在背后偷偷 RESUME 开跑
+        const panel = document.getElementById('panel');
+        if (panel && !panel.classList.contains('hidden')) return;
         if (G.phase === 'READY') dispatch('START');
         else if (G.phase === 'PAUSED') dispatch('RESUME');
         if (!G.ai && G.phase === 'PLAYING') Core.setDir(G.run, d);
@@ -316,7 +323,7 @@ async function boot() {
         const b = bar.querySelector('#sfx-btn');
         if (b) b.onclick = () => { b.textContent = Sfx.toggle() ? '🔊' : '🔇'; };
       });
-    enterReady();
+    enterReady(resumed);
     requestAnimationFrame(frame);
   } catch (err) {
     // boot 任何异常(manifest fetch 失败等)不许静默白屏:能画就画到屏幕上

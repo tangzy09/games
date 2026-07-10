@@ -29,6 +29,10 @@ function defaults() {
 // 保守合并:default 里有而 saved 缺 → 补;类型不符 → 用 default
 function merge(def, saved) {
   if (saved == null || typeof saved !== 'object') return def;
+  // 开放 map(defaults 里是空对象,如 specials/skinClears)整体透传——
+  // 否则「只遍历 default 的 key」会把已累计的动态 key 全部清掉(P2b 审查 Critical)
+  if (!Array.isArray(def) && Object.keys(def).length === 0)
+    return (saved && typeof saved === 'object' && !Array.isArray(saved)) ? { ...saved } : def;
   const out = Array.isArray(def) ? saved : { ...def };
   if (!Array.isArray(def)) {
     for (const k of Object.keys(def)) {
@@ -70,6 +74,7 @@ function restoreRun(snap) {
   const st = JSON.parse(JSON.stringify(snap.state));
   st.revealed = new Uint8Array(st.revealed);
   st.rand = PRNG_S_.create(snap.seed2 || 1);
+  if (st.lastEatMs == null) st.lastEatMs = -Infinity;   // JSON 把 -Infinity 变 null,回填防连击断档
   return { state: st, imgPos: snap.imgPos, gameMs: snap.gameMs };
 }
 

@@ -175,7 +175,9 @@ function onLevelClear(t, save, gameMs, extra) {
   const today = new Date().toDateString();
   if (save.stats.lastPlayDay !== today) {
     const prevTime = save.stats.lastPlayDay ? new Date(save.stats.lastPlayDay).getTime() : null;
-    const isAdjacent = prevTime != null && (new Date(today).getTime() - prevTime) === 86400000;
+    // Math.round:夏令时切换日日差是 23/25h,严格 === 24h 会误断 streak
+    const isAdjacent = prevTime != null
+      && Math.round((new Date(today).getTime() - prevTime) / 86400000) === 1;
     save.stats.streakDays = isAdjacent ? save.stats.streakDays + 1 : 1;
     save.stats.lastPlayDay = today;
   }

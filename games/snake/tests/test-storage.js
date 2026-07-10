@@ -40,6 +40,18 @@ function memBackend() {
   assert.strictEqual(s2.stats.apples, 7, '已有字段保留');
   assert(Array.isArray(s2.ach.unlocked), '缺失字段补默认');
 }
+// --- 开放 map(specials/skinClears)round-trip:动态 key 不许被 merge 清空(P2b 审查 Critical) ---
+{
+  const be = memBackend();
+  const s = Storage.load(be, 'k');
+  s.stats.specials = { gold: 7, twin: 3 };
+  s.stats.skinClears = { star: 2 };
+  Storage.save(be, 'k', s);
+  const s2 = Storage.load(be, 'k');
+  assert.strictEqual(s2.stats.specials.gold, 7, 'specials 动态 key 保留');
+  assert.strictEqual(s2.stats.specials.twin, 3);
+  assert.strictEqual(s2.stats.skinClears.star, 2, 'skinClears 动态 key 保留');
+}
 // --- 当局快照:序列化 core state → 恢复后逐字段一致且可继续 step ---
 {
   const g = Core.createGame({ seed: 33 });
@@ -61,5 +73,12 @@ function memBackend() {
   assert.deepStrictEqual(h.effects, g.effects);
   Core.step(h, { nowMs: 99999 });                     // 恢复态可继续跑
   assert(!isNaN(h.score));
+}
+// --- lastEatMs=-Infinity 经 JSON round-trip 不许变 null(否则续玩首吃连击判定坏) ---
+{
+  const g = Core.createGame({ seed: 34 });
+  assert.strictEqual(g.lastEatMs, -Infinity, 'sanity: 新局 -Infinity');
+  const r = Storage.restoreRun(Storage.snapshotRun(g, 0, 0));
+  assert.strictEqual(r.state.lastEatMs, -Infinity, '恢复后回填 -Infinity');
 }
 console.log('OK test-storage');
