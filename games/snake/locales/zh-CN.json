@@ -1,19 +1,19 @@
 {
-  "lang.name": "简体中文",
-  "lang.toggle": "语言",
-  "ads.simWatch": "【广告模拟】观看激励视频？",
-  "ads.simInterstitial": "【广告模拟】插屏广告",
-  "snake.score": "分数",
-  "snake.combo": "×{n}",
-  "snake.pause": "⏸",
-  "snake.paused": "已暂停",
-  "snake.resume": "继续",
-  "snake.dead": "哎呀,撞到了!",
-  "snake.deadHint": "蛇长 {from} → {to}",
-  "snake.respawn": "重新出发",
-  "snake.levelDone": "第 {n} 关完成!",
-  "snake.scoreVal": "得分 {n}",
-  "snake.next": "下一张天使 →",
-  "snake.ai": "🤖 AI 代打",
-  "snake.boost": "💨 加速"
+  "lang": { "name": "简体中文", "toggle": "语言" },
+  "ads": { "simWatch": "【广告模拟】观看激励视频？", "simInterstitial": "【广告模拟】插屏广告" },
+  "snake": {
+    "score": "分数",
+    "combo": "×{n}",
+    "pause": "⏸",
+    "paused": "已暂停",
+    "resume": "继续",
+    "dead": "哎呀,撞到了!",
+    "deadHint": "蛇长 {from} → {to}",
+    "respawn": "重新出发",
+    "levelDone": "第 {n} 关完成!",
+    "scoreVal": "得分 {n}",
+    "next": "下一张天使 →",
+    "ai": "🤖 AI 代打",
+    "boost": "💨 加速"
+  }
 }

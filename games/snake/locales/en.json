@@ -1,19 +1,19 @@
 {
-  "lang.name": "English",
-  "lang.toggle": "Language",
-  "ads.simWatch": "[Ad simulation] Watch a rewarded ad?",
-  "ads.simInterstitial": "[Ad simulation] Interstitial ad",
-  "snake.score": "Score",
-  "snake.combo": "×{n}",
-  "snake.pause": "⏸",
-  "snake.paused": "Paused",
-  "snake.resume": "Resume",
-  "snake.dead": "Oops, crashed!",
-  "snake.deadHint": "Length {from} → {to}",
-  "snake.respawn": "Go again",
-  "snake.levelDone": "Level {n} clear!",
-  "snake.scoreVal": "Score {n}",
-  "snake.next": "Next angel →",
-  "snake.ai": "🤖 AI Play",
-  "snake.boost": "💨 Boost"
+  "lang": { "name": "English", "toggle": "Language" },
+  "ads": { "simWatch": "[Ad simulation] Watch a rewarded ad?", "simInterstitial": "[Ad simulation] Interstitial ad" },
+  "snake": {
+    "score": "Score",
+    "combo": "×{n}",
+    "pause": "⏸",
+    "paused": "Paused",
+    "resume": "Resume",
+    "dead": "Oops, crashed!",
+    "deadHint": "Length {from} → {to}",
+    "respawn": "Go again",
+    "levelDone": "Level {n} clear!",
+    "scoreVal": "Score {n}",
+    "next": "Next angel →",
+    "ai": "🤖 AI Play",
+    "boost": "💨 Boost"
+  }
 }
