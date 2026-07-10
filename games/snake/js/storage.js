@@ -1,6 +1,7 @@
 // storage.js — 版本化存档(注入式后端,双导出)
 // 后端 = { get(k)→string|null, set(k,v) };浏览器用引擎 Platform.storage(先 hydrate)。
-const PRNG_ = (typeof module !== 'undefined' && module.exports)
+// 注意命名:浏览器里各 <script> 共享全局词法环境,core.js 已声明 PRNG_,这里必须换名
+const PRNG_S_ = (typeof module !== 'undefined' && module.exports)
   ? require('../../../engine/prng.js') : PRNG;
 
 const SAVE_V = 1;
@@ -68,7 +69,7 @@ function snapshotRun(state, imgPos, gameMs) {
 function restoreRun(snap) {
   const st = JSON.parse(JSON.stringify(snap.state));
   st.revealed = new Uint8Array(st.revealed);
-  st.rand = PRNG_.create(snap.seed2 || 1);
+  st.rand = PRNG_S_.create(snap.seed2 || 1);
   return { state: st, imgPos: snap.imgPos, gameMs: snap.gameMs };
 }
 

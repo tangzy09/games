@@ -7,6 +7,7 @@ var G = {
   ai: false,
   img: null, imgList: [], imgPos: 0,
   imgFull: false,          // LEVEL_DONE 时点图全屏欣赏中
+  save: null, tracker: null, saveKey: null,   // P2b:存档 + 单局成就 tracker
 
   seed: (Date.now() % 2147483647),
 };
@@ -17,11 +18,21 @@ function dispatch(action) {
     case 'START':  if (G.phase === 'READY') { G.phase = 'PLAYING'; loopState.last = 0; } break;
     case 'PAUSE':  if (G.phase === 'PLAYING') G.phase = 'PAUSED'; break;
     case 'RESUME': if (G.phase === 'PAUSED') { G.phase = 'PLAYING'; loopState.last = 0; } break;
-    case 'AI_TOGGLE': G.ai = !G.ai; G.aiMem = AI.createMem(); break;
-    case 'RESPAWN':
+    case 'AI_TOGGLE':
+      G.ai = !G.ai; G.aiMem = AI.createMem();
+      // AI 局标记粘性:本关一旦开过 AI,单局成就/纪录整关不判(设计 §4,防「AI 打完人工收尾」刷成就)
+      if (G.ai && G.tracker) G.tracker.aiRun = true;
+      persist();
+      break;
+    case 'RESPAWN': {
+      const rb = G.run.revealedCount;          // 重生落点揭格发生在 tick 外,单独入账
       Core.respawn(G.run);
+      if (G.save) G.save.stats.cellsRevealed += G.run.revealedCount - rb;
       syncRevealDiff();
-      G.phase = 'PLAYING'; loopState.last = 0; break;
+      G.phase = 'PLAYING'; loopState.last = 0;
+      persist();
+      break;
+    }
     case 'NEXT':
       // 防连点:先离开 LEVEL_DONE,二次点击时覆盖层不再渲染、hit 已不存在;
       // frame 对 LOADING 天然安全(非 PLAYING 早退),nextLevel 完成时进 READY。
@@ -55,7 +66,34 @@ function loadImage() {
 function enterReady() {
   G.phase = 'READY';
   loopState.last = 0;
+  if (G.save) {
+    G.save.stats.levelsStarted++;
+    G.tracker = Ach.newTracker(loopState.gameMs || 0, G.ai);
+    persist();
+  }
   if (G.ai) dispatch('START');
+}
+
+// 存档落盘:PLAYING/READY 时附带当局快照(续玩);不要每 tick 调——
+// 调用点:enterReady/死亡/过关/AI_TOGGLE/RESPAWN/切后台(visibilitychange hidden)。
+function persist() {
+  if (!G.save || !G.saveKey) return;
+  if (G.phase === 'PLAYING' || G.phase === 'READY')
+    G.save.run = Storage.snapshotRun(G.run, G.imgPos, loopState.gameMs || 0);
+  Storage.save(Platform.storage, G.saveKey, G.save);
+}
+
+// 解锁 toast:一次最多叠 3 条,2.6s 后淡出
+function showAchToasts(ids) {
+  const host = document.getElementById('toasts');
+  if (!host) return;
+  for (const id of ids.slice(0, 3)) {
+    const el = document.createElement('div');
+    el.className = 'ach-toast';
+    el.textContent = `🏅 ${T('achui.unlocked')} ${T('ach.' + id)}`;
+    host.appendChild(el);
+    setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 400); }, 2600);
+  }
 }
 
 async function nextLevel() {
@@ -78,38 +116,82 @@ function frame(ts) {
     // demon/halo/cloud 等定时效果与连击 10s 窗口全部冻结,恢复后不吃亏。
     // 单调递增,boot/RESPAWN/START 后继续累计不重置。
     loopState.gameMs = (loopState.gameMs || 0) + interval;
-    tick(loopState.gameMs);
+    tick(loopState.gameMs, interval);
   }
   renderAll();
 }
 
-function tick(nowMs) {
+function tick(nowMs, interval) {
   G.nowMs = nowMs;
   const run = G.run;
-  const before = { apples: run.stats.apples, milestones: run.milestones };
+  const before = { score: run.score, revealed: run.revealedCount };
   if (G.ai) Core.setDir(run, AI.nextMove(run, G.cyc, G.aiMem));
   Core.step(run, { nowMs, scoreScale: G.ai ? 0.5 : 1 });
   syncRevealDiff();
-  if (run.stats.apples > before.apples) Sfx.play('eat');
-  if (run.lastSpecialEaten) Sfx.play('special');
-  if (run.shieldJustUsed) { Sfx.play('shield'); Haptics.light(); }
-  if (run.milestones > before.milestones && !run.levelJustDone) Sfx.play('milestone');
-  if (run.levelJustDone) { Sfx.play('level'); G.phase = 'LEVEL_DONE'; revealAllMask(); return; }
-  if (run.dead) { Sfx.play('death'); Haptics.medium(); G.phase = 'DEAD'; }
+  // 事件驱动:音效与成就统一消费 run.events(取代散落 flag 判定)
+  const ev = run.events || [];
+  const scoreDelta = run.score - before.score;
+  // 过关 tick 里 completeLevel 已把 revealedCount 重置并揭开新关的蛇身格:
+  // 本 tick 实际揭开 =(揭满旧关的差)+(新关开局蛇身格)
+  const revealDelta = run.levelJustDone
+    ? run.cols * run.rows - before.revealed + run.revealedCount
+    : run.revealedCount - before.revealed;
+  if (ev.some(e => e.t === 'apple')) Sfx.play('eat');
+  if (ev.some(e => e.t === 'special')) Sfx.play('special');
+  if (ev.some(e => e.t === 'shield')) { Sfx.play('shield'); Haptics.light(); }
+  if (ev.some(e => e.t === 'milestone') && !run.levelJustDone) Sfx.play('milestone');
+  const aiRun = G.ai || !!(G.tracker && G.tracker.aiRun);   // 粘性:本关开过 AI 即整关按 AI 局算
+  G.tracker.scoreGained += scoreDelta;   // onStep 不处理 scoreGained(签名无 ctx),接线方负责
+  Ach.onStep(G.tracker, run, ev, nowMs);
+  Ach.accumulate(G.save, run, ev, { aiRun, scoreDelta, revealDelta, dtMs: interval });
+  let newly = [];
+  if (run.levelJustDone) {
+    const r1 = Ach.onLevelClear(G.tracker, G.save, nowMs, { aiRun });
+    newly = r1.unlocked;
+  }
+  newly = newly.concat(Ach.checkCum(G.save).unlocked);
+  if (newly.length) { showAchToasts(newly); Sfx.play('milestone'); }
+  if (run.levelJustDone) {
+    Sfx.play('level'); G.phase = 'LEVEL_DONE'; revealAllMask();
+    G.save.run = null; persist(); return;
+  }
+  if (run.dead) { Sfx.play('death'); Haptics.medium(); G.phase = 'DEAD'; persist(); }
 }
 
 async function boot() {
   try {
-    await Platform.hydrate([CFG.key('lang'), CFG.key('sfx')]);
+    await Platform.hydrate([CFG.key('lang'), CFG.key('sfx'), CFG.key('save')]);
     restoreAudioPrefs();
+    G.saveKey = CFG.key('save');
+    G.save = Storage.load(Platform.storage, G.saveKey);
     Portal.boot();
     await Ads.init();
-    I18N.onChange(() => { Controls.render(); renderAll(); });
+    let langBooted = false;
+    I18N.onChange(() => {
+      Controls.render(); renderAll();
+      if (!langBooted) { langBooted = true; return; }   // boot 的 setLang 也走 onChange,不算「切换」
+      if (G.save && !G.save.stats.langSwitched) {       // 环游世界:玩家主动切过一次语言
+        G.save.stats.langSwitched = 1;
+        const u = Ach.checkCum(G.save).unlocked;
+        if (u.length) showAchToasts(u);
+        persist();
+      }
+    });
     await I18N.setLang(I18N.detect());
     initCanvas();
     const mf = await fetch('assets/angels/manifest.json').then(r => r.json());
     G.imgList = mf.images;
-    G.run = Core.createGame({ seed: G.seed });
+    if (G.save.run) {                       // 有当局快照 → 恢复续玩
+      try {
+        const r = Storage.restoreRun(G.save.run);
+        G.run = r.state; G.imgPos = r.imgPos;
+        loopState.gameMs = r.gameMs || 0;
+      } catch (e) { console.error('restore failed', e); G.run = null; }
+    }
+    if (!G.run) {
+      G.run = Core.createGame({ seed: G.seed });
+      G.save.stats.cellsRevealed += G.run.revealedCount;   // 出生格揭开发生在 tick 外(续玩局上一场已入账,不重复)
+    }
     G.cyc = AI.buildCycle(G.run.cols, G.run.rows);
     G.aiMem = AI.createMem();
     await loadImage();
@@ -125,7 +207,9 @@ async function boot() {
       },
       canSwipe: () => G.phase === 'PLAYING' || G.phase === 'READY' || G.phase === 'PAUSED',
     });
-    document.addEventListener('visibilitychange', () => { if (document.hidden) dispatch('PAUSE'); });
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) { persist(); dispatch('PAUSE'); }   // 暂停前先落盘(切后台可能被杀进程)
+    });
     window.addEventListener('resize', () => { initCanvas(); if (G.run) initLayers(G.img); renderAll(); });
     Controls.render(
       `<div class="ctl-btn" id="sfx-btn">${Sfx.on ? '🔊' : '🔇'}</div>`,
