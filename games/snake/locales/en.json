@@ -21,7 +21,19 @@
     "on": "ON",
     "off": "OFF"
   },
-  "menu": { "achievements": "Achievements" },
+  "menu": { "achievements": "Achievements", "gallery": "Gallery" },
+  "gal": {
+    "title": "Gallery",
+    "back": "← Back",
+    "replay": "Replay",
+    "lockedTip": "Locked",
+    "progress": "{cur}/{max}",
+    "set1": "Starry", "set2": "Kittens", "set3": "Seasons", "set4": "Desserts", "set5": "Garden",
+    "set6": "Ocean", "set7": "Music", "set8": "Travel", "set9": "Foods", "set10": "School",
+    "set11": "Festivals", "set12": "Forest", "set13": "Rainy Days", "set14": "Winter Snow", "set15": "Summer",
+    "set16": "Butterflies", "set17": "Wishes", "set18": "Tea Party", "set19": "Clouds", "set20": "Moonlight",
+    "set21": "Gems", "set22": "Fairy Tales", "set23": "Angel Band", "set24": "Dreams", "set25": "Holy Light"
+  },
   "achui": {
     "title": "Achievements",
     "tabRun": "Per-Level",

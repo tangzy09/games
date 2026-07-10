@@ -24,6 +24,11 @@ fs.readdirSync(DST)
   .filter(f => f.endsWith('.webp') || f === 'manifest.json')
   .forEach(f => fs.unlinkSync(path.join(DST, f)));
 for (const f of picked) fs.copyFileSync(path.join(SRC, f), path.join(DST, f));
+// 25 集 ×20 分组:images 平铺数组语义不变(顺序即闯关顺序),sets 只供图鉴分组
+const SET_SIZE = 20;
+const sets = [];
+for (let i = 0; i < picked.length; i += SET_SIZE)
+  sets.push({ key: 'set' + (sets.length + 1), images: picked.slice(i, i + SET_SIZE) });
 fs.writeFileSync(path.join(DST, 'manifest.json'),
-  JSON.stringify({ v: 1, images: picked }, null, 1));
-console.log(`copied ${picked.length} -> ${DST}`);
+  JSON.stringify({ v: 2, images: picked, sets }, null, 1));
+console.log(`copied ${picked.length} -> ${DST} (${sets.length} sets)`);
