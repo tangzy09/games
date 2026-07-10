@@ -30,6 +30,18 @@ function initLayers(img) {
   resetMask();
   for (let y = 0; y < G.run.rows; y++) for (let x = 0; x < G.run.cols; x++)
     if (G.run.revealed[y * G.run.cols + x]) punchCell(x, y);
+  revealMirror = new Uint8Array(G.run.revealed); revealMirror.set(G.run.revealed);
+}
+
+// 揭格 diff 同步:core 揭开的每一格(头格/羽毛/足迹/流星)都在遮罩上挖洞。
+// 镜像上帧 revealed,新揭的才 punch(取代旧的「只 punch 头格」)。
+let revealMirror = null;
+function syncRevealDiff() {
+  const r = G.run.revealed, n = r.length;
+  if (!revealMirror || revealMirror.length !== n) revealMirror = new Uint8Array(n);
+  for (let i = 0; i < n; i++)
+    if (r[i] && !revealMirror[i]) punchCell(i % G.run.cols, Math.floor(i / G.run.cols));
+  revealMirror.set(r);
 }
 
 function resetMask() {
@@ -105,6 +117,7 @@ function drawHud(safeTop) {
   fillRR(b.x, b.y, b.w, b.h, 10, PAL.card);
   txt(T('snake.pause'), b.x + b.w / 2, b.y + b.h / 2, PAL.text, '16px sans-serif');
   addHit(b.x, b.y, b.w, b.h, 'PAUSE', {});
+  drawEffectsRow(safeTop);
 }
 
 function drawBoardArea() {
@@ -124,6 +137,9 @@ function drawBoardArea() {
     ctx.globalAlpha = 1;
   }
   if (G.run.apple) drawApple(G.run.apple);
+  for (const a of G.run.extraApples) drawApple(a);
+  drawSpecial();
+  drawMeteor();
   drawSnake();
 }
 
@@ -135,6 +151,37 @@ function drawApple(a) {
   ctx.beginPath(); ctx.arc(cx, cy, cell * 0.32, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = PAL.leaf;
   ctx.beginPath(); ctx.ellipse(cx + cell * 0.1, cy - cell * 0.3, cell * 0.12, cell * 0.07, -0.6, 0, Math.PI * 2); ctx.fill();
+}
+
+// 特殊果:emoji 绘制(引擎美术哲学:emoji 占位,后补图零改码);临期急促闪烁
+function drawSpecial() {
+  const sp = G.run.special;
+  if (!sp) return;
+  const { bx, by, cell } = Layout;
+  const remain = sp.expiresAt - (G.nowMs || 0);
+  if (remain < Fruits.FRUIT_TIMES.blinkAt && Math.sin(performance.now() / 90) < 0) return;
+  const bob = Math.sin(performance.now() / 250) * cell * 0.05;
+  txt(Fruits.FRUITS[sp.type].emoji,
+      bx + sp.x * cell + cell / 2, by + sp.y * cell + cell / 2 + bob,
+      '#fff', `${Math.round(cell * 0.8)}px sans-serif`);
+}
+function drawMeteor() {
+  const m = G.run.meteor;
+  if (!m) return;
+  const { bx, by, cell } = Layout;
+  txt('🌠', bx + m.x * cell + cell / 2, by + m.y * cell + cell / 2,
+      '#fff', `${Math.round(cell * 0.8)}px sans-serif`);
+}
+// 生效中的效果指示:分数下方一行小字(💖×n + 各效果剩余秒)
+function drawEffectsRow(safeTop) {
+  const fx = G.run.effects, now = G.nowMs || 0;
+  const items = [];
+  if (fx.shield > 0) items.push('💖×' + fx.shield);
+  for (const [key, emo] of [['slowUntil', '☁️'], ['demonUntil', '😈'], ['ghostUntil', '😇'],
+                            ['trailUntil', '✨'], ['magnetUntil', '🧲']])
+    if (now < fx[key]) items.push(emo + Math.ceil((fx[key] - now) / 1000));
+  if (items.length)
+    txtL(items.join('  '), Layout.bx, safeTop + 48, PAL.text, '12px sans-serif');
 }
 
 function drawSnake() {

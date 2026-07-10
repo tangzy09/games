@@ -20,7 +20,7 @@ function dispatch(action) {
     case 'AI_TOGGLE': G.ai = !G.ai; G.aiMem = AI.createMem(); break;
     case 'RESPAWN':
       Core.respawn(G.run);
-      punchCell(G.run.snake[0].x, G.run.snake[0].y);
+      syncRevealDiff();
       G.phase = 'PLAYING'; loopState.last = 0; break;
     case 'NEXT':
       // 防连点:先离开 LEVEL_DONE,二次点击时覆盖层不再渲染、hit 已不存在;
@@ -34,8 +34,12 @@ function dispatch(action) {
   renderAll();
 }
 
-function speed() {   // 格/秒:基础7,随长缓升,封顶12(待校准)
-  return Math.min(12, 7 + 0.03 * G.run.snake.length);
+function speed() {   // 格/秒:基础7随长缓升封顶12;慢慢云 ×0.7;小恶魔 ×1.5(待校准)
+  const now = G.nowMs || 0, fx = G.run.effects;
+  let m = 1;
+  if (now < fx.slowUntil) m *= 0.7;
+  if (now < fx.demonUntil) m *= 1.5;
+  return Math.min(12, 7 + 0.03 * G.run.snake.length) * m;
 }
 
 function loadImage() {
@@ -76,11 +80,10 @@ function frame(ts) {
 }
 
 function tick(nowMs) {
-  const prev = G.run.revealedCount;
+  G.nowMs = nowMs;
   if (G.ai) Core.setDir(G.run, AI.nextMove(G.run, G.cyc, G.aiMem));
   Core.step(G.run, { nowMs, scoreScale: G.ai ? 0.5 : 1 });
-  if (G.run.revealedCount > prev && !G.run.levelJustDone)
-    punchCell(G.run.snake[0].x, G.run.snake[0].y);
+  syncRevealDiff();
   if (G.run.levelJustDone) { G.phase = 'LEVEL_DONE'; revealAllMask(); return; }
   if (G.run.dead) { G.phase = 'DEAD'; }
 }
