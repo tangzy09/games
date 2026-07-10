@@ -22,6 +22,7 @@ node tools/check-locales.js games/minesweeper/locales
 
 - `assets/sprites/<id>.webp`，**所有生物立绘统一朝左**，朝向靠运行时镜像（`spriteFlip()`：哞哞霸盯箱、抱抱怪对视、罗密欧望朱丽叶、鼠群朝王）。缺图自动回退 emoji，游戏永远可玩。
 - 格子颜色语言：红系 = 会扣血，绿系 = 纯收益；伪装中的礼盒盒故意涂绿（它的骗术）。
+- `assets/icons/`：站点 icon 全套（favicon-32 / icon-192 / apple-touch-icon-180 / icon-512，index.html head 已挂，icon-512 兼任 og:image），源图 = knight+slime 主视觉 2048 原图直接缩放。主页标题图 = render.js `drawKeyArt()`：画 icon-512、`roundRect` 圆角裁切去掉源图白角、加载完成前回退 🐉。
 - 重生成/新增立绘（需本机 ComfyUI，见 `~/.claude/skills/comfyui-flux-local`）：
   ```bash
   C:/ComfyUI/venv/Scripts/python.exe main.py --disable-auto-launch      # 起服务(8188)
@@ -43,6 +44,7 @@ node tools/check-locales.js games/minesweeper/locales
 - 图标源 = knight+slime 主视觉（`Downloads/Gemini_Generated_Image_o2od06o2od06o2od.png` 2048 原图内切 140px 去烘焙圆角 → resources/icon.png）。**4.3(a)：图标绝不与账号内其他 app 复用**。
 - **等两件 UI 事**（都只能用户做）：① ASC 建 App 记录 → 数字 Apple ID 回填 codemagic.yaml 的 `APP_STORE_APP_ID`；② AdMob 控制台建 iOS app + Rewarded/Interstitial 两广告位 → 真 ID 接 `GAME_CONFIG.adUnits` + `GAD_APP_ID`（现为 Google 测试 ID，**提审前必换**）。
 - 之后全 API：触发构建 → TestFlight → 商店页元数据/截图/定价/送审（`~/.claude/skills/appstore-listing`）。
+- **商店截图已出全套**（2026-07-10）：`tools/capture-appstore-shots.cjs`（本地起服 + Playwright 造景），en-US/zh-Hans × iPhone 6.7"/iPad 12.9" × 5 屏 → `C:\tmp\dungeon-sweep\shots\`，已过逐张验收。造景两坑：翻格只翻 `cellNumber(i)<100` 的格（雷毒化的 100+ 数字在截图里像 bug）；`Meta.markHintDone=true`（长按提示行在 iPad 视口贴底会被裁）。等 App 记录建好后用 appstore-listing 的 upload-shots-template 上传。
 
 ## 待办
 
