@@ -290,3 +290,40 @@ console.log('OK test-fruits(稀有两档/恶魔gold/光环宽限)');
   assert(g.score > sc, '得分照常');
 }
 console.log('OK test-fruits(蛇长上限)');
+
+// --- 事件流:每步清空重填,类型化事件 ---
+{
+  const g = Core.createGame({ seed: 21 });
+  const d = Core.DIRS[g.nextDir], h = g.snake[0];
+  g.apple = { x: h.x + d.x, y: h.y + d.y };
+  Core.step(g, { nowMs: 1000 });
+  assert(Array.isArray(g.events), 'events 数组存在');
+  assert(g.events.some(e => e.t === 'apple'), '吃苹果事件');
+  Core.step(g, { nowMs: 1100 });
+  assert(!g.events.some(e => e.t === 'apple'), '下一步清空');
+  // 特殊果事件带类型
+  const d2 = Core.DIRS[g.nextDir], h2 = g.snake[0];
+  g.special = { type: 'gold', x: h2.x + d2.x, y: h2.y + d2.y, expiresAt: 99999 };
+  Core.step(g, { nowMs: 1200 });
+  assert(g.events.some(e => e.t === 'special' && e.type === 'gold'), 'special 事件含类型');
+}
+// --- ghostPassed / meteorsCaught 统计 ---
+{
+  const g = Core.createGame({ seed: 22 });
+  g.targetLen = 6;
+  for (let i = 0; i < 6; i++) Core.step(g, { nowMs: 1000 + i });
+  Core.setDir(g, 'down'); Core.step(g, { nowMs: 2000 });
+  Core.setDir(g, 'left'); Core.step(g, { nowMs: 2001 });
+  Core.applyFruit(g, 'halo', 2002, {});
+  Core.setDir(g, 'up'); Core.step(g, { nowMs: 2003 });   // 穿进身体
+  assert.strictEqual(g.stats.ghostPassed, 1, '穿身格计数');
+  assert(g.events.some(e => e.t === 'ghostPass'), 'ghostPass 事件');
+  const g2 = Core.createGame({ seed: 23 });
+  const dd = Core.DIRS[g2.nextDir], hh = g2.snake[0];
+  g2.meteor = { x: hh.x + dd.x, y: hh.y + dd.y, dx: 1, dy: 1, nextAt: 99999999 };
+  g2.apple = { x: 0, y: 15 };
+  Core.step(g2, { nowMs: 3000 });
+  assert.strictEqual(g2.stats.meteorsCaught, 1, '流星追上计数');
+  assert(g2.events.some(e => e.t === 'meteorCatch'), 'meteorCatch 事件');
+}
+console.log('OK test-fruits(事件流)');

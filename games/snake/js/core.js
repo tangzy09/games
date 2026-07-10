@@ -19,14 +19,16 @@ function createGame(opts = {}) {
     targetLen: 3,
     revealed: new Uint8Array(cols * rows), revealedCount: 0, milestones: 0,
     apple: null, extraApples: [], special: null, meteor: null,
-    applesSinceSpecial: 0, nextSpecialAt: 0,
+    applesSinceSpecial: 0, nextSpecialAt: 0, twinBatch: 0,
     effects: { slowUntil: 0, demonUntil: 0, ghostUntil: 0, trailUntil: 0,
                magnetUntil: 0, shield: 0, lastDriftAt: 0 },
     score: 0, combo: 0, lastEatMs: -Infinity,
     level: 1, levelJustDone: false,
     dead: false, deaths: 0,
     shieldJustUsed: false, lastSpecialEaten: null,   // 每步重置,供 UI/音效读取
-    stats: { apples: 0, steps: 0, specialsSpawned: 0, specials: {} },
+    events: [],                                       // 每步清空重填,类型化事件流(成就/音效消费)
+    stats: { apples: 0, steps: 0, specialsSpawned: 0, specials: {},
+             meteorsCaught: 0, ghostPassed: 0 },
   };
   s.nextSpecialAt = 4 + Math.floor(s.rand() * 3);   // 每 4~6 苹果刷 1 个特殊果
   revealCell(s, s.snake[0].x, s.snake[0].y);
@@ -62,10 +64,8 @@ function setDir(s, dir) {
   s.nextDir = dir;
 }
 
-// 与 step 同口径的致死判定(尾巴让位;ghost 穿身;墙恒死)
-function isLethalCell(s, x, y, ghost) {
-  if (x < 0 || y < 0 || x >= s.cols || y >= s.rows) return true;
-  if (ghost) return false;
+// 身体命中判定(尾巴让位;不含墙、不含 ghost——供 isLethalCell 与 ghostPass 统计复用)
+function bodyHit(s, x, y) {
   const grow = s.snake.length < s.targetLen;
   return s.snake.some((c, i) => {
     if (!grow && i === s.snake.length - 1) return false;
@@ -73,11 +73,19 @@ function isLethalCell(s, x, y, ghost) {
   });
 }
 
+// 与 step 同口径的致死判定(尾巴让位;ghost 穿身;墙恒死)
+function isLethalCell(s, x, y, ghost) {
+  if (x < 0 || y < 0 || x >= s.cols || y >= s.rows) return true;
+  if (ghost) return false;
+  return bodyHit(s, x, y);
+}
+
 // o: {nowMs, freezeCombo, scoreScale, ghost}
 function step(s, o = {}) {
   if (s.dead) return;
   s.levelJustDone = false;
   s.shieldJustUsed = false; s.lastSpecialEaten = null;
+  s.events = [];
   const now = o.nowMs != null ? o.nowMs : s.stats.steps * 140;
   const fx = s.effects;
   tickMeteor(s, now, o);
@@ -96,6 +104,7 @@ function step(s, o = {}) {
       const ad = SNAKE_DIRS[alt];
       if (!isLethalCell(s, head.x + ad.x, head.y + ad.y, ghost)) {
         fx.shield--; s.shieldJustUsed = true;
+        s.events.push({ t: 'shield' });
         s.dir = s.nextDir = alt; d = ad;
         nx = head.x + ad.x; ny = head.y + ad.y;
         break;
@@ -103,6 +112,10 @@ function step(s, o = {}) {
     }
   }
   if (isLethalCell(s, nx, ny, ghost)) return die(s);
+  // ghost 穿身统计:本会致死的身体格,靠 ghost 生效才活着穿过(尾让位格不算穿身)
+  if (ghost && bodyHit(s, nx, ny)) {
+    s.stats.ghostPassed++; s.events.push({ t: 'ghostPass' });
+  }
   // 不变式: snake.length ≤ targetLen(targetLen 单调增;respawn 重置 length=1;
   // scissors 减 targetLen 时同步修剪身体),故 step 无需收缩路径
   const grow = s.snake.length < s.targetLen;
@@ -129,19 +142,25 @@ function eatAt(s, x, y, now, o) {
   }
   const ei = s.extraApples.findIndex(a => a.x === x && a.y === y);
   if (ei >= 0) {
+    const a = s.extraApples[ei];
     s.extraApples.splice(ei, 1);
-    gainApple(s, now, o, demonX); onAppleEaten(s, now); return;   // 副苹果不重生
+    gainApple(s, now, o, demonX); onAppleEaten(s, now);   // 副苹果不重生
+    s.events.push({ t: 'extra', batch: a.batch });
+    return;
   }
   if (s.special && s.special.x === x && s.special.y === y) {
     const t = s.special.type; s.special = null;
     s.stats.specials[t] = (s.stats.specials[t] || 0) + 1;
     s.lastSpecialEaten = t;
+    s.events.push({ t: 'special', type: t });
     applyFruit(s, t, now, o);
     return;
   }
   if (s.meteor && s.meteor.x === x && s.meteor.y === y) {
     s.meteor = null;
     s.score += Math.round(40 * demonX * (o.scoreScale || 1));   // 追上流星 +40
+    s.stats.meteorsCaught++;
+    s.events.push({ t: 'meteorCatch' });
   }
 }
 
@@ -154,6 +173,7 @@ function gainApple(s, now, o, demonX) {
   if (!o.freezeCombo && now - s.lastEatMs <= COMBO_WINDOW_MS) s.combo++;
   s.lastEatMs = now;
   s.score += Math.round(10 * (1 + 0.1 * s.combo) * demonX * (o.scoreScale || 1));
+  s.events.push({ t: 'apple' });   // 主/副苹果共用
 }
 
 function onAppleEaten(s, now) {
@@ -185,9 +205,15 @@ function pickSpecialType(s) {
 function applyFruit(s, type, now, o) {
   const fx = s.effects, T = FR_.FRUIT_TIMES;
   switch (type) {
-    case 'twin':
-      for (let i = 0; i < 2; i++) { const c = randomFreeCell(s); if (c) s.extraApples.push(c); }
+    case 'twin': {
+      const batch = ++s.twinBatch;
+      for (let i = 0; i < 2; i++) {
+        const c = randomFreeCell(s);
+        if (c) s.extraApples.push({ x: c.x, y: c.y, batch, at: now });
+      }
+      s.events.push({ t: 'twinSpawn', batch, at: now });
       break;
+    }
     case 'gold':   // 恶魔期 ×2,与苹果/流星的 demonX 语义一致
       s.combo += 2;
       s.score += Math.round(50 * (now < fx.demonUntil ? 2 : 1) * (o.scoreScale || 1));
@@ -279,6 +305,7 @@ function checkMilestone(s, o) {
   while (s.milestones < 3 && s.revealedCount / total >= (s.milestones + 1) * 0.25) {
     s.milestones++;
     s.score += Math.round(100 * (o.scoreScale || 1));
+    s.events.push({ t: 'milestone' });
   }
 }
 
@@ -288,12 +315,14 @@ function completeLevel(s, o) {
   s.revealed.fill(0); s.revealedCount = 0; s.milestones = 0;
   s.special = null; s.meteor = null;      // 换图清场上限时物;副苹果/效果跨关保留
   for (const c of s.snake) revealCell(s, c.x, c.y);
+  s.events.push({ t: 'level' });
 }
 
 function die(s) {
   s.dead = true; s.deaths++; s.combo = 0;
   const fx = s.effects;                   // 死亡清定时效果;护盾保留(它没能触发说明四向皆死或为 0)
   fx.slowUntil = fx.demonUntil = fx.ghostUntil = fx.trailUntil = fx.magnetUntil = 0;
+  s.events.push({ t: 'death' });
 }
 
 function respawn(s) {
