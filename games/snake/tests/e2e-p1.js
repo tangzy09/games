@@ -22,6 +22,8 @@ async function main() {
   const consoleErrors = [];
   page.on('console', msg => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
   page.on('pageerror', err => consoleErrors.push('pageerror: ' + err.message));
+  // web 端 Ads 模拟用 confirm——自动接受即「看完广告」(复活/救场/插屏全流程可测)
+  page.on('dialog', d => d.accept());
 
   log('--- snake P1 e2e ---');
   await page.goto(BASE + '/games/snake/', { waitUntil: 'load' });
@@ -59,6 +61,25 @@ async function main() {
   const phase2 = await page.evaluate(() => window.G.phase);
   const moved = (revealed2 !== revealed1) || (snakeHead2 !== snakeHead1) || phase2 === 'DEAD';
   assert(moved, `game is actually running after 3s more (revealed ${revealed1}->${revealed2}, head ${snakeHead1}->${snakeHead2}, phase=${phase2})`);
+
+  // —— 复活广告位:初始无输入撞墙死 → REVIVE → 原地原长复活(confirm 已自动接受)——
+  let phNow = await page.evaluate(() => window.G.phase);
+  for (let i = 0; i < 20 && phNow !== 'DEAD'; i++) {   // 万一 3s 时还没死,等它撞墙
+    await page.waitForTimeout(500);
+    phNow = await page.evaluate(() => window.G.phase);
+  }
+  assert(phNow === 'DEAD', `died at wall for revive test (got ${phNow})`);
+  const lenAtDeath = await page.evaluate(() => window.G.run.snake.length);
+  // 先把方向拨离墙(死亡态 setDir 只设 nextDir),复活后能活一段供断言
+  await page.evaluate(() => { Core.setDir(window.G.run, 'up'); dispatch('REVIVE'); });
+  let revived = false;
+  for (let i = 0; i < 10 && !revived; i++) {
+    await page.waitForTimeout(300);
+    revived = await page.evaluate(() => window.G.save.stats.revives === 1 && window.G.phase === 'PLAYING');
+  }
+  assert(revived, 'REVIVE: phase back to PLAYING and stats.revives === 1');
+  const revLen = await page.evaluate(() => window.G.run.snake.length);
+  assert(revLen >= lenAtDeath, `revive keeps snake length, not halved (${lenAtDeath} -> ${revLen})`);
 
   // turn on AI to autoplay; respawn first if we died from no input
   const phaseBeforeAi = await page.evaluate(() => window.G.phase);
@@ -167,6 +188,45 @@ async function main() {
           { title: 'Angel Snake', score: 'Score', url: 'x' })
       : 'missing');
   assert(shareRes === 'downloaded', `shareCard falls back to download in headless (got ${shareRes})`);
+
+  // —— AI 救场 10s:reload 后 AI=off、tracker.aiRun=false 的人工局(P3a)——
+  let rescueOk = false;
+  for (let attempt = 0; attempt < 5 && !rescueOk; attempt++) {
+    const ph = await page.evaluate(() => window.G.phase);
+    if (ph === 'DEAD') await page.evaluate(() => dispatch('RESPAWN'));
+    else if (ph === 'READY') await page.evaluate(() => dispatch('START'));
+    await page.evaluate(() => dispatch('RESCUE'));
+    await page.waitForTimeout(800);                     // confirm 模拟 400ms 后发放奖励
+    rescueOk = await page.evaluate(() =>
+      window.G.phase === 'PLAYING' && window.G.rescueUntil > (window.G.nowMs || 0));
+  }
+  assert(rescueOk, 'RESCUE activates (rescueUntil > nowMs while PLAYING)');
+  const posBefore = await page.evaluate(() => JSON.stringify(window.G.run.snake[0]) + '/' + window.G.run.revealedCount);
+  await page.waitForTimeout(3000);
+  const rescueProbe = await page.evaluate(() => ({
+    pos: JSON.stringify(window.G.run.snake[0]) + '/' + window.G.run.revealedCount,
+    phase: window.G.phase, ai: window.G.ai, aiRun: window.G.tracker.aiRun,
+  }));
+  assert(rescueProbe.pos !== posBefore && rescueProbe.phase === 'PLAYING',
+    `snake alive & moving under rescue AI (${posBefore} -> ${rescueProbe.pos})`);
+  assert(rescueProbe.ai === false && rescueProbe.aiRun === false,
+    'rescue is NOT an AI run (G.ai=false, tracker.aiRun=false)');
+
+  // —— 插屏每 2 关:AI 清完第 2 关 → 关 AI → NEXT 触发插屏,计数归 0(P3a)——
+  await page.evaluate(() => { if (!window.G.ai) dispatch('AI_TOGGLE'); });   // AI 接管清完本关
+  let done2 = false;
+  const t2 = Date.now();
+  while (Date.now() - t2 < 240000) {
+    await page.waitForTimeout(1000);
+    if (await page.evaluate(() => window.G.phase === 'LEVEL_DONE')) { done2 = true; break; }
+  }
+  assert(done2, 'AI cleared level 2 within 240s');
+  const sinceBefore = await page.evaluate(() => window.G.save.stats.levelsSinceAd);
+  assert(sinceBefore === 1, `levelsSinceAd === 1 before second NEXT (got ${sinceBefore})`);
+  await page.evaluate(() => { dispatch('AI_TOGGLE'); dispatch('NEXT'); });   // 关 AI → 人工 NEXT → 插屏
+  await page.waitForTimeout(1500);
+  const sinceAfter = await page.evaluate(() => window.G.save.stats.levelsSinceAd);
+  assert(sinceAfter === 0, `interstitial shown and levelsSinceAd reset to 0 (got ${sinceAfter})`);
 
   const shot1 = path.join(SHOT_DIR, 'e2e-p1.png');
   await page.screenshot({ path: shot1 });
