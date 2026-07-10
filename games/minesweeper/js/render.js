@@ -56,7 +56,7 @@ function spriteFlip(i, c) {
 
 function layout() {
   const SW = GameGlobal.SW, SH = GameGlobal.SH, PAD = 8;
-  const hudY = GameGlobal.safeTop + 6, hudH = 84;
+  const hudY = GameGlobal.safeTop + 6, hudH = 96;
   const availH = SH - hudY - hudH - PAD * 3;
   const GAP = 2;
   const ts = Math.min((SW - PAD * 2 - GAP * (G.w - 1)) / G.w, (availH - GAP * (G.h - 1)) / G.h);
@@ -77,44 +77,45 @@ function drawHeart(cx, cy, s, fill, stroke) {
 
 function drawHud(L) {
   const { PAD, SW, hudY: y, hudH: h } = L;
-  fillRR(PAD, y, SW - PAD * 2, h, 16, C.surface);
-  strokeRR(PAD, y, SW - PAD * 2, h, 16, C.border, 1.5);
-  // hearts, grouped in fives for easy counting (a small gap every 5)
-  const GAP5 = 7;
+  fillRR(PAD, y, SW - PAD * 2, h, 18, C.surface);
+  strokeRR(PAD, y, SW - PAD * 2, h, 18, C.border, 1.5);
+  const btnW = 108, leftW = SW - PAD * 2 - btnW - 30;
+  // hearts, grouped in fives, as big as the row allows
+  const GAP5 = 8;
   const hGroups = Math.floor((MAX_HP - 1) / 5);
-  const hs = Math.min(17, (SW - PAD * 2 - 130 - hGroups * GAP5) / MAX_HP);
-  const heartX = (k) => PAD + 16 + k * hs + Math.floor(k / 5) * GAP5;
+  const hs = Math.min(23, (leftW - 8) / (MAX_HP + hGroups * GAP5 / 20));
+  const heartX = (k) => PAD + 20 + k * hs + Math.floor(k / 5) * GAP5;
   for (let k = 0; k < G.maxHp; k++) {
-    if (k < G.hp) drawHeart(heartX(k), y + 17, hs, '#ff4757', '#e03347');       // 满血:正红
-    else drawHeart(heartX(k), y + 17, hs, '#f3e7d8', '#dcc9b4');                // 空心:浅底描边
+    if (k < G.hp) drawHeart(heartX(k), y + 24, hs, '#ff4757', '#e03347');
+    else drawHeart(heartX(k), y + 24, hs, '#f3e7d8', '#dcc9b4');
   }
   if (G.halfHeart && G.maxHp < MAX_HP)
-    drawHeart(heartX(G.maxHp), y + 17, hs * 0.66, '#ffb3bc', '#e03347');        // 半心苞
-
-  // xp as gold nuggets (original style): earned bright, still-needed dim
-  const bx = PAD + 14, bw = SW - PAD * 2 - 126, by = y + 36;
-  txtL(`Lv${G.level}`, bx, by + 8, C.xp, 'bold 12px sans-serif');
+    drawHeart(heartX(G.maxHp), y + 24, hs * 0.66, '#ffb3bc', '#e03347');
+  // gold nuggets, grouped in fives, bigger
+  const bx = PAD + 16, by = y + 62;
+  txtL(`Lv${G.level}`, bx, by, C.xp, 'bold 15px sans-serif');
   const need = xpNeed(), shown = Math.min(G.xp, need);
   const gGroups = Math.floor((need - 1) / 5);
-  const gs = Math.max(8, Math.min(14, (bw - 40 - gGroups * 7) / need));
-  const goldX = (k) => bx + 36 + k * gs + Math.floor(k / 5) * 7; // gap every 5: countable at a glance
+  const gs = Math.max(10, Math.min(19, (leftW - 52 - gGroups * 8) / need));
+  const goldX = (k) => bx + 44 + k * gs + Math.floor(k / 5) * 8;
   const gfont = `${Math.round(gs * 0.95)}px sans-serif`;
   for (let k = 0; k < need; k++) {
     if (k >= shown) ctx.globalAlpha = 0.22;
-    txt('🪙', goldX(k), by + 8, C.text, gfont);
+    txt('🪙', goldX(k), by, C.text, gfont);
     ctx.globalAlpha = 1;
   }
-  if (G.xp > need) txtL(`+${G.xp - need}`, goldX(need) + 4, by + 8, '#e8a13c', 'bold 10px sans-serif');
-  // right column: codex on top, level-up below — same size, neatly aligned
-  const btnW = 100, btnH = 32, btnX = SW - PAD - btnW - 8, btnMidX = btnX + btnW / 2;
-  fillRR(btnX, y + 8, btnW, btnH, 16, C.surface);
-  strokeRR(btnX, y + 8, btnW, btnH, 16, C.border);
-  txt(`📖 ${T('home.codex')}`, btnMidX, y + 8 + btnH / 2, C.text, 'bold 12px sans-serif');
-  addHit(btnX, y + 8, btnW, btnH, 'OPEN_CODEX', {});
+  if (G.xp > need) txtL(`+${G.xp - need}`, goldX(need) + 4, by, '#e8a13c', 'bold 12px sans-serif');
+  // right column: primary action (level up) big at bottom, codex quiet on top
+  const btnX = SW - PAD - btnW - 10;
+  fillRR(btnX, y + 10, btnW, 30, 15, 'rgba(0,0,0,0)');
+  strokeRR(btnX, y + 10, btnW, 30, 15, C.border, 1.2);
+  txt(`📖 ${T('home.codex')}`, btnX + btnW / 2, y + 25, C.muted, 'bold 12px sans-serif');
+  addHit(btnX, y + 10, btnW, 30, 'OPEN_CODEX', {});
   const can = canLevelUp();
-  fillRR(btnX, y + 46, btnW, btnH, 16, can ? C.xp : '#e8dcc9');
-  txt(`⬆ ${T('ui.levelUp')}`, btnMidX, y + 46 + btnH / 2, can ? '#fff' : C.muted, 'bold 12px sans-serif');
-  if (can) addHit(btnX, y + 46, btnW, btnH, 'LEVEL_UP', {});
+  fillRR(btnX, y + 48, btnW, 38, 19, can ? C.xp : '#eee3d2');
+  if (can) strokeRR(btnX, y + 48, btnW, 38, 19, '#5da96f', 1.5);
+  txt(`⬆ ${T('ui.levelUp')}`, btnX + btnW / 2, y + 67, can ? '#fff' : '#c4b49d', 'bold 14px sans-serif');
+  if (can) addHit(btnX, y + 48, btnW, 38, 'LEVEL_UP', {});
 }
 
 function drawGrid(L) {
