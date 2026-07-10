@@ -36,10 +36,12 @@ async function main() {
   // 嵌套结构——扁平 key("snake.score": ...)查不到时 t() 原样返回 key,界面满屏 key 原文。
   // NB: dispatch/I18N/Controls 是顶层 const/function——只有 var/函数声明挂 window,
   // 在 evaluate() 里用裸名调用;window.G 能用是因为 main.js 特意声明 var G。
-  const i18nProbe = await page.evaluate(() => ({ score: I18N.t('snake.score'), ai: I18N.t('snake.ai'), hint: I18N.t('snake.hintStart') }));
+  const i18nProbe = await page.evaluate(() => ({ score: I18N.t('snake.score'), ai: I18N.t('snake.ai'), hint: I18N.t('snake.hintStartKey'), isTouch: IS_TOUCH }));
   assert(i18nProbe.score !== 'snake.score', `I18N.t('snake.score') resolves to a translation (got "${i18nProbe.score}")`);
   assert(i18nProbe.ai.includes('AI'), `I18N.t('snake.ai') includes "AI" (got "${i18nProbe.ai}")`);
-  assert(i18nProbe.hint !== 'snake.hintStart', `I18N.t('snake.hintStart') resolves to a translation (got "${i18nProbe.hint}")`);
+  assert(i18nProbe.hint !== 'snake.hintStartKey', `I18N.t('snake.hintStartKey') resolves to a translation (got "${i18nProbe.hint}")`);
+  // headless chromium maxTouchPoints=0 → 桌面分支;IS_TOUCH 是 render.js 顶层 const,evaluate 裸名可访问
+  assert(i18nProbe.isTouch === false, `IS_TOUCH === false in desktop headless (got ${i18nProbe.isTouch})`);
 
   // READY 待机:蛇不动,START 后才开跑
   await page.evaluate(() => dispatch('START'));

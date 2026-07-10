@@ -1,6 +1,10 @@
 // games/snake/js/render.js — renderAll 契约:每帧从 G 全量重画。
 // 依赖引擎全局:ctx/GameGlobal/clearHits/addHit/fillRR/txt/txtL/drawDim/T
 // 依赖 main.js 全局:G(状态)
+
+// 触摸设备检测:READY/暂停提示按设备区分(触摸=滑动,桌面=方向键)
+const IS_TOUCH = typeof navigator !== 'undefined' && (navigator.maxTouchPoints > 0 || 'ontouchstart' in window);
+
 const PAL = { bg:'#fdf3f7', cloud:'#f3e0ef', cloudEdge:'#e6c8e0', snake:'#f7b8d4',
   accent:'#e79cc2', accent2:'#b39ddb', text:'#7a5c72', bar:'#f6d5e5', card:'#ffffff',
   apple:'#ff8fab', leaf:'#a5d6a7', glow:'#fff59d', eye:'#5d4a57', btnOn:'#b39ddb' };
@@ -81,8 +85,8 @@ function renderAll() {
   drawHud(safeTop);
   drawBoardArea();
   drawButtons();
-  if (G.phase === 'READY') drawHint(T('snake.hintStart'));
-  else if (G.phase === 'PAUSED') drawOverlay(T('snake.paused'), T('snake.hintResume'), T('snake.resume'), 'RESUME', false);
+  if (G.phase === 'READY') drawHint(T(IS_TOUCH ? 'snake.hintStartTouch' : 'snake.hintStartKey'));
+  else if (G.phase === 'PAUSED') drawOverlay(T('snake.paused'), T(IS_TOUCH ? 'snake.hintResumeTouch' : 'snake.hintResumeKey'), T('snake.resume'), 'RESUME', false);
   else if (G.phase === 'DEAD') {
     const from = G.run.snake.length, to = Math.max(3, Math.floor(from / 2));
     drawOverlay(T('snake.dead'), T('snake.deadHint', { from, to }), T('snake.respawn'), 'RESPAWN', false);

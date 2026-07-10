@@ -3,8 +3,10 @@
   "ads": { "simWatch": "【广告模拟】观看激励视频？", "simInterstitial": "【广告模拟】插屏广告" },
   "snake": {
     "score": "分数",
-    "hintStart": "滑动或按方向键开始",
-    "hintResume": "或滑动/按方向键继续",
+    "hintStartTouch": "滑动开始",
+    "hintStartKey": "按方向键开始",
+    "hintResumeTouch": "或滑动继续",
+    "hintResumeKey": "或按方向键继续",
     "combo": "×{n}",
     "pause": "⏸",
     "paused": "已暂停",
