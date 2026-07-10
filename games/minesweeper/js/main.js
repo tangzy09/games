@@ -48,7 +48,7 @@ function mergeEncounters() {
   let fresh = 0;
   for (const id of G.encounters) if (!Meta.seen.has(id)) { Meta.seen.add(id); fresh++; }
   G.encounters = [];
-  if (fresh) { Meta.save(); if (!G.pendingFloat) G.pendingFloat = { key: 'float.codexNew' }; }
+  if (fresh) Meta.save(); // codex shows everything already — no need to announce entries
 }
 
 // ── save/resume ──
@@ -147,7 +147,8 @@ function dispatch(action, data) {
     }
     case 'RESTART': orientBoard(); G.settled = false; G.rng = Math.random; G.adRevived = false; initRun(); break;
     case 'GO_HOME': G.phase = 'HOME'; G.overlay = null; break;
-    case 'OPEN_CODEX': G.overlay = 'codex'; break;
+    case 'OPEN_CODEX': G.overlay = 'codex'; G.codexPage = 0; break;
+    case 'CODEX_PAGE': G.codexPage = (G.codexPage || 0) + data.d; break;
     case 'CLOSE_OVERLAY': G.overlay = null; break;
     default: break;
   }

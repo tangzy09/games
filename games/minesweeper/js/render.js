@@ -140,28 +140,40 @@ function drawHome() {
 }
 
 function drawCodex() {
-  drawDim('rgba(80,55,35,0.96)');
+  drawDim('rgba(80,55,35,0.97)');
   const { SW, SH } = GameGlobal;
-  txt(T('codex.title'), SW / 2, 44, '#ffe0b8', 'bold 18px sans-serif');
+  txt(T('codex.title'), SW / 2, 46, '#ffe0b8', 'bold 20px sans-serif');
   const ids = Object.keys(MONSTERS);
-  const colW = (SW - 40) / 2, cardH = Math.min(56, (SH - 130) / Math.ceil(ids.length / 2) - 5);
-  ids.forEach((id, k) => {
-    const col = k % 2, row = Math.floor(k / 2);
-    const x = 20 + col * (colW + 2), y = 64 + row * (cardH + 5);
-    const known = Meta.seen.has(id);
-    fillRR(x, y, colW - 4, cardH, 10, 'rgba(255,250,240,0.95)');
-    ctx.globalAlpha = known ? 1 : 0.45;
-    txt(known ? MONSTERS[id].icon : '❓', x + 16, y + cardH / 2, C.text, '15px sans-serif');
-    if (known) {
-      txtL(`${T('mon.' + id + '.name')} · ${MONSTERS[id].lv}`, x + 30, y + 12, C.text, 'bold 9px sans-serif');
-      txtLWrap(T('mon.' + id + '.trait'), x + 30, y + cardH / 2 + 7, colW - 40, C.muted, '8px sans-serif', 10);
-    } else txtL(T('codex.unknown'), x + 30, y + cardH / 2, C.muted, '9px sans-serif');
-    ctx.globalAlpha = 1;
+  const PER = 6, pages = Math.ceil(ids.length / PER);
+  const page = Math.min(G.codexPage || 0, pages - 1);
+  const slice = ids.slice(page * PER, page * PER + PER);
+  const cardH = Math.min(88, (SH - 200) / PER - 8), w = SW - 36;
+  slice.forEach((id, k) => {
+    const y = 72 + k * (cardH + 8);
+    fillRR(18, y, w, cardH, 14, 'rgba(255,250,240,0.97)');
+    txt(MONSTERS[id].icon, 18 + 30, y + cardH / 2, C.text, '30px sans-serif');
+    txtL(T('mon.' + id + '.name'), 18 + 58, y + 20, C.text, 'bold 15px sans-serif');
+    if (MONSTERS[id].lv > 0)
+      txtR('⚔️ ' + MONSTERS[id].lv, 18 + w - 14, y + 20, C.hp, 'bold 15px sans-serif');
+    ctx.font = '12px sans-serif';
+    wrapLines(T('mon.' + id + '.trait'), w - 76, 3).forEach((ln, j) =>
+      txtL(ln, 18 + 58, y + 40 + j * 15, C.muted, '12px sans-serif'));
   });
-  const backY = 64 + Math.ceil(ids.length / 2) * (cardH + 5) + 6;
-  fillRR(SW / 2 - 70, backY, 140, 34, 17, 'rgba(255,255,255,0.2)');
-  txt(T('codex.back'), SW / 2, backY + 17, '#fff', 'bold 12px sans-serif');
-  addHit(SW / 2 - 70, backY, 140, 34, 'CLOSE_OVERLAY', {});
+  const navY = 72 + PER * (cardH + 8) + 6;
+  if (page > 0) {
+    fillRR(24, navY, 88, 40, 20, 'rgba(255,255,255,0.25)');
+    txt('◀', 24 + 44, navY + 20, '#fff', 'bold 16px sans-serif');
+    addHit(24, navY, 88, 40, 'CODEX_PAGE', { d: -1 });
+  }
+  txt(`${page + 1} / ${pages}`, SW / 2, navY + 20, '#ffe0b8', 'bold 14px sans-serif');
+  if (page < pages - 1) {
+    fillRR(SW - 24 - 88, navY, 88, 40, 20, 'rgba(255,255,255,0.25)');
+    txt('▶', SW - 24 - 44, navY + 20, '#fff', 'bold 16px sans-serif');
+    addHit(SW - 24 - 88, navY, 88, 40, 'CODEX_PAGE', { d: 1 });
+  }
+  fillRR(SW / 2 - 70, navY + 50, 140, 40, 20, 'rgba(255,255,255,0.2)');
+  txt(T('codex.back'), SW / 2, navY + 70, '#fff', 'bold 14px sans-serif');
+  addHit(SW / 2 - 70, navY + 50, 140, 40, 'CLOSE_OVERLAY', {});
 }
 
 function drawEnd(win) {
