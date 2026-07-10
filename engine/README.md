@@ -47,7 +47,7 @@
 | ads.js | `Ads` | AdMob 激励+插屏；web 走 Portal 或 confirm 模拟；**每游戏自己的 adUnits，绝不复用他游戏的** |
 | audio.js | `Sfx` `Music` `Haptics` `restoreAudioPrefs` | 配置驱动的音效/BGM/震动；Music 带 pauseForAd/resumeForAd |
 | canvas.js | `canvas` `ctx` `GameGlobal` `initCanvas` `clearHits` `addHit` `hitTest` `roundRect/fillRR/strokeRR` `txt/txtL/txtR` `wrapLines` `txtLWrap` `drawDim` `makeArt` `drawArtIcon` `T` | 画布与绘制基建 |
-| input.js | `Input` | tap→hitTest→onAction；滑动/方向键→onSwipe（canSwipe 门控）|
+| input.js | `Input` | tap→hitTest→onAction；滑动/方向键→onSwipe（canSwipe 门控）；`liveSwipe:true` 时 touchmove 即触发 onSwipe（实时游戏，opt-in，回合制游戏不受影响）|
 | controls.js | `Controls` | 顶栏 DOM：语言菜单 + 游戏附加控件 |
 | prng.js | `PRNG` | 可注种子随机(mulberry32);测试/每日种子/AI 验证用,替代 Math.random |
 

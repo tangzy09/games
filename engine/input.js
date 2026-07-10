@@ -11,11 +11,11 @@ const Input = (() => {
   function bind(handlers) {
     H = handlers || {};
     const cv = document.getElementById(CFG.canvasId);
-    let sx = 0, sy = 0, st = 0;
-    function start(x, y) { sx = x; sy = y; st = Date.now(); }
+    let sx = 0, sy = 0, st = 0, movedLive = false;
+    function start(x, y) { sx = x; sy = y; st = Date.now(); movedLive = false; }
     function end(x, y) {
       const dx = x - sx, dy = y - sy, dist = Math.sqrt(dx * dx + dy * dy), dt = Date.now() - st;
-      if (dist < 10 && dt < 500) {
+      if (dist < 10 && dt < 500 && !movedLive) {
         const hit = hitTest(x, y);
         if (hit && H.onAction) H.onAction(hit.action, hit.data);
         return;
@@ -30,6 +30,18 @@ const Input = (() => {
     }
     cv.addEventListener('touchstart', e => { e.preventDefault(); const t = e.touches[0]; start(t.clientX, t.clientY); }, { passive: false });
     cv.addEventListener('touchend',   e => { e.preventDefault(); const t = e.changedTouches[0]; end(t.clientX, t.clientY); }, { passive: false });
+    // liveSwipe(opt-in):touchmove 位移过阈值即转向并重锚,实时游戏用;
+    // 不传 liveSwipe 的游戏(回合制)完全不受影响。
+    cv.addEventListener('touchmove', e => {
+      if (!H.liveSwipe || !H.onSwipe) return;
+      if (H.canSwipe && !H.canSwipe()) return;
+      const t = e.touches[0];
+      const dx = t.clientX - sx, dy = t.clientY - sy;
+      if (Math.abs(dx) < 24 && Math.abs(dy) < 24) return;
+      movedLive = true;
+      H.onSwipe(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
+      sx = t.clientX; sy = t.clientY;
+    }, { passive: true });
     cv.addEventListener('mousedown', e => start(e.clientX, e.clientY));
     cv.addEventListener('mouseup',   e => end(e.clientX, e.clientY));
 
