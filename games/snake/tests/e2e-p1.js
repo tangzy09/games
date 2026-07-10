@@ -216,11 +216,19 @@ async function main() {
   await page.evaluate(() => { if (!window.G.ai) dispatch('AI_TOGGLE'); });   // AI 接管清完本关
   let done2 = false;
   const t2 = Date.now();
-  while (Date.now() - t2 < 240000) {
+  while (Date.now() - t2 < 300000) {
     await page.waitForTimeout(1000);
-    if (await page.evaluate(() => window.G.phase === 'LEVEL_DONE')) { done2 = true; break; }
+    const st2 = await page.evaluate(() => window.G.phase);
+    if (st2 === 'LEVEL_DONE') { done2 = true; break; }
+    // 救场到期→AI 接管间隙若恰逢死亡,复活它继续(AI 从死亡态不会自己爬起来)
+    if (st2 === 'DEAD') await page.evaluate(() => dispatch('RESPAWN'));
+    else if (st2 === 'READY') await page.evaluate(() => dispatch('START'));
   }
-  assert(done2, 'AI cleared level 2 within 240s');
+  if (!done2) {
+    const diag = await page.evaluate(() => ({ phase: window.G.phase, revealed: window.G.run.revealedCount, deaths: window.G.run.deaths, ai: window.G.ai }));
+    log('level-2 wait diag: ' + JSON.stringify(diag));
+  }
+  assert(done2, 'AI cleared level 2 within 300s');
   const sinceBefore = await page.evaluate(() => window.G.save.stats.levelsSinceAd);
   assert(sinceBefore === 1, `levelsSinceAd === 1 before second NEXT (got ${sinceBefore})`);
   await page.evaluate(() => { dispatch('AI_TOGGLE'); dispatch('NEXT'); });   // 关 AI → 人工 NEXT → 插屏

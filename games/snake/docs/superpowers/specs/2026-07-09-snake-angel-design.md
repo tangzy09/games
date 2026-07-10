@@ -195,12 +195,12 @@
 
 全部走引擎 `Ads`(AdMob 激励+插屏,web 走 `Portal` 门户 SDK 或模拟)+ `Portal`(GD/CrazyGames/Poki)。**adUnits 每游戏独立**(`GAME_CONFIG.adUnits`,绝不复用他游戏的)。AdSense H5(Ad Placement API)适配器 P3 时补进 `engine/ads.js`(引擎层改,全系列受益)。
 
-| 广告位 | 类型 | 触发 | 频控 |
-|---|---|---|---|
-| 原地复活 | 激励视频 | 死亡弹窗 | 每局 2 次 |
-| AI 救场 10s | 激励视频 | 游戏屏按钮 | 无硬限 |
-| 插屏 | 插页 | 每 2 关之间 | AI 代打模式不弹 |
-| banner | 横幅 | 游戏屏底部 | 常驻 |
+| 广告位 | 类型 | 触发 | 频控 | 落地状态(P3a) |
+|---|---|---|---|---|
+| 原地复活 | 激励视频 | 死亡弹窗 | 每局 2 次 | ✅ web=confirm 模拟 / native=AdMob 测试 ID(真 ID 待后台) |
+| AI 救场 10s | 激励视频 | 游戏屏按钮 | 无硬限 | ✅ 同上(保人工局全分,不判 AI 局) |
+| 插屏 | 插页 | 每 2 关之间 | AI 代打模式不弹 | ✅ 同上(levelsSinceAd 计数入档) |
+| banner | 横幅 | 游戏屏底部 | 常驻 | ❌ P3a 不做——banner 挤占竖屏棋盘、eCPM 低,P3b 与 AdSense 一起定夺 |
 
 - 适配器优先级:门户内 = Portal SDK 分成;自有站 = AdSense H5(`adBreak`,需 AFG 审核);App = AdMob(走 admob-monetization skill,含 **UMP GDPR 同意流程 + iOS ATT 提示**)。
 - **无广告 fallback**:广告不可用时(审核期/无填充/断网),复活与 AI 救场降级为每日免费限次(复活 2 次/天,救场 3 次/天),功能不残废。
