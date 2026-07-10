@@ -8,10 +8,11 @@ function yesterdayStr() { const d = new Date(); d.setDate(d.getDate() - 1); retu
 function dailySeed() { return parseInt(todayStr().replace(/-/g, ''), 10); }
 
 const Meta = {
-  wins: 0, seen: new Set(), streak: 0, lastDailyWin: '', lastDailyTry: '',
+  wins: 0, seen: new Set(), badges: new Set(), streak: 0, lastDailyWin: '', lastDailyTry: '',
   load() {
     this.wins = parseInt(Platform.storage.get(CFG.key('wins')) || '0', 10);
     this.seen = new Set((Platform.storage.get(CFG.key('seen')) || '').split(',').filter(Boolean));
+    this.badges = new Set((Platform.storage.get(CFG.key('badges')) || '').split(',').filter(Boolean));
     this.streak = parseInt(Platform.storage.get(CFG.key('streak')) || '0', 10);
     this.lastDailyWin = Platform.storage.get(CFG.key('dailywin')) || '';
     this.lastDailyTry = Platform.storage.get(CFG.key('dailytry')) || '';
@@ -19,6 +20,7 @@ const Meta = {
   save() {
     Platform.storage.set(CFG.key('wins'), String(this.wins));
     Platform.storage.set(CFG.key('seen'), [...this.seen].join(','));
+    Platform.storage.set(CFG.key('badges'), [...this.badges].join(','));
     Platform.storage.set(CFG.key('streak'), String(this.streak));
     Platform.storage.set(CFG.key('dailywin'), this.lastDailyWin);
     Platform.storage.set(CFG.key('dailytry'), this.lastDailyTry);
@@ -29,7 +31,7 @@ const Meta = {
 function settleRun() {
   if (G.settled) return;
   G.settled = true;
-  if (G.phase === 'WIN') Meta.wins++;
+  if (G.phase === 'WIN') { Meta.wins++; G.badgesThisRun.forEach(b => Meta.badges.add(b)); }
   if (G.mode === 'daily') {
     Meta.lastDailyTry = todayStr();
     if (G.phase === 'WIN') {
@@ -50,14 +52,15 @@ function mergeEncounters() {
 }
 
 // ── save/resume ──
-const SAVE_VERSION = 2; // bump on any G-shape change; old saves are discarded, not migrated
+const SAVE_VERSION = 3; // bump on any G-shape change; old saves are discarded, not migrated
 function saveRun() {
   if (G.phase !== 'PLAYING') { clearRunSave(); return; }
   const s = {
     v: SAVE_VERSION,
     phase: G.phase, mode: G.mode, w: G.w, h: G.h, grid: G.grid,
-    hp: G.hp, maxHp: G.maxHp, xp: G.xp, level: G.level,
-    orbs: G.orbs, sweepDone: G.sweepDone, revealCount: G.revealCount,
+    hp: G.hp, maxHp: G.maxHp, halfHeart: G.halfHeart, xp: G.xp, level: G.level,
+    killedMice: G.killedMice, minesDisarmed: G.minesDisarmed, badgesThisRun: G.badgesThisRun,
+    revealCount: G.revealCount,
     adRevived: !!G.adRevived, tut: G.tut,
   };
   try { Platform.storage.set(CFG.key('run'), JSON.stringify(s)); } catch (e) {}
@@ -73,7 +76,7 @@ function loadRun() {
     clearRunSave();
     return false;
   }
-  Object.assign(G, s, { rng: Math.random, encounters: [], settled: false, orbMode: false, tut: s.tut || null });
+  Object.assign(G, s, { rng: Math.random, encounters: [], settled: false, tut: s.tut || null });
   G.pendingFloat = { key: 'float.resumed' };
   return true;
 }
@@ -106,25 +109,24 @@ function orientBoard() { // portrait phones get 10×13
 
 function dispatch(action, data) {
   switch (action) {
-    case 'START_RUN': orientBoard(); G.settled = false; G.rng = Math.random; G.adRevived = false; G.orbMode = false; initRun(); Tut.start(); break;
+    case 'START_RUN': orientBoard(); G.settled = false; G.rng = Math.random; G.adRevived = false; initRun(); Tut.start(); break;
     case 'START_DAILY':
       if (!Meta.canDaily()) break;
-      orientBoard(); G.settled = false; G.adRevived = false; G.orbMode = false;
+      orientBoard(); G.settled = false; G.adRevived = false;
       initDaily(PRNG.create(dailySeed()));
       break;
     case 'CELL': {
       if (G.phase !== 'PLAYING') break;
-      if (G.orbMode) { G.orbMode = false; useOrb(data.i); break; }
       const revBefore = G.revealCount, hpBefore = G.hp;
-      const deadBefore = G.grid.filter(x => x.dead).length;
+      const deadBefore = G.grid.filter(x => x.defeated).length;
       clickCell(data.i);
       if (G.hp < hpBefore) Haptics.medium();
-      Tut.advance(G.revealCount > revBefore, G.grid.filter(x => x.dead).length > deadBefore);
+      Tut.advance(G.revealCount > revBefore, G.grid.filter(x => x.defeated).length > deadBefore);
       if (G.phase === 'LOSE') { Haptics.heavy(); settleRun(); }
       if (G.phase === 'WIN') { Haptics.light(); settleRun(); }
       break;
     }
-    case 'USE_ORB': if (G.phase === 'PLAYING' && G.orbs > 0) G.orbMode = !G.orbMode; break;
+    case 'LEVEL_UP': levelUp(); Haptics.light(); break;
     case 'TUT_NEXT': Tut.next(); break;
     case 'TUT_SKIP': Tut.done(); break;
     case 'AD_REVIVE': { // once per run: watch an ad, stand back up at half HP
@@ -143,7 +145,7 @@ function dispatch(action, data) {
       })();
       break;
     }
-    case 'RESTART': orientBoard(); G.settled = false; G.rng = Math.random; G.adRevived = false; G.orbMode = false; initRun(); break;
+    case 'RESTART': orientBoard(); G.settled = false; G.rng = Math.random; G.adRevived = false; initRun(); break;
     case 'GO_HOME': G.phase = 'HOME'; G.overlay = null; break;
     case 'OPEN_CODEX': G.overlay = 'codex'; break;
     case 'CLOSE_OVERLAY': G.overlay = null; break;
@@ -156,7 +158,7 @@ function dispatch(action, data) {
 }
 
 async function boot() {
-  await Platform.hydrate([CFG.key('lang'), CFG.key('sfx'), CFG.key('wins'), CFG.key('seen'),
+  await Platform.hydrate([CFG.key('lang'), CFG.key('sfx'), CFG.key('wins'), CFG.key('seen'), CFG.key('badges'),
     CFG.key('streak'), CFG.key('dailywin'), CFG.key('dailytry'), CFG.key('run'), CFG.key('tut')]);
   restoreAudioPrefs();
   Meta.load();

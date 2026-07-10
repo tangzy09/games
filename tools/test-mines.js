@@ -1,4 +1,4 @@
-// v2 单盘逻辑单测: node tools/test-mines.js
+// v2.1 单测:对齐原作机制。node tools/test-mines.js
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
@@ -11,164 +11,180 @@ function freshCtx(seed) {
     vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx, { filename: f });
   ctx.G = vm.runInContext('G', ctx);
   ctx.M = vm.runInContext('MONSTERS', ctx);
-  ctx.W = vm.runInContext('BOARD_W', ctx);
-  ctx.H = vm.runInContext('BOARD_H', ctx);
+  ctx.XP_TABLE = vm.runInContext('XP_TABLE', ctx);
   if (seed != null) ctx.G.rng = PRNG.create(seed);
   return ctx;
 }
 let pass = 0, fail = 0;
 const eq = (n, g, w) => { JSON.stringify(g) === JSON.stringify(w) ? pass++ : (fail++, console.log(`❌ ${n}: got ${JSON.stringify(g)}, want ${JSON.stringify(w)}`)); };
 const ok = (n, c) => { c ? pass++ : (fail++, console.log(`❌ ${n}`)); };
+// 空白试验场
+function lab(c, w = 5, h = 5) {
+  c.G.w = w; c.G.h = h; c.G.phase = 'PLAYING';
+  c.G.grid = Array.from({ length: w * h }, () => vm.runInContext('blankCell()', c));
+  c.G.hp = 6; c.G.maxHp = 6; c.G.level = 1; c.G.xp = 0; c.G.killedMice = 0;
+}
 
-// ── 1) 盘面生态:位置规则 ──
-for (let s = 1; s <= 20; s++) {
+// ── 1) 盘面生成:构成与偏好 ──
+for (let s = 1; s <= 8; s++) {
   const c = freshCtx(s);
   vm.runInContext('initRun()', c);
-  const g = c.G.grid, W = c.W, H = c.H;
-  const at = (m) => g.map((x, i) => x.mon === m ? i : -1).filter(i => i >= 0);
-  eq(`s${s} dragon center`, at('dragon'), [Math.floor(H / 2) * W + Math.floor(W / 2)]);
-  const owl = at('nightowl')[0];
-  ok(`s${s} owl corner`, [0, W - 1, (H - 1) * W, H * W - 1].includes(owl));
-  const sage = at('sage')[0], sr = Math.floor(sage / W), sc = sage % W;
-  ok(`s${s} sage edge non-corner`, (sr === 0 || sr === H - 1 || sc === 0 || sc === W - 1) && ![0, W - 1, (H - 1) * W, H * W - 1].includes(sage));
-  const nbr = (i, j) => Math.abs(Math.floor(i / W) - Math.floor(j / W)) <= 1 && Math.abs(i % W - j % W) <= 1;
-  ok(`s${s} jellies ring sage`, at('jellyking').every(j => nbr(j, sage)));
-  const king = at('mouseking')[0];
-  ok(`s${s} mousies ring king`, at('mousey').every(m => nbr(m, king)));
-  ok(`s${s} cuddles paired adjacent`, at('cuddle').every(i => g[i].pairWith != null && nbr(i, g[i].pairWith) && g[g[i].pairWith].mon === 'cuddle'));
-  ok(`s${s} board has some reveal`, g.some(x => x.rev));
-  ok(`s${s} no monster revealed dead at start`, !g.some(x => x.rev && x.mon && !x.dead));
+  const g = c.G.grid;
+  const cnt = (m) => g.filter(x => x.mon === m).length;
+  eq(`s${s} composition`, [cnt('mousey'), cnt('flitter'), cnt('rattle'), cnt('cuddle'), cnt('pudding'), cnt('boomy'), cnt('dragon'), cnt('giant'), cnt('guard')], [13, 12, 10, 8, 8, 9, 1, 2, 4]);
+  eq(`s${s} walls+medikits`, [g.filter(x => x.item === 'wall').length, g.filter(x => x.item === 'medikit').length], [6, 5]);
+  const d = g.findIndex(x => x.mon === 'dragon');
+  ok(`s${s} dragon revealed at start`, g[d].rev);
+  eq(`s${s} dragon at (6,4)`, [d % c.G.w, Math.floor(d / c.G.w)], [6, 4]);
+  ok(`s${s} orb revealed`, g.some(x => x.item === 'orb' && x.rev));
+  const giants = g.map((x, i) => x.mon === 'giant' ? i : -1).filter(i => i >= 0);
+  ok(`s${s} giants same row symmetric`, Math.floor(giants[0] / 13) === Math.floor(giants[1] / 13)
+    && Math.abs(giants[0] % 13 - 6) === Math.abs(giants[1] % 13 - 6));
+  const egg = g.findIndex(x => x.mon === 'egg');
+  ok(`s${s} egg beside dragon`, vm.runInContext(`dist(${egg}, ${d})`, c) <= 1.5);
+  const gn = g.findIndex(x => x.mon === 'gnome');
+  ok(`s${s} gnome beside medikit`, g.some((x, j) => x.item === 'medikit' && vm.runInContext(`dist(${gn}, ${j})`, c) <= 1.5));
 }
 
-// ── 2) 血量规则:到 0 活着,低于 0 才死 ──
+// ── 2) 战斗:直接挨打、hp>lv 才能杀、hp≤0 即死且拟态现形 ──
 {
-  const c = freshCtx(2);
-  vm.runInContext('initRun()', c);
-  c.G.grid.forEach(x => { x.mon = null; x.fogged = false; x.t = 'empty'; }); // 物品也清掉,防涟漪捡到回血卷轴
-  c.G.grid[0].mon = 'jellyking'; c.G.grid[0].rev = true; // lv 5
-  c.G.hp = 5; c.G.maxHp = 5; c.G.level = 9; c.G.xp = 0;
+  const c = freshCtx(2); lab(c);
+  c.G.grid[0].mon = 'pudding'; c.G.grid[0].lv = 5; c.G.grid[0].xp = 5; // hp6 打 lv5 → hp1 存活
   vm.runInContext('clickCell(0)', c);
-  eq('hp exactly 0 → alive', c.G.phase, 'PLAYING');
-  eq('hp is 0', c.G.hp, 0);
-  c.G.grid[1].mon = 'chick'; c.G.grid[1].rev = true; c.G.grid[1].dead = false; // lv 1
-  c.G.xp = 0; c.G.level = 99; // 防升级回血干扰
-  vm.runInContext('clickCell(1)', c);
-  eq('below 0 → LOSE', c.G.phase, 'LOSE');
-}
+  eq('attack on hidden tile hits', c.G.hp, 1);
+  ok('killed (hp>0)', c.G.grid[0].defeated);
+  ok('revealed after fight', c.G.grid[0].rev);
+  eq('no xp until pickup', c.G.xp, 0);
+  eq('corpse still counts in numbers', vm.runInContext('cellNumber(1)', c), 5);
+  vm.runInContext('clickCell(0)', c); // 二段拾取
+  eq('pickup grants xp', c.G.xp, 5);
+  eq('numbers drop after pickup', vm.runInContext('cellNumber(1)', c), 0);
 
-// ── 3) 升级:回满+上限+1、溢出顺延、上限封顶 ──
-{
-  const c = freshCtx(3);
-  vm.runInContext('initRun()', c);
-  c.G.hp = 1; c.G.maxHp = 5; c.G.level = 1; c.G.xp = 0;
-  vm.runInContext('gainXp(8)', c); // need 4 → level 2, 溢出 4(不够 level2 的 8)
-  eq('level 2', c.G.level, 2);
-  eq('maxHp 6', c.G.maxHp, 6);
-  eq('full heal', c.G.hp, 6);
-  eq('overflow xp', c.G.xp, 4);
-  c.G.maxHp = 15; c.G.level = 5; c.G.xp = 0;
-  vm.runInContext('gainXp(30)', c);
-  eq('maxHp capped 15', c.G.maxHp, 15);
-}
-
-// ── 4) 地精:跳格直到无处可逃,抓住给大额 XP、零伤害 ──
-{
-  const c = freshCtx(4);
-  vm.runInContext('initRun()', c);
-  c.G.grid.forEach(x => { x.mon = null; x.rev = true; x.fogged = false; x.t = 'empty'; });
-  c.G.grid[0].mon = 'gnome'; c.G.grid[5].rev = false; // 唯一藏身处
-  c.G.hp = 3; c.G.xp = 0; c.G.level = 99;
-  vm.runInContext('clickCell(0)', c);
-  eq('gnome hopped to hidden cell', c.G.grid[5].mon, 'gnome');
-  eq('no damage on hop', c.G.hp, 3);
-  c.G.grid[5].rev = true;
-  vm.runInContext('clickCell(5)', c);
-  eq('cornered gnome caught', c.G.grid[5].dead, true);
-  eq('gnome bounty xp', c.G.xp, 10);
-  eq('still no damage', c.G.hp, 3);
-}
-
-// ── 5) 拟态怪两段式 + 地雷锁与猫头鹰扫雷 ──
-{
-  const c = freshCtx(5);
-  vm.runInContext('initRun()', c);
-  c.G.grid.forEach(x => { x.mon = null; x.rev = true; x.fogged = false; x.t = 'empty'; x.dead = false; });
-  c.G.hp = 9; c.G.maxHp = 9; c.G.level = 99; c.G.xp = 0;
-  c.G.grid[0].mon = 'mimic';
-  vm.runInContext('clickCell(0)', c);
-  eq('mimic pokes awake, no damage', c.G.hp, 9);
-  eq('mimic not dead yet', c.G.grid[0].dead, false);
-  vm.runInContext('clickCell(0)', c);
-  eq('second tap fights mimic', c.G.grid[0].dead, true);
-  eq('mimic damage 2', c.G.hp, 7);
-
-  c.G.grid[1].mon = 'boom';
-  vm.runInContext('clickCell(1)', c);
-  eq('mine locked before sweep', c.G.grid[1].dead, false);
-  eq('mine no damage when locked', c.G.hp, 7);
-  c.G.grid[2].mon = 'nightowl';
+  vm.runInContext('setMonster(G.grid[2], "mousey")', c); // hp1 打 lv1 → hp0 = 死
   vm.runInContext('clickCell(2)', c);
-  eq('owl kill grants sweep', c.G.sweepDone, true);
-  eq('mines defused+revealed', c.G.grid[1].dead && c.G.grid[1].rev, true);
+  eq('hp-lv=0 means DEATH', c.G.phase, 'LOSE');
+  ok('monster not defeated on lethal', !c.G.grid[2].defeated);
+}
+{
+  const c = freshCtx(3); lab(c);
+  vm.runInContext('setMonster(G.grid[0], "mimic")', c);
+  vm.runInContext('setMonster(G.grid[4], "mousey")', c);
+  c.G.hp = 1;
+  vm.runInContext('clickCell(4)', c);
+  eq('death', c.G.phase, 'LOSE');
+  ok('mimics unmask on death', !c.G.grid[0].mimicHidden);
 }
 
-// ── 6) 掉落揭示 + 凝视者迷雾 ──
+// ── 3) 手动升级:查表、偶数级半心、上限 19 ──
 {
-  const c = freshCtx(6);
-  vm.runInContext('initRun()', c);
-  const king = c.G.grid.findIndex(x => x.mon === 'mouseking');
-  c.G.grid[king].rev = true;
-  c.G.hp = 15; c.G.maxHp = 15; c.G.level = 99; c.G.xp = 0;
-  vm.runInContext(`clickCell(${king})`, c);
-  ok('squeak drop peeks all mousies', c.G.grid.filter(x => x.mon === 'mousey' && !x.dead).every(x => x.peek));
-
-  const pp = c.G.grid.findIndex(x => x.mon === 'peeper' && !x.dead);
-  ok('peeper fogs some cells', c.G.grid.some(x => x.fogged));
-  const foggedNum = c.G.grid.findIndex((x, i) => x.fogged);
-  eq('fogged number reads null(?)', vm.runInContext(`cellNumber(${foggedNum})`, c), null);
-  c.G.grid[pp].rev = true; c.G.hp = 15;
-  vm.runInContext(`clickCell(${pp})`, c);
-  const [r0, c0] = [Math.floor(pp / c.W), pp % c.W];
-  const other = c.G.grid.findIndex((x, j) => x.mon === 'peeper' && !x.dead);
-  ok('dead peeper lifts own fog (unless other peeper overlaps)', (() => {
-    for (const [dr, dc] of vm.runInContext('PEEPER_STAR', c)) {
-      const rr = r0 + dr, cc = c0 + dc;
-      if (rr < 0 || cc < 0 || rr >= c.H || cc >= c.W) continue;
-      const k = rr * c.W + cc;
-      if (!c.G.grid[k].fogged) continue;
-      if (other < 0) return false; // fog remains but no other peeper → bug
-    }
-    return true;
-  })());
+  const c = freshCtx(4); lab(c);
+  vm.runInContext('grantXp(4)', c);
+  eq('xp accrues without auto-level', c.G.level, 1);
+  ok('button enabled', vm.runInContext('canLevelUp()', c));
+  vm.runInContext('levelUp()', c);
+  eq('level 2 (even) = half heart, no maxHp', [c.G.level, c.G.maxHp, c.G.halfHeart], [2, 6, true]);
+  eq('full heal on level', c.G.hp, 6);
+  vm.runInContext('grantXp(5)', c);
+  vm.runInContext('levelUp()', c);
+  eq('level 3 (odd) adds heart', [c.G.level, c.G.maxHp], [3, 7]);
+  c.G.hp = 0;
+  vm.runInContext('grantXp(99)', c);
+  ok('dead cannot level', !vm.runInContext('canLevelUp()', c));
 }
 
-// ── 7) 宝箱/回血卷轴/窥视球 ──
+// ── 4) 地雷 lv100 + 排雷链 ──
 {
-  const c = freshCtx(7);
-  vm.runInContext('initRun()', c);
-  c.G.grid.forEach(x => { x.mon = null; x.rev = false; x.fogged = false; x.t = 'empty'; });
-  c.G.hp = 2; c.G.maxHp = 9; c.G.level = 99; c.G.xp = 0;
-  c.G.grid[0].t = 'heartscroll';
-  vm.runInContext('clickCell(0)', c); // 第一次:只翻开,卷轴留在盘上
-  eq('heartscroll stays on reveal', c.G.grid[0].t, 'heartscroll');
-  eq('no heal on reveal', c.G.hp, 2);
-  vm.runInContext('clickCell(0)', c); // 第二次:主动使用
-  eq('heartscroll full heal on click', c.G.hp, 9);
-  c.G.grid[1].t = 'chest'; c.G.grid[1].rev = false;
-  vm.runInContext('clickCell(1)', c);
-  eq('chest xp', c.G.xp, 5);
-  const orbsBefore = c.G.orbs;
-  vm.runInContext(`useOrb(${c.W + 1})`, c);
-  eq('orb consumed', c.G.orbs, orbsBefore - 1);
-  ok('orb revealed 3x3', [0, 1, 2, c.W, c.W + 1, c.W + 2, 2 * c.W, 2 * c.W + 1, 2 * c.W + 2].every(k => c.G.grid[k].rev));
+  const c = freshCtx(5); lab(c);
+  vm.runInContext('setMonster(G.grid[0], "boomy")', c);
+  eq('mine poisons numbers', vm.runInContext('cellNumber(1)', c), 100);
+  vm.runInContext('setMonster(G.grid[2], "mineking")', c);
+  c.G.hp = 12; c.G.maxHp = 12;
+  vm.runInContext('clickCell(2)', c);   // 打雷王(10) → hp2
+  eq('mineking costs 10', c.G.hp, 2);
+  vm.runInContext('clickCell(2)', c);   // 拾取 → 掉排雷卷轴
+  eq('drop is disarm scroll', c.G.grid[2].spell, 'disarm');
+  vm.runInContext('clickCell(2)', c);   // 用卷轴
+  eq('mine defused to 0', c.G.grid[0].lv, 0);
+  ok('disarm flag', c.G.minesDisarmed);
+  eq('numbers clean', vm.runInContext('cellNumber(1)', c), 0);
 }
 
-// ── 8) 每日:同种子同盘 ──
+// ── 5) 墙(挖墙耗血,1血禁挖)与宝箱链 ──
 {
-  const mk = (s) => { const c = freshCtx(s); vm.runInContext('initRun()', c); return c; };
-  const sig = (c) => c.G.grid.map(x => (x.mon || '') + x.t).join('|');
-  ok('same seed same board', sig(mk(99)) === sig(mk(99)));
-  ok('diff seed diff board', sig(mk(99)) !== sig(mk(100)));
+  const c = freshCtx(6); lab(c);
+  vm.runInContext('setItem(G.grid[0], "wall")', c);
+  c.G.grid[0].rev = true;
+  vm.runInContext('clickCell(0)', c); vm.runInContext('clickCell(0)', c);
+  eq('two digs cost 2 hp', c.G.hp, 4);
+  c.G.hp = 1;
+  vm.runInContext('clickCell(0)', c);
+  eq('no digging at 1 hp', c.G.grid[0].wallHP, 1);
+  c.G.hp = 6;
+  vm.runInContext('clickCell(0)', c);
+  eq('wall breaks to +1xp treasure', c.G.grid[0].treasureXp, 1);
+  vm.runInContext('clickCell(0)', c);
+  eq('treasure picked', c.G.xp, 1);
+
+  vm.runInContext('setItem(G.grid[4], "chest")', c); c.G.grid[4].rev = true;
+  vm.runInContext('clickCell(4)', c);
+  eq('chest opens to 5xp', c.G.grid[4].treasureXp, 5);
+  vm.runInContext('setItem(G.grid[8], "medichest")', c); c.G.grid[8].rev = true;
+  vm.runInContext('clickCell(8)', c);
+  eq('medichest opens to medikit', c.G.grid[8].item, 'medikit');
+  c.G.hp = 2;
+  vm.runInContext('clickCell(8)', c);
+  eq('medikit full heal', c.G.hp, 6);
+}
+
+// ── 6) 地精寻路医疗包、皇冠胜利与徽章 ──
+{
+  const c = freshCtx(7); lab(c);
+  vm.runInContext('setMonster(G.grid[0], "gnome")', c);
+  vm.runInContext('setItem(G.grid[24], "medikit")', c);
+  c.G.grid.forEach((x, i) => { if (i !== 18 && i !== 0 && i !== 24) x.rev = true; }); // 只留 18 号暗格(贴医疗包)
+  vm.runInContext('clickCell(0)', c);
+  eq('gnome hops to cell nearest medikit', c.G.grid[18].mon, 'gnome');
+  c.G.grid[18].rev = true;
+  vm.runInContext('clickCell(18)', c);  // 无处可逃 → lv0 战斗即杀
+  ok('cornered gnome defeated, no damage', c.G.grid[18].defeated && c.G.hp === 6);
+  vm.runInContext('clickCell(18)', c);  // 拾取 9xp
+  eq('gnome bounty 9xp', c.G.xp, 9);
+}
+{
+  const c = freshCtx(8); lab(c);
+  vm.runInContext('setMonster(G.grid[12], "dragon")', c);
+  c.G.grid[12].rev = true;
+  vm.runInContext('setMonster(G.grid[0], "giant", "romeo")', c);
+  vm.runInContext('setMonster(G.grid[4], "giant", "juliet")', c);
+  vm.runInContext('setMonster(G.grid[20], "egg")', c);
+  c.G.hp = 14; c.G.maxHp = 14;
+  vm.runInContext('clickCell(12)', c);  // 屠龙(13) → hp1
+  eq('dragon slain at hp1', [c.G.hp, c.G.grid[12].defeated], [1, true]);
+  vm.runInContext('clickCell(12)', c);  // 拾取 → 皇冠
+  eq('dragon drops crown', c.G.grid[12].spell, 'crown');
+  eq('not won yet', c.G.phase, 'PLAYING');
+  vm.runInContext('clickCell(12)', c);  // 点皇冠才算赢
+  eq('crown click wins', c.G.phase, 'WIN');
+  ok('badges: lovers+egg+pacifist', ['lovers', 'egg', 'pacifist'].every(b => c.G.badgesThisRun.includes(b)));
+  ok('not clear (monsters remain)', !c.G.badgesThisRun.includes('clear'));
+}
+
+// ── 7) 凝视者迷雾半径2、杀后消散 ──
+{
+  const c = freshCtx(9); lab(c);
+  vm.runInContext('setMonster(G.grid[12], "gazer")', c);
+  ok('fog within radius 2', vm.runInContext('isFogged(10)', c) && vm.runInContext('isFogged(2)', c));
+  ok('no fog outside', !vm.runInContext('isFogged(4)', c) === (vm.runInContext('dist(4,12)', c) > 2));
+  c.G.hp = 6; c.G.grid[12].rev = true;
+  vm.runInContext('clickCell(12)', c);
+  ok('fog lifts when gazer dies', !vm.runInContext('isFogged(10)', c));
+}
+
+// ── 8) 每日种子确定性 ──
+{
+  const mk = (s) => { const c = freshCtx(s); vm.runInContext('initRun()', c); return c.G.grid.map(x => (x.mon || '') + (x.item || '')).join('|'); };
+  ok('same seed same board', mk(42) === mk(42));
+  ok('diff seed diff board', mk(42) !== mk(43));
 }
 
 console.log(`\n${pass} pass, ${fail} fail`);
