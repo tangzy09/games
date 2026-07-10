@@ -14,7 +14,6 @@ node tools/check-locales.js games/minesweeper/locales
 ## 移植不变量（非直觉，别当 bug"修复"）
 
 - 权威规格：`C:/tmp/roguelite-minigames/ds-spec.md`（提取自原作公开源码 C:/tmp/roguelite-minigames/ds-src/game.js）。**改机制前先查它**——网上攻略数值互相矛盾不可信。
-oguelite-minigames\ds-spec.md`（提取自原作公开源码 `ds-src/game.js`）。**改机制前先查它**——网上攻略数值互相矛盾不可信。
 - 点击未翻开怪 = 直接挨打；**杀怪要求 hp 严格 > 怪等级**（等于 = 你死）；**尸体二段拾取**（打死后再点才得 XP，数字到拾取才下降）；升级是**手动按钮** + 查表 XP + 偶数级只涨半心；雷 lv=100 毒化数字；纯雷连通团自动翻开。
 - 放置生态是硬规则（单测有断言）：龙在中心开局可见、雷王必在角落、贤者边缘+5 果冻环绕、巨人恋人同排关于中线对称、门卫一象限一个、哞哞霸与宝箱 1:1 配对且不同列、地精贴医疗包、龙蛋贴龙。
 - **图鉴写的每条特性都有一致性测试**——改怪物行为要同步改图鉴文案与测试。
@@ -34,6 +33,16 @@ oguelite-minigames\ds-spec.md`（提取自原作公开源码 `ds-src/game.js`）
 ## 测试哲学
 
 逻辑全部纯函数、node vm 可测；蒙特卡洛用**独立重算**交叉验证数字（不用被测代码验它自己）；「神谕全知 bot 100% 胜」是经济/规则正确性门禁——它多次抓到真 bug（数学上不可胜的巨龙、涟漪缺失、治疗经济不足）。
+
+## iOS / App Store（进行中，2026-07-10 起）
+
+流水线用法见根 CLAUDE.md「iOS 壳」节；本游戏的既定事实：
+
+- Bundle ID `com.aispeeds.dungeonsweep`（ASC 已注册，id VZ3K75JPFV）；Codemagic app id `6a5159920057b5324b000964`（games 仓库，签名私钥已挂 ios_signing 组）；workflow `mines-ios-testflight`。
+- 商店名首选 `Dungeon Sweep: Minesweeper RPG`（30 字符满额），候补 `Dungeon Sweep - Monster Puzzle`；主屏名 = capacitor.config 的 `Dungeon Sweep`。
+- 图标源 = knight+slime 主视觉（`Downloads/Gemini_Generated_Image_o2od06o2od06o2od.png` 2048 原图内切 140px 去烘焙圆角 → resources/icon.png）。**4.3(a)：图标绝不与账号内其他 app 复用**。
+- **等两件 UI 事**（都只能用户做）：① ASC 建 App 记录 → 数字 Apple ID 回填 codemagic.yaml 的 `APP_STORE_APP_ID`；② AdMob 控制台建 iOS app + Rewarded/Interstitial 两广告位 → 真 ID 接 `GAME_CONFIG.adUnits` + `GAD_APP_ID`（现为 Google 测试 ID，**提审前必换**）。
+- 之后全 API：触发构建 → TestFlight → 商店页元数据/截图/定价/送审（`~/.claude/skills/appstore-listing`）。
 
 ## 待办
 
