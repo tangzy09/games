@@ -1,0 +1,3 @@
+deploy.sh
+*.pem
+node_modules/
