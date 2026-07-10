@@ -43,3 +43,10 @@
 - [ejacobg 1.0 规则笔记](https://ejacobg.com/notes/dragonsweeper-1.0.0/)（怪物表/等级/位置规则最全）
 - [cheatsheets.one](https://cheatsheets.one/gaming/dragonsweeper) · [dragonsweeper.cc/guide](https://dragonsweeper.cc/guide) · [monsternomicon 解析](https://dragonsweeper.pro/hub/dragonsweeper-monsternomicon)
 - 原作：[Dragonsweeper by Daniel Benmergui (itch.io)](https://danielben.itch.io/dragonsweeper)，其前身为 Mamono Sweeper
+
+## v2.1 —— 一模一样计划（2026-07-10 用户要求逻辑与原作完全一致）
+
+- **二手攻略数值互相矛盾**（巫妖 L6 vs L11、龙 L13 vs L100、鼠王 L7 vs L5……原作 1.1.x 改过平衡），不可作为依据。
+- **权威真值：原作者在 itch 公开了源码包 `dragonsweeper_sources1.1.18.zip`（38MB，danielben.itch.io/dragonsweeper 页面可下载）**。
+- 步骤：① 下载解包 → 找到怪物/物品/经济数据表（等级、数量、XP、位置规则、地精两杀、地雷毒圈、方块 blocks、升级按钮机制）→ ② 只提取**数值与规则**（机制/数字不受版权保护），代码自己写、美术名称文案保持我们的可爱风原创 → ③ 重写 constants/logic 对齐 → 单测+蒙特卡洛重验 → 上线。
+- 注意原作有「blocks 方块」「gold 需要点击拾取?」「升级按钮」等我们 v2 没有的机制,以源码为准逐条核对。
