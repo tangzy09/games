@@ -34,6 +34,21 @@ const RELICS = [
   { id: 'vamp',   icon: '🩸' }, // killing a monster of power>=3 heals 1
 ];
 
+// Permanent upgrades bought with souls (meta currency, survives death).
+// req: node that must be owned first. Effects applied in logic via G.perks.
+const UPGRADES = [
+  { id: 'vital1',  cost: 15, icon: '❤️' },              // +1 starting max HP
+  { id: 'coin',    cost: 25, icon: '🪙' },              // coin tiles give +1 gold
+  { id: 'potion',  cost: 25, icon: '🧪' },              // potions heal +1
+  { id: 'guard',   cost: 30, icon: '🛡️' },              // first hit each run does -1 damage
+  { id: 'vital2',  cost: 40, icon: '💖', req: 'vital1' }, // +1 more starting max HP
+  { id: 'learner', cost: 60, icon: '📖' },              // level-ups need 1 less XP per level
+  { id: 'revive',  cost: 80, icon: '🕯️' },              // once per run: survive death at half HP
+];
+
+// Daily challenge: one dense floor, seeded by the date — same board worldwide.
+const DAILY_FLOOR = { size: 10, counts: { slime: 6, bat: 5, skel: 4, ghost: 2, mimic: 2 }, coins: 8, potions: 2 };
+
 // XP needed to reach the next level = level * XP_PER_LEVEL.
 const XP_PER_LEVEL = 6;
 const START_HP = 5;

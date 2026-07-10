@@ -97,20 +97,67 @@ function bigButton(cy, key, action, data, color) {
 
 function drawHome() {
   const { SW, SH } = GameGlobal;
-  txt('💣', SW / 2, SH * 0.22, C.text, '54px sans-serif');
-  txt(T('home.title'), SW / 2, SH * 0.31, C.accent, 'bold 26px sans-serif');
-  txtLWrap(T('home.subtitle'), SW / 2 - 140, SH * 0.38, 280, C.muted, '13px sans-serif', 17);
-  txt(`🔮 ${T('home.souls', { n: Meta.souls })}    🏆 ${T('home.best', { n: Meta.best })}`, SW / 2, SH * 0.47, C.purple, 'bold 13px sans-serif');
-  bigButton(SH * 0.55, 'home.start', 'START_RUN');
+  txt('💣', SW / 2, SH * 0.18, C.text, '54px sans-serif');
+  txt(T('home.title'), SW / 2, SH * 0.27, C.accent, 'bold 26px sans-serif');
+  txtLWrap(T('home.subtitle'), SW / 2 - 140, SH * 0.34, 280, C.muted, '13px sans-serif', 17);
+  txt(`🔮 ${T('home.souls', { n: Meta.souls })}    🏆 ${T('home.best', { n: Meta.best })}`, SW / 2, SH * 0.43, C.purple, 'bold 13px sans-serif');
+  if (Meta.streak > 0) txt(T('home.streak', { n: Meta.streak }), SW / 2, SH * 0.47, C.accent, 'bold 14px sans-serif');
+  bigButton(SH * 0.52, 'home.start', 'START_RUN');
+  // daily challenge (one try per day)
+  const dy = SH * 0.52 + 62;
+  const can = Meta.canDaily();
+  fillRR(SW / 2 - 100, dy, 200, 44, 12, can ? '#9c36b5' : 'rgba(156,54,181,0.25)');
+  txt(can ? T('home.daily') : T('home.dailyDone'), SW / 2, dy + 22, '#fff', 'bold 14px sans-serif');
+  if (can) addHit(SW / 2 - 100, dy, 200, 44, 'START_DAILY', {});
+  // upgrades
+  const uy = dy + 56;
+  fillRR(SW / 2 - 100, uy, 200, 40, 12, C.surface);
+  strokeRR(SW / 2 - 100, uy, 200, 40, 12, C.border);
+  txt(`⚒️ ${T('home.upgrades')}`, SW / 2, uy + 20, C.text, 'bold 13px sans-serif');
+  addHit(SW / 2 - 100, uy, 200, 40, 'OPEN_UPGRADES', {});
+}
+
+function drawUpgrades() {
+  drawDim('rgba(40,30,20,0.97)'); // near-opaque: translucent cards must not show HOME through
+  const { SW, SH } = GameGlobal;
+  txt(T('upg.title'), SW / 2, 66, '#ffd9a0', 'bold 20px sans-serif');
+  txt(`🔮 ${Meta.souls}`, SW / 2, 94, '#e5b3ff', 'bold 14px sans-serif');
+  const cardW = SW - 44, cardH = 64, startY = 118;
+  UPGRADES.forEach((u, k) => {
+    const y = startY + k * (cardH + 8);
+    const owned = Meta.upgrades.has(u.id);
+    const locked = u.req && !Meta.upgrades.has(u.req);
+    const afford = Meta.canBuy(u);
+    fillRR(22, y, cardW, cardH, 12, owned ? 'rgba(47,158,68,0.18)' : C.surface);
+    strokeRR(22, y, cardW, cardH, 12, owned ? '#2f9e44' : (afford ? C.purple : C.border), afford && !owned ? 2 : 1);
+    ctx.globalAlpha = locked ? 0.45 : 1;
+    txt(u.icon, 22 + 26, y + cardH / 2, C.text, '24px sans-serif');
+    txtL(T('upg.' + u.id + '.name'), 22 + 50, y + 20, C.text, 'bold 13px sans-serif');
+    txtLWrap(T('upg.' + u.id + '.desc'), 22 + 50, y + 42, cardW - 130, C.muted, '10px sans-serif', 13);
+    const right = owned ? '✓' : (locked ? '🔒' : `🔮 ${u.cost}`);
+    txtR(right, 22 + cardW - 12, y + cardH / 2, owned ? '#2f9e44' : (afford ? C.purple : C.muted), 'bold 13px sans-serif');
+    ctx.globalAlpha = 1;
+    if (!owned && !locked) addHit(22, y, cardW, cardH, 'BUY_UPGRADE', { id: u.id });
+  });
+  const backY = startY + UPGRADES.length * (cardH + 8) + 10;
+  fillRR(SW / 2 - 80, backY, 160, 38, 10, 'rgba(255,255,255,0.16)');
+  txt(T('upg.back'), SW / 2, backY + 19, '#fff', 'bold 13px sans-serif');
+  addHit(SW / 2 - 80, backY, 160, 38, 'CLOSE_OVERLAY', {});
 }
 
 function drawIntro() {
   drawDim('rgba(40,30,20,0.82)');
   const { SW, SH } = GameGlobal;
-  const f = FLOORS[G.floorIdx];
-  txt(T('intro.floor', { n: G.floorIdx + 1 }), SW / 2, SH * 0.34, '#ffd9a0', 'bold 24px sans-serif');
-  txt(`${f.size} × ${f.size}`, SW / 2, SH * 0.42, '#fff', 'bold 16px sans-serif');
-  if (G.floorIdx === FLOORS.length - 1) txt(T('intro.boss'), SW / 2, SH * 0.48, '#ff8787', 'bold 13px sans-serif');
+  if (G.mode === 'daily') {
+    txt(T('intro.daily'), SW / 2, SH * 0.34, '#e5b3ff', 'bold 22px sans-serif');
+    txt(`${DAILY_FLOOR.size} × ${DAILY_FLOOR.size}`, SW / 2, SH * 0.42, '#fff', 'bold 16px sans-serif');
+    txtLWrap(T('intro.dailyGoal'), SW / 2 - 130, SH * 0.48, 260, '#ffd9a0', '12px sans-serif', 16);
+  } else {
+    const f = FLOORS[G.floorIdx];
+    txt(T('intro.floor', { n: G.floorIdx + 1 }), SW / 2, SH * 0.34, '#ffd9a0', 'bold 24px sans-serif');
+    txt(`${f.size} × ${f.size}`, SW / 2, SH * 0.42, '#fff', 'bold 16px sans-serif');
+    if (G.floorIdx === FLOORS.length - 1) txt(T('intro.boss'), SW / 2, SH * 0.48, '#ff8787', 'bold 13px sans-serif');
+  }
   bigButton(SH * 0.56, 'intro.enter', 'ENTER_FLOOR');
 }
 
@@ -139,7 +186,8 @@ function drawEnd(win) {
   const { SW, SH } = GameGlobal;
   txt(win ? '🏆' : '💀', SW / 2, SH * 0.2, '#fff', '50px sans-serif');
   txt(T(win ? 'win.title' : 'lose.title'), SW / 2, SH * 0.29, win ? '#8ce99a' : '#ff8787', 'bold 24px sans-serif');
-  if (!win) txt(T('lose.gap', { n: FLOORS.length - G.floorIdx }), SW / 2, SH * 0.35, '#ffd9a0', '13px sans-serif');
+  if (G.mode === 'daily') txt(win ? T('end.streakUp', { n: Meta.streak }) : T('end.streakLost'), SW / 2, SH * 0.35, win ? '#ffd43b' : '#ffd9a0', 'bold 13px sans-serif');
+  else if (!win) txt(T('lose.gap', { n: FLOORS.length - G.floorIdx }), SW / 2, SH * 0.35, '#ffd9a0', '13px sans-serif');
   // earnings
   fillRR(SW / 2 - 120, SH * 0.4, 240, 54, 12, 'rgba(255,255,255,0.12)');
   txt(T('end.souls', { n: G.souls }), SW / 2, SH * 0.4 + 18, '#e5b3ff', 'bold 15px sans-serif');
@@ -209,7 +257,12 @@ function renderAll() {
   const { SW, SH } = GameGlobal;
   ctx.fillStyle = C.bg;
   ctx.fillRect(0, 0, SW, SH);
-  if (G.phase === 'HOME') { drawHome(); drawFloat(); return; }
+  if (G.phase === 'HOME') {
+    drawHome();
+    if (G.overlay === 'upgrades') drawUpgrades();
+    drawFloat();
+    return;
+  }
   const L = layout();
   drawHud(L);
   if (G.grid.length) drawGrid(L);

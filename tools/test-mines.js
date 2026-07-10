@@ -15,6 +15,7 @@ function freshCtx(rng) {
   ctx.FLOORS = vm.runInContext('FLOORS', ctx);
   ctx.MONSTERS = vm.runInContext('MONSTERS', ctx);
   ctx.vm_COIN_GOLD = vm.runInContext('COIN_GOLD', ctx);
+  ctx.vm_DAILY = vm.runInContext('DAILY_FLOOR', ctx);
   if (rng) ctx.G.rng = rng;
   return ctx;
 }
@@ -139,6 +140,76 @@ function ok(name, cond) { cond ? pass++ : (fail++, console.log(`❌ ${name}`)); 
   ok('floor-clear souls', c.G.souls >= 3);
   vm.runInContext('startFloor()', c);
   eq('floor2 size', c.G.size, c.FLOORS[1].size);
+}
+
+// ── 7) 永久强化 perks ──
+{
+  const c = freshCtx(seeded(3));
+  c.G.perks = { vital1: true, vital2: true };
+  vm.runInContext('initRun()', c);
+  eq('vital1+2 start hp', c.G.hp, 7);
+
+  // guard: 第一击 -1,第二击全额
+  c.G.size = 2; c.G.hp = 9; c.G.maxHp = 9; c.G.level = 9; c.G.xp = 0;
+  c.G.perks = { guard: true }; c.G.guardUsed = false;
+  c.G.grid = Array.from({ length: 4 }, () => ({ t: 'empty', mon: null, rev: false, dead: false }));
+  c.G.grid[0].mon = 'skel'; c.G.grid[1].mon = 'skel';
+  vm.runInContext('reveal(0)', c);
+  eq('guard first hit 3→2', c.G.hp, 7);
+  c.G.grid[1].rev = false;
+  vm.runInContext('reveal(1)', c);
+  eq('second hit full 3', c.G.hp, 4);
+
+  // learner: xpNeed = level*5
+  c.G.perks = { learner: true }; c.G.level = 2;
+  eq('learner xpNeed', vm.runInContext('xpNeed()', c), 10);
+
+  // revive: 致命伤半血站起,再来一次才死
+  const c2 = freshCtx();
+  c2.G.size = 2; c2.G.hp = 2; c2.G.maxHp = 8; c2.G.level = 9; c2.G.xp = 0;
+  c2.G.perks = { revive: true }; c2.G.revived = false;
+  c2.G.grid = Array.from({ length: 4 }, () => ({ t: 'empty', mon: null, rev: false, dead: false }));
+  c2.G.grid[0].mon = 'ghost'; c2.G.grid[1].mon = 'ghost';
+  vm.runInContext('reveal(0)', c2);
+  eq('revive survives', c2.G.phase !== 'LOSE', true);
+  eq('revive half hp then rewards', c2.G.hp >= 4, true);
+  c2.G.hp = 2;
+  vm.runInContext('reveal(1)', c2);
+  eq('second lethal → LOSE', c2.G.phase, 'LOSE');
+
+  // potion/coin perks
+  const c3 = freshCtx();
+  c3.G.size = 2; c3.G.hp = 1; c3.G.maxHp = 9; c3.G.gold = 0;
+  c3.G.perks = { potion: true, coin: true };
+  c3.G.grid = Array.from({ length: 4 }, () => ({ t: 'empty', mon: null, rev: false, dead: false }));
+  c3.G.grid[0].t = 'potion'; c3.G.grid[3].t = 'coin';
+  vm.runInContext('reveal(0)', c3);
+  eq('potion perk heals 3', c3.G.hp, 4);
+  eq('coin perk gives 3', c3.G.gold, 3);
+}
+
+// ── 8) 每日挑战:种子确定性 + 楼梯即胜 ──
+{
+  const mk = (seed) => {
+    const c = freshCtx();
+    c.G.perks = {};
+    vm.runInContext('initDaily(null)', c);
+    c.G.rng = seeded(seed);
+    vm.runInContext('startFloor()', c);
+    return c;
+  };
+  const a = mk(20260710), b = mk(20260710), d = mk(20260711);
+  eq('daily mode', a.G.mode, 'daily');
+  eq('daily size', a.G.size, a.vm_DAILY.size);
+  const sig = (c) => c.G.grid.map(x => (x.mon || '') + x.t).join('|');
+  eq('same seed → same board', sig(a) === sig(b), true);
+  eq('different seed → different board', sig(a) !== sig(d), true);
+  const si = a.G.grid.findIndex(x => x.t === 'stairs');
+  a.G.grid[si].rev = true;
+  const soulsBefore = a.G.souls;
+  vm.runInContext(`clickCell(${si})`, a);
+  eq('daily stairs → WIN', a.G.phase, 'WIN');
+  eq('daily win souls +10', a.G.souls, soulsBefore + 10);
 }
 
 console.log(`\n${pass} pass, ${fail} fail`);

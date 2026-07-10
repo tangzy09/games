@@ -6,10 +6,29 @@
     "subtitle": "Numbers show the total strength of nearby monsters. Your HP is a resource — spend it wisely, reach the dragon.",
     "souls": "Souls: {n}",
     "best": "Best: floor {n}",
-    "start": "Descend"
+    "start": "Descend",
+    "streak": "🔥 {n}-day streak",
+    "daily": "Daily Challenge",
+    "dailyDone": "Daily done — back tomorrow",
+    "upgrades": "Upgrades"
   },
   "ui": { "floor": "Floor", "level": "Lv" },
-  "intro": { "floor": "Floor {n}", "boss": "The dragon sleeps here…", "enter": "Enter" },
+  "intro": {
+    "floor": "Floor {n}", "boss": "The dragon sleeps here…", "enter": "Enter",
+    "daily": "Daily Challenge",
+    "dailyGoal": "One dense floor, same board for everyone today. Reach the 🪜 stairs alive — one attempt per day."
+  },
+  "upg": {
+    "title": "Permanent Upgrades",
+    "back": "Back",
+    "vital1":  { "name": "Vitality I",    "desc": "+1 starting max HP." },
+    "coin":    { "name": "Fat Coins",     "desc": "Coin tiles give +1 gold." },
+    "potion":  { "name": "Strong Brew",   "desc": "Potions heal +1 HP." },
+    "guard":   { "name": "Leather Guard", "desc": "The first hit you take each run does 1 less damage." },
+    "vital2":  { "name": "Vitality II",   "desc": "+1 more starting max HP." },
+    "learner": { "name": "Quick Learner", "desc": "Each level-up needs 1 less XP per level." },
+    "revive":  { "name": "Last Candle",   "desc": "Once per run: survive a killing blow at half HP." }
+  },
   "relic": {
     "pick": "Choose a relic",
     "skip": "Skip",
@@ -28,8 +47,11 @@
     "next": "Got it",
     "skip": "Skip tutorial"
   },
-  "float": { "gold": "+{n} gold", "heal": "+{n} HP", "levelUp": "Level {n}! Fully healed" },
+  "float": { "gold": "+{n} gold", "heal": "+{n} HP", "levelUp": "Level {n}! Fully healed", "revive": "🕯️ The candle burns — you live!", "resumed": "Run resumed" },
   "lose": { "title": "You fell…", "gap": "Only {n} floor(s) from the dragon" },
   "win": { "title": "Dragon slain!" },
-  "end": { "souls": "+{n} souls this run", "total": "Total souls: {n}", "retry": "Run it back", "home": "Home" }
+  "end": {
+    "souls": "+{n} souls this run", "total": "Total souls: {n}", "retry": "Run it back", "home": "Home",
+    "streakUp": "🔥 {n}-day streak!", "streakLost": "Streak broken — try again tomorrow"
+  }
 }

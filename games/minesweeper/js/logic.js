@@ -7,14 +7,20 @@
 
 const G = {
   phase: 'HOME',   // HOME | LEVEL_INTRO | PLAYING | PICK_RELIC | WIN | LOSE
+  mode: 'normal',  // normal | daily
   floorIdx: 0, size: 0, grid: [],
   hp: 0, maxHp: 0, xp: 0, level: 1, gold: 0,
   souls: 0,        // meta currency earned THIS run (death keeps it; persisted by main.js)
   relics: [], relicChoices: [],
   revealCount: 0, regenCounter: 0,
+  perks: {},       // owned permanent upgrades, set by main.js before initRun
+  revived: false, guardUsed: false,
   pendingFloat: null,
   rng: Math.random, // injectable for tests / daily seeds
 };
+
+// XP required for the next level (learner perk: -1 per level)
+function xpNeed() { return G.level * (G.perks.learner ? XP_PER_LEVEL - 1 : XP_PER_LEVEL); }
 
 // ── helpers ──
 function idx(r, c) { return r * G.size + c; }
@@ -44,8 +50,9 @@ function cellNumber(i) {
 }
 
 // ── board generation ──
+// Accepts a floor index (normal run) or a floor config object (daily).
 function genFloor(floorIdx) {
-  const f = FLOORS[floorIdx];
+  const f = typeof floorIdx === 'number' ? FLOORS[floorIdx] : floorIdx;
   G.size = f.size;
   const N = f.size * f.size;
   G.grid = Array.from({ length: N }, () => ({ t: 'empty', mon: null, rev: false, dead: false }));
@@ -95,14 +102,15 @@ function reveal(i) {
 function collect(i) {
   const cell = G.grid[i];
   if (cell.t === 'coin') {
-    const g = COIN_GOLD * (hasRelic('greed') ? 2 : 1);
+    const g = (COIN_GOLD + (G.perks.coin ? 1 : 0)) * (hasRelic('greed') ? 2 : 1);
     G.gold += g; G.souls += 1;
     cell.t = 'empty';
     G.pendingFloat = { key: 'float.gold', params: { n: g } };
   } else if (cell.t === 'potion') {
-    heal(POTION_HEAL);
+    const n = POTION_HEAL + (G.perks.potion ? 1 : 0);
+    heal(n);
     cell.t = 'empty';
-    G.pendingFloat = { key: 'float.heal', params: { n: POTION_HEAL } };
+    G.pendingFloat = { key: 'float.heal', params: { n } };
   }
 }
 
@@ -131,15 +139,24 @@ function expandZeros() {
 // ── combat ──
 function fight(i) {
   const cell = G.grid[i];
-  const id = cell.mon, p = monPower(id);
+  const id = cell.mon;
+  let p = monPower(id);
+  if (G.perks.guard && !G.guardUsed) { G.guardUsed = true; p = Math.max(0, p - 1); }
   G.hp -= p;
   cell.dead = true;
-  if (G.hp <= 0) { G.hp = 0; G.phase = 'LOSE'; return; }
+  if (G.hp <= 0) {
+    if (G.perks.revive && !G.revived) { // once per run: cheat death at half HP
+      G.revived = true;
+      G.hp = Math.max(1, Math.ceil(G.maxHp / 2));
+      G.pendingFloat = { key: 'float.revive' };
+    } else { G.hp = 0; G.phase = 'LOSE'; return; }
+  }
   // rewards: xp + gold + souls scale with true power
-  G.xp += p; G.gold += p; G.souls += p;
+  const reward = MONSTERS[id].power;
+  G.xp += reward; G.gold += reward; G.souls += reward;
   if (hasRelic('vamp') && MONSTERS[id].power >= 3) heal(1);
-  while (G.xp >= G.level * XP_PER_LEVEL) {
-    G.xp -= G.level * XP_PER_LEVEL;
+  while (G.xp >= xpNeed()) {
+    G.xp -= xpNeed();
     G.level++; G.maxHp++; G.hp = G.maxHp;
     G.pendingFloat = { key: 'float.levelUp', params: { n: G.level } };
   }
@@ -149,16 +166,26 @@ function fight(i) {
 
 // ── run / floor flow ──
 function initRun() {
+  G.mode = 'normal';
   G.floorIdx = 0;
-  G.hp = START_HP; G.maxHp = START_HP;
+  const bonus = (G.perks.vital1 ? 1 : 0) + (G.perks.vital2 ? 1 : 0);
+  G.hp = START_HP + bonus; G.maxHp = START_HP + bonus;
   G.xp = 0; G.level = 1; G.gold = 0; G.souls = 0;
   G.relics = []; G.relicChoices = [];
   G.revealCount = 0; G.regenCounter = 0;
+  G.revived = false; G.guardUsed = false;
   G.phase = 'LEVEL_INTRO';
 }
 
+// Daily challenge: same init but seeded rng + single dense floor.
+function initDaily(rng) {
+  initRun();
+  G.mode = 'daily';
+  G.rng = rng;
+}
+
 function startFloor() {
-  genFloor(G.floorIdx);
+  genFloor(G.mode === 'daily' ? DAILY_FLOOR : G.floorIdx);
   if (G.phase !== 'LOSE' && G.phase !== 'WIN') G.phase = 'PLAYING';
 }
 
@@ -166,7 +193,10 @@ function startFloor() {
 function clickCell(i) {
   const cell = G.grid[i];
   if (cell.rev) {
-    if (cell.t === 'stairs' && G.floorIdx < FLOORS.length - 1) { offerRelics(); }
+    if (cell.t === 'stairs') {
+      if (G.mode === 'daily') { G.phase = 'WIN'; G.souls += 10; } // daily goal: reach the stairs
+      else if (G.floorIdx < FLOORS.length - 1) offerRelics();
+    }
     return;
   }
   reveal(i);
@@ -195,5 +225,5 @@ function pickRelic(id) { // id === null → skip
 // node export for tests (browser: plain globals)
 if (typeof module !== 'undefined') {
   module.exports = { G, idx, neighbors, cellNumber, genFloor, reveal, clickCell, fight,
-    initRun, startFloor, offerRelics, pickRelic, monPower, hasRelic };
+    initRun, initDaily, startFloor, offerRelics, pickRelic, monPower, hasRelic, xpNeed };
 }

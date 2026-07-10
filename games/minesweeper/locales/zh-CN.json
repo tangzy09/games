@@ -6,10 +6,29 @@
     "subtitle": "数字 = 周围怪物的强度总和。血量是资源——精打细算地花，一路杀到巨龙面前。",
     "souls": "灵魂：{n}",
     "best": "最深：第 {n} 层",
-    "start": "下潜"
+    "start": "下潜",
+    "streak": "🔥 连续 {n} 天",
+    "daily": "每日挑战",
+    "dailyDone": "今日已挑战——明天再来",
+    "upgrades": "强化"
   },
   "ui": { "floor": "层", "level": "Lv" },
-  "intro": { "floor": "第 {n} 层", "boss": "巨龙沉睡于此……", "enter": "进入" },
+  "intro": {
+    "floor": "第 {n} 层", "boss": "巨龙沉睡于此……", "enter": "进入",
+    "daily": "每日挑战",
+    "dailyGoal": "一张高密度盘面，今天全世界同一张。活着摸到 🪜 楼梯就算赢——每天只有一次机会。"
+  },
+  "upg": {
+    "title": "永久强化",
+    "back": "返回",
+    "vital1":  { "name": "生命力 I",  "desc": "初始生命上限 +1。" },
+    "coin":    { "name": "厚金币",    "desc": "金币格多给 1 金。" },
+    "potion":  { "name": "浓药水",    "desc": "药水多回 1 点生命。" },
+    "guard":   { "name": "皮甲",      "desc": "每局第一次受到的伤害 -1。" },
+    "vital2":  { "name": "生命力 II", "desc": "初始生命上限再 +1。" },
+    "learner": { "name": "速学者",    "desc": "每级升级所需经验 -1。" },
+    "revive":  { "name": "长明烛",    "desc": "每局一次：受到致命伤时以半血存活。" }
+  },
   "relic": {
     "pick": "选择一件遗物",
     "skip": "跳过",
@@ -28,8 +47,11 @@
     "next": "知道了",
     "skip": "跳过教程"
   },
-  "float": { "gold": "+{n} 金币", "heal": "+{n} 生命", "levelUp": "升到 {n} 级！生命全满" },
+  "float": { "gold": "+{n} 金币", "heal": "+{n} 生命", "levelUp": "升到 {n} 级！生命全满", "revive": "🕯️ 长明烛燃起——你活下来了！", "resumed": "已恢复上局进度" },
   "lose": { "title": "你倒下了……", "gap": "距离巨龙只差 {n} 层" },
   "win": { "title": "屠龙成功！" },
-  "end": { "souls": "本局 +{n} 灵魂", "total": "灵魂总计：{n}", "retry": "再来一局", "home": "回主页" }
+  "end": {
+    "souls": "本局 +{n} 灵魂", "total": "灵魂总计：{n}", "retry": "再来一局", "home": "回主页",
+    "streakUp": "🔥 连续 {n} 天！", "streakLost": "连胜中断——明天再战"
+  }
 }
