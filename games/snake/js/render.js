@@ -152,7 +152,7 @@ function drawSnake() {
 function drawButtons() {
   const a = Layout.btnAI;
   fillRR(a.x, a.y, a.w, a.h, 14, G.ai ? PAL.btnOn : PAL.accent);
-  txt(T('snake.ai'), a.x + a.w / 2, a.y + a.h / 2, '#fff', 'bold 15px sans-serif');
+  txt(`${T('snake.ai')} · ${G.ai ? T('snake.on') : T('snake.off')}`, a.x + a.w / 2, a.y + a.h / 2, '#fff', 'bold 15px sans-serif');
   addHit(a.x, a.y, a.w, a.h, 'AI_TOGGLE', {});
 }
 
