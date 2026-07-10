@@ -64,6 +64,17 @@ function layout() {
   return { SW, SH, PAD, hudY, hudH, GAP, ts, boardX: (SW - bw) / 2, boardY: hudY + hudH + PAD };
 }
 
+// vector heart: exact colors on every device (emoji hearts go monochrome on some stacks)
+function drawHeart(cx, cy, s, fill, stroke) {
+  ctx.beginPath();
+  ctx.moveTo(cx, cy + s * 0.32);
+  ctx.bezierCurveTo(cx - s * 0.5, cy - s * 0.06, cx - s * 0.36, cy - s * 0.42, cx, cy - s * 0.18);
+  ctx.bezierCurveTo(cx + s * 0.36, cy - s * 0.42, cx + s * 0.5, cy - s * 0.06, cx, cy + s * 0.32);
+  ctx.closePath();
+  ctx.fillStyle = fill; ctx.fill();
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1.4; ctx.stroke(); }
+}
+
 function drawHud(L) {
   const { PAD, SW, hudY: y, hudH: h } = L;
   fillRR(PAD, y, SW - PAD * 2, h, 16, C.surface);
@@ -73,10 +84,13 @@ function drawHud(L) {
   const hGroups = Math.floor((MAX_HP - 1) / 5);
   const hs = Math.min(17, (SW - PAD * 2 - 130 - hGroups * GAP5) / MAX_HP);
   const heartX = (k) => PAD + 16 + k * hs + Math.floor(k / 5) * GAP5;
-  for (let k = 0; k < G.maxHp; k++)
-    txt(k < G.hp ? '❤️' : '🤍', heartX(k), y + 17, C.text, `${Math.round(hs * 0.85)}px sans-serif`);
+  for (let k = 0; k < G.maxHp; k++) {
+    if (k < G.hp) drawHeart(heartX(k), y + 17, hs, '#ff4757', '#e03347');       // 满血:正红
+    else drawHeart(heartX(k), y + 17, hs, '#f3e7d8', '#dcc9b4');                // 空心:浅底描边
+  }
   if (G.halfHeart && G.maxHp < MAX_HP)
-    txt('💗', heartX(G.maxHp), y + 17, C.text, `${Math.round(hs * 0.6)}px sans-serif`);
+    drawHeart(heartX(G.maxHp), y + 17, hs * 0.66, '#ffb3bc', '#e03347');        // 半心苞
+
   // xp as gold nuggets (original style): earned bright, still-needed dim
   const bx = PAD + 14, bw = SW - PAD * 2 - 126, by = y + 36;
   txtL(`Lv${G.level}`, bx, by + 8, C.xp, 'bold 12px sans-serif');
