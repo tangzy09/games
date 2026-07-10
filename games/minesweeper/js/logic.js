@@ -117,12 +117,15 @@ function genBoard() {
   const chestIs = [];
   for (let k = 0; k < ITEMS.chest.count; k++) chestIs.push(putItem(rand(freeIdx()), 'chest'));
   for (let k = 0; k < ITEMS.medichest.count; k++) chestIs.push(putItem(rand(freeIdx()), 'medichest'));
-  for (let k = 0; k < 5; k++) { // codex promise: every moobo stands beside a chest
-    const withRoom = chestIs.filter(ci => freeNear(ci, 1.5).length > 0);
-    const ci = withRoom.length ? rand(withRoom) : rand(chestIs);
-    const s = freeNear(ci, 1.5);
-    putMon(s.length ? rand(s) : rand(freeIdx()), 'moobo');
-  }
+  // moobo↔chest is a 1:1 pairing (original prefers exactly-one-chest, uncrowded),
+  // and the original skips same-column chests — the guard never stands directly
+  // above/below its chest. 8-neighborhood otherwise (euclid < 2).
+  chestIs.forEach(ci => {
+    const spots = freeNear(ci, 1.5);
+    const offCol = spots.filter(j => j % G.w !== ci % G.w);
+    const pick = offCol.length ? rand(offCol) : (spots.length ? rand(spots) : rand(freeIdx()));
+    putMon(pick, 'moobo');
+  });
   for (let p = 1; p <= MONSTERS.cuddle.pairs; p++) {
     let a;
     do { a = rand(freeIdx()); } while (!freeNear(a, 1.5).length);

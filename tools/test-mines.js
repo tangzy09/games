@@ -203,6 +203,7 @@ for (let s = 30; s <= 37; s++) { // 8 个种子查放置类承诺
   const moobos = g.map((x, i) => x.mon === 'moobo' ? i : -1).filter(i => i >= 0);
   const chests = g.map((x, i) => (x.item === 'chest' || x.item === 'medichest') ? i : -1).filter(i => i >= 0);
   ok(`s${s} 每只哞哞霸都贴宝箱`, moobos.every(m => chests.some(ch => near(m, ch))));
+  ok(`s${s} 守箱不与箱同列`, moobos.every(m => chests.some(ch => near(m, ch) && ch % W !== m % W)));
 }
 { // 鼠大王掉落揭示全场小鼠鼠
   const c = freshCtx(40);
