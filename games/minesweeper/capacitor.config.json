@@ -1,0 +1,16 @@
+{
+  "appId": "com.aispeeds.dungeonsweep",
+  "appName": "Dungeon Sweep",
+  "webDir": "www",
+  "backgroundColor": "#fdf3e7",
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 800,
+      "backgroundColor": "#fdf3e7",
+      "showSpinner": false
+    },
+    "AdMob": {
+      "initializeForTesting": true
+    }
+  }
+}

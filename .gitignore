@@ -1,3 +1,7 @@
 deploy.sh
 *.pem
 node_modules/
+# Capacitor 产物(云端每次新鲜生成,不入库)
+games/*/www/
+games/*/ios/
+games/*/android/

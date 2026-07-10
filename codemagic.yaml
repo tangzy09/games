@@ -1,0 +1,90 @@
+workflows:
+  mines-ios-testflight:
+    name: Dungeon Sweep iOS → TestFlight
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    integrations:
+      app_store_connect: ASC API Key        # 与 Codemagic 后台 ASC API key 集成同名(一字不差)
+    environment:
+      groups:
+        - ios_signing                        # 含 CERTIFICATE_PRIVATE_KEY(Secure),app 级变量
+      vars:
+        BUNDLE_ID: "com.aispeeds.dungeonsweep"
+        XCODE_SCHEME: "App"
+        APP_STORE_APP_ID: "PLACEHOLDER"      # ⚠ ASC 建完 App 记录后回填数字 Apple ID
+      node: 20                               # Capacitor 6(Cap8 才需 22)
+      xcode: latest                          # 苹果强制最新 SDK 才收,别钉旧版
+      cocoapods: default
+    scripts:
+      - name: npm 依赖
+        script: |
+          set -e
+          cd games/minesweeper
+          npm ci || npm install
+      - name: 组装 www(monorepo → webDir)
+        script: |
+          set -e
+          cd games/minesweeper
+          node scripts/build-www.cjs
+      - name: 生成 iOS 工程 + pin UMP 2.x
+        script: |
+          set -e
+          cd games/minesweeper
+          npx cap add ios
+          npx cap sync ios
+          # @capacitor-community/admob v6 用旧 UMP API,UMP 3.x 全重命名 → pin 回 2.3.x(与 2048 同修法)
+          perl -i -pe "s/(target 'App' do)/\$1\n  pod 'GoogleUserMessagingPlatform', '~> 2.3'/" ios/App/Podfile
+          grep -n GoogleUserMessagingPlatform ios/App/Podfile || true
+          cd ios/App && rm -f Podfile.lock && pod install && cd ../..
+      - name: 图标 + 启动屏(源图在 resources/)
+        script: |
+          set -e
+          cd games/minesweeper
+          npx @capacitor/assets generate --ios --assetPath resources
+      - name: 注入 Info.plist(AdMob + ATT + 免出口合规)
+        script: |
+          set -e
+          cd games/minesweeper
+          PLIST=ios/App/App/Info.plist
+          plutil -replace ITSAppUsesNonExemptEncryption -bool false "$PLIST"
+          # ⚠ Google 官方测试 AdMob App ID —— 正式提审前换成本游戏真实 AdMob App ID(admob-monetization)
+          plutil -replace GADApplicationIdentifier -string "ca-app-pub-3940256099942544~1458002511" "$PLIST"
+          plutil -replace NSUserTrackingUsageDescription -string "Your device identifier is used to deliver and measure more relevant ads." "$PLIST"
+          plutil -p "$PLIST" | grep -E "GADApplicationIdentifier|NSUserTrackingUsageDescription|ITSApp" || true
+      - name: 签名(建证书 + 描述文件)
+        script: |
+          set -e
+          cd games/minesweeper
+          keychain initialize
+          app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
+          keychain add-certificates
+          xcode-project use-profiles
+      - name: 递增构建号
+        script: |
+          set -e
+          cd games/minesweeper/ios/App
+          LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APP_ID" 2>/dev/null || echo 0)
+          agvtool new-version -all $(($LATEST + 1))
+      - name: 打 IPA
+        script: |
+          set -e
+          cd games/minesweeper
+          if [ -d ios/App/App.xcworkspace ]; then
+            xcode-project build-ipa --workspace ios/App/App.xcworkspace --scheme "$XCODE_SCHEME"
+          else
+            xcode-project build-ipa --project ios/App/App.xcodeproj --scheme "$XCODE_SCHEME"
+          fi
+    artifacts:
+      - games/minesweeper/build/ios/ipa/*.ipa
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+      email:
+        recipients:
+          - tangzy09@gmail.com
+        notify:
+          success: true
+          failure: true
