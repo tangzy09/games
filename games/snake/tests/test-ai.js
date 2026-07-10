@@ -29,3 +29,46 @@ console.log('OK test-ai(回路)');
   assert(levels >= 2, '纯回路 10000 步内至少通关 2 次');
 }
 console.log('OK test-ai(纯回路)');
+
+{
+  let totalSteps = 0;
+  for (const seed of [1, 2, 3, 4, 5]) {
+    const g = Core.createGame({ seed });
+    const mem = AI.createMem();
+    let levels = 0, steps = 0;
+    while (levels < 2) {
+      Core.setDir(g, AI.nextMove(g, cyc, mem));
+      Core.step(g);
+      steps++;
+      assert(!g.dead, `seed=${seed} 第 ${steps} 步死亡——安全不变式被破坏`);
+      assert(steps < 20000, `seed=${seed} 超 2 万步未通 2 关——揭图停滞`);
+      if (g.levelJustDone) levels++;
+    }
+    totalSteps += steps;
+    assert(g.stats.apples > 0, '捷径模式应吃到苹果');
+  }
+  assert(totalSteps >= 2048, 'sanity:至少走完理论下限');
+  console.log(`  完整 AI 5 种子 ×2 关,总步数 ${totalSteps},零死亡`);
+}
+console.log('OK test-ai(捷径+保证通关)');
+
+{
+  // 压力测试:再跑 3 个种子各通 3 关,确保多种子零死亡不是运气
+  let totalSteps = 0;
+  for (const seed of [7, 8, 9]) {
+    const g = Core.createGame({ seed });
+    const mem = AI.createMem();
+    let levels = 0, steps = 0;
+    while (levels < 3) {
+      Core.setDir(g, AI.nextMove(g, cyc, mem));
+      Core.step(g);
+      steps++;
+      assert(!g.dead, `压力测试 seed=${seed} 第 ${steps} 步死亡`);
+      assert(steps < 30000, `压力测试 seed=${seed} 超 3 万步未通 3 关`);
+      if (g.levelJustDone) levels++;
+    }
+    totalSteps += steps;
+  }
+  console.log(`  压力测试 3 种子 ×3 关,总步数 ${totalSteps},零死亡`);
+}
+console.log('OK test-ai(压力测试)');

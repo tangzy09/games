@@ -61,7 +61,49 @@ function nextMove(s, cyc, mem) {
   if (pure) return suggestion;
   return shortcutMove(s, cyc, mem, hi, head) || suggestion;
 }
-function shortcutMove() { return null; }   // Task 7 实现
+// 安全不变式:候选格回路前向距离 < 头→尾前向距离 - 余量(身体全部留在前向区间之外);
+// 捷径只穿已揭格(目标格例外);等价代价偏好未揭格(顺路揭,防停滞保险 a)。
+function shortcutMove(s, cyc, mem, hi, head) {
+  const tail = s.snake[s.snake.length - 1];
+  const ti = cyc.indexOf[tail.y * s.cols + tail.x];
+  const headToTail = relDist(cyc, hi, ti);
+  const margin = (s.targetLen - s.snake.length) + 4;
+
+  // 目标:苹果;停滞时改打最近未揭格(防停滞保险 b)
+  let target = s.apple;
+  if (mem.sinceReveal > STALL_STEPS) target = nearestUnrevealed(s, head) || s.apple;
+  if (!target) return null;
+  const tIdx = cyc.indexOf[target.y * s.cols + target.x];
+
+  let best = null, bestScore = Infinity;
+  for (const dir of ['up', 'down', 'left', 'right']) {
+    const d = AIDIRS[dir];
+    const nx = head.x + d.x, ny = head.y + d.y;
+    if (nx < 0 || ny < 0 || nx >= s.cols || ny >= s.rows) continue;
+    if (s.snake.some(c => c.x === nx && c.y === ny)) continue;   // 尾巴也保守视为占用
+    const ni = cyc.indexOf[ny * s.cols + nx];
+    const fwd = relDist(cyc, hi, ni);
+    const isSucc = fwd === 1;
+    const isTargetCell = nx === target.x && ny === target.y;
+    if (!isSucc) {
+      if (s.snake.length >= 4 && fwd > headToTail - margin) continue;  // 安全不变式
+      if (!s.revealed[ny * s.cols + nx] && !isTargetCell) continue;    // 捷径只穿已揭格
+    }
+    const score = relDist(cyc, ni, tIdx) * 2 + (s.revealed[ny * s.cols + nx] ? 1 : 0);
+    if (score < bestScore) { bestScore = score; best = dir; }
+  }
+  return best;
+}
+
+function nearestUnrevealed(s, from) {
+  let best = null, bestD = Infinity;
+  for (let y = 0; y < s.rows; y++) for (let x = 0; x < s.cols; x++) {
+    if (s.revealed[y * s.cols + x]) continue;
+    const d = Math.abs(x - from.x) + Math.abs(y - from.y);
+    if (d < bestD) { bestD = d; best = { x, y }; }
+  }
+  return best;
+}
 
 const AI = { buildCycle, createMem, nextMove, STALL_STEPS };
 if (typeof module !== 'undefined' && module.exports) module.exports = AI;
