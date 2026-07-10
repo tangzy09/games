@@ -5,9 +5,10 @@
 // 触摸设备检测:READY/暂停提示按设备区分(触摸=滑动,桌面=方向键)
 const IS_TOUCH = typeof navigator !== 'undefined' && (navigator.maxTouchPoints > 0 || 'ontouchstart' in window);
 
-const PAL = { bg:'#fdf3f7', cloud:'#f3e0ef', cloudEdge:'#e6c8e0', snake:'#f7b8d4',
-  accent:'#e79cc2', accent2:'#b39ddb', text:'#7a5c72', bar:'#f6d5e5', card:'#ffffff',
-  apple:'#ff8fab', leaf:'#a5d6a7', glow:'#fff59d', eye:'#5d4a57', btnOn:'#b39ddb' };
+// 调色板走主题(themes.js 在本文件前加载);applyThemePal 由 main 在 boot/切肤时调,
+// 切肤后需 initLayers(G.img) 重建遮罩纹理。PAL 是顶层 let,E2E evaluate 裸名可读。
+let PAL = THEMES.cloud.pal;
+function applyThemePal(key) { PAL = (THEMES[key] || THEMES.cloud).pal; }
 
 const Layout = { bx:0, by:0, bsize:0, cell:0, btnAI:null, btnPause:null };
 let bgLayer = null, maskLayer = null, layerPx = 0;
@@ -54,12 +55,10 @@ function resetMask() {
   m.globalCompositeOperation = 'source-over';
   m.clearRect(0, 0, layerPx, layerPx);
   m.fillStyle = PAL.cloud; m.fillRect(0, 0, layerPx, layerPx);
-  m.strokeStyle = PAL.cloudEdge; m.lineWidth = 1;
-  for (let y = 0; y < G.run.rows; y++) for (let x = 0; x < G.run.cols; x++) {
-    m.beginPath();
-    m.arc(x * pc + pc / 2, y * pc + pc / 2, pc * 0.34, 0, Math.PI * 2);
-    m.stroke();                       // 云朵纹理:每格一圈
-  }
+  // 遮罩纹理走主题(云圈/星点/棋盘格/羽毛),确定性绘制
+  const key = (G.save && G.save.settings && THEMES[G.save.settings.theme])
+    ? G.save.settings.theme : 'cloud';
+  THEMES[key].texture(m, layerPx, pc);
 }
 
 function rrPath(c, x, y, w, h, r) {

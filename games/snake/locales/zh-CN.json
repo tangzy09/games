@@ -21,7 +21,16 @@
     "on": "开",
     "off": "关"
   },
-  "menu": { "achievements": "成就", "gallery": "图鉴" },
+  "menu": { "achievements": "成就", "gallery": "图鉴", "skins": "皮肤" },
+  "skins": {
+    "title": "皮肤",
+    "cloud": "云朵粉彩",
+    "star": "星夜梦境",
+    "candy": "马卡龙糖果",
+    "heaven": "天国花园",
+    "needLevels": "揭开 {n} 张图解锁",
+    "needSet": "集齐一个主题集解锁"
+  },
   "gal": {
     "title": "图鉴",
     "back": "← 返回",

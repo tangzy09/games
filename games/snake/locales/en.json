@@ -21,7 +21,16 @@
     "on": "ON",
     "off": "OFF"
   },
-  "menu": { "achievements": "Achievements", "gallery": "Gallery" },
+  "menu": { "achievements": "Achievements", "gallery": "Gallery", "skins": "Skins" },
+  "skins": {
+    "title": "Skins",
+    "cloud": "Cloud Pastel",
+    "star": "Starry Dream",
+    "candy": "Macaron Candy",
+    "heaven": "Heaven Garden",
+    "needLevels": "Clear {n} angels to unlock",
+    "needSet": "Complete a full set"
+  },
   "gal": {
     "title": "Gallery",
     "back": "← Back",

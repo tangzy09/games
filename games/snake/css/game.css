@@ -40,3 +40,13 @@ body { background: #fdf3f7; }
 .ach-item .nm { font: 600 14px sans-serif; color: #7a5c72; }
 .ach-item.got .nm { color: #d6336c; }
 .ach-item .pg { margin-left: auto; font: 500 12px sans-serif; color: #b39ddb; white-space: nowrap; }
+
+/* 皮肤面板 */
+.skin-card { display: flex; align-items: center; gap: 12px; padding: 12px 10px;
+  border: 2px solid transparent; border-radius: 14px; margin-bottom: 8px; }
+.skin-card.on { border-color: #e79cc2; }
+.skin-card.locked { opacity: .55; }
+.skin-sw { width: 56px; height: 36px; border-radius: 10px; display: flex; overflow: hidden; }
+.skin-sw i { flex: 1; }
+.skin-nm { font: 600 14px sans-serif; color: #7a5c72; }
+.skin-tip { margin-left: auto; font: 500 12px sans-serif; color: #7a5c72; opacity: .8; }

@@ -121,6 +121,57 @@ function renderAchTab(tab) {
   }).join('');
 }
 
+// ——皮肤——
+// 应用主题:调色板 + body 背景;切肤后由调用方 initLayers 重建遮罩纹理
+function applyTheme(key) {
+  if (!THEMES[key]) key = 'cloud';
+  G.save.settings.theme = key;
+  applyThemePal(key);
+  document.body.style.background = PAL.bg;
+}
+// 皮肤卡点击路径(E2E 直接调):已解锁才生效,返回是否切换成功
+function applyThemeFromUI(key) {
+  if (!Themes.themeUnlocked(key, G.save)) return false;
+  applyTheme(key);
+  initLayers(G.img);
+  persist();
+  renderAll();
+  if (document.querySelector('.skin-card')) renderSkinsBody();   // 面板开着就刷新选中态
+  return true;
+}
+function openSkins() {
+  const panel = document.getElementById('panel');
+  document.getElementById('panel-title').textContent = T('skins.title');
+  document.getElementById('panel-tabs').innerHTML = '';
+  document.getElementById('panel-close').onclick = () => {
+    panel.classList.add('hidden');
+    if (G.phase === 'PAUSED') renderAll();
+  };
+  panel.classList.remove('hidden');
+  renderSkinsBody();
+  if (G.phase === 'PLAYING') dispatch('PAUSE');
+}
+function renderSkinsBody() {
+  const body = document.getElementById('panel-body');
+  if (!body) return;
+  const cur = G.save.settings.theme || 'cloud';
+  body.innerHTML = Themes.THEME_ORDER.map(k => {
+    const t = Themes.THEMES[k];
+    const un = Themes.themeUnlocked(k, G.save);
+    const sw = ['bg', 'cloud', 'snake', 'accent', 'accent2']
+      .map(c => `<i style="background:${t.pal[c]}"></i>`).join('');
+    let tip = '';
+    if (!un) tip = t.unlock.stat === 'setsDone' ? T('skins.needSet') : T('skins.needLevels', { n: t.unlock.n });
+    else if (k === cur) tip = '✓';
+    return `<div class="skin-card${k === cur ? ' on' : ''}${un ? '' : ' locked'}" data-k="${k}">
+      <span class="skin-sw">${sw}</span><span class="skin-nm">${T('skins.' + k)}</span>
+      <span class="skin-tip">${tip}</span></div>`;
+  }).join('');
+  body.querySelectorAll('.skin-card:not(.locked)').forEach(el => {
+    el.onclick = () => applyThemeFromUI(el.dataset.k);
+  });
+}
+
 // 解锁 toast:一次最多叠 3 条,2.6s 后淡出
 function showAchToasts(ids) {
   const host = document.getElementById('toasts');
@@ -184,6 +235,9 @@ function tick(nowMs, interval) {
   Ach.accumulate(G.save, run, ev, { aiRun, scoreDelta, revealDelta, dtMs: interval });
   let newly = [];
   if (run.levelJustDone) {
+    // 皮肤通关计数(sk_* 成就)——放 checkCum 之前当场触发
+    const th = G.save.settings.theme || 'cloud';
+    G.save.stats.skinClears[th] = (G.save.stats.skinClears[th] || 0) + 1;
     const r1 = Ach.onLevelClear(G.tracker, G.save, nowMs, { aiRun });
     newly = r1.unlocked;
   }
@@ -202,6 +256,7 @@ async function boot() {
     restoreAudioPrefs();
     G.saveKey = CFG.key('save');
     G.save = Storage.load(Platform.storage, G.saveKey);
+    applyTheme(G.save.settings.theme);   // 主题不合法自动回 cloud
     Portal.boot();
     await Ads.init();
     let langBooted = false;
@@ -251,10 +306,13 @@ async function boot() {
     window.addEventListener('resize', () => { initCanvas(); if (G.run) initLayers(G.img); renderAll(); });
     Controls.render(
       `<div class="ctl-btn" id="ach-btn" title="${T('menu.achievements')}">🏅</div>
+       <div class="ctl-btn" id="skin-btn" title="${T('menu.skins')}">🎨</div>
        <div class="ctl-btn" id="sfx-btn">${Sfx.on ? '🔊' : '🔇'}</div>`,
       bar => {
         const a = bar.querySelector('#ach-btn');
         if (a) a.onclick = () => openAchievements();
+        const s = bar.querySelector('#skin-btn');
+        if (s) s.onclick = () => openSkins();
         const b = bar.querySelector('#sfx-btn');
         if (b) b.onclick = () => { b.textContent = Sfx.toggle() ? '🔊' : '🔇'; };
       });
