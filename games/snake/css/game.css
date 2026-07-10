@@ -1,0 +1,11 @@
+/* games/snake/css/game.css — 云朵粉彩(engine.css 之上的页面级覆盖)
+   engine.css 默认 --eng-bg/--eng-ctl-text/--eng-menu-sel-* 是蓝青色调,
+   与粉彩页面明显冲突,这里只覆盖这几个,其余(边框/阴影等中性色)不动。 */
+:root {
+  --eng-bg: #fdf3f7;
+  --eng-ctl-text: #a85d7a;
+  --eng-menu-sel-bg: rgba(255, 158, 196, 0.2);
+  --eng-menu-sel-text: #d6336c;
+}
+
+body { background: #fdf3f7; }

@@ -1,0 +1,19 @@
+{
+  "lang.name": "English",
+  "lang.toggle": "Language",
+  "ads.simWatch": "[Ad simulation] Watch a rewarded ad?",
+  "ads.simInterstitial": "[Ad simulation] Interstitial ad",
+  "snake.score": "Score",
+  "snake.combo": "×{n}",
+  "snake.pause": "⏸",
+  "snake.paused": "Paused",
+  "snake.resume": "Resume",
+  "snake.dead": "Oops, crashed!",
+  "snake.deadHint": "Length {from} → {to}",
+  "snake.respawn": "Go again",
+  "snake.levelDone": "Level {n} clear!",
+  "snake.scoreVal": "Score {n}",
+  "snake.next": "Next angel →",
+  "snake.ai": "🤖 AI Play",
+  "snake.boost": "💨 Boost"
+}
