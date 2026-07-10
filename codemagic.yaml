@@ -105,3 +105,25 @@ workflows:
     scripts: *ios_scripts
     artifacts: *ios_artifacts
     publishing: *ios_publishing
+
+  snake-ios-testflight:
+    name: Angel Snake iOS → TestFlight
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    integrations:
+      app_store_connect: ASC API Key        # 同上,账号级 ASC API Key 复用
+    environment:
+      <<: *ios_env
+      vars:
+        GAME_DIR: "games/snake"
+        BUNDLE_ID: "com.aispeeds.angelsnake"
+        # ⚠ 占位:App Store Connect 建 App 记录后由协调者回填数字 Apple ID;
+        #   占位期间「递增构建号」步会兜底为 0,publishing 到 TestFlight 需真 ID 才能过。
+        APP_STORE_APP_ID: "TBD_BY_COORDINATOR"
+        # ⚠ 占位:Google 官方测试 App ID(可启动、出测试广告,开发期安全);
+        #   AdMob 后台建 app 后由协调者替换为 Angel Snake 自己的真 App ID——
+        #   绝不复用其它游戏的 ID(一 app 一 AdMob 记录)。
+        GAD_APP_ID: "ca-app-pub-3940256099942544~1458002511"
+    scripts: *ios_scripts
+    artifacts: *ios_artifacts
+    publishing: *ios_publishing

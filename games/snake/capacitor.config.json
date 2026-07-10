@@ -1,0 +1,16 @@
+{
+  "appId": "com.aispeeds.angelsnake",
+  "appName": "Angel Snake",
+  "webDir": "www",
+  "backgroundColor": "#fdf3f7",
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 800,
+      "backgroundColor": "#fdf3f7",
+      "showSpinner": false
+    },
+    "AdMob": {
+      "initializeForTesting": true
+    }
+  }
+}
