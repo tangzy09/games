@@ -50,9 +50,11 @@ function mergeEncounters() {
 }
 
 // ── save/resume ──
+const SAVE_VERSION = 2; // bump on any G-shape change; old saves are discarded, not migrated
 function saveRun() {
   if (G.phase !== 'PLAYING') { clearRunSave(); return; }
   const s = {
+    v: SAVE_VERSION,
     phase: G.phase, mode: G.mode, w: G.w, h: G.h, grid: G.grid,
     hp: G.hp, maxHp: G.maxHp, xp: G.xp, level: G.level,
     orbs: G.orbs, sweepDone: G.sweepDone, revealCount: G.revealCount,
@@ -64,7 +66,13 @@ function clearRunSave() { Platform.storage.set(CFG.key('run'), ''); }
 function loadRun() {
   let s;
   try { s = JSON.parse(Platform.storage.get(CFG.key('run')) || ''); } catch (e) { return false; }
-  if (!s || s.phase !== 'PLAYING') return false;
+  // v1 saves (and anything malformed) resume into a 0×0 board = silent blank screen.
+  // Version-gate + shape-check; anything suspect is discarded, never migrated.
+  if (!s || s.v !== SAVE_VERSION || s.phase !== 'PLAYING'
+    || !(s.w > 0) || !(s.h > 0) || !Array.isArray(s.grid) || s.grid.length !== s.w * s.h) {
+    clearRunSave();
+    return false;
+  }
   Object.assign(G, s, { rng: Math.random, encounters: [], settled: false, orbMode: false, tut: s.tut || null });
   G.pendingFloat = { key: 'float.resumed' };
   return true;
