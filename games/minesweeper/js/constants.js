@@ -29,10 +29,17 @@ const MONSTERS = {
 };
 
 // board items (t field)
-const ITEMS_ON_BOARD = { chest: 6, heartscroll: 2 }; // chest = +xp jackpot; heartscroll = full heal
+// chest = +xp jackpot (auto-collected: xp never wastes thanks to rollover);
+// heartscroll = full heal, stays on the board until CLICKED (spend it when needed —
+// the original ships ~7 and this healing budget is what makes the economy solvable)
+const ITEMS_ON_BOARD = { chest: 6, heartscroll: 6 };
 const CHEST_XP = 5;
 const START_ORBS = 2;   // reveal-3x3 orbs in the item bar at start
-const XP_PER_LEVEL = 6; // xp needed = level * XP_PER_LEVEL, overflow rolls over
+// Economy: total xp on board ≈ 167 (all monsters + chests + gnome). Reaching
+// maxHp 13 (enough to survive the lv13 dragon at exactly 0) needs 8 level-ups
+// = XP_PER_LEVEL * 36. At 6 that's 216 → mathematically unwinnable (v1 lesson);
+// at 4 it's 144 → a near-full clear graduates, matching the original's feel.
+const XP_PER_LEVEL = 4;
 
 // peeper star pattern: 12 cells (relative) whose numbers read as "?"
 const PEEPER_STAR = [

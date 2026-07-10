@@ -156,17 +156,23 @@ function expandZeros() {
   }
 }
 
+// auto part (on reveal): chests only — xp rolls over so it never wastes.
+// heartscrolls stay on the board; the player clicks them when the heal matters.
 function collect(i) {
   const cell = G.grid[i];
   if (cell.t === 'chest') { cell.t = 'empty'; gainXp(CHEST_XP); G.pendingFloat = G.pendingFloat || { key: 'float.chest', params: { n: CHEST_XP } }; }
-  else if (cell.t === 'heartscroll') { cell.t = 'empty'; fullHeal(); G.pendingFloat = { key: 'float.fullHeal' }; }
+}
+function collectManual(i) {
+  const cell = G.grid[i];
+  collect(i);
+  if (cell.t === 'heartscroll') { cell.t = 'empty'; fullHeal(); G.pendingFloat = { key: 'float.fullHeal' }; }
 }
 
 // ── the tap: reveal hidden, fight revealed-alive ──
 function clickCell(i) {
   const cell = G.grid[i];
   if (!cell.rev) { reveal(i); return; }
-  if (!cell.mon || cell.dead) { collect(i); return; }
+  if (!cell.mon || cell.dead) { collectManual(i); return; }
   const M = MONSTERS[cell.mon];
   // gnome: hops to a hidden empty cell until none remain
   if (M.teleports) {

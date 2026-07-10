@@ -61,11 +61,11 @@ for (let s = 1; s <= 20; s++) {
   const c = freshCtx(3);
   vm.runInContext('initRun()', c);
   c.G.hp = 1; c.G.maxHp = 5; c.G.level = 1; c.G.xp = 0;
-  vm.runInContext('gainXp(8)', c); // need 6 → level 2, 溢出 2
+  vm.runInContext('gainXp(8)', c); // need 4 → level 2, 溢出 4(不够 level2 的 8)
   eq('level 2', c.G.level, 2);
   eq('maxHp 6', c.G.maxHp, 6);
   eq('full heal', c.G.hp, 6);
-  eq('overflow xp', c.G.xp, 2);
+  eq('overflow xp', c.G.xp, 4);
   c.G.maxHp = 15; c.G.level = 5; c.G.xp = 0;
   vm.runInContext('gainXp(30)', c);
   eq('maxHp capped 15', c.G.maxHp, 15);
@@ -149,8 +149,11 @@ for (let s = 1; s <= 20; s++) {
   c.G.grid.forEach(x => { x.mon = null; x.rev = false; x.fogged = false; x.t = 'empty'; });
   c.G.hp = 2; c.G.maxHp = 9; c.G.level = 99; c.G.xp = 0;
   c.G.grid[0].t = 'heartscroll';
-  vm.runInContext('clickCell(0)', c);
-  eq('heartscroll full heal', c.G.hp, 9);
+  vm.runInContext('clickCell(0)', c); // 第一次:只翻开,卷轴留在盘上
+  eq('heartscroll stays on reveal', c.G.grid[0].t, 'heartscroll');
+  eq('no heal on reveal', c.G.hp, 2);
+  vm.runInContext('clickCell(0)', c); // 第二次:主动使用
+  eq('heartscroll full heal on click', c.G.hp, 9);
   c.G.grid[1].t = 'chest'; c.G.grid[1].rev = false;
   vm.runInContext('clickCell(1)', c);
   eq('chest xp', c.G.xp, 5);

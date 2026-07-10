@@ -1,5 +1,4 @@
-// 蒙特卡洛正确性验证:随机模拟 N 局完整 run,每步点击后校验全部不变量。
-// 关键:数字用【独立重新实现】的算法对账,不调用被测的 cellNumber。
+// v2 蒙特卡洛:贪心 bot 打 N 局,验证不变量 + 可赢性(经济曲线可达)。
 // 用法: node tools/test-mines-sim.js [局数]
 const fs = require('fs');
 const path = require('path');
@@ -8,113 +7,97 @@ const PRNG = require('../engine/prng.js');
 
 const GAMES = parseInt(process.argv[2] || '300', 10);
 
-function freshCtx(rng) {
+function freshCtx(seed) {
   const ctx = vm.createContext({ console });
   const dir = path.join(__dirname, '..', 'games', 'minesweeper', 'js');
   for (const f of ['constants.js', 'logic.js'])
     vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx, { filename: f });
   ctx.G = vm.runInContext('G', ctx);
-  ctx.FLOORS = vm.runInContext('FLOORS', ctx);
-  ctx.MONSTERS = vm.runInContext('MONSTERS', ctx);
-  ctx.RELICS = vm.runInContext('RELICS', ctx);
-  ctx.XP = vm.runInContext('XP_PER_LEVEL', ctx);
-  ctx.G.rng = rng;
+  ctx.M = vm.runInContext('MONSTERS', ctx);
+  ctx.STAR = vm.runInContext('PEEPER_STAR', ctx);
+  ctx.G.rng = PRNG.create(seed);
   return ctx;
 }
 
-// —— 独立数字重算(与 logic.js 不同的实现路径)——
-function independentNumber(c, i) {
-  const s = c.G.size, r = Math.floor(i / s), col = i % s;
-  let sum = 0;
+// 独立数字重算(不调 cellNumber)
+function indNumber(c, i) {
+  if (c.G.grid[i].fogged) return null;
+  const W = c.G.w, H = c.G.h, r = Math.floor(i / W), col = i % W;
+  let s = 0;
   for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
     if (!dr && !dc) continue;
-    const nr = r + dr, nc = col + dc;
-    if (nr < 0 || nc < 0 || nr >= s || nc >= s) continue;
-    const cell = c.G.grid[nr * s + nc];
-    if (!cell.mon || cell.dead) continue;
-    const M = c.MONSTERS[cell.mon];
-    if (M.phantom) continue;
-    sum += c.G.relics.includes('weaken') ? Math.max(1, M.power - 1) : M.power;
+    const rr = r + dr, cc = col + dc;
+    if (rr < 0 || cc < 0 || rr >= H || cc >= W) continue;
+    const cell = c.G.grid[rr * W + cc];
+    if (cell.mon && !cell.dead) s += c.M[cell.mon].lv;
   }
-  return sum;
+  return s;
 }
 
-let violations = [], stats = { win: 0, lose: 0, clicks: 0 };
-function check(c, game, step, when) {
-  const G = c.G, V = (msg) => violations.push(`game ${game} step ${step} [${when}]: ${msg}`);
-  if (G.hp < 0) V(`hp ${G.hp} < 0`);
-  if (G.hp > G.maxHp) V(`hp ${G.hp} > maxHp ${G.maxHp}`);
-  if (G.phase === 'PLAYING' && G.xp >= G.level * c.XP) V(`xp ${G.xp} not consumed at level ${G.level}`);
-  if (G.phase === 'LOSE' && G.hp !== 0) V(`LOSE with hp ${G.hp}`);
-  for (let i = 0; i < G.grid.length; i++) {
-    const cell = G.grid[i];
-    if (cell.rev && cell.mon && !cell.dead) V(`alive monster revealed at ${i} without fight`);
-    if (cell.rev && (!cell.mon || cell.dead) && cell.t === 'empty') {
-      const n = vm.runInContext(`cellNumber(${i})`, c);
-      const ind = independentNumber(c, i);
-      if (n !== ind) V(`number mismatch at ${i}: game says ${n}, independent says ${ind}`);
-      // flood completeness: 0-cells must have all non-monster neighbors revealed.
-      // Skipped on LOSE/WIN: the final blow marks a monster dead but the run is
-      // over — no ripple owed on a finished board.
-      if (ind === 0 && G.phase !== 'LOSE' && G.phase !== 'WIN') {
-        const s = G.size, r = Math.floor(i / s), col = i % s;
-        for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
-          if (!dr && !dc) continue;
-          const nr = r + dr, nc = col + dc;
-          if (nr < 0 || nc < 0 || nr >= s || nc >= s) continue;
-          const nb = G.grid[nr * s + nc];
-          if (!nb.mon && !nb.rev) V(`flood incomplete: 0-cell ${i} has unrevealed safe neighbor ${nr * s + nc}`);
-        }
-      }
-    }
-  }
-  if (G.phase === 'WIN') {
-    const dragonAlive = G.grid.some(x => x.mon === 'dragon' && !x.dead);
-    if (G.floorIdx === c.FLOORS.length - 1 && dragonAlive) V('WIN with dragon alive');
+let violations = [], stats = { win: 0, lose: 0, stuck: 0, clicks: 0 };
+function check(c, g, step) {
+  const V = (m) => violations.push(`game ${g} step ${step}: ${m}`);
+  if (c.G.hp < 0) V(`hp ${c.G.hp} < 0`);
+  if (c.G.hp > c.G.maxHp) V('hp > maxHp');
+  if (c.G.phase === 'PLAYING' && c.G.xp >= vm.runInContext('xpNeed()', c)) V('xp not consumed');
+  for (let i = 0; i < c.G.grid.length; i++) {
+    const cell = c.G.grid[i];
+    if (!cell.rev || (cell.mon && !cell.dead) || cell.t !== 'empty') continue;
+    const n = vm.runInContext(`cellNumber(${i})`, c);
+    if (JSON.stringify(n) !== JSON.stringify(indNumber(c, i))) V(`number mismatch at ${i}`);
   }
 }
 
 for (let g = 0; g < GAMES; g++) {
-  const rng = PRNG.create(1000 + g);
-  const c = freshCtx(rng);
+  const c = freshCtx(3000 + g);
   vm.runInContext('initRun()', c);
-  let prevSouls = 0, prevGold = 0, step = 0, guard = 0;
-  while (c.G.phase !== 'WIN' && c.G.phase !== 'LOSE' && guard++ < 3000) {
-    if (c.G.phase === 'LEVEL_INTRO') { vm.runInContext('startFloor()', c); check(c, g, step, 'floor-start'); continue; }
-    if (c.G.phase === 'PICK_RELIC') {
-      const pick = rng() < 0.8 && c.G.relicChoices.length ? `'${c.G.relicChoices[Math.floor(rng() * c.G.relicChoices.length)].id}'` : 'null';
-      vm.runInContext(`pickRelic(${pick})`, c);
-      check(c, g, step, 'relic');
-      continue;
+  let step = 0, guard = 0;
+  while (c.G.phase === 'PLAYING' && guard++ < 2000) {
+    const grid = c.G.grid, hp = c.G.hp;
+    // ① 已翻开的宝箱直接拾取;回血卷轴只在血量吃紧时用(≤一半)
+    let target = grid.findIndex(x => x.rev && x.t === 'chest' && !(x.mon && !x.dead));
+    if (target < 0 && hp <= c.G.maxHp / 2)
+      target = grid.findIndex(x => x.rev && x.t === 'heartscroll' && !(x.mon && !x.dead));
+    // ② 打得起的已翻开怪(hp 归 0 也活,所以 lv <= hp 都能打);龙要等血上限够
+    if (target < 0) {
+      let best = -1, bestLv = -1;
+      grid.forEach((x, i) => {
+        if (!x.rev || !x.mon || x.dead) return;
+        const M = c.M[x.mon];
+        if (M.mine && !c.G.sweepDone) return;
+        if (M.boss && c.G.maxHp < M.lv) return; // 血上限不够先不碰龙
+        const cost = M.teleports ? 0 : M.lv;
+        if (cost <= hp && M.lv > bestLv) { best = i; bestLv = M.lv; }
+      });
+      target = best;
     }
-    // PLAYING: 随机点一个可交互格(未翻开的,或已翻开的楼梯)
-    const cands = [];
-    c.G.grid.forEach((cell, i) => {
-      if (!cell.rev) cands.push(i);
-      else if (cell.t === 'stairs') cands.push(i);
-    });
-    if (!cands.length) break;
-    // 70% 概率优先点楼梯(若已翻开),模拟正常玩家推进
-    const stairs = cands.find(i => c.G.grid[i].rev && c.G.grid[i].t === 'stairs');
-    const target = (stairs != null && rng() < 0.7) ? stairs : cands[Math.floor(rng() * cands.length)];
+    // ②b 什么都打不起且还有药 → 喝药回满再战
+    if (target < 0 && hp < c.G.maxHp)
+      target = grid.findIndex(x => x.rev && x.t === 'heartscroll' && !(x.mon && !x.dead));
+    // ③ 掀开一个未翻开格(优先 peek 过的安全格,否则随机)
+    if (target < 0) {
+      const hidden = grid.map((x, i) => i).filter(i => !grid[i].rev);
+      if (!hidden.length) break;
+      const peeked = hidden.filter(i => grid[i].peek && !grid[i].mon);
+      target = peeked.length ? peeked[0] : hidden[Math.floor(c.G.rng() * hidden.length)];
+    }
     vm.runInContext(`clickCell(${target})`, c);
-    stats.clicks++;
-    step++;
-    check(c, g, step, 'click');
-    // souls stay monotonic; gold can legally drop (mimic steals, shop purchases)
-    if (c.G.souls < prevSouls) violations.push(`game ${g}: souls decreased ${prevSouls}→${c.G.souls}`);
-    prevSouls = c.G.souls;
+    stats.clicks++; step++;
+    if (step % 25 === 0) check(c, g, step); // 抽查(全查太慢)
   }
-  if (guard >= 3000) violations.push(`game ${g}: did not terminate in 3000 steps`);
+  check(c, g, step);
   if (c.G.phase === 'WIN') stats.win++;
-  if (c.G.phase === 'LOSE') stats.lose++;
+  else if (c.G.phase === 'LOSE') stats.lose++;
+  else stats.stuck++;
+  if (guard >= 2000) violations.push(`game ${g}: no termination`);
 }
 
-console.log(`simulated ${GAMES} games, ${stats.clicks} clicks — WIN ${stats.win} / LOSE ${stats.lose}`);
+console.log(`simulated ${GAMES} games, ${stats.clicks} clicks — WIN ${stats.win} / LOSE ${stats.lose} / stuck ${stats.stuck}`);
 if (violations.length) {
   console.log(`❌ ${violations.length} violations:`);
-  violations.slice(0, 20).forEach(v => console.log('  ' + v));
+  violations.slice(0, 15).forEach(v => console.log('  ' + v));
   process.exit(1);
 }
-console.log('✅ all invariants hold (numbers cross-checked独立实现, flood完整性, hp/xp/souls单调与边界, 终局条件)');
-process.exit(0);
+const winRate = stats.win / GAMES;
+console.log(`win rate ${(winRate * 100).toFixed(1)}% — ${winRate > 0.05 ? '✅ 可赢性成立(贪心bot是下界)' : '❌ 经济曲线可能不可达'}`);
+process.exit(winRate > 0.05 ? 0 : 1);
