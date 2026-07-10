@@ -74,7 +74,11 @@ function frame(ts) {
   let guard = 0;
   while (loopState.acc >= interval && guard++ < 4 && G.phase === 'PLAYING') {
     loopState.acc -= interval;
-    tick(ts);
+    // 游戏时钟(非墙钟):只在实际推进的 tick 里累计——暂停/切后台时
+    // demon/halo/cloud 等定时效果与连击 10s 窗口全部冻结,恢复后不吃亏。
+    // 单调递增,boot/RESPAWN/START 后继续累计不重置。
+    loopState.gameMs = (loopState.gameMs || 0) + interval;
+    tick(loopState.gameMs);
   }
   renderAll();
 }

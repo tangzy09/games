@@ -30,7 +30,7 @@ function initLayers(img) {
   resetMask();
   for (let y = 0; y < G.run.rows; y++) for (let x = 0; x < G.run.cols; x++)
     if (G.run.revealed[y * G.run.cols + x]) punchCell(x, y);
-  revealMirror = new Uint8Array(G.run.revealed); revealMirror.set(G.run.revealed);
+  revealMirror = new Uint8Array(G.run.revealed);   // 构造函数即拷贝
 }
 
 // 揭格 diff 同步:core 揭开的每一格(头格/羽毛/足迹/流星)都在遮罩上挖洞。
@@ -180,8 +180,8 @@ function drawEffectsRow(safeTop) {
   for (const [key, emo] of [['slowUntil', '☁️'], ['demonUntil', '😈'], ['ghostUntil', '😇'],
                             ['trailUntil', '✨'], ['magnetUntil', '🧲']])
     if (now < fx[key]) items.push(emo + Math.ceil((fx[key] - now) / 1000));
-  if (items.length)
-    txtL(items.join('  '), Layout.bx, safeTop + 48, PAL.text, '12px sans-serif');
+  if (items.length)   // y=+42:棋盘白卡从 safeTop+50 起,+48 时 12px 字形下缘被卡片压住
+    txtL(items.join('  '), Layout.bx, safeTop + 42, PAL.text, '12px sans-serif');
 }
 
 function drawSnake() {
