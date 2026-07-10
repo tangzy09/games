@@ -13,7 +13,8 @@ node tools/check-locales.js games/minesweeper/locales
 
 ## 移植不变量（非直觉，别当 bug"修复"）
 
-- 权威规格：`C:	mpoguelite-minigames\ds-spec.md`（提取自原作公开源码 `ds-src/game.js`）。**改机制前先查它**——网上攻略数值互相矛盾不可信。
+- 权威规格：`C:/tmp/roguelite-minigames/ds-spec.md`（提取自原作公开源码 C:/tmp/roguelite-minigames/ds-src/game.js）。**改机制前先查它**——网上攻略数值互相矛盾不可信。
+oguelite-minigames\ds-spec.md`（提取自原作公开源码 `ds-src/game.js`）。**改机制前先查它**——网上攻略数值互相矛盾不可信。
 - 点击未翻开怪 = 直接挨打；**杀怪要求 hp 严格 > 怪等级**（等于 = 你死）；**尸体二段拾取**（打死后再点才得 XP，数字到拾取才下降）；升级是**手动按钮** + 查表 XP + 偶数级只涨半心；雷 lv=100 毒化数字；纯雷连通团自动翻开。
 - 放置生态是硬规则（单测有断言）：龙在中心开局可见、雷王必在角落、贤者边缘+5 果冻环绕、巨人恋人同排关于中线对称、门卫一象限一个、哞哞霸与宝箱 1:1 配对且不同列、地精贴医疗包、龙蛋贴龙。
 - **图鉴写的每条特性都有一致性测试**——改怪物行为要同步改图鉴文案与测试。
