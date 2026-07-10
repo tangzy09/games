@@ -52,12 +52,13 @@ function rrPath(c, x, y, w, h, r) {
   c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r);
   c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath();
 }
-function punchCell(x, y) {           // 揭开一格:遮罩挖圆角洞
+function punchCell(x, y) {
+  // 揭开一格:整格方形挖洞,四周多挖 0.5px 重叠——不内缩不圆角,
+  // 否则相邻已揭格之间留缝、四角留暗斑,天使图看起来碎。
   const m = maskLayer.getContext('2d');
   const pc = layerPx / G.run.cols;
   m.globalCompositeOperation = 'destination-out';
-  rrPath(m, x * pc + 1, y * pc + 1, pc - 2, pc - 2, pc * 0.3);
-  m.fill();
+  m.fillRect(x * pc - 0.5, y * pc - 0.5, pc + 1, pc + 1);
 }
 function revealAllMask() { maskLayer.getContext('2d').clearRect(0, 0, layerPx, layerPx); }
 
