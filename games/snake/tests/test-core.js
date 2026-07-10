@@ -42,3 +42,57 @@ Core.setDir(g, 'left'); Core.step(g);
 Core.setDir(g, 'up');   Core.step(g);               // 撞回自己身体
 assert(g.dead, '撞自己应死');
 console.log('OK test-core(骨架)');
+
+// --- 揭图:走过即揭,重复不计数 ---
+g = Core.createGame({ seed: 2 });
+const r0 = g.revealedCount;
+Core.step(g);
+assert.strictEqual(g.revealedCount, r0 + 1, '走一步揭一格');
+Core.setDir(g, 'down'); Core.step(g);
+Core.setDir(g, 'left'); Core.step(g);
+Core.setDir(g, 'up');   Core.step(g);
+const rc = g.revealedCount;
+Core.setDir(g, 'right'); Core.step(g);  // 回到已揭格(起点右一格)
+assert(g.revealedCount === rc || g.revealedCount === rc + 1, '重走已揭格不重复计数');
+
+// --- 吃苹果:得分/长度/连击窗口 ---
+g = Core.createGame({ seed: 3 });
+g.apple = { x: g.snake[0].x + 1, y: g.snake[0].y };
+Core.step(g, { nowMs: 1000 });
+assert.strictEqual(g.stats.apples, 1);
+assert.strictEqual(g.targetLen, 4, '吃苹果 targetLen+1');
+assert.strictEqual(g.combo, 0, '第一个苹果 combo=0');
+assert.strictEqual(g.score, 10, '10 × (1+0) = 10');
+g.apple = { x: g.snake[0].x + 1, y: g.snake[0].y };
+Core.step(g, { nowMs: 3000 });                       // 窗口内
+assert.strictEqual(g.combo, 1, '窗口内连击+1');
+assert.strictEqual(g.score, 10 + 11, '10×1.1=11');
+g.apple = { x: g.snake[0].x + 1, y: g.snake[0].y };
+Core.step(g, { nowMs: 3000 + Core.COMBO_WINDOW_MS + 1 }); // 超窗
+assert.strictEqual(g.combo, 1, '超窗连击不涨也不清');
+g.apple = { x: g.snake[0].x + 1, y: g.snake[0].y };
+const cb = g.combo;
+Core.step(g, { nowMs: g.lastEatMs + 100, freezeCombo: true });
+assert.strictEqual(g.combo, cb, '加速期间连击冻结');
+
+// --- AI 代打减分:scoreScale=0.5 ---
+g = Core.createGame({ seed: 6 });
+g.apple = { x: g.snake[0].x + 1, y: g.snake[0].y };
+Core.step(g, { nowMs: 1000, scoreScale: 0.5 });
+assert.strictEqual(g.score, 5, 'AI 代打得分减半');
+
+// --- 过关:揭满触发,重置遮罩保留蛇 ---
+g = Core.createGame({ seed: 4 });
+g.revealed.fill(1); g.revealedCount = 16 * 16 - 1;
+{
+  const hx = g.snake[0].x + 1, hy = g.snake[0].y;
+  g.revealed[hy * 16 + hx] = 0;         // 头右侧设为唯一未揭格
+  g.apple = { x: 0, y: 0 };
+  const lv = g.level, sc = g.score;
+  Core.step(g);
+  assert(g.levelJustDone, '揭满触发过关');
+  assert.strictEqual(g.level, lv + 1);
+  assert(g.score >= sc + 500, '过关奖励入账');
+  assert.strictEqual(g.revealedCount, g.snake.length, '重置后仅蛇身格已揭');
+}
+console.log('OK test-core(揭图/苹果/连击/过关)');
