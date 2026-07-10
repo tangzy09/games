@@ -16,6 +16,7 @@ function freshCtx(rng) {
   ctx.MONSTERS = vm.runInContext('MONSTERS', ctx);
   ctx.vm_COIN_GOLD = vm.runInContext('COIN_GOLD', ctx);
   ctx.vm_DAILY = vm.runInContext('DAILY_FLOOR', ctx);
+  ctx.vm_ITEMS = vm.runInContext('ITEMS', ctx);
   if (rng) ctx.G.rng = rng;
   return ctx;
 }
@@ -210,6 +211,121 @@ function ok(name, cond) { cond ? pass++ : (fail++, console.log(`❌ ${name}`)); 
   vm.runInContext(`clickCell(${si})`, a);
   eq('daily stairs → WIN', a.G.phase, 'WIN');
   eq('daily win souls +10', a.G.souls, soulsBefore + 10);
+}
+
+// ── 9) 商店与道具 ──
+{
+  const c = freshCtx(seeded(11));
+  c.G.perks = {};
+  vm.runInContext('initRun()', c);
+  vm.runInContext('G.floorIdx = 1; startFloor()', c);
+  eq('floor2 has shop', c.G.grid.filter(x => x.t === 'shop').length, 1);
+
+  const si = c.G.grid.findIndex(x => x.t === 'shop');
+  c.G.grid[si].rev = true;
+  vm.runInContext(`clickCell(${si})`, c);
+  eq('shop opens', c.G.phase, 'SHOP');
+  eq('stock 3 distinct', new Set(c.G.grid[si].shopStock).size, 3);
+
+  c.G.gold = 100;
+  const first = c.G.grid[si].shopStock[0];
+  const cost = c.vm_ITEMS.find(x => x.id === first).cost;
+  vm.runInContext(`buyShopItem('${first}')`, c);
+  eq('gold deducted', c.G.gold, 100 - cost);
+  eq('item in slot', c.G.items[0], first);
+  eq('stock shrinks', c.G.grid[si].shopStock.length, 2);
+
+  c.G.gold = 0;
+  const second = c.G.grid[si].shopStock[0];
+  vm.runInContext(`buyShopItem('${second}')`, c);
+  eq('no gold no buy', c.G.items.length, 1);
+  vm.runInContext('leaveShop()', c);
+  eq('leave shop → playing', c.G.phase, 'PLAYING');
+
+  // shield: 完全挡下一击后消耗
+  c.G.items = ['shield']; c.G.hp = 5; c.G.maxHp = 9;
+  vm.runInContext('useItem(0)', c);
+  eq('shield armed', c.G.shieldUp, true);
+  eq('shield consumed from slot', c.G.items.length, 0);
+  c.G.size = 2; c.G.level = 9; c.G.xp = 0;
+  c.G.grid = Array.from({ length: 4 }, () => ({ t: 'empty', mon: null, rev: false, dead: false }));
+  c.G.grid[0].mon = 'ghost';
+  vm.runInContext('reveal(0)', c);
+  eq('shield blocks all damage', c.G.hp, 5);
+  eq('shield spent', c.G.shieldUp, false);
+
+  // probe: 窥视不翻开(先重置被击杀涟漪翻开的格子)
+  c.G.items = ['probe'];
+  c.G.grid[1].rev = false; c.G.grid[1].peek = false; c.G.grid[1].mon = 'skel';
+  vm.runInContext('useItem(0)', c);
+  eq('probe armed', c.G.itemMode && c.G.itemMode.id, 'probe');
+  vm.runInContext('clickCell(1)', c);
+  eq('probe peeked', c.G.grid[1].peek, true);
+  eq('probe did not reveal', c.G.grid[1].rev, false);
+  eq('probe consumed', c.G.items.length, 0);
+
+  // bomb: 3×3 无奖励清怪,Boss 免疫
+  const c2 = freshCtx();
+  c2.G.perks = {}; c2.G.size = 3; c2.G.hp = 9; c2.G.maxHp = 9; c2.G.level = 9;
+  c2.G.xp = 0; c2.G.gold = 0; c2.G.souls = 0; c2.G.phase = 'PLAYING'; // useItem 只在对局中生效
+  c2.G.items = ['bomb']; c2.G.itemMode = null;
+  c2.G.grid = Array.from({ length: 9 }, () => ({ t: 'empty', mon: null, rev: false, dead: false }));
+  c2.G.grid[0].mon = 'skel'; c2.G.grid[2].mon = 'dragon';
+  vm.runInContext('useItem(0)', c2);
+  vm.runInContext('clickCell(4)', c2);
+  eq('bomb kills skel', c2.G.grid[0].dead, true);
+  eq('bomb no rewards', c2.G.xp + c2.G.gold, 0);
+  eq('boss immune to bomb', c2.G.grid[2].dead, false);
+  eq('boss cell stays hidden', c2.G.grid[2].rev, false);
+}
+
+// ── 10) 怪物特性 ──
+{
+  // 蝙蝠跳位:首次惊动不受伤,跳到别处;跳过一次后正常战斗
+  const c = freshCtx(seeded(5));
+  c.G.perks = {}; c.G.size = 3; c.G.hp = 9; c.G.maxHp = 9; c.G.level = 9; c.G.xp = 0;
+  c.G.encounters = [];
+  c.G.grid = Array.from({ length: 9 }, () => ({ t: 'empty', mon: null, rev: false, dead: false }));
+  c.G.grid[0].mon = 'bat';
+  vm.runInContext('reveal(0)', c);
+  eq('bat hop no damage', c.G.hp, 9);
+  eq('bat left the cell', c.G.grid[0].mon, null);
+  const batAt = c.G.grid.findIndex(x => x.mon === 'bat');
+  eq('bat landed hidden+tired', batAt >= 0 && !c.G.grid[batAt].rev && c.G.grid[batAt].hopTired, true);
+  c.G.grid[batAt].rev = false;
+  vm.runInContext(`reveal(${batAt})`, c);
+  eq('tired bat fights', c.G.hp, 7);
+
+  // 宝箱怪:不掉血,偷一半金,不给经验
+  const c2 = freshCtx();
+  c2.G.perks = {}; c2.G.size = 2; c2.G.hp = 5; c2.G.maxHp = 9; c2.G.level = 9;
+  c2.G.xp = 0; c2.G.gold = 10; c2.G.souls = 0; c2.G.encounters = [];
+  c2.G.grid = Array.from({ length: 4 }, () => ({ t: 'empty', mon: null, rev: false, dead: false }));
+  c2.G.grid[0].mon = 'mimic';
+  vm.runInContext('reveal(0)', c2);
+  eq('mimic no damage', c2.G.hp, 5);
+  eq('mimic steals half gold', c2.G.gold, 5);
+  eq('mimic no xp', c2.G.xp, 0);
+  ok('mimic encounter recorded', c2.G.encounters.includes('mimic'));
+
+  // 爆爆菇:炸死邻怪但邻怪无奖励;石像:双倍灵魂
+  const c3 = freshCtx();
+  c3.G.perks = {}; c3.G.size = 3; c3.G.hp = 20; c3.G.maxHp = 20; c3.G.level = 9;
+  c3.G.xp = 0; c3.G.gold = 0; c3.G.souls = 0; c3.G.encounters = [];
+  c3.G.grid = Array.from({ length: 9 }, () => ({ t: 'empty', mon: null, rev: false, dead: false }));
+  c3.G.grid[4].mon = 'boom'; c3.G.grid[0].mon = 'skel';
+  vm.runInContext('reveal(4)', c3);
+  eq('boom kills neighbor', c3.G.grid[0].dead, true);
+  eq('only boom pays xp', c3.G.xp, 2);
+
+  const c4 = freshCtx();
+  c4.G.perks = {}; c4.G.size = 2; c4.G.hp = 20; c4.G.maxHp = 20; c4.G.level = 9;
+  c4.G.xp = 0; c4.G.souls = 0; c4.G.encounters = [];
+  c4.G.grid = Array.from({ length: 4 }, () => ({ t: 'empty', mon: null, rev: false, dead: false }));
+  c4.G.grid[0].mon = 'statue';
+  vm.runInContext('reveal(0)', c4);
+  eq('statue damage 6', c4.G.hp, 14);
+  eq('statue double souls', c4.G.souls, 12);
 }
 
 console.log(`\n${pass} pass, ${fail} fail`);

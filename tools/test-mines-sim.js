@@ -54,9 +54,9 @@ function check(c, game, step, when) {
       const ind = independentNumber(c, i);
       if (n !== ind) V(`number mismatch at ${i}: game says ${n}, independent says ${ind}`);
       // flood completeness: 0-cells must have all non-monster neighbors revealed.
-      // Skipped on LOSE: the killing blow marks the monster dead but the run is
+      // Skipped on LOSE/WIN: the final blow marks a monster dead but the run is
       // over — no ripple owed on a finished board.
-      if (ind === 0 && G.phase !== 'LOSE') {
+      if (ind === 0 && G.phase !== 'LOSE' && G.phase !== 'WIN') {
         const s = G.size, r = Math.floor(i / s), col = i % s;
         for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
           if (!dr && !dc) continue;
@@ -101,9 +101,9 @@ for (let g = 0; g < GAMES; g++) {
     stats.clicks++;
     step++;
     check(c, g, step, 'click');
+    // souls stay monotonic; gold can legally drop (mimic steals, shop purchases)
     if (c.G.souls < prevSouls) violations.push(`game ${g}: souls decreased ${prevSouls}→${c.G.souls}`);
-    if (c.G.gold < prevGold) violations.push(`game ${g}: gold decreased`);
-    prevSouls = c.G.souls; prevGold = c.G.gold;
+    prevSouls = c.G.souls;
   }
   if (guard >= 3000) violations.push(`game ${g}: did not terminate in 3000 steps`);
   if (c.G.phase === 'WIN') stats.win++;

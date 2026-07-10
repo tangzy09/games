@@ -15,6 +15,11 @@ const G = {
   revealCount: 0, regenCounter: 0,
   perks: {},       // owned permanent upgrades, set by main.js before initRun
   revived: false, guardUsed: false,
+  items: [],       // active item ids in slots (max ITEM_SLOTS)
+  itemMode: null,  // { id, slot } while a targeted item is armed
+  shieldUp: false, // next damage fully blocked
+  shopAt: null,    // grid index of the shop being browsed (phase SHOP)
+  encounters: [],  // monster ids met this dispatch — main.js merges into the codex
   pendingFloat: null,
   rng: Math.random, // injectable for tests / daily seeds
 };
@@ -71,6 +76,7 @@ function genFloor(floorIdx) {
     for (let k = 0; k < count; k++) { const i = take(); G.grid[i].mon = mid; }
   for (let k = 0; k < f.coins; k++) G.grid[take()].t = 'coin';
   for (let k = 0; k < f.potions; k++) G.grid[take()].t = 'potion';
+  for (let k = 0; k < (f.shops || 0); k++) G.grid[take()].t = 'shop';
   G.grid[take()].t = 'stairs';
 
   // reveal the safe zone (flood from center picks up the whole 3x3 + beyond if 0s)
@@ -90,6 +96,21 @@ function reveal(i) {
   if (hasRelic('regen') && ++G.regenCounter >= REGEN_EVERY) {
     G.regenCounter = 0;
     heal(1);
+  }
+  // bat twist: the first time you flush it out, it hops to another hidden cell
+  if (cell.mon && !cell.dead && MONSTERS[cell.mon].hops && !cell.hopTired) {
+    const spots = [];
+    G.grid.forEach((c2, k) => { if (!c2.rev && !c2.mon && c2.t === 'empty' && k !== i) spots.push(k); });
+    if (spots.length) {
+      const to = spots[Math.floor(G.rng() * spots.length)];
+      G.grid[to].mon = cell.mon;
+      G.grid[to].hopTired = true; // a hopped bat stands and fights next time
+      cell.mon = null;
+      G.encounters.push('bat');
+      G.pendingFloat = { key: 'float.batHop' };
+      expandZeros(); // numbers near the vacated spot may drop to 0 → ripple
+      // fall through: this cell is now a normal empty reveal
+    }
   }
   if (cell.mon && !cell.dead) { fight(i); return; }
   collect(i);
@@ -139,9 +160,23 @@ function expandZeros() {
 // ── combat ──
 function fight(i) {
   const cell = G.grid[i];
-  const id = cell.mon;
+  const id = cell.mon, M = MONSTERS[id];
+  G.encounters.push(id);
+
+  // mimic twist: no damage — it grabs half your gold and vanishes (no XP either)
+  if (M.steals) {
+    cell.dead = true;
+    const stolen = Math.floor(G.gold / 2);
+    G.gold -= stolen;
+    G.souls += 2;
+    G.pendingFloat = { key: 'float.mimic', params: { n: stolen } };
+    expandZeros();
+    return;
+  }
+
   let p = monPower(id);
-  if (G.perks.guard && !G.guardUsed) { G.guardUsed = true; p = Math.max(0, p - 1); }
+  if (G.shieldUp) { G.shieldUp = false; p = 0; G.pendingFloat = { key: 'float.shieldBlock' }; }
+  else if (G.perks.guard && !G.guardUsed) { G.guardUsed = true; p = Math.max(0, p - 1); }
   G.hp -= p;
   cell.dead = true;
   if (G.hp <= 0) {
@@ -151,17 +186,25 @@ function fight(i) {
       G.pendingFloat = { key: 'float.revive' };
     } else { G.hp = 0; G.phase = 'LOSE'; return; }
   }
-  // rewards: xp + gold + souls scale with true power
-  const reward = MONSTERS[id].power;
-  G.xp += reward; G.gold += reward; G.souls += reward;
-  if (hasRelic('vamp') && MONSTERS[id].power >= 3) heal(1);
+  // rewards: xp + gold + souls scale with true power (statue pays double souls)
+  const reward = M.power;
+  G.xp += reward; G.gold += reward; G.souls += reward * (M.soulRich ? 2 : 1);
+  if (hasRelic('vamp') && M.power >= 3) heal(1);
   while (G.xp >= xpNeed()) {
     G.xp -= xpNeed();
     G.level++; G.maxHp++; G.hp = G.maxHp;
     G.pendingFloat = { key: 'float.levelUp', params: { n: G.level } };
   }
-  if (MONSTERS[id].boss) { G.phase = 'WIN'; G.souls += 20; return; }
-  expandZeros(); // kill may drop nearby numbers to 0 → ripple open
+  if (M.boss) { G.phase = 'WIN'; G.souls += 20; return; }
+  // boom twist: adjacent monsters die in the blast — no rewards for them
+  if (M.explodes) {
+    for (const n of neighbors(i)) {
+      const nb = G.grid[n];
+      if (nb.mon && !nb.dead && !MONSTERS[nb.mon].boss) { nb.dead = true; nb.rev = true; }
+    }
+    G.pendingFloat = { key: 'float.boom' };
+  }
+  expandZeros(); // kills may drop nearby numbers to 0 → ripple open
 }
 
 // ── run / floor flow ──
@@ -174,6 +217,8 @@ function initRun() {
   G.relics = []; G.relicChoices = [];
   G.revealCount = 0; G.regenCounter = 0;
   G.revived = false; G.guardUsed = false;
+  G.items = []; G.itemMode = null; G.shieldUp = false; G.shopAt = null;
+  G.encounters = [];
   G.phase = 'LEVEL_INTRO';
 }
 
@@ -191,15 +236,78 @@ function startFloor() {
 
 // player clicked cell i during PLAYING
 function clickCell(i) {
+  if (G.itemMode) { applyItemAt(i); return; }
   const cell = G.grid[i];
   if (cell.rev) {
     if (cell.t === 'stairs') {
       if (G.mode === 'daily') { G.phase = 'WIN'; G.souls += 10; } // daily goal: reach the stairs
       else if (G.floorIdx < FLOORS.length - 1) offerRelics();
+    } else if (cell.t === 'shop') {
+      openShop(i);
     }
     return;
   }
   reveal(i);
+}
+
+// ── shop ──
+function openShop(i) {
+  const cell = G.grid[i];
+  if (!cell.shopStock) { // fixed stock per shop: 3 distinct random items
+    const pool = ITEMS.slice(), stock = [];
+    while (stock.length < 3 && pool.length)
+      stock.push(pool.splice(Math.floor(G.rng() * pool.length), 1)[0].id);
+    cell.shopStock = stock;
+  }
+  G.shopAt = i;
+  G.phase = 'SHOP';
+}
+
+function buyShopItem(itemId) {
+  const it = ITEMS.find(x => x.id === itemId);
+  const stock = G.shopAt != null && G.grid[G.shopAt].shopStock;
+  if (!it || !stock || !stock.includes(itemId)) return;
+  if (G.gold < it.cost || G.items.length >= ITEM_SLOTS) return;
+  G.gold -= it.cost;
+  G.items.push(itemId);
+  stock.splice(stock.indexOf(itemId), 1);
+}
+
+function leaveShop() { G.shopAt = null; G.phase = 'PLAYING'; }
+
+// ── active items ──
+function peek(i) { const c = G.grid[i]; if (c && !c.rev) c.peek = true; }
+
+function useItem(slot) {
+  const id = G.items[slot];
+  if (!id || G.phase !== 'PLAYING') return;
+  if (G.itemMode && G.itemMode.slot === slot) { G.itemMode = null; return; } // tap again = cancel
+  const it = ITEMS.find(x => x.id === id);
+  if (it.target) { G.itemMode = { id, slot }; return; } // armed: next board tap applies
+  if (id === 'heal') { heal(HEAL_ITEM_HP); G.pendingFloat = { key: 'float.heal', params: { n: HEAL_ITEM_HP } }; }
+  else if (id === 'shield') { G.shieldUp = true; G.pendingFloat = { key: 'float.shieldUp' }; }
+  G.items.splice(slot, 1);
+}
+
+function applyItemAt(i) {
+  const { id, slot } = G.itemMode;
+  G.itemMode = null;
+  if (id === 'probe') peek(i);
+  else if (id === 'scan') { peek(i); for (const n of neighbors(i)) peek(n); }
+  else if (id === 'bomb') {
+    for (const k of [i, ...neighbors(i)]) {
+      const c = G.grid[k];
+      if (c.mon && !c.dead) {
+        if (MONSTERS[c.mon].boss) continue; // bosses shrug off bombs, cell stays hidden
+        c.dead = true;
+        G.encounters.push(c.mon);
+      }
+      if (!c.rev && !(c.mon && !c.dead)) reveal(k); // safe now: monster is dead
+    }
+    G.pendingFloat = { key: 'float.bombUsed' };
+    expandZeros();
+  }
+  G.items.splice(slot, 1);
 }
 
 function offerRelics() {
@@ -225,5 +333,6 @@ function pickRelic(id) { // id === null → skip
 // node export for tests (browser: plain globals)
 if (typeof module !== 'undefined') {
   module.exports = { G, idx, neighbors, cellNumber, genFloor, reveal, clickCell, fight,
-    initRun, initDaily, startFloor, offerRelics, pickRelic, monPower, hasRelic, xpNeed };
+    initRun, initDaily, startFloor, offerRelics, pickRelic, monPower, hasRelic, xpNeed,
+    openShop, buyShopItem, leaveShop, useItem, applyItemAt, peek };
 }

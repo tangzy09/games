@@ -10,9 +10,29 @@
     "streak": "🔥 {n}-day streak",
     "daily": "Daily Challenge",
     "dailyDone": "Daily done — back tomorrow",
-    "upgrades": "Upgrades"
+    "upgrades": "Forge",
+    "codex": "Codex"
   },
-  "ui": { "floor": "Floor", "level": "Lv" },
+  "ui": { "floor": "Floor", "level": "Lv", "items": "Items", "pickTarget": "Tap a tile…" },
+  "item": {
+    "probe":  { "name": "Probe",  "desc": "Peek at one hidden tile without revealing it." },
+    "heal":   { "name": "Tonic",  "desc": "Restore 3 HP instantly." },
+    "scan":   { "name": "Sonar",  "desc": "Peek at a 3×3 area." },
+    "shield": { "name": "Shield", "desc": "Block the next damage completely." },
+    "bomb":   { "name": "Powder", "desc": "Blast a 3×3 area: monsters die but give no rewards. Bosses are immune." }
+  },
+  "shop": { "title": "Dungeon Shop", "leave": "Keep exploring", "soldOut": "Sold out!", "full": "Item slots full" },
+  "codex": { "title": "Monster Codex", "unknown": "Not yet encountered" },
+  "mon": {
+    "slime":  { "name": "Slime",       "trait": "Harmless XP on legs. Every dungeon's first lesson." },
+    "bat":    { "name": "Bat",         "trait": "Hops to another hidden tile the first time you flush it out." },
+    "boom":   { "name": "Boomshroom",  "trait": "Its death blast kills adjacent monsters — but they drop nothing." },
+    "skel":   { "name": "Skeleton",    "trait": "Solid, honest damage. Respect the 3." },
+    "mimic":  { "name": "Mimic",       "trait": "Doesn't hurt you — it steals half your gold and gives no XP." },
+    "ghost":  { "name": "Ghost",       "trait": "Invisible to numbers. A calm 0 can be a lie." },
+    "statue": { "name": "Gargoyle",    "trait": "Hits hard, but pays double souls." },
+    "dragon": { "name": "Dragon",      "trait": "The floor-3 boss. Slay it to win the run. Immune to bombs." }
+  },
   "intro": {
     "floor": "Floor {n}", "boss": "The dragon sleeps here…", "enter": "Enter",
     "daily": "Daily Challenge",
@@ -47,7 +67,14 @@
     "next": "Got it",
     "skip": "Skip tutorial"
   },
-  "float": { "gold": "+{n} gold", "heal": "+{n} HP", "levelUp": "Level {n}! Fully healed", "revive": "🕯️ The candle burns — you live!", "resumed": "Run resumed" },
+  "float": {
+    "gold": "+{n} gold", "heal": "+{n} HP", "levelUp": "Level {n}! Fully healed",
+    "revive": "🕯️ The candle burns — you live!", "resumed": "Run resumed",
+    "batHop": "🦇 It fluttered away!", "mimic": "🎁 Mimic! It stole {n} gold",
+    "shieldUp": "🛡️ Shield up", "shieldBlock": "🛡️ Blocked!",
+    "boom": "💥 Chain explosion!", "bombUsed": "🧨 Boom!",
+    "codexNew": "📖 New codex entry! +{n} souls"
+  },
   "lose": { "title": "You fell…", "gap": "Only {n} floor(s) from the dragon" },
   "win": { "title": "Dragon slain!" },
   "end": {

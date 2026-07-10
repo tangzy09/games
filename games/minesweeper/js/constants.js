@@ -5,23 +5,42 @@
 
 // Monsters: number on a tile = SUM of adjacent alive monsters' power.
 // phantom: excluded from numbers (the ghost rule — one reasoning twist per monster).
+// Every monster = one twist of a reasoning rule (the Dragonsweeper principle):
+//   bat: hops away the first time you reveal it (you never catch it where you thought)
+//   mimic: doesn't hurt you — it steals half your gold and gives no XP (punishes greed)
+//   ghost: excluded from numbers (a 0 can be lying)
+//   boom: killing it also kills all adjacent monsters, but those give no rewards
+//   statue: hits hard but pays double souls
 const MONSTERS = {
-  slime:  { power: 1,  icon: '🟢' },
-  bat:    { power: 2,  icon: '🦇' },
-  skel:   { power: 3,  icon: '💀' },
-  mimic:  { power: 4,  icon: '🎁', looksLike: 'coin' }, // shows as coin until revealed
-  ghost:  { power: 5,  icon: '👻', phantom: true },
+  slime:  { power: 1, icon: '🟢' },
+  bat:    { power: 2, icon: '🦇', hops: true },
+  boom:   { power: 2, icon: '💥', explodes: true },
+  skel:   { power: 3, icon: '💀' },
+  mimic:  { power: 4, icon: '🎁', steals: true },
+  ghost:  { power: 5, icon: '👻', phantom: true },
+  statue: { power: 6, icon: '🗿', soulRich: true },
   // boss power must stay below what a full-clear run can reach in maxHp
   // (full clear ≈ level 4-5 → 8-9 maxHp, +2 with 'tough'): 8 = winnable but tense.
   dragon: { power: 8, icon: '🐉', boss: true },
 };
 
-// Floor layouts. counts = how many of each monster to place.
+// Floor layouts. counts = how many of each monster to place; shops = shop tiles.
 const FLOORS = [
-  { size: 6,  counts: { slime: 4, bat: 2 },                                        coins: 4, potions: 1 },
-  { size: 8,  counts: { slime: 5, bat: 3, skel: 3, ghost: 1 },                     coins: 6, potions: 2 },
-  { size: 10, counts: { slime: 5, bat: 4, skel: 4, ghost: 2, mimic: 2, dragon: 1 }, coins: 8, potions: 2 },
+  { size: 6,  counts: { slime: 4, bat: 2 },                                                    coins: 4, potions: 1, shops: 0 },
+  { size: 8,  counts: { slime: 5, bat: 3, skel: 3, ghost: 1, boom: 1 },                        coins: 6, potions: 2, shops: 1 },
+  { size: 10, counts: { slime: 5, bat: 4, skel: 4, ghost: 2, mimic: 2, boom: 1, statue: 1, dragon: 1 }, coins: 8, potions: 2, shops: 1 },
 ];
+
+// Active items, bought at shop tiles with gold. target: arm → tap a cell.
+const ITEMS = [
+  { id: 'probe',  cost: 6,  icon: '🔎', target: true },  // peek one unrevealed cell
+  { id: 'heal',   cost: 8,  icon: '🧪', target: false }, // +3 HP instantly
+  { id: 'scan',   cost: 10, icon: '📡', target: true },  // peek a 3×3 area
+  { id: 'shield', cost: 12, icon: '🛡️', target: false }, // block the next damage completely
+  { id: 'bomb',   cost: 15, icon: '🧨', target: true },  // clear a 3×3: monsters die, no rewards; bosses immune
+];
+const ITEM_SLOTS = 3;
+const HEAL_ITEM_HP = 3;
 
 // Relics: passive run modifiers, picked 1-of-3 between floors.
 // Effects are implemented in logic.js (applyRelicOnPick / hooks); keep ids stable.
@@ -47,7 +66,7 @@ const UPGRADES = [
 ];
 
 // Daily challenge: one dense floor, seeded by the date — same board worldwide.
-const DAILY_FLOOR = { size: 10, counts: { slime: 6, bat: 5, skel: 4, ghost: 2, mimic: 2 }, coins: 8, potions: 2 };
+const DAILY_FLOOR = { size: 10, counts: { slime: 6, bat: 5, skel: 4, ghost: 2, mimic: 2, boom: 1, statue: 1 }, coins: 8, potions: 2, shops: 1 };
 
 // XP needed to reach the next level = level * XP_PER_LEVEL.
 const XP_PER_LEVEL = 6;

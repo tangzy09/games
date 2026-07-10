@@ -10,9 +10,29 @@
     "streak": "🔥 连续 {n} 天",
     "daily": "每日挑战",
     "dailyDone": "今日已挑战——明天再来",
-    "upgrades": "强化"
+    "upgrades": "强化",
+    "codex": "图鉴"
   },
-  "ui": { "floor": "层", "level": "Lv" },
+  "ui": { "floor": "层", "level": "Lv", "items": "道具", "pickTarget": "点一个格子…" },
+  "item": {
+    "probe":  { "name": "探针", "desc": "窥视一个未翻开的格子，但不翻开它。" },
+    "heal":   { "name": "药剂", "desc": "立即恢复 3 点生命。" },
+    "scan":   { "name": "声呐", "desc": "窥视一片 3×3 区域。" },
+    "shield": { "name": "护盾", "desc": "完全挡下下一次伤害。" },
+    "bomb":   { "name": "火药", "desc": "炸开 3×3 区域：怪物全灭但不给任何奖励。Boss 免疫。" }
+  },
+  "shop": { "title": "地牢商店", "leave": "继续探索", "soldOut": "已售罄！", "full": "道具栏已满" },
+  "codex": { "title": "怪物图鉴", "unknown": "尚未遭遇" },
+  "mon": {
+    "slime":  { "name": "史莱姆",   "trait": "会走路的经验包。每个地牢的第一课。" },
+    "bat":    { "name": "蝙蝠",     "trait": "第一次被你惊动时会跳到另一个暗格。" },
+    "boom":   { "name": "爆爆菇",   "trait": "死亡时炸死相邻怪物——但它们不掉任何奖励。" },
+    "skel":   { "name": "骷髅",     "trait": "结实、诚实的伤害。尊重这个 3。" },
+    "mimic":  { "name": "宝箱怪",   "trait": "不伤人——偷走你一半金币，还不给经验。" },
+    "ghost":  { "name": "幽灵",     "trait": "数字看不见它。平静的 0 也可能在撒谎。" },
+    "statue": { "name": "石像鬼",   "trait": "下手很重，但付双倍灵魂。" },
+    "dragon": { "name": "巨龙",     "trait": "第三层 Boss，杀之即胜。火药炸不动它。" }
+  },
   "intro": {
     "floor": "第 {n} 层", "boss": "巨龙沉睡于此……", "enter": "进入",
     "daily": "每日挑战",
@@ -47,7 +67,14 @@
     "next": "知道了",
     "skip": "跳过教程"
   },
-  "float": { "gold": "+{n} 金币", "heal": "+{n} 生命", "levelUp": "升到 {n} 级！生命全满", "revive": "🕯️ 长明烛燃起——你活下来了！", "resumed": "已恢复上局进度" },
+  "float": {
+    "gold": "+{n} 金币", "heal": "+{n} 生命", "levelUp": "升到 {n} 级！生命全满",
+    "revive": "🕯️ 长明烛燃起——你活下来了！", "resumed": "已恢复上局进度",
+    "batHop": "🦇 它扑棱着飞走了！", "mimic": "🎁 宝箱怪！偷走了 {n} 金币",
+    "shieldUp": "🛡️ 护盾已就绪", "shieldBlock": "🛡️ 挡下了！",
+    "boom": "💥 连环爆炸！", "bombUsed": "🧨 轰！",
+    "codexNew": "📖 图鉴新条目！+{n} 灵魂"
+  },
   "lose": { "title": "你倒下了……", "gap": "距离巨龙只差 {n} 层" },
   "win": { "title": "屠龙成功！" },
   "end": {

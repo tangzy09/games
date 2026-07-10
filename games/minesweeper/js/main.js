@@ -11,6 +11,7 @@ function dailySeed() { return parseInt(todayStr().replace(/-/g, ''), 10); }
 const Meta = {
   souls: 0, best: 0,
   upgrades: new Set(),      // owned UPGRADES ids
+  seen: new Set(),          // codex: monster ids ever encountered
   streak: 0,                // consecutive daily-challenge wins
   lastDailyWin: '',         // date of last daily win (for streak continuity)
   lastDailyTry: '',         // date of last daily attempt (one try per day)
@@ -18,6 +19,7 @@ const Meta = {
     this.souls = parseInt(Platform.storage.get(CFG.key('souls')) || '0', 10);
     this.best = parseInt(Platform.storage.get(CFG.key('best')) || '0', 10);
     this.upgrades = new Set((Platform.storage.get(CFG.key('upg')) || '').split(',').filter(Boolean));
+    this.seen = new Set((Platform.storage.get(CFG.key('seen')) || '').split(',').filter(Boolean));
     this.streak = parseInt(Platform.storage.get(CFG.key('streak')) || '0', 10);
     this.lastDailyWin = Platform.storage.get(CFG.key('dailywin')) || '';
     this.lastDailyTry = Platform.storage.get(CFG.key('dailytry')) || '';
@@ -26,6 +28,7 @@ const Meta = {
     Platform.storage.set(CFG.key('souls'), String(this.souls));
     Platform.storage.set(CFG.key('best'), String(this.best));
     Platform.storage.set(CFG.key('upg'), [...this.upgrades].join(','));
+    Platform.storage.set(CFG.key('seen'), [...this.seen].join(','));
     Platform.storage.set(CFG.key('streak'), String(this.streak));
     Platform.storage.set(CFG.key('dailywin'), this.lastDailyWin);
     Platform.storage.set(CFG.key('dailytry'), this.lastDailyTry);
@@ -56,8 +59,23 @@ function settleRun() {
   clearRunSave();
 }
 
+// codex bookkeeping: merge this dispatch's encounters, pay first-sighting bonus
+function mergeEncounters() {
+  if (!G.encounters.length) return;
+  let fresh = 0;
+  for (const id of G.encounters) {
+    if (!Meta.seen.has(id)) { Meta.seen.add(id); fresh++; }
+  }
+  G.encounters = [];
+  if (fresh) {
+    Meta.souls += fresh * 2;
+    Meta.save();
+    if (!G.pendingFloat) G.pendingFloat = { key: 'float.codexNew', params: { n: fresh * 2 } };
+  }
+}
+
 // ── run save/resume: every action autosaves; closing the tab never loses a run ──
-const SAVE_PHASES = ['PLAYING', 'LEVEL_INTRO', 'PICK_RELIC'];
+const SAVE_PHASES = ['PLAYING', 'LEVEL_INTRO', 'PICK_RELIC', 'SHOP'];
 function saveRun() {
   if (!SAVE_PHASES.includes(G.phase)) { clearRunSave(); return; }
   const s = {
@@ -66,6 +84,7 @@ function saveRun() {
     relics: G.relics, relicChoiceIds: G.relicChoices.map(r => r.id),
     revealCount: G.revealCount, regenCounter: G.regenCounter,
     revived: G.revived, guardUsed: G.guardUsed, tut: G.tut,
+    items: G.items, shieldUp: G.shieldUp, shopAt: G.shopAt,
   };
   try { Platform.storage.set(CFG.key('run'), JSON.stringify(s)); } catch (e) {}
 }
@@ -80,6 +99,8 @@ function loadRun() {
     relics: s.relics, relicChoices: s.relicChoiceIds.map(id => RELICS.find(r => r.id === id)).filter(Boolean),
     revealCount: s.revealCount, regenCounter: s.regenCounter,
     revived: s.revived, guardUsed: s.guardUsed, tut: s.tut || null,
+    items: s.items || [], shieldUp: !!s.shieldUp, shopAt: s.shopAt != null ? s.shopAt : null,
+    itemMode: null, encounters: [],
     perks: Meta.perks(), settled: false,
   });
   // seeded daily rng can't be restored mid-sequence; later draws fall back to Math.random
@@ -138,6 +159,10 @@ function dispatch(action, data) {
     }
     case 'TUT_NEXT': Tut.next(); break;
     case 'TUT_SKIP': Tut.done(); break;
+    case 'USE_ITEM': useItem(data.slot); break;
+    case 'SHOP_BUY': buyShopItem(data.id); break;
+    case 'SHOP_LEAVE': leaveShop(); break;
+    case 'OPEN_CODEX': G.overlay = 'codex'; break;
     case 'PICK_RELIC': if (G.tut) Tut.done(); pickRelic(data.id); break;
     case 'RESTART': G.settled = false; G.perks = Meta.perks(); G.rng = Math.random; initRun(); startFloor(); break; // one tap → straight into a fresh floor
     case 'GO_HOME': G.phase = 'HOME'; G.overlay = null; break;
@@ -155,6 +180,7 @@ function dispatch(action, data) {
     }
     default: break;
   }
+  mergeEncounters();
   flushFloat();
   renderAll();
   saveRun();
@@ -162,7 +188,7 @@ function dispatch(action, data) {
 
 async function boot() {
   await Platform.hydrate([CFG.key('lang'), CFG.key('sfx'), CFG.key('souls'), CFG.key('best'),
-    CFG.key('upg'), CFG.key('streak'), CFG.key('dailywin'), CFG.key('dailytry'),
+    CFG.key('upg'), CFG.key('seen'), CFG.key('streak'), CFG.key('dailywin'), CFG.key('dailytry'),
     CFG.key('run'), CFG.key('tut')]);
   restoreAudioPrefs();
   Meta.load();

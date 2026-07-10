@@ -12,10 +12,12 @@ const C = {
 function layout() {
   const SW = GameGlobal.SW, SH = GameGlobal.SH, PAD = 14;
   const hudY = GameGlobal.safeTop + 8, hudH = 74;
-  const relicH = 34;
-  const availH = SH - hudY - hudH - relicH - PAD * 3;
+  const itemH = 50, relicH = 30;
+  const availH = SH - hudY - hudH - itemH - relicH - PAD * 4;
   const bs = Math.min(SW - PAD * 2, availH);
-  return { SW, SH, PAD, hudY, hudH, boardX: (SW - bs) / 2, boardY: hudY + hudH + PAD, boardSize: bs, relicY: hudY + hudH + PAD * 2 + bs };
+  const boardY = hudY + hudH + PAD;
+  const itemY = boardY + bs + PAD;
+  return { SW, SH, PAD, hudY, hudH, boardX: (SW - bs) / 2, boardY, boardSize: bs, itemY, itemH, relicY: itemY + itemH + PAD };
 }
 
 function drawHud(L) {
@@ -23,7 +25,7 @@ function drawHud(L) {
   fillRR(PAD, y, SW - PAD * 2, h, 14, C.surface);
   strokeRR(PAD, y, SW - PAD * 2, h, 14, C.border);
   const half = y + 22;
-  txtL(`❤️ ${G.hp}/${G.maxHp}`, PAD + 12, half, C.hp, 'bold 15px sans-serif');
+  txtL(`❤️ ${G.hp}/${G.maxHp}${G.shieldUp ? ' 🛡️' : ''}`, PAD + 12, half, C.hp, 'bold 15px sans-serif');
   txt(`${T('ui.floor')} ${G.floorIdx + 1}/${FLOORS.length}`, SW / 2, half, C.text, 'bold 13px sans-serif');
   txtR(`🪙 ${G.gold}   🔮 ${G.souls}`, SW - PAD - 12, half, C.gold, 'bold 13px sans-serif');
   // xp bar
@@ -46,11 +48,26 @@ function drawGrid(L) {
     const cell = G.grid[i];
     if (!cell.rev) {
       fillRR(x, y, ts, ts, rad, C.tile);
-      strokeRR(x, y, ts, ts, rad, C.tileEdge);
+      strokeRR(x, y, ts, ts, rad, G.itemMode ? '#f5b301' : C.tileEdge);
+      if (cell.peek) { // probe/scan intel: faint preview of what's hiding here
+        ctx.globalAlpha = 0.55;
+        const pk = cell.mon && !cell.dead ? MONSTERS[cell.mon].icon
+          : cell.t === 'coin' ? '🪙' : cell.t === 'potion' ? '🧪'
+          : cell.t === 'stairs' ? '🪜' : cell.t === 'shop' ? '🏪' : '·';
+        txt(pk, x + ts / 2, y + ts / 2, C.text, `${Math.round(ts * 0.34)}px sans-serif`);
+        ctx.globalAlpha = 1;
+      }
       addHit(x, y, ts, ts, 'CELL', { i });
       continue;
     }
     fillRR(x, y, ts, ts, rad, C.open);
+    if (cell.t === 'shop') {
+      fillRR(x, y, ts, ts, rad, '#e7f0ff');
+      strokeRR(x, y, ts, ts, rad, '#2b7de9', 2);
+      txt('🏪', x + ts / 2, y + ts / 2, C.text, `${fs}px sans-serif`);
+      addHit(x, y, ts, ts, 'CELL', { i });
+      continue;
+    }
     if (cell.mon && cell.dead) {
       ctx.globalAlpha = MONSTERS[cell.mon].boss ? 1 : 0.35;
       txt(MONSTERS[cell.mon].icon, x + ts / 2, y + ts / 2, C.text, `${fs}px sans-serif`);
@@ -71,6 +88,86 @@ function drawGrid(L) {
       if (n > 0) txt(String(n), x + ts / 2, y + ts / 2, NUM_COLORS[Math.min(n, 6)] || C.purple, `bold ${fs}px sans-serif`);
     }
   }
+}
+
+function drawItemBar(L) {
+  const { PAD, itemY: y, itemH: h } = L;
+  txtL(T('ui.items'), PAD, y + h / 2, C.muted, '10px sans-serif');
+  const slotW = 46, gap = 8, startX = PAD + 44;
+  for (let s = 0; s < ITEM_SLOTS; s++) {
+    const x = startX + s * (slotW + gap);
+    const id = G.items[s];
+    const armed = G.itemMode && G.itemMode.slot === s;
+    fillRR(x, y + 2, slotW, h - 4, 12, C.surface);
+    strokeRR(x, y + 2, slotW, h - 4, 12, armed ? '#f5b301' : (id ? C.purple : C.border), armed ? 2.5 : 1);
+    if (id) {
+      const it = ITEMS.find(v => v.id === id);
+      txt(it.icon, x + slotW / 2, y + h / 2 - 4, C.text, '20px sans-serif');
+      txt(T('item.' + id + '.name'), x + slotW / 2, y + h - 11, C.muted, '7px sans-serif');
+      addHit(x, y + 2, slotW, h - 4, 'USE_ITEM', { slot: s });
+    } else {
+      txt('·', x + slotW / 2, y + h / 2, C.border, '16px sans-serif');
+    }
+  }
+  if (G.itemMode) txtR(T('ui.pickTarget'), L.SW - PAD, y + h / 2, '#b8860b', 'bold 11px sans-serif');
+}
+
+function drawShop() {
+  drawDim('rgba(20,30,50,0.9)');
+  const { SW, SH } = GameGlobal;
+  txt('🏪', SW / 2, 76, C.text, '38px sans-serif');
+  txt(T('shop.title'), SW / 2, 118, '#a8ccff', 'bold 20px sans-serif');
+  txt(`🪙 ${G.gold}`, SW / 2, 144, C.gold, 'bold 14px sans-serif');
+  const stock = (G.shopAt != null && G.grid[G.shopAt].shopStock) || [];
+  const cardW = SW - 48, cardH = 68, startY = 168;
+  if (!stock.length) txt(T('shop.soldOut'), SW / 2, startY + 30, '#8ea8cc', '13px sans-serif');
+  stock.forEach((id, k) => {
+    const it = ITEMS.find(v => v.id === id);
+    const y = startY + k * (cardH + 10);
+    const afford = G.gold >= it.cost && G.items.length < ITEM_SLOTS;
+    fillRR(24, y, cardW, cardH, 12, C.surface);
+    strokeRR(24, y, cardW, cardH, 12, afford ? '#2b7de9' : C.border, afford ? 2 : 1);
+    ctx.globalAlpha = afford ? 1 : 0.55;
+    txt(it.icon, 24 + 28, y + cardH / 2, C.text, '26px sans-serif');
+    txtL(T('item.' + id + '.name'), 24 + 54, y + 20, C.text, 'bold 13px sans-serif');
+    txtLWrap(T('item.' + id + '.desc'), 24 + 54, y + 44, cardW - 130, C.muted, '10px sans-serif', 13);
+    txtR(`🪙 ${it.cost}`, 24 + cardW - 12, y + cardH / 2, afford ? C.gold : C.muted, 'bold 13px sans-serif');
+    ctx.globalAlpha = 1;
+    if (afford) addHit(24, y, cardW, cardH, 'SHOP_BUY', { id });
+  });
+  if (G.items.length >= ITEM_SLOTS) txt(T('shop.full'), SW / 2, startY + stock.length * (cardH + 10) + 12, '#ff9f6e', '11px sans-serif');
+  const backY = startY + Math.max(1, stock.length) * (cardH + 10) + 30;
+  fillRR(SW / 2 - 90, backY, 180, 42, 11, '#2b7de9');
+  txt(T('shop.leave'), SW / 2, backY + 21, '#fff', 'bold 14px sans-serif');
+  addHit(SW / 2 - 90, backY, 180, 42, 'SHOP_LEAVE', {});
+}
+
+function drawCodex() {
+  drawDim('rgba(40,30,20,0.97)');
+  const { SW } = GameGlobal;
+  txt(T('codex.title'), SW / 2, 64, '#ffd9a0', 'bold 20px sans-serif');
+  const ids = Object.keys(MONSTERS);
+  const cardW = SW - 44, cardH = 56, startY = 92;
+  ids.forEach((id, k) => {
+    const y = startY + k * (cardH + 7);
+    const known = Meta.seen.has(id);
+    fillRR(22, y, cardW, cardH, 11, C.surface);
+    strokeRR(22, y, cardW, cardH, 11, known ? C.purple : C.border);
+    ctx.globalAlpha = known ? 1 : 0.5;
+    txt(known ? MONSTERS[id].icon : '❓', 22 + 26, y + cardH / 2, C.text, '22px sans-serif');
+    if (known) {
+      txtL(T('mon.' + id + '.name'), 22 + 50, y + 18, C.text, 'bold 13px sans-serif');
+      txtLWrap(T('mon.' + id + '.trait'), 22 + 50, y + 38, cardW - 120, C.muted, '10px sans-serif', 12);
+      txtR(`⚔️ ${MONSTERS[id].power}`, 22 + cardW - 12, y + cardH / 2, C.hp, 'bold 13px sans-serif');
+    } else {
+      txtL(T('codex.unknown'), 22 + 50, y + cardH / 2, C.muted, '12px sans-serif');
+    }
+    ctx.globalAlpha = 1;
+  });
+  const backY = startY + ids.length * (cardH + 7) + 10;
+  fillRR(SW / 2 - 80, backY, 160, 38, 10, 'rgba(255,255,255,0.16)');
+  txt(T('upg.back'), SW / 2, backY + 19, '#fff', 'bold 13px sans-serif');
+  addHit(SW / 2 - 80, backY, 160, 38, 'CLOSE_OVERLAY', {});
 }
 
 function drawRelicBar(L) {
@@ -109,12 +206,16 @@ function drawHome() {
   fillRR(SW / 2 - 100, dy, 200, 44, 12, can ? '#9c36b5' : 'rgba(156,54,181,0.25)');
   txt(can ? T('home.daily') : T('home.dailyDone'), SW / 2, dy + 22, '#fff', 'bold 14px sans-serif');
   if (can) addHit(SW / 2 - 100, dy, 200, 44, 'START_DAILY', {});
-  // upgrades
+  // upgrades + codex side by side
   const uy = dy + 56;
-  fillRR(SW / 2 - 100, uy, 200, 40, 12, C.surface);
-  strokeRR(SW / 2 - 100, uy, 200, 40, 12, C.border);
-  txt(`⚒️ ${T('home.upgrades')}`, SW / 2, uy + 20, C.text, 'bold 13px sans-serif');
-  addHit(SW / 2 - 100, uy, 200, 40, 'OPEN_UPGRADES', {});
+  fillRR(SW / 2 - 100, uy, 96, 40, 12, C.surface);
+  strokeRR(SW / 2 - 100, uy, 96, 40, 12, C.border);
+  txt(`⚒️ ${T('home.upgrades')}`, SW / 2 - 52, uy + 20, C.text, 'bold 12px sans-serif');
+  addHit(SW / 2 - 100, uy, 96, 40, 'OPEN_UPGRADES', {});
+  fillRR(SW / 2 + 4, uy, 96, 40, 12, C.surface);
+  strokeRR(SW / 2 + 4, uy, 96, 40, 12, C.border);
+  txt(`📖 ${T('home.codex')}`, SW / 2 + 52, uy + 20, C.text, 'bold 12px sans-serif');
+  addHit(SW / 2 + 4, uy, 96, 40, 'OPEN_CODEX', {});
 }
 
 function drawUpgrades() {
@@ -260,15 +361,18 @@ function renderAll() {
   if (G.phase === 'HOME') {
     drawHome();
     if (G.overlay === 'upgrades') drawUpgrades();
+    else if (G.overlay === 'codex') drawCodex();
     drawFloat();
     return;
   }
   const L = layout();
   drawHud(L);
   if (G.grid.length) drawGrid(L);
+  drawItemBar(L);
   drawRelicBar(L);
   drawTut(L);
   if (G.phase === 'LEVEL_INTRO') drawIntro();
+  else if (G.phase === 'SHOP') drawShop();
   else if (G.phase === 'PICK_RELIC') drawRelicPick();
   else if (G.phase === 'WIN') { drawEnd(true); return; }   // end screens own the frame:
   else if (G.phase === 'LOSE') { drawEnd(false); return; } // no float toast on top
