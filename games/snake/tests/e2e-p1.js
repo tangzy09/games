@@ -84,6 +84,15 @@ async function main() {
   assert(deathsDuring === deathsAtAiStart, `deaths unchanged across AI clear run (${deathsAtAiStart} -> ${deathsDuring})`);
   log(`AI cleared level in ${elapsedSec}s, deaths stayed at ${deathsDuring}`);
 
+  // 果子系统集成:AI 通关一整关,特殊果必然刷过、且 AI 吃到过
+  const fruitsProbe = await page.evaluate(() => ({
+    spawned: window.G.run.stats.specialsSpawned,
+    eaten: Object.values(window.G.run.stats.specials).reduce((a, b) => a + b, 0),
+  }));
+  assert(fruitsProbe.spawned > 0, `specials spawned during AI run (got ${fruitsProbe.spawned})`);
+  assert(fruitsProbe.eaten > 0, `AI ate specials (got ${fruitsProbe.eaten})`);
+  log(`specials: spawned ${fruitsProbe.spawned}, eaten ${fruitsProbe.eaten}`);
+
   // 过关图片全屏欣赏:点图放大,再点收回
   await page.evaluate(() => dispatch('IMG_FULL'));
   assert(await page.evaluate(() => window.G.imgFull) === true, 'IMG_FULL enters fullscreen view');
