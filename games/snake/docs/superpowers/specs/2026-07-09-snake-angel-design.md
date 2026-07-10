@@ -7,8 +7,8 @@
 可爱风贪吃蛇:蛇走过的格子永久揭开底下的「大头萌天使」图片,揭满全图过关换下一张。核心循环 = 揭图收集(500 张图鉴)+ 果子组合技 + 成就系统。带 AI 代打(数学上保证 100% 通关)、4 种可解锁皮肤、10 国语言、Google 广告变现。
 
 - **素材源**:`Projects\language-study\images\` 共 3432 张统一画风 webp(512×512,~50KB/张),精选 500 张打包进本项目(自带副本,不跨项目引用)。
-- **平台**:网页版(EC2 + nginx,AdSense)+ Capacitor 打包 iOS/Android(AdMob)。同一套 `www/` 代码。
-- **技术**:纯 canvas 渲染,模块化 vanilla JS,**零构建**(index.html 多 `<script>` 直引),Capacitor 直接吃 `www/`。
+- **平台**:网页优先(EC2 `/var/www/games` 一仓多站、每游戏子域名,门户分发),数据验证后 Capacitor 上 store(monorepo README 的分发纪律)。
+- **技术**:**接入 `Projects\games` monorepo 共享引擎**(`engine/`,从 2048 抽取,全局脚本+加载顺序,无 bundler)。游戏位于 `games/snake/`,实现引擎契约:单一状态对象 `G` + 全局 `renderAll()`(每帧 clearHits→全量重画→addHit)+ `dispatch(action)`;i18n/广告/门户/音频/平台探测/画布基建全部用引擎,**引擎只在 `engine/` 改,不许私拷**。
 
 ## 2. 核心玩法
 
@@ -188,11 +188,11 @@
 
 ## 9. i18n(10 语言)
 
-英、中、日、韩、西、法、德、葡、俄、印尼。`www/locales/<lang>.json` + `I18N.t(key,{params})`(kototabi 同款)。约 400 key(含 120 成就名+描述、13 果子名+说明、25 集名)。构建期一次性生成全部译文。
+英、中、日、韩、西、法、德、葡、俄、印尼(引擎 `I18N`,`GAME_CONFIG.languages` 覆盖默认集;locale 码用引擎风格 `en/zh-CN/ja/ko/es/fr/de/pt-BR/ru/id`)。文件 `games/snake/locales/<lang>.json`,`T(key,{params})` 取词,**零硬编码文案从 P1 第一天执行**(P1 先 en+zh-CN 两语,P3 补满 10 语);`node tools/check-locales.js games/snake/locales` 必须 0 fail。约 400 key(含 120 成就名+描述、13 果子名+说明、25 集名)。canvas 上非定长文案一律过 `wrapLines`(德/俄膨胀)。
 
 ## 10. 广告
 
-`ads.js` 抽象层:`showRewarded(onReward)` / `showInterstitial()` / `banner()`。
+全部走引擎 `Ads`(AdMob 激励+插屏,web 走 `Portal` 门户 SDK 或模拟)+ `Portal`(GD/CrazyGames/Poki)。**adUnits 每游戏独立**(`GAME_CONFIG.adUnits`,绝不复用他游戏的)。AdSense H5(Ad Placement API)适配器 P3 时补进 `engine/ads.js`(引擎层改,全系列受益)。
 
 | 广告位 | 类型 | 触发 | 频控 |
 |---|---|---|---|
@@ -201,11 +201,13 @@
 | 插屏 | 插页 | 每 2 关之间 | AI 代打模式不弹 |
 | banner | 横幅 | 游戏屏底部 | 常驻 |
 
-- 适配器:网页 = AdSense H5(Ad Placement API `adBreak`,需 AFG 审核);App = AdMob(走 admob-monetization skill,含 **UMP GDPR 同意流程 + iOS ATT 提示**)。
+- 适配器优先级:门户内 = Portal SDK 分成;自有站 = AdSense H5(`adBreak`,需 AFG 审核);App = AdMob(走 admob-monetization skill,含 **UMP GDPR 同意流程 + iOS ATT 提示**)。
 - **无广告 fallback**:广告不可用时(审核期/无填充/断网),复活与 AI 救场降级为每日免费限次(复活 2 次/天,救场 3 次/天),功能不残废。
 - **儿童受众政策风险**:可爱画风可能被商店判「面向儿童」(Play Families / Kids 类目),将强制儿童广告合规、eCPM 大跌。上架时受众定位选**全年龄休闲**、不进儿童类目、不在商店文案里主打儿童;若仍被强判,AdMob 切 `tagForChildDirectedTreatment` 合规模式。
 
-## 11. 存档(storage.js,localStorage,版本化)
+## 11. 存档(引擎 `Platform` 存储门面,版本化)
+
+键名一律 `CFG.key(...)` 前缀(`snake_*`),经引擎 `Platform` 读写(web=localStorage,Capacitor=Preferences,boot 时 `Platform.hydrate` 预载)。存档 JSON 结构:
 
 ```
 { v:1,
@@ -218,7 +220,7 @@
 
 过关/死亡/成就解锁/退出时写盘;启动检测 run 快照可续玩。
 
-**iOS 防丢档**:WKWebView 的 localStorage 可能在存储压力下被系统清除。App 端(Capacitor)**双写 Preferences 插件**作备份,启动时对比两份存档取版本较新者;网页端仅 localStorage。
+**iOS 防丢档**:WKWebView 的 localStorage 可能在存储压力下被系统清除。引擎 `Platform` 在 Capacitor 端以 **Preferences 插件为主存储**(原生持久层,不受 WKWebView 清理影响),网页端 localStorage——门面已隔离,游戏代码不感知。
 
 ## 12. 工程结构与测试
 
