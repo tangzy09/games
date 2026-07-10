@@ -32,7 +32,7 @@ const FAMILIES = [
   { id: 'cmb',    counter: 'maxCombo',      tiers: [10, 30, 50] },
   { id: 'len',    counter: 'maxLen',        tiers: [50, 100, 150] },
   { id: 'day',    counter: 'streakDays',    tiers: [3, 7, 30, 100] },
-  { id: 'time',   counter: 'playtimeMs',    tiers: [3600000, 36000000, 180000000] },
+  { id: 'time',   counter: 'playtimeMs',    tiers: [3600000, 36000000, 180000000], div: 3600000 },   // UI 按小时折算显示
   // 4 皮肤各通关 1 次(P2c 皮肤上线前 counter 恒 0,先定义)
   { id: 'sk_cloud',  counter: 'skinClears.cloud',   tiers: [1] },
   { id: 'sk_star',   counter: 'skinClears.star',    tiers: [1] },
@@ -46,7 +46,8 @@ const FAMILIES = [
 const CUM_DEFS = [];
 for (const fam of FAMILIES) {
   fam.tiers.forEach((threshold, i) => {
-    CUM_DEFS.push({ id: `${fam.id}_${i + 1}`, counter: fam.counter, threshold, family: fam.id, tier: i + 1 });
+    CUM_DEFS.push({ id: `${fam.id}_${i + 1}`, counter: fam.counter, threshold,
+                    family: fam.id, tier: i + 1, div: fam.div || 1 });
   });
 }
 if (CUM_DEFS.length !== 100) {
@@ -253,7 +254,7 @@ function getCounter(save, path) {
 
 function tierInfo(id) {
   for (const def of CUM_DEFS) {
-    if (def.id === id) return { threshold: def.threshold, counter: def.counter };
+    if (def.id === id) return { threshold: def.threshold, counter: def.counter, div: def.div || 1 };
   }
   return null;
 }

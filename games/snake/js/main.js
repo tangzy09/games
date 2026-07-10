@@ -83,6 +83,44 @@ function persist() {
   Storage.save(Platform.storage, G.saveKey, G.save);
 }
 
+// 成就墙浮层:双 tab(单局/累计),累计带族进度;打开时暂停
+function openAchievements(tab) {
+  const panel = document.getElementById('panel');
+  document.getElementById('panel-title').textContent = T('achui.title');
+  const tabs = document.getElementById('panel-tabs');
+  tabs.innerHTML = `<button class="ptab" data-t="run" type="button">${T('achui.tabRun')}</button>
+                    <button class="ptab" data-t="cum" type="button">${T('achui.tabCum')}</button>`;
+  tabs.querySelectorAll('.ptab').forEach(b => {
+    b.onclick = () => renderAchTab(b.dataset.t);
+  });
+  document.getElementById('panel-close').onclick = () => {
+    panel.classList.add('hidden');
+    if (G.phase === 'PAUSED') renderAll();
+  };
+  panel.classList.remove('hidden');
+  renderAchTab(tab || 'run');
+  if (G.phase === 'PLAYING') dispatch('PAUSE');       // 看成就时暂停
+}
+function renderAchTab(tab) {
+  document.querySelectorAll('.ptab').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
+  const body = document.getElementById('panel-body');
+  const got = new Set(G.save.ach.unlocked);
+  const defs = tab === 'run' ? Ach.RUN_ACHS : Ach.CUM_DEFS;
+  body.innerHTML = defs.map(d => {
+    const has = got.has(d.id);
+    let pg = '';
+    if (tab === 'cum') {
+      const info = Ach.tierInfo(d.id);
+      const cur = Math.min(Ach.getCounter(G.save, info.counter), info.threshold);
+      // div 折算(time 族毫秒 → 小时),其余族 div=1 原样
+      pg = T('achui.progress', { cur: Math.floor(cur / info.div), max: Math.round(info.threshold / info.div) });
+    }
+    return `<div class="ach-item${has ? ' got' : ''}">
+      <span class="medal">🏅</span><span class="nm">${T('ach.' + d.id)}</span>
+      <span class="pg">${pg}</span></div>`;
+  }).join('');
+}
+
 // 解锁 toast:一次最多叠 3 条,2.6s 后淡出
 function showAchToasts(ids) {
   const host = document.getElementById('toasts');
@@ -212,8 +250,11 @@ async function boot() {
     });
     window.addEventListener('resize', () => { initCanvas(); if (G.run) initLayers(G.img); renderAll(); });
     Controls.render(
-      `<div class="ctl-btn" id="sfx-btn">${Sfx.on ? '🔊' : '🔇'}</div>`,
+      `<div class="ctl-btn" id="ach-btn" title="${T('menu.achievements')}">🏅</div>
+       <div class="ctl-btn" id="sfx-btn">${Sfx.on ? '🔊' : '🔇'}</div>`,
       bar => {
+        const a = bar.querySelector('#ach-btn');
+        if (a) a.onclick = () => openAchievements();
         const b = bar.querySelector('#sfx-btn');
         if (b) b.onclick = () => { b.textContent = Sfx.toggle() ? '🔊' : '🔇'; };
       });
