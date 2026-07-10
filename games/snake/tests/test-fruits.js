@@ -179,3 +179,49 @@ console.log('OK test-fruits(刷新/过期/gold/twin)');
   assert.strictEqual(JSON.stringify(h.effects), JSON.stringify(g.effects), '同种子礼盒结果一致');
 }
 console.log('OK test-fruits(八效果)');
+
+// --- meteor:按时刻推进、沿途揭开、出界消失 ---
+{
+  const g = Core.createGame({ seed: 12 });
+  Core.applyFruit(g, 'meteor', 1000, {});
+  assert(g.meteor, '流星生成');
+  const step = Fruits.FRUIT_TIMES.meteorStep;
+  const before = g.revealedCount;
+  g.apple = { x: g.snake[0].x + 1, y: g.snake[0].y };  // 让蛇原地小步动,时间推进靠 nowMs
+  Core.step(g, { nowMs: 1000 + step * 5 });            // 推进 5 个流星步
+  assert(g.revealedCount > before, '流星沿途揭开(不论是否追上)');
+  Core.step(g, { nowMs: 1000 + step * 40 });           // 40 步足够穿出 16 格棋盘
+  assert.strictEqual(g.meteor, null, '流星出界消失');
+}
+
+// --- meteor:追上得分 ---
+{
+  const g = Core.createGame({ seed: 13 });
+  const d = Core.DIRS[g.nextDir], h = g.snake[0];
+  g.meteor = { x: h.x + d.x, y: h.y + d.y, dx: 1, dy: 1, nextAt: 99999999 };  // 冻结在头前
+  g.apple = { x: 0, y: 15 };
+  const sc = g.score;
+  Core.step(g, { nowMs: 2000 });
+  assert.strictEqual(g.meteor, null, '追上后消失');
+  assert.strictEqual(g.score, sc + 40, '追上 +40');
+}
+
+// --- magnet:每 magnetStep 果子向头挪 1 格;不入蛇身/不出界/不叠果 ---
+{
+  const g = Core.createGame({ seed: 14 });
+  Core.applyFruit(g, 'magnet', 1000, {});
+  const h = g.snake[0];
+  g.apple = { x: h.x + 5, y: h.y };       // 正右方 5 格
+  Core.step(g, { nowMs: 1000 + Fruits.FRUIT_TIMES.magnetStep });
+  // 蛇也向右走了一步:头 x+1;苹果向头挪 1 格:x+5-1 → 距离仍 3?精确断言位置:
+  assert.strictEqual(g.apple.x, h.x + 4, '苹果向头漂移 1 格');
+  // 不叠果:special 放在苹果漂移目标位,应停住
+  const g2 = Core.createGame({ seed: 15 });
+  Core.applyFruit(g2, 'magnet', 1000, {});
+  const h2 = g2.snake[0];
+  g2.apple  = { x: h2.x + 5, y: h2.y };
+  g2.special = { type: 'gold', x: h2.x + 4, y: h2.y, expiresAt: 99999999 };
+  Core.step(g2, { nowMs: 1000 + Fruits.FRUIT_TIMES.magnetStep });
+  assert.strictEqual(g2.apple.x, h2.x + 5, '目标被特殊果占用,苹果原地不动(或走纵轴——y 相同故不动)');
+}
+console.log('OK test-fruits(流星/磁力)');
