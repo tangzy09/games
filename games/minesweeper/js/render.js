@@ -238,7 +238,7 @@ function drawCodex() {
   slice.forEach((id, k) => {
     const y = 72 + k * (cardH + 8);
     fillRR(18, y, w, cardH, 14, 'rgba(255,250,240,0.97)');
-    txt(MONSTERS[id].icon, 18 + 30, y + cardH / 2, C.text, '30px sans-serif');
+    drawSprite(id, 18 + 30, y + cardH / 2, Math.min(52, cardH - 14), false, MONSTERS[id].icon, '30px sans-serif');
     txtL(T('mon.' + id + '.name'), 18 + 58, y + 20, C.text, 'bold 15px sans-serif');
     if (MONSTERS[id].lv > 0)
       txtR('⚔️ ' + MONSTERS[id].lv, 18 + w - 14, y + 20, C.hp, 'bold 15px sans-serif');
