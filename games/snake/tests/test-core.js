@@ -153,3 +153,19 @@ g.apple = { x: 0, y: 0 };
   assert.strictEqual(g.score, 50, 'scoreScale=0.5 时里程碑 +50');
 }
 console.log('OK test-core(里程碑)');
+
+// --- ghost 穿身:同 Task2 自撞局面,但 step 带 ghost:true 应不死且头正常前进(P2 光环果子)---
+g = Core.createGame({ seed: 1 });
+g.targetLen = 6;
+for (let i = 0; i < 6; i++) Core.step(g);           // len=6 直行,头 (9,8)
+Core.setDir(g, 'down'); Core.step(g);               // 头 (9,9)
+Core.setDir(g, 'left'); Core.step(g);               // 头 (8,9)
+Core.setDir(g, 'up');
+{
+  const target = { x: g.snake[0].x, y: g.snake[0].y - 1 };   // (8,8) 是身体格
+  assert(g.snake.some(c => c.x === target.x && c.y === target.y), '前方确为身体格(自撞局面成立)');
+  Core.step(g, { ghost: true });
+  assert(!g.dead, 'ghost 穿身不死');
+  assert.deepStrictEqual({ ...g.snake[0] }, target, 'ghost 时头照常前进到身体格');
+}
+console.log('OK test-core(ghost)');

@@ -58,6 +58,7 @@ function step(s, o = {}) {
   const d = SNAKE_DIRS[s.dir], head = s.snake[0];
   const nx = head.x + d.x, ny = head.y + d.y;
   if (nx < 0 || ny < 0 || nx >= s.cols || ny >= s.rows) return die(s);
+  // 不变式: snake.length ≤ targetLen(targetLen 单调增, respawn 重置 length=1),故无需收缩路径
   const grow = s.snake.length < s.targetLen;
   const hitSelf = s.snake.some((c, i) => {
     if (!grow && i === s.snake.length - 1) return false;  // 尾巴同步让位
