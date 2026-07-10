@@ -96,3 +96,21 @@ g.revealed.fill(1); g.revealedCount = 16 * 16 - 1;
   assert.strictEqual(g.revealedCount, g.snake.length, '重置后仅蛇身格已揭');
 }
 console.log('OK test-core(揭图/苹果/连击/过关)');
+
+// --- 半长重生 ---
+g = Core.createGame({ seed: 5 });
+g.targetLen = 12;
+// 蛇形走位把身体养长,然后掉头撞死
+for (let i = 0; i < 14 && !g.dead; i++) {
+  Core.setDir(g, ['right','down','left','down'][i % 4]); Core.step(g);
+}
+if (!g.dead) { Core.setDir(g, 'up'); while (!g.dead) Core.step(g); }
+const lenBefore = g.snake.length;
+const revBefore = g.revealedCount;
+Core.respawn(g);
+assert(!g.dead);
+assert.strictEqual(g.snake.length, 1, '重生只有蛇头');
+assert.strictEqual(g.targetLen, Math.max(3, Math.floor(lenBefore / 2)), '半长重生');
+assert(g.revealedCount >= revBefore, '揭图进度保留');
+assert.strictEqual(g.combo, 0, '死亡清连击');
+console.log('OK test-core(重生)');
