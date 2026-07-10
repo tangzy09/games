@@ -8,7 +8,7 @@ function yesterdayStr() { const d = new Date(); d.setDate(d.getDate() - 1); retu
 function dailySeed() { return parseInt(todayStr().replace(/-/g, ''), 10); }
 
 const Meta = {
-  wins: 0, seen: new Set(), badges: new Set(), streak: 0, lastDailyWin: '', lastDailyTry: '',
+  wins: 0, seen: new Set(), badges: new Set(), streak: 0, lastDailyWin: '', lastDailyTry: '', markHintDone: false,
   load() {
     this.wins = parseInt(Platform.storage.get(CFG.key('wins')) || '0', 10);
     this.seen = new Set((Platform.storage.get(CFG.key('seen')) || '').split(',').filter(Boolean));
@@ -16,6 +16,7 @@ const Meta = {
     this.streak = parseInt(Platform.storage.get(CFG.key('streak')) || '0', 10);
     this.lastDailyWin = Platform.storage.get(CFG.key('dailywin')) || '';
     this.lastDailyTry = Platform.storage.get(CFG.key('dailytry')) || '';
+    this.markHintDone = Platform.storage.get(CFG.key('markhint')) === '1';
   },
   save() {
     Platform.storage.set(CFG.key('wins'), String(this.wins));
@@ -162,6 +163,7 @@ function dispatch(action, data) {
     case 'SET_MARK': {
       if (G.markMenu != null && G.grid[G.markMenu]) G.grid[G.markMenu].mark = data.m || null;
       G.markMenu = null;
+      if (data.m && !Meta.markHintDone) { Meta.markHintDone = true; Platform.storage.set(CFG.key('markhint'), '1'); }
       break;
     }
     case 'MARK_CLOSE': G.markMenu = null; break;

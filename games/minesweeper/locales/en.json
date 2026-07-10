@@ -20,7 +20,8 @@
   "ui": {
     "levelUp": "Level up!",
     "markTitle": "Mark this tile as…",
-    "clearMark": "Clear"
+    "clearMark": "Clear",
+    "markHint": "💡 Long-press a dark tile to mark a number"
   },
   "codex": {
     "title": "Critterpedia",
@@ -164,7 +165,7 @@
     "p1": [
       "One board, one life. The 🐉 dragon is visible from the start — defeat it and tap its 👑 crown to win.",
       "Tap a dark tile to flip it. Flipping a monster means fighting it instantly, so the numbers are your eyes.",
-      "Long-press (right-click on desktop) a dark tile to place a note mark, e.g. a monster level you deduced.",
+      "Long-press a dark tile to place a note mark, e.g. a monster level you deduced.",
       "Closing the page is safe: your run auto-saves and resumes."
     ],
     "p2t": "Numbers & Combat",

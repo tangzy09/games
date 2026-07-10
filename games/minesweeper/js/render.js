@@ -402,6 +402,10 @@ function renderAll() {
   const L = layout();
   drawHud(L);
   if (G.grid.length) drawGrid(L);
+  if (G.phase === 'PLAYING' && !G.tut && G.markMenu == null && !Meta.markHintDone) {
+    const bh2 = L.ts * G.h + L.GAP * (G.h - 1);
+    txt(T('ui.markHint'), L.SW / 2, L.boardY + bh2 + 20, C.muted, '12px sans-serif');
+  }
   drawTut(L);
   drawMarkMenu(L);
   if (G.overlay === 'codex') drawCodex();
