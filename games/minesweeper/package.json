@@ -4,7 +4,7 @@
   "private": true,
   "description": "Dungeon Sweep — cute monster-minesweeper roguelite (iOS via Capacitor; web build assembled into www/).",
   "scripts": {
-    "build": "node scripts/build-www.cjs",
+    "build": "node ../../tools/build-www.cjs",
     "serve": "npx --yes http-server www -p 5174 -c-1",
     "sync": "cap sync",
     "add:ios": "cap add ios"
