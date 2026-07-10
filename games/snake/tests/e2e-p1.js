@@ -135,6 +135,39 @@ async function main() {
   assert(items === 100, `cum tab renders 100 badges (got ${items})`);
   await page.evaluate(() => document.getElementById('panel-close').click());
 
+  // 图鉴:过关图已解锁;面板可开;500 manifest
+  const galProbe = await page.evaluate(() => ({
+    unlocked: window.G.save.gallery.unlocked.length,
+    total: window.G.manifest.images.length,
+    sets: window.G.manifest.sets.length,
+  }));
+  assert(galProbe.unlocked >= 1, `gallery unlocked >= 1 (got ${galProbe.unlocked})`);
+  assert(galProbe.total === 500 && galProbe.sets === 25, `manifest 500/25 (got ${galProbe.total}/${galProbe.sets})`);
+  await page.evaluate(() => openGallery());
+  const setRows = await page.evaluate(() => document.querySelectorAll('.gal-set').length);
+  assert(setRows === 25, `gallery renders 25 sets (got ${setRows})`);
+  await page.evaluate(() => document.getElementById('panel-close').click());
+  // 皮肤:解锁星夜并切换,PAL 变化 + 存档记录
+  await page.evaluate(() => { window.G.save.stats.levelsCleared = 5; });
+  await page.evaluate(() => { openSkins(); });
+  const palBefore = await page.evaluate(() => PAL.bg);
+  await page.evaluate(() => applyThemeFromUI('star'));
+  const palAfter = await page.evaluate(() => ({ bg: PAL.bg, saved: window.G.save.settings.theme }));
+  assert(palAfter.bg !== palBefore && palAfter.saved === 'star', `theme switch works (${palBefore} -> ${palAfter.bg}, saved=${palAfter.saved})`);
+  const shotSkin = path.join(SHOT_DIR, 'e2e-skin-star.png');
+  await page.evaluate(() => document.getElementById('panel-close').click());
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: shotSkin });
+  log(`screenshot saved: ${shotSkin}`);
+  await page.evaluate(() => { applyThemeFromUI('cloud'); });
+  // 分享:shareCard 函数存在,headless 无 Web Share → 走下载分支返回 'downloaded'
+  const shareRes = await page.evaluate(async () =>
+    (typeof Gallery.shareCard === 'function')
+      ? Gallery.shareCard(window.G.img, window.G.run.score, PAL,
+          { title: 'Angel Snake', score: 'Score', url: 'x' })
+      : 'missing');
+  assert(shareRes === 'downloaded', `shareCard falls back to download in headless (got ${shareRes})`);
+
   const shot1 = path.join(SHOT_DIR, 'e2e-p1.png');
   await page.screenshot({ path: shot1 });
   log(`screenshot saved: ${shot1}`);
