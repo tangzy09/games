@@ -9,6 +9,51 @@ const C = {
   accent: '#ff8fab', hp: '#ff6b81', xp: '#7cc98f', purple: '#b48ce8',
 };
 
+
+// ── sprite art: assets/sprites/<id>.webp, emoji fallback while loading/missing ──
+// All creatures are drawn FACING LEFT in the source art; flip=true mirrors to face right.
+const SpriteArt = (() => {
+  const imgs = {}; let started = false;
+  const IDS = [...Object.keys(MONSTERS), 'chest', 'medikit', 'orb', 'spellorb', 'treasure', 'crown', 'scroll', 'wall'];
+  return {
+    load() {
+      if (started) return; started = true;
+      IDS.forEach(id => {
+        const im = new Image();
+        im.onload = () => { imgs[id] = im; try { renderAll(); } catch (e) {} };
+        im.onerror = () => {};
+        im.src = `assets/sprites/${id}.webp`;
+      });
+    },
+    get(id) { return imgs[id]; },
+  };
+})();
+function drawSprite(id, cx, cy, size, flip, emoji, font, alpha) {
+  const im = SpriteArt.get(id);
+  if (alpha != null) ctx.globalAlpha = alpha;
+  if (!im) txt(emoji, cx, cy, C.text, font);
+  else {
+    ctx.save();
+    ctx.translate(cx, cy);
+    if (flip) ctx.scale(-1, 1);
+    ctx.drawImage(im, -size / 2, -size / 2, size, size);
+    ctx.restore();
+  }
+  if (alpha != null) ctx.globalAlpha = 1;
+}
+// facing: moobo→its chest, cuddle→its twin, romeo→juliet, mousies→the king
+function spriteFlip(i, c) {
+  const colOf = (j) => j % G.w;
+  if (c.mon === 'moobo' && c.pairWith != null) return colOf(c.pairWith) > colOf(i);
+  if (c.mon === 'cuddle' && c.pairWith != null) return colOf(c.pairWith) > colOf(i);
+  if (c.mon === 'giant') return c.name === 'romeo'; // romeo left side faces right toward juliet
+  if (c.mon === 'mousey') {
+    const k = G.grid.findIndex(x => x.mon === 'mouseking' && !x.defeated);
+    if (k >= 0) return colOf(k) > colOf(i);
+  }
+  return false;
+}
+
 function layout() {
   const SW = GameGlobal.SW, SH = GameGlobal.SH, PAD = 8;
   const hudY = GameGlobal.safeTop + 6, hudH = 84;
@@ -87,43 +132,42 @@ function drawGrid(L) {
       const bd = disguised || harmless ? '#9ccc9c' : (c.mon === 'dragon' ? C.accent : '#f0a58f');
       fillRR(x, y, ts, ts, rad, bg);
       strokeRR(x, y, ts, ts, rad, bd, 1.5);
-      txt(disguised ? ITEMS.chest.icon : M.icon, mid, midy - 1, C.text, `${fs}px sans-serif`);
+      if (disguised) drawSprite('chest', mid, midy - 1, ts * 0.82, false, ITEMS.chest.icon, `${fs}px sans-serif`);
+      else drawSprite(c.mon, mid, midy - 1, ts * 0.86, spriteFlip(i, c), M.icon, `${fs}px sans-serif`);
       if (!disguised && M.lv > 0)
         txt(String(M.lv), x + ts - 6, y + 7, C.hp, `bold ${sm}px sans-serif`);
       addHit(x, y, ts, ts, 'CELL', { i });
     } else if (c.mon && c.defeated) { // corpse: tap to collect its XP — pure benefit now
       fillRR(x, y, ts, ts, rad, '#e9f6e7');
       strokeRR(x, y, ts, ts, rad, '#9ccc9c');
-      ctx.globalAlpha = 0.45;
-      txt(MONSTERS[c.mon].icon, mid, midy, C.text, `${fs}px sans-serif`);
-      ctx.globalAlpha = 1;
+      drawSprite(c.mon, mid, midy, ts * 0.8, false, MONSTERS[c.mon].icon, `${fs}px sans-serif`, 0.45);
       txt('✦', x + ts - 6, y + 7, '#e8a13c', `bold ${sm}px sans-serif`);
       addHit(x, y, ts, ts, 'CELL', { i });
     } else if (c.spell === 'crown') {
       fillRR(x, y, ts, ts, rad, '#fff3c2');
       strokeRR(x, y, ts, ts, rad, '#e8a13c', 2);
-      txt('👑', mid, midy, C.text, `${fs}px sans-serif`);
+      drawSprite('crown', mid, midy, ts * 0.82, false, '👑', `${fs}px sans-serif`);
       addHit(x, y, ts, ts, 'CELL', { i });
     } else if (c.spell) {
       fillRR(x, y, ts, ts, rad, '#e9f6e7');
       strokeRR(x, y, ts, ts, rad, '#9ccc9c');
-      txt('📜', mid, midy, C.text, `${fs}px sans-serif`);
+      drawSprite('scroll', mid, midy, ts * 0.8, false, '📜', `${fs}px sans-serif`);
       addHit(x, y, ts, ts, 'CELL', { i });
     } else if (c.treasureXp) {
       fillRR(x, y, ts, ts, rad, '#e9f6e7');
       strokeRR(x, y, ts, ts, rad, '#9ccc9c');
-      txt('💎', mid, midy, C.text, `${fs}px sans-serif`);
+      drawSprite('treasure', mid, midy, ts * 0.78, false, '💎', `${fs}px sans-serif`);
       txt('+' + c.treasureXp, x + ts - 7, y + 7, '#66b98a', `bold ${sm}px sans-serif`);
       addHit(x, y, ts, ts, 'CELL', { i });
     } else if (c.item) {
       if (c.item === 'wall') { // wall costs HP to dig: warm tone, not green
         fillRR(x, y, ts, ts, rad, '#eadcCB');
-        txt(ITEMS.wall.icon, mid, midy, C.text, `${fs}px sans-serif`);
+        drawSprite('wall', mid, midy, ts * 0.85, false, ITEMS.wall.icon, `${fs}px sans-serif`);
         txt(String(c.wallHP), x + ts - 6, y + 7, C.muted, `bold ${sm}px sans-serif`);
       } else {
         fillRR(x, y, ts, ts, rad, '#e9f6e7');
         strokeRR(x, y, ts, ts, rad, '#9ccc9c');
-        txt(ITEMS[c.item].icon, mid, midy, C.text, `${fs}px sans-serif`);
+        drawSprite(c.item === 'medichest' ? 'chest' : c.item, mid, midy, ts * 0.82, false, ITEMS[c.item].icon, `${fs}px sans-serif`);
       }
       addHit(x, y, ts, ts, 'CELL', { i });
     } else {
@@ -302,6 +346,7 @@ function renderAll() {
     drawFloat();
     return;
   }
+  SpriteArt.load();
   const L = layout();
   drawHud(L);
   if (G.grid.length) drawGrid(L);
