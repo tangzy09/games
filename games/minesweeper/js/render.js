@@ -29,12 +29,18 @@ function drawHud(L) {
     txt(k < G.hp ? '❤️' : '🤍', PAD + 16 + k * hs, y + 17, C.text, `${Math.round(hs * 0.85)}px sans-serif`);
   if (G.halfHeart && G.maxHp < MAX_HP)
     txt('💗', PAD + 16 + G.maxHp * hs, y + 17, C.text, `${Math.round(hs * 0.6)}px sans-serif`);
-  // xp bar + manual level-up button (the faithful bit)
-  const bx = PAD + 14, bw = SW - PAD * 2 - 122, by = y + 36;
+  // xp as gold nuggets (original style): earned bright, still-needed dim
+  const bx = PAD + 14, bw = SW - PAD * 2 - 126, by = y + 36;
   txtL(`Lv${G.level}`, bx, by + 8, C.xp, 'bold 12px sans-serif');
-  fillRR(bx + 34, by, bw - 34, 16, 8, '#efe3d2');
-  fillRR(bx + 34, by, Math.max(8, (bw - 34) * Math.min(1, G.xp / xpNeed())), 16, 8, C.xp);
-  txt(`${G.xp}/${xpNeed()}`, bx + 34 + (bw - 34) / 2, by + 8, '#fff', 'bold 9px sans-serif');
+  const need = xpNeed(), shown = Math.min(G.xp, need);
+  const gs = Math.max(9, Math.min(14, (bw - 40) / need));
+  const gfont = `${Math.round(gs * 0.95)}px sans-serif`;
+  for (let k = 0; k < need; k++) {
+    if (k >= shown) ctx.globalAlpha = 0.22;
+    txt('🪙', bx + 36 + k * gs, by + 8, C.text, gfont);
+    ctx.globalAlpha = 1;
+  }
+  if (G.xp > need) txtL(`+${G.xp - need}`, bx + 40 + need * gs, by + 8, '#e8a13c', 'bold 10px sans-serif');
   const can = canLevelUp();
   fillRR(SW - PAD - 104, by - 6, 94, 30, 15, can ? C.xp : '#e8dcc9');
   txt(`⬆ ${T('ui.levelUp')}`, SW - PAD - 57, by + 9, can ? '#fff' : C.muted, 'bold 12px sans-serif');
