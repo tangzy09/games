@@ -73,12 +73,14 @@
     "batHop": "🦇 它扑棱着飞走了！", "mimic": "🎁 宝箱怪！偷走了 {n} 金币",
     "shieldUp": "🛡️ 护盾已就绪", "shieldBlock": "🛡️ 挡下了！",
     "boom": "💥 连环爆炸！", "bombUsed": "🧨 轰！",
-    "codexNew": "📖 图鉴新条目！+{n} 灵魂"
+    "codexNew": "📖 图鉴新条目！+{n} 灵魂",
+    "adNoReward": "未完成观看——没有奖励"
   },
   "lose": { "title": "你倒下了……", "gap": "距离巨龙只差 {n} 层" },
   "win": { "title": "屠龙成功！" },
   "end": {
     "souls": "本局 +{n} 灵魂", "total": "灵魂总计：{n}", "retry": "再来一局", "home": "回主页",
-    "streakUp": "🔥 连续 {n} 天！", "streakLost": "连胜中断——明天再战"
+    "streakUp": "🔥 连续 {n} 天！", "streakLost": "连胜中断——明天再战",
+    "adRevive": "看广告：原地复活", "adDouble": "看广告：灵魂 {n} 翻倍"
   }
 }

@@ -196,7 +196,11 @@ function drawHome() {
   const { SW, SH } = GameGlobal;
   txt('💣', SW / 2, SH * 0.18, C.text, '54px sans-serif');
   txt(T('home.title'), SW / 2, SH * 0.27, C.accent, 'bold 26px sans-serif');
-  txtLWrap(T('home.subtitle'), SW / 2 - 140, SH * 0.34, 280, C.muted, '13px sans-serif', 17);
+  { // subtitle: up to 3 lines (ru/de run long; txtLWrap caps at 2)
+    ctx.font = '13px sans-serif';
+    const ls = wrapLines(T('home.subtitle'), 280, 3);
+    ls.forEach((ln, k) => txt(ln, SW / 2, SH * 0.34 + (k - (ls.length - 1) / 2) * 17, C.muted, '13px sans-serif'));
+  }
   txt(`🔮 ${T('home.souls', { n: Meta.souls })}    🏆 ${T('home.best', { n: Meta.best })}`, SW / 2, SH * 0.43, C.purple, 'bold 13px sans-serif');
   if (Meta.streak > 0) txt(T('home.streak', { n: Meta.streak }), SW / 2, SH * 0.47, C.accent, 'bold 14px sans-serif');
   bigButton(SH * 0.52, 'home.start', 'START_RUN');
@@ -293,10 +297,26 @@ function drawEnd(win) {
   fillRR(SW / 2 - 120, SH * 0.4, 240, 54, 12, 'rgba(255,255,255,0.12)');
   txt(T('end.souls', { n: G.souls }), SW / 2, SH * 0.4 + 18, '#e5b3ff', 'bold 15px sans-serif');
   txt(T('end.total', { n: Meta.souls }), SW / 2, SH * 0.4 + 38, '#c8b8d8', '11px sans-serif');
-  bigButton(SH * 0.55, 'end.retry', 'RESTART', {}, win ? '#2f9e44' : C.accent);
-  fillRR(SW / 2 - 100, SH * 0.55 + 58, 200, 38, 10, 'rgba(255,255,255,0.14)');
-  txt(T('end.home'), SW / 2, SH * 0.55 + 77, '#fff', '13px sans-serif');
-  addHit(SW / 2 - 100, SH * 0.55 + 58, 200, 38, 'GO_HOME', {});
+  let y = SH * 0.52;
+  // rewarded-ad hooks: revive (LOSE, normal mode, once) and souls-double (once)
+  if (!win && G.mode === 'normal' && !G.adRevived) {
+    fillRR(SW / 2 - 100, y, 200, 44, 12, '#9c36b5');
+    txt(`📺 ${T('end.adRevive')}`, SW / 2, y + 22, '#fff', 'bold 13px sans-serif');
+    addHit(SW / 2 - 100, y, 200, 44, 'AD_REVIVE', {});
+    y += 52;
+  }
+  if (!G.soulsDoubled && G.souls > 0) {
+    fillRR(SW / 2 - 100, y, 200, 40, 12, 'rgba(229,179,255,0.25)');
+    strokeRR(SW / 2 - 100, y, 200, 40, 12, '#e5b3ff');
+    txt(`📺 ${T('end.adDouble', { n: G.souls })}`, SW / 2, y + 20, '#e5b3ff', 'bold 12px sans-serif');
+    addHit(SW / 2 - 100, y, 200, 40, 'AD_DOUBLE', {});
+    y += 48;
+  }
+  bigButton(y, 'end.retry', 'RESTART', {}, win ? '#2f9e44' : C.accent);
+  y += 58;
+  fillRR(SW / 2 - 100, y, 200, 38, 10, 'rgba(255,255,255,0.14)');
+  txt(T('end.home'), SW / 2, y + 19, '#fff', '13px sans-serif');
+  addHit(SW / 2 - 100, y, 200, 38, 'GO_HOME', {});
 }
 
 // ── inline tutorial: highlight ring on the suggested cell + bottom banner ──

@@ -73,12 +73,14 @@
     "batHop": "🦇 It fluttered away!", "mimic": "🎁 Mimic! It stole {n} gold",
     "shieldUp": "🛡️ Shield up", "shieldBlock": "🛡️ Blocked!",
     "boom": "💥 Chain explosion!", "bombUsed": "🧨 Boom!",
-    "codexNew": "📖 New codex entry! +{n} souls"
+    "codexNew": "📖 New codex entry! +{n} souls",
+    "adNoReward": "No reward — ad not completed"
   },
   "lose": { "title": "You fell…", "gap": "Only {n} floor(s) from the dragon" },
   "win": { "title": "Dragon slain!" },
   "end": {
     "souls": "+{n} souls this run", "total": "Total souls: {n}", "retry": "Run it back", "home": "Home",
-    "streakUp": "🔥 {n}-day streak!", "streakLost": "Streak broken — try again tomorrow"
+    "streakUp": "🔥 {n}-day streak!", "streakLost": "Streak broken — try again tomorrow",
+    "adRevive": "Watch ad: stand back up", "adDouble": "Watch ad: double {n} souls"
   }
 }

@@ -163,7 +163,46 @@ function dispatch(action, data) {
     case 'SHOP_BUY': buyShopItem(data.id); break;
     case 'SHOP_LEAVE': leaveShop(); break;
     case 'OPEN_CODEX': G.overlay = 'codex'; break;
-    case 'PICK_RELIC': if (G.tut) Tut.done(); pickRelic(data.id); break;
+    case 'PICK_RELIC': {
+      if (G.tut) Tut.done();
+      pickRelic(data.id);
+      // interstitial only from floor 3 on, never in daily (protect the streak ritual)
+      if (G.mode === 'normal' && G.floorIdx >= 2) { try { Ads.showInterstitial(); } catch (e) {} }
+      break;
+    }
+    case 'AD_REVIVE': { // LOSE screen, normal mode, once per run: watch an ad, stand back up
+      if (G.phase !== 'LOSE' || G.mode !== 'normal' || G.adRevived) break;
+      (async () => {
+        const ok = await Ads.showRewarded();
+        if (ok) {
+          Meta.souls -= G.souls; Meta.save(); // un-settle: the run continues, souls settle again at the real end
+          G.settled = false;
+          G.adRevived = true;
+          G.hp = Math.max(1, Math.ceil(G.maxHp / 2));
+          G.phase = 'PLAYING';
+          G.pendingFloat = { key: 'float.revive' };
+        } else {
+          G.pendingFloat = { key: 'float.adNoReward' };
+        }
+        flushFloat(); renderAll(); saveRun();
+      })();
+      break;
+    }
+    case 'AD_DOUBLE': { // end screens: double this run's souls
+      if ((G.phase !== 'LOSE' && G.phase !== 'WIN') || G.soulsDoubled || G.souls <= 0) break;
+      (async () => {
+        const ok = await Ads.showRewarded();
+        if (ok) {
+          Meta.souls += G.souls; Meta.save(); // run's souls were already settled once
+          G.souls *= 2;
+          G.soulsDoubled = true;
+        } else {
+          G.pendingFloat = { key: 'float.adNoReward' };
+        }
+        flushFloat(); renderAll();
+      })();
+      break;
+    }
     case 'RESTART': G.settled = false; G.perks = Meta.perks(); G.rng = Math.random; initRun(); startFloor(); break; // one tap → straight into a fresh floor
     case 'GO_HOME': G.phase = 'HOME'; G.overlay = null; break;
     case 'OPEN_UPGRADES': G.overlay = 'upgrades'; break;

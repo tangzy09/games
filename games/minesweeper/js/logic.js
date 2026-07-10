@@ -219,6 +219,7 @@ function initRun() {
   G.revived = false; G.guardUsed = false;
   G.items = []; G.itemMode = null; G.shieldUp = false; G.shopAt = null;
   G.encounters = [];
+  G.adRevived = false; G.soulsDoubled = false; // rewarded-ad hooks, once per run each
   G.phase = 'LEVEL_INTRO';
 }
 
