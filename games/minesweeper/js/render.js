@@ -105,7 +105,13 @@ function drawGrid(L) {
       addHit(x, y, ts, ts, 'CELL', { i });
     } else {
       if (isFogged(i)) txt('?', mid, midy, C.purple, `bold ${fs}px sans-serif`);
-      else { const n = cellNumber(i); if (n > 0) txt(n > 99 ? '☠' : String(n), mid, midy, n > 99 ? C.hp : (NUM_COLORS[Math.min(n, 9)] || C.purple), `bold ${n > 9 ? sm + 2 : fs}px sans-serif`); }
+      else {
+        const n = cellNumber(i);
+        if (n > 0) { // bomb-poisoned numbers show as-is: 100+ = one bomb nearby, 200+ = two…
+          const nf = n > 99 ? Math.round(ts * 0.34) : n > 9 ? Math.round(ts * 0.44) : fs;
+          txt(String(n), mid, midy, n > 99 ? C.hp : (NUM_COLORS[Math.min(n, 9)] || C.purple), `bold ${nf}px sans-serif`);
+        }
+      }
     }
   }
 }
