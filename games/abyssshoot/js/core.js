@@ -79,6 +79,9 @@ function findComponents(s) {
   return comps;
 }
 
+// 盘面深拷贝快照(动画逐轮回放要用;5×9 小盘,开销可忽略)
+function snapBoard(s) { return s.board.map(col => col.slice()); }
+
 function resolve(s) {
   let chain = 0, gained = 0, merges = 0;
   const MAX_ITERS = 10000;
@@ -86,16 +89,22 @@ function resolve(s) {
     const comps = findComponents(s);
     if (!comps.length) break;
     chain++;
+    const roundMerges = [];
     for (const comp of comps) {
       const nv = comp.value * 2;
+      // 本轮合并明细在「变更前」采集,供动画把参与格飞向锚点
+      roundMerges.push({ value: comp.value, nv, cells: comp.cells.map(x => ({ c: x.c, i: x.i })),
+                         anchor: { c: comp.anchor.c, i: comp.anchor.i } });
       for (const cell of comp.cells) s.board[cell.c][cell.i] = 0;
       s.board[comp.anchor.c][comp.anchor.i] = nv;
       gained += nv * chain;
       merges++;
       if (nv > s.maxTile) { s.maxTile = nv; s.events.push({ t: 'newMaxFish', v: nv }); }
-      s.events.push({ t: 'merge', v: nv, chain });
+      s.events.push({ t: 'merge', v: nv, chain });   // 旧契约:音效/成就在消费,保留
     }
     gravityUp(s);
+    // 本轮结算+重力后的盘面快照(动画的「下一帧」)
+    s.events.push({ t: 'round', n: chain, merges: roundMerges, board: snapBoard(s) });
   }
   if (chain >= MAX_ITERS) throw new Error('resolve 未收敛(可能死循环)');
   if (chain > 1) s.events.push({ t: 'chain', n: chain });
@@ -108,7 +117,7 @@ function spawnTile(s) {
 }
 function spawnRow(s) {
   for (let c = 0; c < s.cols; c++) s.board[c].unshift(spawnTile(s));
-  s.events.push({ t: 'spawn' });
+  s.events.push({ t: 'spawn', board: snapBoard(s) });
 }
 
 function shoot(s, col) {
@@ -117,7 +126,7 @@ function shoot(s, col) {
   if (col < 0 || col >= s.cols) return s;
 
   s.board[col].push(s.ammo);
-  s.events.push({ t: 'shoot', c: col, v: s.ammo });
+  s.events.push({ t: 'shoot', c: col, v: s.ammo, board: snapBoard(s) });
   resolve(s);
 
   if (++s.shotsSinceSpawn >= SPAWN_EVERY) {
@@ -139,6 +148,6 @@ function shoot(s, col) {
 }
 
 // 双导出:node 走 module.exports;浏览器靠顶层 const Core 当全局(同 snake core.js)
-const Core = { createGame, genAmmo, smallestTile, gravityUp, findComponents, resolve, spawnRow, shoot,
+const Core = { createGame, genAmmo, smallestTile, gravityUp, findComponents, resolve, spawnRow, shoot, snapBoard,
   PREVIEW, AMMO_WINDOW, SPAWN_EVERY, TILE_MIN };
 if (typeof module !== 'undefined' && module.exports) module.exports = Core;

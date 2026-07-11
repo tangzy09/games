@@ -178,3 +178,55 @@ for (let k = 0; k < 500; k++) {
   assert(a >= lo && a <= hi, `ammo ${a} 落在 [${lo}, ${hi}]`);
 }
 console.log('test-core: ammo 区间不变量 OK');
+
+// ── P2a-1: 级联逐轮快照(动画回放要用) ──
+// snapBoard 深拷贝,round 事件带本轮合并明细 + 本轮结算后的盘面
+s = Core.createGame({ seed: 1 });
+s.board = [[4, 2, 2], [], [], [], []];   // 2+2→4,再与顶部 4→8:两轮
+Core.resolve(s);
+const rounds = s.events.filter(e => e.t === 'round');
+assert.strictEqual(rounds.length, 2, '两轮级联发两个 round 事件');
+assert.strictEqual(rounds[0].n, 1, '第一轮 n=1');
+assert.strictEqual(rounds[1].n, 2, '第二轮 n=2');
+// 每轮带本轮合并明细
+assert.strictEqual(rounds[0].merges.length, 1, '第1轮一次合并');
+assert.strictEqual(rounds[0].merges[0].value, 2, '合的是 2');
+assert.strictEqual(rounds[0].merges[0].nv, 4, '合成 4');
+assert.strictEqual(rounds[0].merges[0].cells.length, 2, '两个 2 参与');
+assert.deepStrictEqual(rounds[0].merges[0].anchor, { c: 0, i: 2 }, '锚点=最低');
+// 每轮带「本轮结算+重力后」的盘面快照
+assert.deepStrictEqual(rounds[0].board[0], [4, 4], '第1轮后:2,2合成4,与顶部4并列');
+assert.deepStrictEqual(rounds[1].board[0], [8], '第2轮后:4,4→8');
+// 最后一轮的快照 === 最终盘面
+assert.deepStrictEqual(rounds[rounds.length - 1].board, s.board.map(c => c.slice()),
+  '末轮快照应等于最终盘面');
+// 快照是深拷贝:改快照不该动到真盘
+rounds[0].board[0].push(999);
+assert.deepStrictEqual(s.board[0], [8], '快照是深拷贝,不与真盘共享引用');
+
+// shoot 事件带「弹药落定后、结算前」的盘面(动画起始帧)
+s = Core.createGame({ seed: 1 });
+s.board = [[], [], [8], [], []];
+s.ammo = 4;                                  // 与 8 不同数,不会合并,盘面可预期
+Core.shoot(s, 2);
+const shotEv = s.events.find(e => e.t === 'shoot');
+assert(shotEv && shotEv.board, 'shoot 事件带盘面快照');
+assert.deepStrictEqual(shotEv.board[2], [8, 4], '快照是「弹药已落底、尚未结算」的盘面');
+
+// spawn 事件带刷行后的盘面
+s = Core.createGame({ seed: 3 });
+s.board = [[16], [32], [], [64], []];
+Core.spawnRow(s);
+const spEv = s.events.find(e => e.t === 'spawn');
+assert(spEv && spEv.board, 'spawn 事件带盘面快照');
+assert.strictEqual(spEv.board[0].length, 2, '刷行后列0 两格');
+assert.deepStrictEqual(spEv.board[0].slice(1), [16], '原有格被下移');
+
+// 旧契约不许破:merge/chain 事件仍在(音效/成就在消费)
+s = Core.createGame({ seed: 1 });
+s.board = [[4, 2, 2], [], [], [], []];
+const rr = Core.resolve(s);
+assert.strictEqual(s.events.filter(e => e.t === 'merge').length, 2, 'merge 事件仍发');
+assert(s.events.some(e => e.t === 'chain' && e.n === 2), 'chain 事件仍发');
+assert.strictEqual(rr.merges, 2, 'resolve 返回值不变');
+console.log('test-core: 级联快照 OK');
