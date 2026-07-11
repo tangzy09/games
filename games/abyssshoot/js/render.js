@@ -89,8 +89,8 @@ function renderAll() {
     const cx = L.boardX + c * L.cell + L.cell / 2;
     txt('▲', cx, L.cannonY + L.cell * 0.5, '#3b6a86', `${Math.round(L.cell * 0.34)}px sans-serif`);
   }
-  // 当前弹药:画在炮台行正中
-  if (!s.dead) {
+  // 当前弹药:画在炮台行正中。死后仍显示(s.ammo 停在致死那发),让死亡截图/画面完整可读。
+  {
     const ax = L.boardX + Math.floor(s.cols / 2) * L.cell;
     drawTile(ax, L.cannonY, L.cell, s.ammo);
   }
