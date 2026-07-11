@@ -67,3 +67,41 @@ s = Core.createGame({ seed: 1 });
 s.board = [[4, 4], [], [4, 4], [], []];   // 列0 一对、列2 一对,列1 空隔开
 assert.strictEqual(Core.findComponents(s).length, 2, '分离两块');
 console.log('test-core: findComponents OK');
+
+// --- resolve: 单块 4+4 → 8,一轮 ---
+s = Core.createGame({ seed: 1 });
+s.board = [[4, 4], [], [], [], []];
+let r = Core.resolve(s);
+assert.deepStrictEqual(s.board[0], [8], '4,4→8');
+assert.strictEqual(r.chain, 1, '一轮');
+assert.strictEqual(s.score, 8 * 1, 'gained=8×1');
+assert.strictEqual(s.maxTile, 8);
+
+// --- 整个 ≥2 同值连通块塌成 1 个(3 连 → 1 个 ×2) ---
+s = Core.createGame({ seed: 1 });
+s.board = [[2, 2], [2], [], [], []];   // L 形 3 个 2
+Core.resolve(s);
+const flat = s.board.flat();
+assert.deepStrictEqual(flat, [4], '3 个 2 塌成 1 个 4');
+
+// --- 连锁:2,2 顶上还有个 4 → 合出 4 再与之连锁成 8,两轮 ---
+s = Core.createGame({ seed: 1 });
+s.board = [[4, 2, 2], [], [], [], []];  // index0=4,index1=2,index2=2
+r = Core.resolve(s);
+assert.deepStrictEqual(s.board[0], [8], '2,2→4 再与顶部 4→8');
+assert.strictEqual(r.chain, 2, '两轮连锁');
+assert.strictEqual(s.score, 4 * 1 + 8 * 2, '第1轮4×1 + 第2轮8×2');
+
+// --- 无块:不变 ---
+s = Core.createGame({ seed: 1 });
+s.board = [[2, 4], [], [], [], []];
+r = Core.resolve(s);
+assert.strictEqual(r.chain, 0);
+assert.strictEqual(s.score, 0);
+
+// --- newMaxFish 事件 ---
+s = Core.createGame({ seed: 1 });
+s.board = [[8, 8], [], [], [], []];
+Core.resolve(s);
+assert(s.events.some(e => e.t === 'newMaxFish' && e.v === 16), '刷新最高档发事件');
+console.log('test-core: resolve OK');

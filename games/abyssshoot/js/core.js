@@ -76,7 +76,29 @@ function findComponents(s) {
   return comps;
 }
 
+function resolve(s) {
+  let chain = 0, gained = 0, merges = 0;
+  while (true) {
+    const comps = findComponents(s);
+    if (!comps.length) break;
+    chain++;
+    for (const comp of comps) {
+      const nv = comp.value * 2;
+      for (const cell of comp.cells) s.board[cell.c][cell.i] = 0;   // 整块清零
+      s.board[comp.anchor.c][comp.anchor.i] = nv;                   // 锚点置 ×2
+      gained += nv * chain;                                         // 连锁倍率
+      merges++;
+      if (nv > s.maxTile) { s.maxTile = nv; s.events.push({ t: 'newMaxFish', v: nv }); }
+      s.events.push({ t: 'merge', v: nv, chain });
+    }
+    gravityUp(s);
+  }
+  if (chain > 1) s.events.push({ t: 'chain', n: chain });
+  s.score += gained;
+  return { chain, gained, merges };
+}
+
 // 双导出:node 走 module.exports;浏览器靠顶层 const Core 当全局(同 snake core.js)
-const Core = { createGame, genAmmo, smallestTile, gravityUp, findComponents,
+const Core = { createGame, genAmmo, smallestTile, gravityUp, findComponents, resolve,
   PREVIEW, AMMO_WINDOW, SPAWN_EVERY, TILE_MIN };
 if (typeof module !== 'undefined' && module.exports) module.exports = Core;
