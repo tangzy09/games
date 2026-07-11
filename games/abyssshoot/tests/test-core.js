@@ -118,3 +118,46 @@ assert.deepStrictEqual(s.board[0].slice(1), [16], '列0 原鱼被下移到 index
 assert.deepStrictEqual(s.board[3].slice(1), [64], '列3 原鱼下移');
 assert(s.events.some(e => e.t === 'spawn'), '发 spawn 事件');
 console.log('test-core: spawnRow OK');
+
+// --- shoot: 射进空列,弹药落底,换新弹 ---
+s = Core.createGame({ seed: 1 });
+const firstAmmo = s.ammo, firstQueue = s.queue.slice();
+Core.shoot(s, 2);
+assert.strictEqual(s.board[2][s.board[2].length - 1], firstAmmo, '弹药落在目标列底');
+assert.strictEqual(s.ammo, firstQueue[0], '换成队列下一发');
+assert.strictEqual(s.queue.length, 3, '队列仍 3 发');
+assert.strictEqual(s.shots, 1);
+assert(s.events.some(e => e.t === 'shoot' && e.c === 2), '发 shoot 事件');
+
+// --- shoot 触发合并:列底同数 → 合 ---
+s = Core.createGame({ seed: 1 });
+s.board = [[], [], [8], [], []];
+s.ammo = 8;
+Core.shoot(s, 2);
+assert.deepStrictEqual(s.board[2], [16], '8 射到 8 上→16');
+
+// --- 越界/死局不炸 ---
+s = Core.createGame({ seed: 1 });
+Core.shoot(s, 9);          // 越界:无操作
+assert.strictEqual(s.shots, 0, '越界不计');
+s.dead = true;
+Core.shoot(s, 0);
+assert.strictEqual(s.shots, 0, '死局不动');
+
+// --- SPAWN_EVERY 发后触发刷行 ---
+s = Core.createGame({ seed: 3 });
+for (let k = 0; k < Core.SPAWN_EVERY; k++) Core.shoot(s, k % 5);
+assert(s.events.some(e => e.t === 'spawn'), '第 SPAWN_EVERY 发后有 spawn');
+assert.strictEqual(s.shotsSinceSpawn, 0, '刷行后计数清零');
+
+// --- 失败:把一列灌到超高 ---
+// 用相邻不同值填满(否则同值会连锁合并、缩短、反而不死);ammo 也与列底不同数
+s = Core.createGame({ seed: 1 });
+const alt = [];
+for (let i = 0; i < s.rows; i++) alt.push(i % 2 === 0 ? 2 : 4);   // 2,4,2,4,... 共 rows 个,相邻不同
+s.board = [alt, [], [], [], []];
+s.ammo = 8;
+Core.shoot(s, 0);
+assert(s.dead, '列高超 rows → 死');
+assert(s.events.some(e => e.t === 'death'));
+console.log('test-core: shoot OK');

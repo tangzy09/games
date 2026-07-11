@@ -106,7 +106,34 @@ function spawnRow(s) {
   s.events.push({ t: 'spawn' });
 }
 
+function shoot(s, col) {
+  s.events = [];
+  if (s.dead) return s;
+  if (col < 0 || col >= s.cols) return s;
+
+  s.board[col].push(s.ammo);
+  s.events.push({ t: 'shoot', c: col, v: s.ammo });
+  resolve(s);
+
+  if (++s.shotsSinceSpawn >= SPAWN_EVERY) {
+    spawnRow(s);
+    resolve(s);
+    s.shotsSinceSpawn = 0;
+  }
+  s.shots++;
+
+  for (let c = 0; c < s.cols; c++) {
+    if (s.board[c].length > s.rows) { s.dead = true; s.events.push({ t: 'death' }); break; }
+  }
+
+  if (!s.dead) {
+    s.ammo = s.queue.shift();
+    s.queue.push(genAmmo(s));
+  }
+  return s;
+}
+
 // 双导出:node 走 module.exports;浏览器靠顶层 const Core 当全局(同 snake core.js)
-const Core = { createGame, genAmmo, smallestTile, gravityUp, findComponents, resolve, spawnRow,
+const Core = { createGame, genAmmo, smallestTile, gravityUp, findComponents, resolve, spawnRow, shoot,
   PREVIEW, AMMO_WINDOW, SPAWN_EVERY, TILE_MIN };
 if (typeof module !== 'undefined' && module.exports) module.exports = Core;
