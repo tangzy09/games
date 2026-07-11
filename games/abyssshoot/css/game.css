@@ -1,0 +1,11 @@
+/* 深海主题:覆盖引擎 CSS 变量 + body 底色。canvas 只画游戏,顶栏是引擎 DOM。 */
+:root {
+  --eng-menu-bg: #14263d;
+  --eng-menu-hover: #1e3550;
+  --eng-menu-sel-bg: #2bb3c0;
+  --eng-menu-sel-text: #04121f;
+}
+body {
+  background: #04121f;   /* 深渊底色,与 render.js 的 PAL.bg 保持一致 */
+  color: #cfe8f5;
+}
