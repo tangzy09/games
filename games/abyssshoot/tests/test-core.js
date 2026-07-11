@@ -105,3 +105,16 @@ s.board = [[8, 8], [], [], [], []];
 Core.resolve(s);
 assert(s.events.some(e => e.t === 'newMaxFish' && e.v === 16), '刷新最高档发事件');
 console.log('test-core: resolve OK');
+
+// --- spawnRow: 每列顶部各加一个小鱼(2 或 4),原有下移 ---
+s = Core.createGame({ seed: 7 });
+s.board = [[16], [32], [], [64], []];
+Core.spawnRow(s);
+for (let c = 0; c < 5; c++) {
+  const first = s.board[c][0];
+  assert(first === 2 || first === 4, `列${c} 顶部是新小鱼`);
+}
+assert.deepStrictEqual(s.board[0].slice(1), [16], '列0 原鱼被下移到 index1');
+assert.deepStrictEqual(s.board[3].slice(1), [64], '列3 原鱼下移');
+assert(s.events.some(e => e.t === 'spawn'), '发 spawn 事件');
+console.log('test-core: spawnRow OK');

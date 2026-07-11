@@ -98,7 +98,15 @@ function resolve(s) {
   return { chain, gained, merges };
 }
 
+function spawnTile(s) {
+  return TILE_MIN * Math.pow(2, Math.floor(s.rand() * 2));   // 2 或 4
+}
+function spawnRow(s) {
+  for (let c = 0; c < s.cols; c++) s.board[c].unshift(spawnTile(s));
+  s.events.push({ t: 'spawn' });
+}
+
 // 双导出:node 走 module.exports;浏览器靠顶层 const Core 当全局(同 snake core.js)
-const Core = { createGame, genAmmo, smallestTile, gravityUp, findComponents, resolve,
+const Core = { createGame, genAmmo, smallestTile, gravityUp, findComponents, resolve, spawnRow,
   PREVIEW, AMMO_WINDOW, SPAWN_EVERY, TILE_MIN };
 if (typeof module !== 'undefined' && module.exports) module.exports = Core;
