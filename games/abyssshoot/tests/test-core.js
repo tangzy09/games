@@ -32,3 +32,38 @@ assert.deepStrictEqual(s.board[2], [], '列2 空');
 assert.deepStrictEqual(s.board[3], [16], '列3 不变');
 assert.deepStrictEqual(s.board[4], [], '列4 全零→空');
 console.log('test-core: gravityUp OK');
+
+// --- findComponents: 竖向对 ---
+s = Core.createGame({ seed: 1 });
+s.board = [[4, 4], [], [], [], []];   // 列0 两个 4 相邻(index0,1)
+let comps = Core.findComponents(s);
+assert.strictEqual(comps.length, 1, '一个竖向连通块');
+assert.strictEqual(comps[0].value, 4);
+assert.strictEqual(comps[0].cells.length, 2);
+assert.deepStrictEqual(comps[0].anchor, { c: 0, i: 1 }, '锚点取 index 最大');
+
+// --- 横向对:相邻列同 index ---
+s = Core.createGame({ seed: 1 });
+s.board = [[8], [8], [], [], []];     // 列0/列1 的 index0 都是 8
+comps = Core.findComponents(s);
+assert.strictEqual(comps.length, 1, '一个横向连通块');
+assert.deepStrictEqual(comps[0].anchor, { c: 0, i: 0 }, '同 index 时锚点取最左 c');
+
+// --- L 形 4 连块 ---
+s = Core.createGame({ seed: 1 });
+s.board = [[2, 2], [2], [], [], []];  // (0,0)(0,1)(1,0) 都是 2;(1,0)与(0,0)横邻,(0,1)与(0,0)竖邻
+comps = Core.findComponents(s);
+assert.strictEqual(comps.length, 1);
+assert.strictEqual(comps[0].cells.length, 3, 'L 形 3 连');
+assert.deepStrictEqual(comps[0].anchor, { c: 0, i: 1 }, '最低最左');
+
+// --- 单个不成块;不同值不连 ---
+s = Core.createGame({ seed: 1 });
+s.board = [[2, 4], [8], [], [], []];
+assert.strictEqual(Core.findComponents(s).length, 0, '无 ≥2 同值相邻');
+
+// --- 两个分离的同值块各自计 ---
+s = Core.createGame({ seed: 1 });
+s.board = [[4, 4], [], [4, 4], [], []];   // 列0 一对、列2 一对,列1 空隔开
+assert.strictEqual(Core.findComponents(s).length, 2, '分离两块');
+console.log('test-core: findComponents OK');
