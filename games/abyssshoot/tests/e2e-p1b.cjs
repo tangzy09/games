@@ -57,27 +57,112 @@ function serve() {
     if (st.phase !== 'PLAYING') throw new Error('START 后应进 PLAYING,实为 ' + st.phase);
     console.log('OK START → PLAYING');
 
-    // ── 动画真的在跑(不设 noAnim)──
-    await page.evaluate(() => { G.noAnim = false; dispatch('SHOOT', { col: 0 }); });
-    const animStarted = await page.evaluate(() => G.anim !== null);
-    if (!animStarted) throw new Error('射击后 G.anim 应非 null(动画应启动)');
-    await page.screenshot({ path: path.join(SHOT_DIR, 'e2e-1b-anim.png') });   // 动画中途
-    await page.waitForFunction(() => window.G.anim === null, { timeout: 5000 });
-    console.log('OK 动画启动→播放→结束');
+    // ── 动画:确定性设局 + 冻结取样 ──────────────────────────────────
+    // 动画放慢,让「中途态」有稳定窗口可截;再用 freeze() 停掉 RAF 把进度钉死在指定 p,
+    // 截图/取像素/断言都在同一冻结帧上做 —— 不赌时序,重跑必得同样结果。
+    await page.evaluate(() => { ANIM.fly = 1200; ANIM.merge = 1200; G.noAnim = false; });
 
-    // 动画期间输入被封锁:anim 非 null 时 dispatch 应无效
+    // 冻结当前动画帧到进度 p(停 RAF → 钉 elapsed → 手动重画一帧)
+    const freezeAt = (p) => page.evaluate((prog) => {
+      cancelAnimationFrame(window.rafId); window.rafId = null;
+      G.anim.elapsed = prog * G.anim.steps[G.anim.i].dur;
+      renderAll();
+    }, p);
+    const resume = () => page.evaluate(() => {
+      if (!G.anim) return;
+      G.anim.last = 0;
+      window.rafId = requestAnimationFrame(frame);
+    });
+    // 取某列内一像素的红色分量(列背景区,tile 上方)。红洗/红框会把它显著推高。
+    // 无红警:colBg #0d2740 → r≈13(DEAD 的 dim 之下更低)。有红洗:r≈50+。阈值 35。
+    const colRed = (c) => page.evaluate((col) => {
+      const L = layout(G.s);
+      const dpr = window.devicePixelRatio || 1;
+      const d = ctx.getImageData(Math.round((L.boardX + col * L.cell + L.cell / 2) * dpr),
+                                 Math.round((L.boardY + 3) * dpr), 1, 1).data;
+      return d[0];
+    }, c);
+
+    // ① 多轮连锁合并:col0 = [4,2] + 弹药 2 → [4,2,2] → 2,2合4 → 4,4合8(两轮 merge step)
+    await page.evaluate(() => {
+      G.s.board = [[4, 2], [], [], [], []];
+      G.s.ammo = 2; G.s.shotsSinceSpawn = 0;
+      dispatch('SHOOT', { col: 0 });
+    });
+    const chainSteps = await page.evaluate(() => G.anim && G.anim.steps.map(s => s.type));
+    if (!chainSteps) throw new Error('射击后 G.anim 应非 null(动画应启动)');
+    if (chainSteps.filter(t => t === 'merge').length !== 2)
+      throw new Error('应编排出两轮 merge step(连锁),实为 ' + JSON.stringify(chainSteps));
+    // 等它自然走到第一个 merge step,冻在半程截图 —— 此刻应看得见「合并中间态」
+    await page.waitForFunction(() => window.G.anim && window.G.anim.steps[window.G.anim.i].type === 'merge',
+      { timeout: 5000 });
+    // 两个时刻各截一张:早段 = 参与格正在坍缩/飞向锚点(锚点还是旧值 2);
+    // 晚段 = 锚点已换成新值 4 并弹跳放大。两张都必须是「中间态」,不是终局盘。
+    await freezeAt(0.25);
+    await page.screenshot({ path: path.join(SHOT_DIR, 'e2e-1b-anim-merge-early.png') });
+    await freezeAt(0.68);
+    await page.screenshot({ path: path.join(SHOT_DIR, 'e2e-1b-anim-merge-pop.png') });
+    await resume();
+    await page.waitForFunction(() => window.G.anim === null, { timeout: 8000 });
+    const afterChain = await page.evaluate(() => ({ col0: G.s.board[0], score: G.s.score }));
+    if (JSON.stringify(afterChain.col0) !== JSON.stringify([8]))
+      throw new Error('连锁后 col0 应为 [8],实为 ' + JSON.stringify(afterChain.col0));
+    console.log('OK 连锁合并动画:fly → merge×2 → 落定 [8]');
+
+    // ② 动画期间输入被封锁
     const blocked = await page.evaluate(() => {
-      dispatch('SHOOT', { col: 1 });
+      G.s.board = [[2], [], [], [], []]; G.s.ammo = 4; G.s.shotsSinceSpawn = 0;
+      dispatch('SHOOT', { col: 0 });
       const shotsBefore = G.s.shots;
       if (G.anim) { dispatch('SHOOT', { col: 2 }); return G.s.shots === shotsBefore; }
       return true;   // 动画太快已结束,不算失败
     });
     if (!blocked) throw new Error('动画播放期间应封锁输入');
-    await page.waitForFunction(() => window.G.anim === null, { timeout: 5000 });
+    await page.waitForFunction(() => window.G.anim === null, { timeout: 8000 });
     console.log('OK 动画期封锁输入');
 
-    // 连射直到死(关动画瞬间结算,确定性选列,上限保护)
-    await page.evaluate(() => { G.noAnim = true; });
+    // ③ 必死那一炮:弹药要【视觉上越过死线】,而红警【不许】从动画早期就亮(剧透死亡)
+    await page.evaluate(() => {
+      const alt = [];
+      for (let i = 0; i < G.s.rows; i++) alt.push(i % 2 === 0 ? 2 : 4);   // 相邻不同值,不会合并
+      G.s.board = [alt, [], [], [], []];
+      G.s.ammo = 8; G.s.shotsSinceSpawn = 0;
+      dispatch('SHOOT', { col: 0 });
+    });
+    const deathSteps = await page.evaluate(() => G.anim && G.anim.steps.map(s => s.type));
+    if (!deathSteps || deathSteps[0] !== 'fly' || !deathSteps.includes('death'))
+      throw new Error('必死那炮应编排 fly → death,实为 ' + JSON.stringify(deathSteps));
+    const flyToI = await page.evaluate(() => G.anim.steps[0].toI);
+    if (flyToI < 9) throw new Error('落点 index 应 >= rows(越线),实为 ' + flyToI);
+    // 冻在 fly 步骤末段(p=0.92):弹药此刻应已压过死线
+    await freezeAt(0.92);
+    const redDuringFly = await colRed(0);
+    if (redDuringFly >= 35)
+      throw new Error(`红警不该在弹药还在飞时就亮(死亡剧透),列0 红色分量=${redDuringFly}`);
+    // 弹药确实画在死线【下方】的越线位:采样该处应是亮色 tile,不是背景
+    const ammoBelowLine = await page.evaluate(() => {
+      const L = layout(G.s), dpr = window.devicePixelRatio || 1;
+      const d = ctx.getImageData(Math.round((L.boardX + L.cell / 2) * dpr),
+                                 Math.round((L.lineY + L.cell * 0.25) * dpr), 1, 1).data;
+      return d[0] + d[1] + d[2];   // 背景 #04121f 很暗(和≈50);tile 很亮(和 > 250)
+    });
+    if (ammoBelowLine < 250)
+      throw new Error('fly 末段弹药应已越过死线(死线下方该有格子),取样亮度=' + ammoBelowLine);
+    await page.screenshot({ path: path.join(SHOT_DIR, 'e2e-1b-anim-death-fly.png') });
+    console.log(`OK 必死那炮:弹药越过死线(线下亮度 ${ammoBelowLine})且红警未提前亮(红=${redDuringFly})`);
+    // 放完 → death step 亮红警 → DEAD
+    await resume();
+    await page.waitForFunction(() => window.G.anim === null && window.G.phase === 'DEAD', { timeout: 8000 });
+    const redAfterDeath = await colRed(0);
+    if (redAfterDeath <= 35)
+      throw new Error(`死亡后红警应亮起(顶爆列红洗),列0 红色分量=${redAfterDeath}`);
+    await page.screenshot({ path: path.join(SHOT_DIR, 'e2e-1b-anim-death-red.png') });
+    console.log(`OK 动画播完才亮红警 → DEAD(红 ${redDuringFly} → ${redAfterDeath})`);
+
+    // ── 整局:重开,关动画瞬间结算(保持快且确定)──
+    await page.evaluate(() => { dispatch('RESTART', {}); G.noAnim = true; });
+
+    // 连射直到死(确定性选列,上限保护)
     let guard = 0;
     while (guard < 3000) {
       const dead = await page.evaluate(n => {
