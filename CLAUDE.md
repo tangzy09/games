@@ -10,10 +10,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **游戏专属的一切**（代码/测试/工具/文档/CLAUDE.md）放 `games/<name>/` 下。各游戏细节看它自己的 `games/<name>/CLAUDE.md`。
 - `games/_demo/` 是引擎契约的最小活样板，新游戏从它起步。
 
+**各游戏成熟度差很多，动手前先看它自己的 CLAUDE.md/DESIGN.md**：
+| 目录 | 状态 |
+|---|---|
+| `minesweeper` | 已上线 + App Store 送审。完整。 |
+| `snake` | 已上线 + App Store 送审。完整。 |
+| `abyssshoot` | **只有 P1 纯逻辑 core + 测试，无 render/main/index.html —— 不可玩**。下一步 P1b 可玩壳。 |
+| `bouncerogue` | **只有 DESIGN.md，零代码**（纯 spec，已 park）。 |
+
 ## 常用命令
 
 ```bash
-npm test                  # 全量（改 engine/ 后必跑）；单游戏用 npm run test:mines / test:snake
+npm test                  # 全量（改 engine/ 后必跑）；单游戏用 npm run test:mines / test:snake / test:abyss
 npx http-server -p 8080   # 本地跑游戏：必须 http（locale 走 fetch，file:// 白屏）
 node tools/check-locales.js games/<name>/locales
 ```
