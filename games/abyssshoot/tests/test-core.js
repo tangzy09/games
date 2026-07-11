@@ -161,3 +161,15 @@ Core.shoot(s, 0);
 assert(s.dead, '列高超 rows → 死');
 assert(s.events.some(e => e.t === 'death'));
 console.log('test-core: shoot OK');
+
+// --- 弹药放大不变量:恒在 [最小档, 最小档×4] 且为 2 的幂 ---
+s = Core.createGame({ seed: 5 });
+s.board = [[64, 64], [128], [256], [], []];   // 最小档=64
+const lo = Core.smallestTile(s);              // 64
+const hi = lo * Math.pow(2, Core.AMMO_WINDOW - 1);  // 64×4=256
+for (let k = 0; k < 500; k++) {
+  const a = Core.genAmmo(s);
+  assert(Number.isInteger(Math.log2(a)), 'ammo 是 2 的幂');
+  assert(a >= lo && a <= hi, `ammo ${a} 落在 [${lo}, ${hi}]`);
+}
+console.log('test-core: ammo 区间不变量 OK');
