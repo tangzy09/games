@@ -20,7 +20,11 @@ function dispatch(action, data) {
     case 'SHOOT': {
       if (G.phase !== 'PLAYING' || !G.s || G.s.dead) break;
       Core.shoot(G.s, data.col);
-      if (G.s.events.some(e => e.t === 'death')) G.phase = 'DEAD';
+      // 死亡的唯一真相源 = s.dead(守卫与相位跳转必须读同一个字段)。
+      // 若这里改判 events 里的 death 事件,而将来某分支设了 s.dead 却忘 push 事件,
+      // 守卫会拦下射击、phase 却永远卡在 PLAYING → 点哪都没反应、DEAD 覆盖层不出现、
+      // 静默卡死且零报错。事件流留给音效/成就/动画消费,相位机不绕这一圈。
+      if (G.s.dead) G.phase = 'DEAD';
       break;
     }
     default: break;
