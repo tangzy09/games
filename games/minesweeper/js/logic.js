@@ -201,6 +201,27 @@ function revealTile(i) { // non-empty tiles reveal singly; empty ones flood
 }
 
 
+// scout hint (paid with an ad): peel back a random 3×3 patch, preferring the
+// most-hidden one. Pure sight — nothing is fought, picked up or triggered, and
+// a mimic keeps its disguise. Returns the tiles it opened.
+function hintReveal() {
+  const cand = [];
+  let best = 0;
+  for (let y = 0; y + 2 < G.h; y++) for (let x = 0; x + 2 < G.w; x++) {
+    const cells = [];
+    for (let dy = 0; dy < 3; dy++) for (let dx = 0; dx < 3; dx++) cells.push(idx(x + dx, y + dy));
+    const hidden = cells.filter(i => !G.grid[i].rev).length;
+    if (!hidden) continue;
+    if (hidden > best) { best = hidden; cand.length = 0; }
+    if (hidden === best) cand.push(cells);
+  }
+  if (!cand.length) return [];
+  const pick = cand[Math.floor(G.rng() * cand.length)];
+  const opened = pick.filter(i => !G.grid[i].rev);
+  opened.forEach(i => { G.grid[i].rev = true; G.revealCount++; });
+  return opened;
+}
+
 // faithful QoL rule: a connected pocket of non-empty tiles that is ALL mines
 // would be undeducible — such groups auto-reveal themselves.
 function revealIsolatedMineGroups() {

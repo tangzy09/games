@@ -48,7 +48,7 @@ function spriteFlip(i, c) {
   if (c.mon === 'cuddle' && c.pairWith != null) return colOf(c.pairWith) > colOf(i);
   if (c.mon === 'giant') return c.name === 'romeo'; // romeo left side faces right toward juliet
   if (c.mon === 'mousey') {
-    const k = G.grid.findIndex(x => x.mon === 'mouseking' && !x.defeated);
+    const k = G.grid.findIndex(x => x.mon === 'mouseking'); // corpse still anchors the gaze
     if (k >= 0) return colOf(k) > colOf(i);
   }
   return false;
@@ -107,10 +107,20 @@ function drawHud(L) {
   if (G.xp > need) txtL(`+${G.xp - need}`, goldX(need) + 4, by, '#e8a13c', 'bold 12px sans-serif');
   // right column: primary action (level up) big at bottom, codex quiet on top
   const btnX = SW - PAD - btnW - 10;
-  fillRR(btnX, y + 10, btnW, 30, 15, 'rgba(0,0,0,0)');
-  strokeRR(btnX, y + 10, btnW, 30, 15, C.border, 1.2);
-  txt(`📖 ${T('home.codex')}`, btnX + btnW / 2, y + 25, C.muted, 'bold 12px sans-serif');
-  addHit(btnX, y + 10, btnW, 30, 'OPEN_CODEX', {});
+  // top row splits into two icon buttons: codex (quiet) | scout hint (ad → peek at a 3×3).
+  // Icons only — the label no longer fits, and HOME carries the worded codex entry.
+  const hintW = (btnW - 6) / 2, codexW = hintW;
+  fillRR(btnX, y + 10, codexW, 30, 15, 'rgba(0,0,0,0)');
+  strokeRR(btnX, y + 10, codexW, 30, 15, C.border, 1.2);
+  txt('📖', btnX + codexW / 2, y + 26, C.muted, '15px sans-serif');
+  addHit(btnX, y + 10, codexW, 30, 'OPEN_CODEX', {});
+  const hx = btnX + codexW + 6;
+  const waiting = !!G.hintPending;
+  fillRR(hx, y + 10, hintW, 30, 15, waiting ? '#eee3d2' : '#fff3c2');
+  strokeRR(hx, y + 10, hintW, 30, 15, waiting ? C.border : '#e8a13c', 1.2);
+  txt(waiting ? '⏳' : '💡', hx + hintW / 2 - 4, y + 26, C.text, '15px sans-serif');
+  txt('▶', hx + hintW - 9, y + 17, '#c9a227', 'bold 8px sans-serif'); // ad marker
+  if (!waiting) addHit(hx, y + 10, hintW, 30, 'AD_HINT', {});
   const can = canLevelUp();
   fillRR(btnX, y + 48, btnW, 38, 19, can ? C.xp : '#eee3d2');
   if (can) strokeRR(btnX, y + 48, btnW, 38, 19, '#5da96f', 1.5);
@@ -155,7 +165,7 @@ function drawGrid(L) {
     } else if (c.mon && c.defeated) { // corpse: tap to collect its XP — pure benefit now
       fillRR(x, y, ts, ts, rad, '#e9f6e7');
       strokeRR(x, y, ts, ts, rad, '#9ccc9c');
-      drawSprite(c.mon, mid, midy, ts * 0.8, false, MONSTERS[c.mon].icon, `${fs}px sans-serif`, 0.45);
+      drawSprite(c.mon, mid, midy, ts * 0.8, spriteFlip(i, c), MONSTERS[c.mon].icon, `${fs}px sans-serif`, 0.45);
       txt('✦', x + ts - 6, y + 7, '#e8a13c', `bold ${sm}px sans-serif`);
       addHit(x, y, ts, ts, 'CELL', { i });
     } else if (c.spell === 'crown') {
@@ -249,21 +259,36 @@ function drawHome() {
   addHit(SW / 2 + 4, dy + 52, 92, 38, 'OPEN_HELP', {});
 }
 
-// how-to-play: paginated manual, big readable text (same pattern as the codex)
+// how-to-play: paginated manual. Each line is illustrated with the game's own
+// art (never emoji — the sprites are what the player actually sees on the board),
+// null = no sprite fits, fall back to a bullet.
+const HELP_ART = {
+  p1: ['dragon', 'mousey', null, null],
+  p2: [null, 'treasure', 'guard', 'chest', 'boomy', 'gazer'],
+  p3: [null, 'medikit', 'wall', 'orb', 'scroll'],
+  p4: ['mimic', 'moobo', 'gnome', null, 'egg'],
+};
 function drawHelp() {
   drawDim('rgba(80,55,35,0.97)');
   const { SW, SH } = GameGlobal;
   const page = G.helpPage || 0, pages = 4;
-  txt(T('help.title') + `  ·  ${T('help.p' + (page + 1) + 't')}`, SW / 2, 46, '#ffe0b8', 'bold 17px sans-serif');
+  txt(T('help.title') + `  ·  ${T('help.p' + (page + 1) + 't')}`, SW / 2, 46, '#ffe0b8', 'bold 19px sans-serif');
   const lines = I18N.get('help.p' + (page + 1)) || [];
-  let y = 84;
-  const w = SW - 44;
-  lines.forEach(par => {
-    ctx.font = '13px sans-serif';
-    txtL('•', 26, y, '#ffce7a', 'bold 13px sans-serif'); // bullet drawn separately: CJK wrap stays clean
-    const ls = wrapLines(par, w - 34, 6);
-    ls.forEach(ln => { txtL(ln, 42, y, '#ffe9c7', '13px sans-serif'); y += 19; });
-    y += 9;
+  const art = HELP_ART['p' + (page + 1)] || [];
+  const AS = 40, textX = 26 + AS + 10, LH = 21;
+  let y = 86;
+  const w = SW - textX - 20;
+  lines.forEach((par, k) => {
+    const id = art[k];
+    ctx.font = '15px sans-serif'; // wrapLines measures with the live font
+    const ls = wrapLines(par, w, 6);
+    const blockH = Math.max(ls.length * LH, AS);
+    if (id && SpriteArt.get(id))
+      drawSprite(id, 26 + AS / 2, y + blockH / 2 - 6, AS, false, '', `${AS}px sans-serif`);
+    else
+      txtL('•', 26 + AS / 2 - 3, y, '#ffce7a', 'bold 15px sans-serif');
+    ls.forEach(ln => { txtL(ln, textX, y, '#ffe9c7', '15px sans-serif'); y += LH; });
+    y += Math.max(0, blockH - ls.length * LH) + 12;
   });
   const navY = Math.min(SH - 120, Math.max(y + 8, SH - 160));
   if (page > 0) {
@@ -407,6 +432,7 @@ function drawFloat() {
 
 function renderAll() {
   clearHits();
+  SpriteArt.load(); // HOME needs it too: codex + how-to-play are illustrated with the sprites
   const { SW, SH } = GameGlobal;
   ctx.fillStyle = C.bg;
   ctx.fillRect(0, 0, SW, SH);
@@ -417,7 +443,6 @@ function renderAll() {
     drawFloat();
     return;
   }
-  SpriteArt.load();
   const L = layout();
   drawHud(L);
   if (G.grid.length) drawGrid(L);

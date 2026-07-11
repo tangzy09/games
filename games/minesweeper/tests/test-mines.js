@@ -255,5 +255,27 @@ for (let s = 30; s <= 37; s++) { // 8 个种子查放置类承诺
   eq('龙蛋 3 经验', c.G.xp, 3);
 }
 
+// ── 广告提示:侦察 3×3(只看不触发) ──
+{
+  const c = freshCtx(11);
+  lab(c, 6, 6);
+  vm.runInContext('setMonster(G.grid[7], "boomy")', c);   // 雷:侦察不该引爆
+  vm.runInContext('setMonster(G.grid[8], "mimic")', c);   // 礼盒盒:侦察不该拆穿伪装
+  c.G.hp = 6;
+  const opened = vm.runInContext('hintReveal()', c);
+  eq('侦察翻开 9 格', opened.length, 9);
+  ok('翻开的是一块 3×3', (() => {
+    const xs = opened.map(i => i % 6), ys = opened.map(i => Math.floor(i / 6));
+    return Math.max(...xs) - Math.min(...xs) === 2 && Math.max(...ys) - Math.min(...ys) === 2
+      && opened.every(i => c.G.grid[i].rev);
+  })());
+  eq('侦察不掉血', c.G.hp, 6);
+  eq('侦察不破伪装', c.G.grid[8].mimicHidden, true);
+  ok('雷没被引爆', c.G.phase === 'PLAYING' && !c.G.grid[7].defeated);
+  // 已全开的盘面:无处可侦察
+  c.G.grid.forEach(x => { x.rev = true; });
+  eq('无未开格时返回空', vm.runInContext('hintReveal()', c).length, 0);
+}
+
 console.log(`\n${pass} pass, ${fail} fail`);
 process.exit(fail ? 1 : 0);

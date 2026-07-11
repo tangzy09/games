@@ -147,6 +147,22 @@ function dispatch(action, data) {
       })();
       break;
     }
+    case 'AD_HINT': { // watch an ad → scout a random 3×3 patch (sight only, no fight)
+      if (G.phase !== 'PLAYING' || G.hintPending) break;
+      G.hintPending = true;
+      renderAll();
+      (async () => {
+        const ok = await Ads.showRewarded();
+        G.hintPending = false;
+        if (ok && G.phase === 'PLAYING') {
+          const opened = hintReveal();
+          if (opened.length) { Haptics.light(); G.pendingFloat = { key: 'float.hint', params: { n: opened.length } }; }
+          else G.pendingFloat = { key: 'float.hintNone' };
+        } else if (!ok) G.pendingFloat = { key: 'float.adNoReward' };
+        flushFloat(); renderAll(); saveRun();
+      })();
+      break;
+    }
     case 'RESTART': orientBoard(); G.reviewMode = false; G.settled = false; G.rng = Math.random; G.adRevived = false; initRun(); break;
     case 'REVEAL_ALL': if (G.phase === 'LOSE') { G.reviewMode = true; G.grid.forEach(c => { c.rev = true; }); } break;
     case 'GO_HOME': G.phase = 'HOME'; G.overlay = null; G.reviewMode = false; break;
