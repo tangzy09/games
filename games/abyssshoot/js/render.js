@@ -22,6 +22,11 @@ const PAL = {
 const PAD = 12;
 const BREACH_RISE = 0.25;   // 越线格上移的比例(× cell),使其骑跨死线 = 视觉上「冲破」
 
+// 动画时长(ms)。改这里调手感。
+const ANIM = { fly: 110, merge: 200, spawn: 160, death: 340 };
+const easeOut = p => 1 - Math.pow(1 - p, 3);
+const easeInOut = p => p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+
 // 布局:HUD 在顶(避开引擎顶栏 safeTop),棋盘居中,死线下留一整格的「越线区」,再是炮台行。
 function layout(s) {
   const { SW, SH, safeTop } = GameGlobal;
@@ -55,6 +60,119 @@ function drawTile(x, y, cell, v) {
   const label = Tiles.fmt(v);
   const fs = Math.max(6, Math.round(cell * (label.length >= 4 ? 0.28 : label.length === 3 ? 0.34 : 0.42)));
   txt(label, x + cell / 2, y + cell / 2, '#04121f', `bold ${fs}px sans-serif`);
+}
+
+// 按像素位置+缩放画一个格子(动画用)。scale=1 即正常大小,alpha 控淡出。
+function drawTileAt(px, py, cell, v, scale = 1, alpha = 1) {
+  const t = Tiles.tierOf(v);
+  const color = t < 0 ? PAL.tiers[PAL.tiers.length - 1] : PAL.tiers[t % PAL.tiers.length];
+  const m = Math.round(cell * 0.06);
+  const size = (cell - m * 2) * scale;
+  const cx = px + cell / 2, cy = py + cell / 2;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  fillRR(cx - size / 2, cy - size / 2, size, size, Math.round(size * 0.18), color);
+  const label = Tiles.fmt(v);
+  const fs = Math.max(6, Math.round(size * (label.length >= 4 ? 0.28 : label.length === 3 ? 0.34 : 0.42)));
+  txt(label, cx, cy, '#04121f', `bold ${fs}px sans-serif`);
+  ctx.restore();
+}
+
+// 算出 from[c] 里每个 index 的去向:
+//   merged 非锚点 → 飞向锚点后消失
+//   其余(含锚点) → 幸存,新 index = 它在「幸存序列」里的位置(重力保序压实)
+function mapColumn(fromCol, c, merges) {
+  const mergedSet = new Set(), anchorVal = new Map();
+  for (const m of merges) {
+    for (const cell of m.cells) if (cell.c === c) mergedSet.add(cell.i);
+    if (m.anchor.c === c) anchorVal.set(m.anchor.i, m.nv);
+  }
+  const out = [];        // {i, v, kind:'survive'|'vanish', toI, anchorI}
+  let newIdx = 0;
+  const anchorNewIdx = new Map();
+  // 第一遍:定幸存者的新 index
+  for (let i = 0; i < fromCol.length; i++) {
+    const isMerged = mergedSet.has(i), isAnchor = anchorVal.has(i);
+    if (isMerged && !isAnchor) continue;          // 消失,不占位
+    if (isAnchor) anchorNewIdx.set(i, newIdx);
+    out.push({ i, v: isAnchor ? anchorVal.get(i) : fromCol[i],
+               oldV: fromCol[i], kind: 'survive', toI: newIdx, isAnchor });
+    newIdx++;
+  }
+  // 第二遍:消失者飞向它所属锚点的新位置
+  for (const m of merges) {
+    if (m.anchor.c !== c && !m.cells.some(x => x.c === c)) continue;
+    for (const cell of m.cells) {
+      if (cell.c !== c) continue;
+      if (anchorVal.has(cell.i)) continue;        // 锚点自己不算消失
+      out.push({ i: cell.i, v: fromCol[cell.i], kind: 'vanish',
+                 anchor: m.anchor, anchorNv: m.nv });
+    }
+  }
+  return { items: out, anchorNewIdx };
+}
+
+// 画一步合并动画的中间态
+function drawMergeStep(L, step, p) {
+  const e = easeOut(p);
+  const s = G.s;
+  // 先算每列锚点的新 index(消失格要飞向「锚点所在列的新位置」)
+  const colMaps = [];
+  for (let c = 0; c < s.cols; c++) colMaps.push(mapColumn(step.from[c], c, step.merges));
+  const anchorPos = new Map();   // "c,i" → {c, toI}
+  for (const m of step.merges) {
+    const cm = colMaps[m.anchor.c];
+    anchorPos.set(`${m.anchor.c},${m.anchor.i}`, { c: m.anchor.c, toI: cm.anchorNewIdx.get(m.anchor.i) });
+  }
+  for (let c = 0; c < s.cols; c++) {
+    for (const it of colMaps[c].items) {
+      if (it.kind === 'survive') {
+        const y = L.boardY + (it.i + (it.toI - it.i) * e) * L.cell;
+        const x = L.boardX + c * L.cell;
+        if (it.isAnchor) {
+          // 锚点:前半程还是旧值,p>0.5 换成新值并弹跳
+          const showNew = p >= 0.5;
+          const pop = showNew ? 1 + 0.28 * Math.sin(((p - 0.5) / 0.5) * Math.PI) : 1;
+          drawTileAt(x, y, L.cell, showNew ? it.v : it.oldV, pop, 1);
+        } else {
+          drawTileAt(x, y, L.cell, it.v, 1, 1);
+        }
+      } else {
+        // 消失格:飞向锚点新位置,缩小淡出
+        const ap = anchorPos.get(`${it.anchor.c},${it.anchor.i}`);
+        const fx = L.boardX + c * L.cell, fy = L.boardY + it.i * L.cell;
+        const tx = L.boardX + ap.c * L.cell, ty = L.boardY + ap.toI * L.cell;
+        const x = fx + (tx - fx) * e, y = fy + (ty - fy) * e;
+        drawTileAt(x, y, L.cell, it.v, Math.max(0.05, 1 - e), Math.max(0, 1 - e));
+      }
+    }
+  }
+}
+
+// 刷行:所有格下移一行,顶部新格淡入
+function drawSpawnStep(L, step, p) {
+  const e = easeInOut(p);
+  const s = G.s;
+  for (let c = 0; c < s.cols; c++) {
+    const from = step.from[c], to = step.to[c];
+    for (let i = 0; i < from.length; i++) {
+      const y = L.boardY + (i + 1 * e) * L.cell;
+      drawTileAt(L.boardX + c * L.cell, y, L.cell, from[i], 1, 1);
+    }
+    if (to.length) drawTileAt(L.boardX + c * L.cell, L.boardY, L.cell, to[0], 0.6 + 0.4 * e, e);
+  }
+}
+
+// 发射:弹药从炮台飞到落点
+function drawFlyStep(L, step, p) {
+  const e = easeOut(p);
+  const s = G.s;
+  for (let c = 0; c < s.cols; c++)
+    for (let i = 0; i < step.from[c].length; i++)
+      drawTileAt(L.boardX + c * L.cell, L.boardY + i * L.cell, L.cell, step.from[c][i], 1, 1);
+  const fx = L.boardX + step.col * L.cell, fy = L.cannonY;
+  const ty = L.boardY + step.toI * L.cell;
+  drawTileAt(fx, fy + (ty - fy) * e, L.cell, step.v, 1, 1);
 }
 
 // 覆盖层大按钮(HOME/DEAD 共用;同 minesweeper 的 bigButton 先例)
@@ -108,11 +226,18 @@ function renderAll() {
     fillRR(L.boardX + c * L.cell + 2, L.boardY + 2, L.cell - 4, L.boardH - 4, 8, PAL.colBg);
   }
 
-  // ── 盘内鱼格:(c,i) → y = boardY + i*cell(index0 在顶);越线的格子留给 drawBreaches ──
-  for (let c = 0; c < s.cols; c++) {
-    const col = s.board[c];
-    for (let i = 0; i < col.length && i < s.rows; i++) {
-      drawTile(L.boardX + c * L.cell, L.boardY + i * L.cell, L.cell, col[i]);
+  // ── 盘内鱼格:动画中交给 step 绘制,否则静态画。越线的格子留给 drawBreaches ──
+  const step = G.anim && G.anim.steps[G.anim.i];
+  const animP = step ? Math.min(1, (G.anim.elapsed || 0) / step.dur) : 1;
+  if (step && step.type === 'fly')        drawFlyStep(L, step, animP);
+  else if (step && step.type === 'merge') drawMergeStep(L, step, animP);
+  else if (step && step.type === 'spawn') drawSpawnStep(L, step, animP);
+  else {
+    for (let c = 0; c < s.cols; c++) {
+      const col = s.board[c];
+      for (let i = 0; i < col.length && i < s.rows; i++) {
+        drawTile(L.boardX + c * L.cell, L.boardY + i * L.cell, L.cell, col[i]);
+      }
     }
   }
 
