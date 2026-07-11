@@ -49,9 +49,15 @@ node tools/check-locales.js games/abyssshoot/locales   # 必 0 fail
 
 **蒙特卡洛口径**：无尽刷分**没有「可赢性」可验**（区别于 mines 的必胜门禁）——`test-sim.js` 只验「不变量成立 + 无退化的秒死/永生局 + 局长分布合理 + resolve 收敛」。当前随机瞎打 300 局：**局长 min=18 / 中位=54 / 均=57 / max=128**（起始参数首跑即达标，未调；P2a-1 加动画快照后复跑分布完全一致，规则未被误改）。调参后必须回填分布到计划文档。
 
-## 动画时长（调手感在这里）
+## 动画（P2a-1）——三条别踩回去的坑
 
-`render.js` 顶部 `ANIM = { fly, merge, spawn, death }`（毫秒）。动画播放期间 `main.js` **封锁输入**（`G.anim` 非 null 即拒绝 dispatch），播完才判死进 DEAD。`G.noAnim = true` 可跳过动画瞬间结算（E2E 用）。RAF 循环**空闲即停**（不烧 CPU）。
+`render.js` 顶部 `ANIM = { fly, merge, spawn, death }`（毫秒，调手感在这里）。动画播放期间 `main.js` **封锁输入**（`G.anim` 非 null 即拒绝 dispatch），播完才判死进 DEAD。`G.noAnim = true` 可跳过动画瞬间结算（E2E 用）。RAF 循环**空闲即停**（不烧 CPU）。
+
+1. **红警不许在动画期画**：`Core.shoot` 是**同步算完整局结算**才启动动画的 —— 动画一开始 `s.board` 就已经是「死了的终局盘」。所以盘面步骤（fly/merge/spawn）期间 `renderAll` **跳过 `drawBreaches`**：否则弹药还在半空，顶爆红框红洗已经贴脸剧透死亡，动画白做。红警只在 `death` step 与静态帧亮。顺带也防「同一格被 step 和 drawBreaches 双画」。
+2. **越线格只有一套 y 公式**：动画里的越界格走 `tileY()`，它在 `i >= rows` 时**恰好等于 `drawBreaches` 的越线偏移**（`test-anim.js` 逐值断言守着）。两套公式 = 弹药压过死线那一下跳帧。
+3. **绘制抛错必须强制解锁**：`renderAll` 一律经 `safeRender()`（try/catch）。裸调时一旦绘制抛异常，RAF 断掉 → `G.anim` 永不清空 → **所有输入（含 RESTART）被永久封死且零提示**。单帧 delta 也夹到 100ms（切后台恢复时墙钟 delta 暴涨会整段跳过动画步）。
+
+`mapColumn`（重力压实后的 index 重映射，动画位置插值的心脏）逻辑最绕，**改它必跑 `test-anim.js`**（render.js 末尾有薄双导出供 node require）。
 
 ## DESIGN 里已定但 core 尚未实现的规则（P1b/P2 接线时补）
 
