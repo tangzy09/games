@@ -6,14 +6,24 @@ const PREVIEW = 3;       // 弹药预览发数
 const AMMO_WINDOW = 3;   // 弹药档窗:base * 2^(0..AMMO_WINDOW-1) = base, ×2, ×4 (可调)
 const SPAWN_EVERY = 6;   // 每 N 发顶部刷一整行(可调)
 const TILE_MIN = 2;      // 最小档
+const BASE_SPAN = 5;     // 基准档 = 最高鱼往回退 BASE_SPAN 档(可调,平衡关键钮)
 
+// ⚠ 基准档:弹药与刷行**都**挂在它上面,随进度(maxTile)整体上浮。
+// 为什么不能挂「盘上最小值」(旧实现的致命 bug):刷行会不停往盘上注入小鱼,
+// 把最小值永久钉死在 2 → 弹药永远只有 {2,4,8} → 列底压着的 256 你永远合不动,
+// 变成不可消的死墙,盘面只涨不消、被活活顶死。基准必须挂在**单调上浮**的进度信号上。
+function baseTier(s) {
+  if (!s.maxTile) return TILE_MIN;
+  const e = Math.max(1, Math.round(Math.log2(s.maxTile)) - BASE_SPAN);
+  return Math.max(TILE_MIN, Math.pow(2, e));
+}
 function smallestTile(s) {
   let m = Infinity;
   for (let c = 0; c < s.cols; c++) for (const v of s.board[c]) if (v < m) m = v;
   return m === Infinity ? TILE_MIN : m;
 }
 function genAmmo(s) {
-  const base = smallestTile(s);
+  const base = baseTier(s);
   const e = Math.floor(s.rand() * AMMO_WINDOW);   // 0..AMMO_WINDOW-1
   return base * Math.pow(2, e);
 }
@@ -82,27 +92,50 @@ function findComponents(s) {
 // 盘面深拷贝快照(动画逐轮回放要用;5×9 小盘,开销可忽略)
 function snapBoard(s) { return s.board.map(col => col.slice()); }
 
-function resolve(s) {
+// 锚点选择:**优先向击中块合并**。
+// prefer = 本轮「优先成为锚点」的格子:第 1 轮是玩家打中的那一格;之后每轮是上一轮合出的鱼。
+// 为什么:锚点原本是纯几何规则(最低、再最左)。跨列连通块时,合出的大鱼可能长在**你没瞄的那一列**——
+// 「把大鱼摆在哪」这件事就失控了。改成优先落在击中格,玩家才真正掌控布局;连锁时继续以刚合出的
+// 那条鱼为锚,大鱼就在原地滚雪球而不是乱窜。都不沾边(如别处被连带触发的块)才回退几何规则。
+function pickAnchor(comp, prefer) {
+  for (const p of prefer) {
+    if (comp.cells.some(x => x.c === p.c && x.i === p.i)) return { c: p.c, i: p.i };
+  }
+  return { c: comp.anchor.c, i: comp.anchor.i };   // 回退:findComponents 算好的「最低、再最左」
+}
+
+function resolve(s, prefer) {
   let chain = 0, gained = 0, merges = 0;
+  let pref = Array.isArray(prefer) ? prefer.slice() : [];
   const MAX_ITERS = 10000;
   while (chain < MAX_ITERS) {
     const comps = findComponents(s);
     if (!comps.length) break;
     chain++;
     const roundMerges = [];
+    const nextPref = [];
     for (const comp of comps) {
-      const nv = comp.value * 2;
+      // 连通块 N 个 → 合并 N-1 次 → V × 2^(N-1)。
+      // 「憋大团」是核心爽点与赌注:3 连=4 倍、4 连=8 倍、5 连=16 倍。
+      // (旧规则不论 N 一律塌成 ×2,导致凑的团越大亏得越多、反玩家,已废弃。)
+      const nv = comp.value * Math.pow(2, comp.cells.length - 1);
+      const anchor = pickAnchor(comp, pref);      // 优先向击中块/上一轮合出的鱼合并
       // 本轮合并明细在「变更前」采集,供动画把参与格飞向锚点
       roundMerges.push({ value: comp.value, nv, cells: comp.cells.map(x => ({ c: x.c, i: x.i })),
-                         anchor: { c: comp.anchor.c, i: comp.anchor.i } });
+                         anchor: { c: anchor.c, i: anchor.i } });
       for (const cell of comp.cells) s.board[cell.c][cell.i] = 0;
-      s.board[comp.anchor.c][comp.anchor.i] = nv;
+      s.board[anchor.c][anchor.i] = nv;
+      // 算出这条新鱼「重力压实后」的位置,作为下一轮的优先锚点(大鱼原地滚雪球)
+      let newI = 0;
+      for (let k = 0; k < anchor.i; k++) if (s.board[anchor.c][k] > 0) newI++;
+      nextPref.push({ c: anchor.c, i: newI });
       gained += nv * chain;
       merges++;
       if (nv > s.maxTile) { s.maxTile = nv; s.events.push({ t: 'newMaxFish', v: nv }); }
       s.events.push({ t: 'merge', v: nv, chain });   // 旧契约:音效/成就在消费,保留
     }
     gravityUp(s);
+    pref = nextPref;
     // 本轮结算+重力后的盘面快照(动画的「下一帧」)
     s.events.push({ t: 'round', n: chain, merges: roundMerges, board: snapBoard(s) });
   }
@@ -112,8 +145,10 @@ function resolve(s) {
   return { chain, gained, merges };
 }
 
+// 刷行的鱼也挂基准档(不是恒定的 2/4)——否则会把盘上最小值永久钉死在 2,
+// 让弹药永远够不着列底的大鱼,刷下来的行根本消不掉,只能眼看着被顶死。
 function spawnTile(s) {
-  return TILE_MIN * Math.pow(2, Math.floor(s.rand() * 2));   // 2 或 4
+  return baseTier(s) * Math.pow(2, Math.floor(s.rand() * 2));   // base 或 base×2
 }
 function spawnRow(s) {
   for (let c = 0; c < s.cols; c++) s.board[c].unshift(spawnTile(s));
@@ -126,12 +161,15 @@ function shoot(s, col) {
   if (col < 0 || col >= s.cols) return s;
 
   s.board[col].push(s.ammo);
+  // 击中格 = 弹药落定的位置。传给 resolve 当优先锚点:合出的鱼长在**你瞄的那一格**,
+  // 而不是几何上「最低最左」的某个别处(跨列块时那会长到你没瞄的列去,布局失控)。
+  const hit = { c: col, i: s.board[col].length - 1 };
   s.events.push({ t: 'shoot', c: col, v: s.ammo, board: snapBoard(s) });
-  resolve(s);
+  resolve(s, [hit]);
 
   if (++s.shotsSinceSpawn >= SPAWN_EVERY) {
     spawnRow(s);
-    resolve(s);
+    resolve(s);            // 刷行连带触发的合并没有「击中格」,回退几何锚点
     s.shotsSinceSpawn = 0;
   }
   s.shots++;
@@ -148,6 +186,6 @@ function shoot(s, col) {
 }
 
 // 双导出:node 走 module.exports;浏览器靠顶层 const Core 当全局(同 snake core.js)
-const Core = { createGame, genAmmo, smallestTile, gravityUp, findComponents, resolve, spawnRow, shoot, snapBoard,
-  PREVIEW, AMMO_WINDOW, SPAWN_EVERY, TILE_MIN };
+const Core = { createGame, genAmmo, smallestTile, baseTier, gravityUp, findComponents, resolve, spawnRow, shoot, snapBoard,
+  PREVIEW, AMMO_WINDOW, SPAWN_EVERY, TILE_MIN, BASE_SPAN };
 if (typeof module !== 'undefined' && module.exports) module.exports = Core;

@@ -14,6 +14,12 @@ const TILES = [
   { v: 2048,  fish: 'greatwhiteshark' },
   { v: 4096,  fish: 'whaleshark' },
   { v: 8192,  fish: 'belugawhale' },
+  // 指数合并规则(N 连 → ×2^(N-1))让数值涨得很快,13 档不够用——随机瞎打都摸到 4096。
+  // 补 4 档深海巨兽压梯顶:抹香鲸是真正下潜深渊猎巨乌贼的,皇带鱼是深海传说巨蛇。
+  { v: 16384,  fish: 'orca' },
+  { v: 32768,  fish: 'humpbackwhale' },
+  { v: 65536,  fish: 'spermwhale' },
+  { v: 131072, fish: 'oarfish' },
 ];
 const MAX_TILE_VALUE = TILES[TILES.length - 1].v;
 

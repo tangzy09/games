@@ -77,12 +77,22 @@ assert.strictEqual(r.chain, 1, '一轮');
 assert.strictEqual(s.score, 8 * 1, 'gained=8×1');
 assert.strictEqual(s.maxTile, 8);
 
-// --- 整个 ≥2 同值连通块塌成 1 个(3 连 → 1 个 ×2) ---
+// --- 连通块 N 个 → 合并 N-1 次 → V × 2^(N-1)(「憋大团」= 指数级大奖) ---
 s = Core.createGame({ seed: 1 });
-s.board = [[2, 2], [2], [], [], []];   // L 形 3 个 2
+s.board = [[2, 2], [2], [], [], []];   // L 形 3 个 2 → 合 2 次 → 2×2^2 = 8
 Core.resolve(s);
 const flat = s.board.flat();
-assert.deepStrictEqual(flat, [4], '3 个 2 塌成 1 个 4');
+assert.deepStrictEqual(flat, [8], '3 连 → ×2^2 = 8');
+
+// 指数规则逐档验证 + 经济学:2 连不赚不亏,3 连起净赚(旧规则是「团越大亏越多」,反玩家,已废弃)
+for (const [n, expect] of [[2, 8], [3, 16], [4, 32], [5, 64]]) {
+  const g = Core.createGame({ seed: 1 });
+  g.board = [Array.from({ length: n }, () => 4), [], [], [], []];
+  Core.resolve(g);
+  assert.deepStrictEqual(g.board.flat(), [expect], `${n} 个 4 相连 → 4×2^${n - 1} = ${expect}`);
+  const before = n * 4, after = expect;
+  assert(after >= before, `${n} 连不该亏(总值 ${before}→${after})`);
+}
 
 // --- 连锁:2,2 顶上还有个 4 → 合出 4 再与之连锁成 8,两轮 ---
 s = Core.createGame({ seed: 1 });
@@ -139,6 +149,34 @@ s.ammo = 8;
 Core.shoot(s, 2);
 assert.deepStrictEqual(s.board[2], [16], '8 射到 8 上→16');
 
+// --- 优先向击中块合并:跨列块必须合到「你打中的那一列」,而不是几何最低最左 ---
+// 布局:列0=[4,4](index 0,1) 列1=[4](index 0);往列1 射一发 4 → 列1=[4,4]
+// 四个 4 全连通(同 index 横邻 + 同列竖邻),N=4 → 4×2^3 = 32
+// 几何锚点会选 {c:0,i:1}(最低 i=1,并列时取最左 c=0) → 鱼长在列0(你没瞄的那列)
+// 新规则:击中格是 {c:1,i:1} → 鱼必须长在**列1**
+s = Core.createGame({ seed: 1 });
+s.board = [[4, 4], [4], [], [], []];
+s.ammo = 4;
+Core.shoot(s, 1);
+assert.deepStrictEqual(s.board[1], [32], '合出的 32 必须落在击中的列1');
+assert.deepStrictEqual(s.board[0], [], '列0 应被清空(鱼没长在这)');
+// 反证:同样盘面直接 resolve(无击中格)→ 回退几何锚点,鱼长在列0
+s = Core.createGame({ seed: 1 });
+s.board = [[4, 4], [4, 4], [], [], []];
+Core.resolve(s);
+assert.deepStrictEqual(s.board[0], [32], '无击中格时回退几何锚点(最低最左)→ 列0');
+assert.deepStrictEqual(s.board[1], [], '列1 空');
+
+// --- 连锁时:大鱼在「上一轮合出的位置」原地滚雪球,不乱窜 ---
+// 列1 底部打中 → 合出鱼在列1;若该鱼又与别处同值连锁,仍以它为锚
+s = Core.createGame({ seed: 1 });
+s.board = [[8], [4], [], [], []];   // 列0=[8] 列1=[4]
+s.ammo = 4;
+Core.shoot(s, 1);                    // 列1=[4,4] → 两个 4 合成 8(锚=击中格 {c:1,i:1})
+                                     // 该 8 与列0 的 8 同 index? 压实后列1=[8](i=0),列0=[8](i=0) → 横邻 → 再合成 16
+assert.deepStrictEqual(s.board.flat(), [16], '连锁合成 16');
+assert.deepStrictEqual(s.board[1], [16], '连锁后的大鱼仍在击中的列1(原地滚雪球)');
+
 // --- 越界/死局不炸 ---
 s = Core.createGame({ seed: 1 });
 Core.shoot(s, 9);          // 越界:无操作
@@ -167,17 +205,44 @@ assert(s.dead, '列高超 rows → 死');
 assert(s.events.some(e => e.t === 'death'));
 console.log('test-core: shoot OK');
 
-// --- 弹药放大不变量:恒在 [最小档, 最小档×4] 且为 2 的幂 ---
+// --- 基准档不变量:弹药与刷行**都**挂 baseTier(随 maxTile 上浮),不是挂盘上最小值 ---
+// ⚠ 这是防「死墙」的守卫。旧实现把弹药挂在 smallestTile 上,而刷行恒生 2 →
+// 最小值被永久钉死在 2 → 弹药永远 {2,4,8} → 列底的 256 永远合不动 = 不可消的死墙。
+// 现在两者同挂 baseTier,一起上浮,刷下来的行必定在弹药够得着的范围内。
 s = Core.createGame({ seed: 5 });
-s.board = [[64, 64], [128], [256], [], []];   // 最小档=64
-const lo = Core.smallestTile(s);              // 64
-const hi = lo * Math.pow(2, Core.AMMO_WINDOW - 1);  // 64×4=256
+s.maxTile = 1024;
+const base = Core.baseTier(s);
+assert(Number.isInteger(Math.log2(base)) && base >= Core.TILE_MIN, 'baseTier 是 ≥2 的 2 的幂');
+const lo = base;
+const hi = base * Math.pow(2, Core.AMMO_WINDOW - 1);       // base×4
 for (let k = 0; k < 500; k++) {
   const a = Core.genAmmo(s);
   assert(Number.isInteger(Math.log2(a)), 'ammo 是 2 的幂');
   assert(a >= lo && a <= hi, `ammo ${a} 落在 [${lo}, ${hi}]`);
 }
-console.log('test-core: ammo 区间不变量 OK');
+// baseTier 随 maxTile 单调不降(进度只会让基准上浮,不会倒退)
+let prevBase = 0;
+for (const mt of [0, 64, 256, 1024, 4096, 16384, 65536]) {
+  const g = Core.createGame({ seed: 1 }); g.maxTile = mt;
+  const b = Core.baseTier(g);
+  assert(b >= prevBase, `baseTier 随 maxTile 单调不降(${mt} → ${b})`);
+  prevBase = b;
+}
+// **核心不变量:刷行的鱼必须落在弹药够得着的范围内**(否则刷下来就消不掉 = 你实战撞到的 bug)
+for (const mt of [0, 64, 256, 1024, 4096, 16384]) {
+  const g = Core.createGame({ seed: 9 }); g.maxTile = mt;
+  const b = Core.baseTier(g);
+  const ammoMax = b * Math.pow(2, Core.AMMO_WINDOW - 1);
+  for (let k = 0; k < 200; k++) {
+    g.board = [[], [], [], [], []];
+    Core.spawnRow(g);
+    for (const col of g.board) for (const v of col) {
+      assert(v >= b && v <= ammoMax,
+        `刷行的鱼 ${v} 必须在弹药可达区间 [${b}, ${ammoMax}] 内(maxTile=${mt})`);
+    }
+  }
+}
+console.log('test-core: 基准档/弹药/刷行 不变量 OK(防死墙)');
 
 // ── P2a-1: 级联逐轮快照(动画回放要用) ──
 // snapBoard 深拷贝,round 事件带本轮合并明细 + 本轮结算后的盘面
