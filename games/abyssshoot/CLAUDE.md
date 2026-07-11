@@ -4,16 +4,20 @@
 
 **规格与计划是权威**：`DESIGN.md`（玩法规则，改核心前必查）、`docs/2026-07-10-p1-core-plan.md`（P1 逐任务 TDD 记录 + 蒙特卡洛调平衡结果）。
 
-## 当前状态（2026-07-10）
+## 当前状态（2026-07-11）
 
-**只有 P1 纯逻辑内核（`js/core.js` + `js/tiles.js` + 测试），没有 render/main/index.html —— 网页上打不开、不可玩。** 下一步是 P1b 可玩壳（engine 接线 + 渲染 + 输入 + 相位机）。之后 P2 道具/图鉴、P3 皮肤/成就、P4 上架。
+**P1 纯逻辑内核 + P1b 可玩壳已完成 —— 浏览器里能真玩了**（仓库根起 http 服 → `http://localhost:8080/games/abyssshoot/`）。
+已有：`js/{tiles,core,render,main}.js` + `index.html` + `css/game.css` + `locales/{en,zh-CN}.json`；测试：`npm run test:abyss`（单测+蒙特卡洛）、`npm run test:abyss:e2e`（Playwright 无头整局）。
+**还没做**：动画/音效、道具（锤子/交换列/撤销）、图鉴、皮肤、成就、存档续玩、鱼图美术、iOS 壳 —— 见下方「DESIGN 里已定但未实现」与 DESIGN.md 的 P2/P3/P4。
 
 ## 验证（改 core/tiles 后必跑）
 
 ```bash
 npm run test:abyss                          # 单测(tiles+core) + 蒙特卡洛冒烟,已挂进全量 npm test
+npm run test:abyss:e2e                      # Playwright 无头:整局跑通 + 截图到 C:\tmp\abyssshoot
 node games/abyssshoot/tests/test-core.js    # 单跑 core 单测
 node games/abyssshoot/tests/test-sim.js     # 单跑蒙特卡洛(300 局)
+node tools/check-locales.js games/abyssshoot/locales   # 必 0 fail
 ```
 
 ## 棋盘模型（最容易搞反的地方）
