@@ -1,0 +1,17 @@
+{
+  "lang": { "name": "中文", "toggle": "语言" },
+  "ads": { "simWatch": "[广告模拟] 观看激励广告？", "simInterstitial": "[广告模拟] 插屏广告" },
+  "abyss": {
+    "title": "深渊射手",
+    "tagline": "把小鱼射上去，同数合并，别被压垮。",
+    "start": "下潜",
+    "score": "分数",
+    "best": "最深",
+    "next": "下一发",
+    "gameOver": "被压垮了！",
+    "finalScore": "得分 {n}",
+    "deepest": "最深的鱼 {v}",
+    "restart": "再次下潜",
+    "hint": "点一列即可射击"
+  }
+}
