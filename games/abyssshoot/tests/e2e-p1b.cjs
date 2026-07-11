@@ -57,7 +57,27 @@ function serve() {
     if (st.phase !== 'PLAYING') throw new Error('START 后应进 PLAYING,实为 ' + st.phase);
     console.log('OK START → PLAYING');
 
-    // 连射直到死。选列用确定性轮询(非 Math.random):失败时轨迹可复现。
+    // ── 动画真的在跑(不设 noAnim)──
+    await page.evaluate(() => { G.noAnim = false; dispatch('SHOOT', { col: 0 }); });
+    const animStarted = await page.evaluate(() => G.anim !== null);
+    if (!animStarted) throw new Error('射击后 G.anim 应非 null(动画应启动)');
+    await page.screenshot({ path: path.join(SHOT_DIR, 'e2e-1b-anim.png') });   // 动画中途
+    await page.waitForFunction(() => window.G.anim === null, { timeout: 5000 });
+    console.log('OK 动画启动→播放→结束');
+
+    // 动画期间输入被封锁:anim 非 null 时 dispatch 应无效
+    const blocked = await page.evaluate(() => {
+      dispatch('SHOOT', { col: 1 });
+      const shotsBefore = G.s.shots;
+      if (G.anim) { dispatch('SHOOT', { col: 2 }); return G.s.shots === shotsBefore; }
+      return true;   // 动画太快已结束,不算失败
+    });
+    if (!blocked) throw new Error('动画播放期间应封锁输入');
+    await page.waitForFunction(() => window.G.anim === null, { timeout: 5000 });
+    console.log('OK 动画期封锁输入');
+
+    // 连射直到死(关动画瞬间结算,确定性选列,上限保护)
+    await page.evaluate(() => { G.noAnim = true; });
     let guard = 0;
     while (guard < 3000) {
       const dead = await page.evaluate(n => {
