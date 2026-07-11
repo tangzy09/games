@@ -39,6 +39,9 @@ function gravityUp(s) {
   for (let c = 0; c < s.cols; c++) s.board[c] = s.board[c].filter(v => v > 0);
 }
 
+// 不变式:棋盘每列任何时候都从 index0 起紧密排列、无内部空洞(靠 gravityUp 去零重排保证)。
+// 故「相邻列同 index = 同一绝对视觉行」才成立,横向邻接判定(c±1 同 i)直接依赖此。
+// P2 若加锤子砸中间块,砸完必须立刻 gravityUp 重压实,否则该不变式破裂、连通判定错乱。
 function findComponents(s) {
   const comps = [];
   const seen = s.board.map(col => col.map(() => false));

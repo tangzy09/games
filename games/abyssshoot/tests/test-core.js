@@ -91,6 +91,9 @@ r = Core.resolve(s);
 assert.deepStrictEqual(s.board[0], [8], '2,2→4 再与顶部 4→8');
 assert.strictEqual(r.chain, 2, '两轮连锁');
 assert.strictEqual(s.score, 4 * 1 + 8 * 2, '第1轮4×1 + 第2轮8×2');
+assert(s.events.some(e => e.t === 'chain' && e.n === 2), '两轮连锁发 chain 事件 n=2');
+assert.strictEqual(s.events.filter(e => e.t === 'merge').length, 2, '两次合并两条 merge 事件');
+assert.strictEqual(r.merges, 2, 'merges 计数=2');
 
 // --- 无块:不变 ---
 s = Core.createGame({ seed: 1 });
@@ -140,6 +143,8 @@ assert.deepStrictEqual(s.board[2], [16], '8 射到 8 上→16');
 s = Core.createGame({ seed: 1 });
 Core.shoot(s, 9);          // 越界:无操作
 assert.strictEqual(s.shots, 0, '越界不计');
+Core.shoot(s, -1);         // 负向越界:也无操作
+assert.strictEqual(s.shots, 0, '负向越界也不计');
 s.dead = true;
 Core.shoot(s, 0);
 assert.strictEqual(s.shots, 0, '死局不动');
