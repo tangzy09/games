@@ -35,7 +35,11 @@ function createGame(opts = {}) {
   return s;
 }
 
+function gravityUp(s) {
+  for (let c = 0; c < s.cols; c++) s.board[c] = s.board[c].filter(v => v > 0);
+}
+
 // 双导出:node 走 module.exports;浏览器靠顶层 const Core 当全局(同 snake core.js)
-const Core = { createGame, genAmmo, smallestTile,
+const Core = { createGame, genAmmo, smallestTile, gravityUp,
   PREVIEW, AMMO_WINDOW, SPAWN_EVERY, TILE_MIN };
 if (typeof module !== 'undefined' && module.exports) module.exports = Core;
