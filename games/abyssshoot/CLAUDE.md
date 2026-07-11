@@ -6,9 +6,9 @@
 
 ## 当前状态（2026-07-11）
 
-**P1 纯逻辑内核 + P1b 可玩壳已完成 —— 浏览器里能真玩了**（仓库根起 http 服 → `http://localhost:8080/games/abyssshoot/`）。
-已有：`js/{tiles,core,render,main}.js` + `index.html` + `css/game.css` + `locales/{en,zh-CN}.json`；测试：`npm run test:abyss`（单测+蒙特卡洛）、`npm run test:abyss:e2e`（Playwright 无头整局）。
-**还没做**：动画/音效、道具（锤子/交换列/撤销）、图鉴、皮肤、成就、存档续玩、鱼图美术、iOS 壳 —— 见下方「DESIGN 里已定但未实现」与 DESIGN.md 的 P2/P3/P4。
+**P1 纯逻辑内核 + P1b 可玩壳 + P2a-1 动画/音效已完成 —— 浏览器里能真玩了**（仓库根起 http 服 → `http://localhost:8080/games/abyssshoot/`）。
+已有：`js/{tiles,core,render,main}.js` + `index.html` + `css/game.css` + `locales/{en,zh-CN}.json` + `assets/audio/*.wav`（6 个合成音效）；测试：`npm run test:abyss`（单测+蒙特卡洛）、`npm run test:abyss:e2e`（Playwright 无头整局，含动画启动/封锁输入验证）。
+**还没做**：道具（锤子/交换列/撤销）、图鉴、皮肤、成就、存档续玩、鱼图美术、iOS 壳 —— 见下方「DESIGN 里已定但未实现」与 DESIGN.md 的 P2/P3/P4。
 
 ## 验证（改 core/tiles 后必跑）
 
@@ -40,13 +40,18 @@ node tools/check-locales.js games/abyssshoot/locales   # 必 0 fail
 - `core.js`/`tiles.js` 是**双导出**（`const Core = {...}; if (module.exports) module.exports = Core;`），浏览器靠顶层 `const` 当全局，**不写 `this.X=`/`window.X=`**（同 snake）。node 里 require 引擎走 `../../../engine/prng.js`。
 - **禁 `Date.now()`**：所有随机走 `s.rand`（`PRNG.create(seed)`，mulberry32）→ 同种子完全可复现，蒙特卡洛与单测才立得住。
 - **事件流 `s.events`**：每次 `shoot` 清空重填（`shoot/merge/chain/newMaxFish/spawn/death`）。这是给音效与成就消费的硬契约（同 snake），单测有断言守着——改事件形状要同步改测试。
+- **级联逐轮快照**：`resolve` 每轮发 `{t:'round', n, merges, board}`（board 是深拷贝快照），`shoot`/`spawn` 也各带一份 `board` 快照——**这是动画逐轮回放的数据来源**。core 依然纯函数确定；改 resolve 时别把这些快照弄丢，否则动画退化成瞬间闪现。
 - `resolve` 有 `MAX_ITERS` 硬上限，不收敛就 throw（防死循环，正常规则下够不到）。
 
 ## 可调平衡参数（蒙特卡洛调，别拍脑袋）
 
 `core.js` 顶部：`PREVIEW=3`（预览发数）、`AMMO_WINDOW=3`（弹药档窗）、`SPAWN_EVERY=6`（每 N 发刷一行）、`TILE_MIN=2`、`cols=5`/`rows=9`。
 
-**蒙特卡洛口径**：无尽刷分**没有「可赢性」可验**（区别于 mines 的必胜门禁）——`test-sim.js` 只验「不变量成立 + 无退化的秒死/永生局 + 局长分布合理 + resolve 收敛」。当前随机瞎打 300 局：**局长 min=18 / 中位=54 / 均=57 / max=128**（起始参数首跑即达标，未调）。调参后必须回填分布到计划文档。
+**蒙特卡洛口径**：无尽刷分**没有「可赢性」可验**（区别于 mines 的必胜门禁）——`test-sim.js` 只验「不变量成立 + 无退化的秒死/永生局 + 局长分布合理 + resolve 收敛」。当前随机瞎打 300 局：**局长 min=18 / 中位=54 / 均=57 / max=128**（起始参数首跑即达标，未调；P2a-1 加动画快照后复跑分布完全一致，规则未被误改）。调参后必须回填分布到计划文档。
+
+## 动画时长（调手感在这里）
+
+`render.js` 顶部 `ANIM = { fly, merge, spawn, death }`（毫秒）。动画播放期间 `main.js` **封锁输入**（`G.anim` 非 null 即拒绝 dispatch），播完才判死进 DEAD。`G.noAnim = true` 可跳过动画瞬间结算（E2E 用）。RAF 循环**空闲即停**（不烧 CPU）。
 
 ## DESIGN 里已定但 core 尚未实现的规则（P1b/P2 接线时补）
 
