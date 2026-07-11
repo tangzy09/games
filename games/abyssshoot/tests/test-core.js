@@ -119,13 +119,13 @@ Core.resolve(s);
 assert(s.events.some(e => e.t === 'newMaxFish' && e.v === 16), '刷新最高档发事件');
 console.log('test-core: resolve OK');
 
-// --- spawnRow: 每列顶部各加一个小鱼(2 或 4),原有下移 ---
+// --- spawnRow: 每列顶部各加一条鱼、原有下移;新鱼必须是**盘上已有的值**(不是恒定的 2/4) ---
 s = Core.createGame({ seed: 7 });
 s.board = [[16], [32], [], [64], []];
+const onBoard = new Set(s.board.flat());     // {16,32,64}
 Core.spawnRow(s);
 for (let c = 0; c < 5; c++) {
-  const first = s.board[c][0];
-  assert(first === 2 || first === 4, `列${c} 顶部是新小鱼`);
+  assert(onBoard.has(s.board[c][0]), `列${c} 顶部的新鱼必须是盘上已有的值(否则刷下来合不掉)`);
 }
 assert.deepStrictEqual(s.board[0].slice(1), [16], '列0 原鱼被下移到 index1');
 assert.deepStrictEqual(s.board[3].slice(1), [64], '列3 原鱼下移');
@@ -205,44 +205,37 @@ assert(s.dead, '列高超 rows → 死');
 assert(s.events.some(e => e.t === 'death'));
 console.log('test-core: shoot OK');
 
-// --- 基准档不变量:弹药与刷行**都**挂 baseTier(随 maxTile 上浮),不是挂盘上最小值 ---
-// ⚠ 这是防「死墙」的守卫。旧实现把弹药挂在 smallestTile 上,而刷行恒生 2 →
-// 最小值被永久钉死在 2 → 弹药永远 {2,4,8} → 列底的 256 永远合不动 = 不可消的死墙。
-// 现在两者同挂 baseTier,一起上浮,刷下来的行必定在弹药够得着的范围内。
+// --- ⚠ 核心不变量:防「两端死墙」——弹药与刷行都必须配得上盘面上真实存在的值 ---
+// 踩坑史(玩家两次实战撞出):
+//   ① 弹药挂「盘上最小值」+ 刷行恒生 2 → 最小值被钉死在 2 → 弹药永远{2,4,8} → 大鱼合不动(大鱼死墙)
+//   ② 弹药挂 baseTier(只升不降) → 早期留在盘上的 2/4 再也抽不到 → 小鱼合不掉(小鱼死墙,同病反向)
+// 结构性解法:直接从**盘面现有值**抽样。以下两条断言把这条性质钉死。
+
+// (a) 弹药永远是「盘上真实存在的值」——不会出现盘上没有、你却拿到的废弹
 s = Core.createGame({ seed: 5 });
-s.maxTile = 1024;
-const base = Core.baseTier(s);
-assert(Number.isInteger(Math.log2(base)) && base >= Core.TILE_MIN, 'baseTier 是 ≥2 的 2 的幂');
-const lo = base;
-const hi = base * Math.pow(2, Core.AMMO_WINDOW - 1);       // base×4
-for (let k = 0; k < 500; k++) {
+s.board = [[2, 512], [4, 256], [1024], [], []];
+const present = new Set(s.board.flat());
+for (let k = 0; k < 800; k++) {
   const a = Core.genAmmo(s);
-  assert(Number.isInteger(Math.log2(a)), 'ammo 是 2 的幂');
-  assert(a >= lo && a <= hi, `ammo ${a} 落在 [${lo}, ${hi}]`);
+  assert(present.has(a), `弹药 ${a} 必须是盘上真实存在的值(不能是废弹)`);
 }
-// baseTier 随 maxTile 单调不降(进度只会让基准上浮,不会倒退)
-let prevBase = 0;
-for (const mt of [0, 64, 256, 1024, 4096, 16384, 65536]) {
-  const g = Core.createGame({ seed: 1 }); g.maxTile = mt;
-  const b = Core.baseTier(g);
-  assert(b >= prevBase, `baseTier 随 maxTile 单调不降(${mt} → ${b})`);
-  prevBase = b;
+// (b) 盘上**每一个**不同的值都抽得到(含最大和最小)——两端都不会被永久遗弃
+const seenAmmo = new Set(), seenSpawn = new Set();
+for (let k = 0; k < 20000; k++) seenAmmo.add(Core.genAmmo(s));
+for (const v of present) {
+  assert(seenAmmo.has(v), `盘上的 ${v} 必须抽得到弹药(否则它成为永久合不掉的死墙)`);
 }
-// **核心不变量:刷行的鱼必须落在弹药够得着的范围内**(否则刷下来就消不掉 = 你实战撞到的 bug)
-for (const mt of [0, 64, 256, 1024, 4096, 16384]) {
-  const g = Core.createGame({ seed: 9 }); g.maxTile = mt;
-  const b = Core.baseTier(g);
-  const ammoMax = b * Math.pow(2, Core.AMMO_WINDOW - 1);
-  for (let k = 0; k < 200; k++) {
-    g.board = [[], [], [], [], []];
-    Core.spawnRow(g);
-    for (const col of g.board) for (const v of col) {
-      assert(v >= b && v <= ammoMax,
-        `刷行的鱼 ${v} 必须在弹药可达区间 [${b}, ${ammoMax}] 内(maxTile=${mt})`);
-    }
-  }
+// (c) 刷行的鱼同样只从盘面抽 → 刷下来的必定是你合得掉的东西
+for (let k = 0; k < 20000; k++) {
+  const g = Core.createGame({ seed: 9 });
+  g.board = [[2, 512], [4, 256], [1024], [], []];
+  seenSpawn.add(Core.pickFromBoard(g, Core.SPAWN_BIAS));
 }
-console.log('test-core: 基准档/弹药/刷行 不变量 OK(防死墙)');
+for (const v of seenSpawn) assert(present.has(v), `刷行的鱼 ${v} 必须是盘上存在的值`);
+// (d) 空盘兜底:从最小档起手,不炸
+const empty = Core.createGame({ seed: 1 });
+assert.strictEqual(Core.genAmmo(empty), Core.TILE_MIN, '空盘弹药 = TILE_MIN');
+console.log('test-core: 弹药/刷行 从盘面抽样 不变量 OK(防两端死墙)');
 
 // ── P2a-1: 级联逐轮快照(动画回放要用) ──
 // snapBoard 深拷贝,round 事件带本轮合并明细 + 本轮结算后的盘面

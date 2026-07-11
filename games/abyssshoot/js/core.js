@@ -3,30 +3,45 @@ const PRNG_ = (typeof module !== 'undefined' && module.exports)
   ? require('../../../engine/prng.js') : PRNG;
 
 const PREVIEW = 3;       // 弹药预览发数
-const AMMO_WINDOW = 3;   // 弹药档窗:base * 2^(0..AMMO_WINDOW-1) = base, ×2, ×4 (可调)
 const SPAWN_EVERY = 6;   // 每 N 发顶部刷一整行(可调)
-const TILE_MIN = 2;      // 最小档
-const BASE_SPAN = 5;     // 基准档 = 最高鱼往回退 BASE_SPAN 档(可调,平衡关键钮)
+const TILE_MIN = 2;      // 最小档(空盘时的起手值)
+// 从盘面抽样的偏小系数(r^bias):越大越偏向小鱼。平衡关键钮。
+const AMMO_BIAS = 2;     // 弹药:偏小(主要靠射小鱼级联长大)
+const SPAWN_BIAS = 3;    // 刷行:更偏小(刷下来的是杂鱼,不是白送大鱼)
 
-// ⚠ 基准档:弹药与刷行**都**挂在它上面,随进度(maxTile)整体上浮。
-// 为什么不能挂「盘上最小值」(旧实现的致命 bug):刷行会不停往盘上注入小鱼,
-// 把最小值永久钉死在 2 → 弹药永远只有 {2,4,8} → 列底压着的 256 你永远合不动,
-// 变成不可消的死墙,盘面只涨不消、被活活顶死。基准必须挂在**单调上浮**的进度信号上。
-function baseTier(s) {
-  if (!s.maxTile) return TILE_MIN;
-  const e = Math.max(1, Math.round(Math.log2(s.maxTile)) - BASE_SPAN);
-  return Math.max(TILE_MIN, Math.pow(2, e));
+// ⚠⚠ 弹药与刷行的**唯一正确原则**:「你拿到的东西,必须配得上盘面上真实存在的值」。
+// 实现:直接从**盘上现有值的多重集**里抽样,而不是用公式算区间。
+//
+// 两次踩坑史(都是玩家实战撞出来的,别再走回去):
+//   ① 弹药挂「盘上最小值」+ 刷行恒生 2/4 → 刷行把最小值永久钉死在 2 → 弹药永远{2,4,8}
+//      → 列底的 256 永远合不动 = **大鱼死墙**。
+//   ② 改成弹药挂 baseTier(随 maxTile 上浮) → 区间只升不降 → 早期留在盘上的 2/4
+//      再也抽不到 = **小鱼死墙**(同一个病,反过来而已)。
+// 公式法必然在某一端漏掉盘上真实存在的值。从盘面抽样则**结构性**杜绝两端死墙:
+// 盘上有什么,你就可能拿到什么。单测有硬不变量守着。
+//
+// 偏小抽样(r² 权重):主要靠「射小鱼 → 级联长大」推进(经典 2048 射手的正路),
+// 而不是直接射一条大鱼;也保证残留的小鱼总能被清掉,不会堆成垃圾。
+function boardValues(s) {
+  const vs = [];
+  for (let c = 0; c < s.cols; c++) for (const v of s.board[c]) vs.push(v);
+  return vs;
+}
+function pickFromBoard(s, bias) {
+  const vs = boardValues(s);
+  if (!vs.length) return TILE_MIN;                       // 空盘:从最小档起手
+  vs.sort((a, b) => a - b);
+  const r = Math.pow(s.rand(), bias);                    // bias>1 → 偏向小端
+  return vs[Math.min(vs.length - 1, Math.floor(r * vs.length))];
 }
 function smallestTile(s) {
   let m = Infinity;
   for (let c = 0; c < s.cols; c++) for (const v of s.board[c]) if (v < m) m = v;
   return m === Infinity ? TILE_MIN : m;
 }
-function genAmmo(s) {
-  const base = baseTier(s);
-  const e = Math.floor(s.rand() * AMMO_WINDOW);   // 0..AMMO_WINDOW-1
-  return base * Math.pow(2, e);
-}
+function genAmmo(s)  { return pickFromBoard(s, AMMO_BIAS); }
+// 刷行的鱼同样从盘面抽(偏小更狠)——刷下来的行必定是你合得掉的东西。
+function spawnTile(s) { return pickFromBoard(s, SPAWN_BIAS); }
 
 function createGame(opts = {}) {
   const cols = opts.cols || 5, rows = opts.rows || 9;
@@ -147,9 +162,6 @@ function resolve(s, prefer) {
 
 // 刷行的鱼也挂基准档(不是恒定的 2/4)——否则会把盘上最小值永久钉死在 2,
 // 让弹药永远够不着列底的大鱼,刷下来的行根本消不掉,只能眼看着被顶死。
-function spawnTile(s) {
-  return baseTier(s) * Math.pow(2, Math.floor(s.rand() * 2));   // base 或 base×2
-}
 function spawnRow(s) {
   for (let c = 0; c < s.cols; c++) s.board[c].unshift(spawnTile(s));
   s.events.push({ t: 'spawn', board: snapBoard(s) });
@@ -186,6 +198,6 @@ function shoot(s, col) {
 }
 
 // 双导出:node 走 module.exports;浏览器靠顶层 const Core 当全局(同 snake core.js)
-const Core = { createGame, genAmmo, smallestTile, baseTier, gravityUp, findComponents, resolve, spawnRow, shoot, snapBoard,
-  PREVIEW, AMMO_WINDOW, SPAWN_EVERY, TILE_MIN, BASE_SPAN };
+const Core = { createGame, genAmmo, smallestTile, boardValues, pickFromBoard, gravityUp, findComponents, resolve, spawnRow, shoot, snapBoard,
+  PREVIEW, SPAWN_EVERY, TILE_MIN, AMMO_BIAS, SPAWN_BIAS };
 if (typeof module !== 'undefined' && module.exports) module.exports = Core;
