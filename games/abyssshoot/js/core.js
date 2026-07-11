@@ -78,21 +78,23 @@ function findComponents(s) {
 
 function resolve(s) {
   let chain = 0, gained = 0, merges = 0;
-  while (true) {
+  const MAX_ITERS = 10000;
+  while (chain < MAX_ITERS) {
     const comps = findComponents(s);
     if (!comps.length) break;
     chain++;
     for (const comp of comps) {
       const nv = comp.value * 2;
-      for (const cell of comp.cells) s.board[cell.c][cell.i] = 0;   // 整块清零
-      s.board[comp.anchor.c][comp.anchor.i] = nv;                   // 锚点置 ×2
-      gained += nv * chain;                                         // 连锁倍率
+      for (const cell of comp.cells) s.board[cell.c][cell.i] = 0;
+      s.board[comp.anchor.c][comp.anchor.i] = nv;
+      gained += nv * chain;
       merges++;
       if (nv > s.maxTile) { s.maxTile = nv; s.events.push({ t: 'newMaxFish', v: nv }); }
       s.events.push({ t: 'merge', v: nv, chain });
     }
     gravityUp(s);
   }
+  if (chain >= MAX_ITERS) throw new Error('resolve 未收敛(可能死循环)');
   if (chain > 1) s.events.push({ t: 'chain', n: chain });
   s.score += gained;
   return { chain, gained, merges };
