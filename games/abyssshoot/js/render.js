@@ -27,6 +27,14 @@ const ANIM = { fly: 110, merge: 200, spawn: 160, death: 340 };
 const easeOut = p => 1 - Math.pow(1 - p, 3);
 const easeInOut = p => p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
 
+// 格子(可为小数 index)的 y。⚠ 越线格(i >= rows)必须与 drawBreaches 用【同一套】偏移:
+// 否则动画里的越界格和静态帧里的越界格位置对不上,弹药「压过死线」的那一下会跳一帧。
+// i 从 rows-1 到 rows 之间连续 ramp,滑动过程平滑,整数 i>=rows 时恰等于 drawBreaches 的公式。
+function tileY(L, rows, i) {
+  const rise = Math.max(0, Math.min(1, i - (rows - 1)));
+  return L.boardY + i * L.cell - L.cell * BREACH_RISE * rise;
+}
+
 // 布局:HUD 在顶(避开引擎顶栏 safeTop),棋盘居中,死线下留一整格的「越线区」,再是炮台行。
 function layout(s) {
   const { SW, SH, safeTop } = GameGlobal;
@@ -127,7 +135,7 @@ function drawMergeStep(L, step, p) {
   for (let c = 0; c < s.cols; c++) {
     for (const it of colMaps[c].items) {
       if (it.kind === 'survive') {
-        const y = L.boardY + (it.i + (it.toI - it.i) * e) * L.cell;
+        const y = tileY(L, s.rows, it.i + (it.toI - it.i) * e);
         const x = L.boardX + c * L.cell;
         if (it.isAnchor) {
           // 锚点:前半程还是旧值,p>0.5 换成新值并弹跳
@@ -140,8 +148,8 @@ function drawMergeStep(L, step, p) {
       } else {
         // 消失格:飞向锚点新位置,缩小淡出
         const ap = anchorPos.get(`${it.anchor.c},${it.anchor.i}`);
-        const fx = L.boardX + c * L.cell, fy = L.boardY + it.i * L.cell;
-        const tx = L.boardX + ap.c * L.cell, ty = L.boardY + ap.toI * L.cell;
+        const fx = L.boardX + c * L.cell, fy = tileY(L, s.rows, it.i);
+        const tx = L.boardX + ap.c * L.cell, ty = tileY(L, s.rows, ap.toI);
         const x = fx + (tx - fx) * e, y = fy + (ty - fy) * e;
         drawTileAt(x, y, L.cell, it.v, Math.max(0.05, 1 - e), Math.max(0, 1 - e));
       }
@@ -156,22 +164,21 @@ function drawSpawnStep(L, step, p) {
   for (let c = 0; c < s.cols; c++) {
     const from = step.from[c], to = step.to[c];
     for (let i = 0; i < from.length; i++) {
-      const y = L.boardY + (i + 1 * e) * L.cell;
-      drawTileAt(L.boardX + c * L.cell, y, L.cell, from[i], 1, 1);
+      drawTileAt(L.boardX + c * L.cell, tileY(L, s.rows, i + e), L.cell, from[i], 1, 1);
     }
     if (to.length) drawTileAt(L.boardX + c * L.cell, L.boardY, L.cell, to[0], 0.6 + 0.4 * e, e);
   }
 }
 
-// 发射:弹药从炮台飞到落点
+// 发射:弹药从炮台飞到落点(落点若已越线,飞过死线 —— 观众要亲眼看见它压过虚线,红警随后才亮)
 function drawFlyStep(L, step, p) {
   const e = easeOut(p);
   const s = G.s;
   for (let c = 0; c < s.cols; c++)
     for (let i = 0; i < step.from[c].length; i++)
-      drawTileAt(L.boardX + c * L.cell, L.boardY + i * L.cell, L.cell, step.from[c][i], 1, 1);
+      drawTileAt(L.boardX + c * L.cell, tileY(L, s.rows, i), L.cell, step.from[c][i], 1, 1);
   const fx = L.boardX + step.col * L.cell, fy = L.cannonY;
-  const ty = L.boardY + step.toI * L.cell;
+  const ty = tileY(L, s.rows, step.toI);
   drawTileAt(fx, fy + (ty - fy) * e, L.cell, step.v, 1, 1);
 }
 
@@ -226,8 +233,14 @@ function renderAll() {
     fillRR(L.boardX + c * L.cell + 2, L.boardY + 2, L.cell - 4, L.boardH - 4, 8, PAL.colBg);
   }
 
-  // ── 盘内鱼格:动画中交给 step 绘制,否则静态画。越线的格子留给 drawBreaches ──
+  // ── 盘内鱼格:动画中交给 step 绘制(step 自己负责画越线格),否则静态画 ──
+  // ⚠ 盘面步骤(fly/merge/spawn)期间 drawBreaches 必须【完全不画】:
+  //   ① 防双画 —— step 已经把越线格画过了(用 tileY 的同一套越线偏移);
+  //   ② 防剧透 —— Core.shoot 是同步算完才起动画的,s.board 早已是「死了的终局盘」。
+  //      若此时就画红框红洗,弹药还在半空、"你死了"的红警已经贴脸,动画的戏剧节奏全毁。
+  //   红警只在 death step 起播时亮(那时走 else 静态分支)+ 动画播完的静态帧里亮。
   const step = G.anim && G.anim.steps[G.anim.i];
+  const animBoardStep = !!step && (step.type === 'fly' || step.type === 'merge' || step.type === 'spawn');
   const animP = step ? Math.min(1, (G.anim.elapsed || 0) / step.dur) : 1;
   if (step && step.type === 'fly')        drawFlyStep(L, step, animP);
   else if (step && step.type === 'merge') drawMergeStep(L, step, animP);
@@ -292,5 +305,10 @@ function renderAll() {
   }
 
   // ── 顶爆列最后画:压过死线、也压过 dim,死亡画面必须一眼看出是哪列被顶爆 ──
-  drawBreaches(L, s);
+  //    (盘面动画期间跳过:见上面 animBoardStep 处的注释 —— 防双画 + 防死亡剧透)
+  if (!animBoardStep) drawBreaches(L, s);
 }
+
+// ── 双导出:node 可 require 出纯函数做单测(mapColumn 是动画位置插值的心脏)。
+//    浏览器里 module 未定义 → 走不到这行,顶层 const/function 仍是全局,渲染契约不受影响。
+if (typeof module !== 'undefined' && module.exports) module.exports = { mapColumn, tileY, ANIM };

@@ -47,11 +47,27 @@ function playStepSfx(step) {
   if (step.type === 'death') Haptics.medium();
 }
 
+// 绘制抛错绝不能永久封死输入:G.anim 非 null 时 dispatch 全拒,若 renderAll 抛异常把
+// RAF 打断(rafId 那行执行不到),anim 永不清空 → 玩家点什么都没反应、零提示、静默卡死。
+// 故绘制一律包 try/catch:出事留痕 + 强制解锁(宁可丢动画,不可丢游戏)。
+function safeRender() {
+  try { renderAll(); return true; }
+  catch (err) {
+    console.error('abyssshoot renderAll failed (强制解锁动画,避免永久封死输入):', err);
+    G.anim = null; rafId = null;
+    return false;
+  }
+}
+
+// 单帧 delta 上限:切后台/卡顿时 RAF 暂停,恢复的第一帧 ts 是真实墙钟 → delta 暴涨 →
+// 当前这一步会被整段跳过(画面跳切)。夹到 100ms,最坏情况只是慢放一点,不会跳帧。
+const MAX_FRAME_DELTA = 100;
+
 function frame(ts) {
   if (!G.anim) { rafId = null; return; }        // 空闲即停 RAF,不烧 CPU
   const a = G.anim;
   if (!a.last) a.last = ts;
-  a.elapsed += ts - a.last;
+  a.elapsed += Math.min(ts - a.last, MAX_FRAME_DELTA);
   a.last = ts;
   const step = a.steps[a.i];
   if (a.elapsed >= step.dur) {
@@ -59,15 +75,15 @@ function frame(ts) {
     if (a.i >= a.steps.length) { finishAnim(); return; }
     playStepSfx(a.steps[a.i]);
   }
-  renderAll();
+  if (!safeRender()) { finishAnim(); return; }   // 绘制炸了:解锁并落到静态终局帧
   rafId = requestAnimationFrame(frame);
 }
 
 function finishAnim() {
-  G.anim = null;
+  G.anim = null;                                 // 先解锁再绘制:哪怕绘制炸了,输入也已经放开
   rafId = null;
   if (G.s.dead) G.phase = 'DEAD';               // 动画播完才进死亡画面
-  renderAll();
+  safeRender();
 }
 
 function startAnim(events) {
@@ -77,7 +93,7 @@ function startAnim(events) {
   if (!a || G.noAnim) { finishAnim(); return; }
   G.anim = a;
   playStepSfx(a.steps[0]);
-  renderAll();
+  if (!safeRender()) { finishAnim(); return; }   // 首帧就炸:别起 RAF,直接解锁落静态帧
   if (rafId == null) rafId = requestAnimationFrame(frame);
 }
 
