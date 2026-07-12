@@ -186,6 +186,39 @@ function serve() {
     await page.screenshot({ path: path.join(SHOT_DIR, 'e2e-2-dead.png') });
     console.log(`OK 整局跑通:${st.shots} 发 / 分 ${st.score} / 最深 ${st.maxTile} / 顶爆 ${st.breached} 列 → DEAD`);
 
+    // ── 图鉴:打开、显示进度、未解锁灰剪影 ──
+    await page.evaluate(() => dispatch('CODEX', {}));
+    const cx = await page.evaluate(() => {
+      const panel = document.getElementById('panel');
+      const items = [...document.querySelectorAll('.cx-item')];
+      return {
+        open: !panel.classList.contains('hidden'),
+        total: items.length,
+        unlocked: items.filter(i => !i.classList.contains('locked')).length,
+        sub: document.getElementById('panel-sub').textContent,
+      };
+    });
+    if (!cx.open) throw new Error('图鉴面板应打开');
+    if (cx.total !== 17) throw new Error('图鉴应有 17 档,实为 ' + cx.total);
+    if (!(cx.unlocked >= 3)) throw new Error('整局跑完至少解锁 3 条鱼,实为 ' + cx.unlocked);
+    if (cx.unlocked >= cx.total) throw new Error('不该一局就全解锁(否则收集没意义)');
+    await page.screenshot({ path: path.join(SHOT_DIR, 'e2e-codex.png') });
+    console.log(`OK 图鉴:${cx.unlocked}/${cx.total} 解锁 · "${cx.sub}"`);
+    await page.evaluate(() => document.getElementById('panel-close').click());
+
+    // ── 存档续玩:射几发 → 重新载入页面 → 盘面/分数原样恢复 ──
+    await page.evaluate(() => { dispatch('RESTART', {}); G.noAnim = true;
+                                for (let i = 0; i < 6; i++) dispatch('SHOOT', { col: i % 5 }); });
+    const before = await page.evaluate(() => ({ board: JSON.stringify(G.s.board), score: G.s.score, shots: G.s.shots }));
+    await page.reload();
+    await page.waitForFunction(() => window.G && window.G.s);
+    const after = await page.evaluate(() => ({ phase: G.phase, board: JSON.stringify(G.s.board), score: G.s.score, shots: G.s.shots }));
+    if (after.phase !== 'PLAYING') throw new Error('重载后应恢复续玩(PLAYING),实为 ' + after.phase);
+    if (after.board !== before.board) throw new Error('重载后盘面应原样恢复');
+    if (after.score !== before.score || after.shots !== before.shots)
+      throw new Error('重载后分数/发数应原样恢复');
+    console.log(`OK 存档续玩:重载后盘面/分数(${after.score})/发数(${after.shots}) 原样恢复`);
+
     // 重开
     await page.evaluate(() => dispatch('RESTART', {}));
     st = await page.evaluate(() => ({ phase: G.phase, shots: G.s.shots, score: G.s.score }));
