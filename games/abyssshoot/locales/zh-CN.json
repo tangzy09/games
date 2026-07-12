@@ -6,12 +6,41 @@
     "tagline": "把小鱼射上去，同数合并，别被压垮。",
     "start": "下潜",
     "score": "分数",
-    "best": "最深",
+    "best": "最高",
+    "newRecord": "新纪录！",
     "next": "下一发",
     "gameOver": "被压垮了！",
     "finalScore": "得分 {n}",
     "deepest": "最深的鱼 {v}",
+    "deepestShort": "最深",
     "restart": "再次下潜",
     "hint": "点一列即可射击"
+  },
+  "codex": {
+    "title": "深海鱼图鉴",
+    "open": "图鉴",
+    "progress": "已发现 {cur} / {max}",
+    "locked": "？？？",
+    "hint": "合出这条鱼即可解锁",
+    "close": "关闭"
+  },
+  "fish": {
+    "clownfish": "小丑鱼",
+    "blenny": "鳚鱼",
+    "butterflyfish": "蝴蝶鱼",
+    "angelfish": "神仙鱼",
+    "blackspottedpuffer": "黑点河豚",
+    "barracuda": "梭鱼",
+    "blacktipreefshark": "黑鳍礁鲨",
+    "anglerfish": "鮟鱇",
+    "barreleye": "管眼鱼",
+    "coelacanth": "腔棘鱼",
+    "greatwhiteshark": "大白鲨",
+    "whaleshark": "鲸鲨",
+    "belugawhale": "白鲸",
+    "orca": "虎鲸",
+    "humpbackwhale": "座头鲸",
+    "spermwhale": "抹香鲸",
+    "oarfish": "皇带鱼"
   }
 }

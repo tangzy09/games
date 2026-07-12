@@ -6,12 +6,41 @@
     "tagline": "Shoot fish up. Same numbers merge. Don't get crushed.",
     "start": "Dive In",
     "score": "Score",
-    "best": "Deepest",
+    "best": "Best",
+    "newRecord": "New Record!",
     "next": "Next",
     "gameOver": "Crushed!",
     "finalScore": "Score {n}",
     "deepest": "Deepest fish {v}",
+    "deepestShort": "Deepest",
     "restart": "Dive Again",
     "hint": "Tap a column to shoot"
+  },
+  "codex": {
+    "title": "Fish Codex",
+    "open": "Codex",
+    "progress": "{cur} / {max} discovered",
+    "locked": "???",
+    "hint": "Merge a fish to discover it",
+    "close": "Close"
+  },
+  "fish": {
+    "clownfish": "Clownfish",
+    "blenny": "Blenny",
+    "butterflyfish": "Butterflyfish",
+    "angelfish": "Angelfish",
+    "blackspottedpuffer": "Blackspotted Puffer",
+    "barracuda": "Barracuda",
+    "blacktipreefshark": "Blacktip Reef Shark",
+    "anglerfish": "Anglerfish",
+    "barreleye": "Barreleye",
+    "coelacanth": "Coelacanth",
+    "greatwhiteshark": "Great White Shark",
+    "whaleshark": "Whale Shark",
+    "belugawhale": "Beluga Whale",
+    "orca": "Orca",
+    "humpbackwhale": "Humpback Whale",
+    "spermwhale": "Sperm Whale",
+    "oarfish": "Oarfish"
   }
 }
