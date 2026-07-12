@@ -114,10 +114,16 @@ function drawTileAt(px, py, cell, v, scale = 1, alpha = 1) {
 //   merged 非锚点 → 飞向锚点后消失
 //   其余(含锚点) → 幸存,新 index = 它在「幸存序列」里的位置(重力保序压实)
 function mapColumn(fromCol, c, merges) {
-  const mergedSet = new Set(), anchorVal = new Map();
+  const mergedSet = new Set(), anchorVal = new Map(), escapeSet = new Set();
   for (const m of merges) {
-    for (const cell of m.cells) if (cell.c === c) mergedSet.add(cell.i);
-    if (m.anchor.c === c) anchorVal.set(m.anchor.i, m.nv);
+    for (const cell of m.cells) {
+      if (cell.c !== c) continue;
+      mergedSet.add(cell.i);
+      if (m.escape) escapeSet.add(cell.i);       // 梯顶游走:整块无幸存者
+    }
+    // ⚠ escape 块**不注册锚点**——它没有幸存者(全部游走)。
+    // 若照常注册,drawMergeStep 会去查一个不存在的幸存者新 index → undefined → NaN 坐标 → 崩。
+    if (m.anchor.c === c && !m.escape) anchorVal.set(m.anchor.i, m.nv);
   }
   const out = [];        // {i, v, kind:'survive'|'vanish', toI, anchorI}
   let newIdx = 0;
@@ -131,13 +137,14 @@ function mapColumn(fromCol, c, merges) {
                oldV: fromCol[i], kind: 'survive', toI: newIdx, isAnchor });
     newIdx++;
   }
-  // 第二遍:消失者飞向它所属锚点的新位置
+  // 第二遍:消失者飞向它所属锚点的新位置;梯顶游走的整块则原地上浮淡出(没有目的地)
   for (const m of merges) {
     if (m.anchor.c !== c && !m.cells.some(x => x.c === c)) continue;
     for (const cell of m.cells) {
       if (cell.c !== c) continue;
       if (anchorVal.has(cell.i)) continue;        // 锚点自己不算消失
-      out.push({ i: cell.i, v: fromCol[cell.i], kind: 'vanish',
+      out.push({ i: cell.i, v: fromCol[cell.i],
+                 kind: m.escape ? 'escape' : 'vanish',   // escape:游回深渊,无飞行目标
                  anchor: m.anchor, anchorNv: m.nv });
     }
   }
@@ -153,6 +160,7 @@ function drawMergeStep(L, step, p) {
   for (let c = 0; c < s.cols; c++) colMaps.push(mapColumn(step.from[c], c, step.merges));
   const anchorPos = new Map();   // "c,i" → {c, toI}
   for (const m of step.merges) {
+    if (m.escape) continue;              // 梯顶游走:无幸存锚点,别塞 toI:undefined 的脏条目
     const cm = colMaps[m.anchor.c];
     anchorPos.set(`${m.anchor.c},${m.anchor.i}`, { c: m.anchor.c, toI: cm.anchorNewIdx.get(m.anchor.i) });
   }
@@ -169,6 +177,11 @@ function drawMergeStep(L, step, p) {
         } else {
           drawTileAt(x, y, L.cell, it.v, 1, 1);
         }
+      } else if (it.kind === 'escape') {
+        // 梯顶「游回深渊」:原地上浮 + 放大淡出(没有飞行目标,整块无幸存者)
+        const x = L.boardX + c * L.cell;
+        const y = tileY(L, s.rows, it.i) - L.cell * 0.55 * e;
+        drawTileAt(x, y, L.cell, it.v, 1 + 0.25 * e, Math.max(0, 1 - e));
       } else {
         // 消失格:飞向锚点新位置,缩小淡出
         const ap = anchorPos.get(`${it.anchor.c},${it.anchor.i}`);

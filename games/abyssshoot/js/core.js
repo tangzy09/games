@@ -1,6 +1,9 @@
 // core.js — 纯游戏状态机(无 DOM,双导出)。棋盘 = 每列一个栈,index 0=顶、末尾=底(玩家侧)。
 const PRNG_ = (typeof module !== 'undefined' && module.exports)
   ? require('../../../engine/prng.js') : PRNG;
+// 鱼梯(浏览器:tiles.js 在 core.js 之前加载,见 index.html 的 load-bearing 顺序)
+const TILES_ = (typeof module !== 'undefined' && module.exports)
+  ? require('./tiles.js') : Tiles;
 
 const PREVIEW = 3;       // 弹药预览发数
 const SPAWN_EVERY = 6;   // 每 N 发顶部刷一整行(可调)
@@ -27,9 +30,18 @@ function boardValues(s) {
   for (let c = 0; c < s.cols; c++) for (const v of s.board[c]) vs.push(v);
   return vs;
 }
-function pickFromBoard(s, bias) {
-  const vs = boardValues(s);
+// excludeMax:**盘上当前最大的值绝不发给你**(弹药与刷行都排除)。
+// 为什么:能直接射到当前最大值 = 花钱买最强的鱼(射一条 1024 贴到 1024 上白嫖 2048),
+// 「挣到最深的鱼」这件事就没了意义。排除后,**最大的鱼只能靠合并去挣**。
+// 顺带堵死一个坑:否则皇带鱼(梯顶)自己也能被抽成弹药,你会射出更多顶档大块。
+function pickFromBoard(s, bias, excludeMax) {
+  let vs = boardValues(s);
   if (!vs.length) return TILE_MIN;                       // 空盘:从最小档起手
+  if (excludeMax) {
+    const mx = Math.max.apply(null, vs);
+    vs = vs.filter(v => v < mx);
+    if (!vs.length) return TILE_MIN;                     // 盘上只剩一种值:给条新小鱼当火种
+  }
   vs.sort((a, b) => a - b);
   const r = Math.pow(s.rand(), bias);                    // bias>1 → 偏向小端
   return vs[Math.min(vs.length - 1, Math.floor(r * vs.length))];
@@ -39,9 +51,9 @@ function smallestTile(s) {
   for (let c = 0; c < s.cols; c++) for (const v of s.board[c]) if (v < m) m = v;
   return m === Infinity ? TILE_MIN : m;
 }
-function genAmmo(s)  { return pickFromBoard(s, AMMO_BIAS); }
+function genAmmo(s)   { return pickFromBoard(s, AMMO_BIAS, true); }
 // 刷行的鱼同样从盘面抽(偏小更狠)——刷下来的行必定是你合得掉的东西。
-function spawnTile(s) { return pickFromBoard(s, SPAWN_BIAS); }
+function spawnTile(s) { return pickFromBoard(s, SPAWN_BIAS, true); }
 
 function createGame(opts = {}) {
   const cols = opts.cols || 5, rows = opts.rows || 9;
@@ -123,6 +135,7 @@ function resolve(s, prefer) {
   let chain = 0, gained = 0, merges = 0;
   let pref = Array.isArray(prefer) ? prefer.slice() : [];
   const MAX_ITERS = 10000;
+  const MAX_V = TILES_.MAX_TILE_VALUE;   // 梯顶(皇带鱼 131072)
   while (chain < MAX_ITERS) {
     const comps = findComponents(s);
     if (!comps.length) break;
@@ -130,10 +143,29 @@ function resolve(s, prefer) {
     const roundMerges = [];
     const nextPref = [];
     for (const comp of comps) {
+      // ── 梯顶:相遇则双双游走 ──
+      // 两条以上顶档鱼(皇带鱼)相邻 → **全部游回深渊(清空)** + 巨额分数。
+      // 为什么不做「稳定块永不合并」(DESIGN 原案):那会让皇带鱼成为**永久不可消的方块**,
+      // 卡在列底 = 那一列判死刑;更糟的是弹药从盘面抽样 → 皇带鱼自己也能被抽成弹药,
+      // 你会射出更多永久垃圾越堆越死 —— **最大的成就变成杀死你的东西**。
+      // 现在:单条仍是稳定块(不成块就不动),但你可以**主动再合一条来清掉它** → 策略目标,不是死刑。
+      // 图鉴不受影响:maxTile 记录过 131072 就永久解锁,鱼游走了也算收集到。
+      if (comp.value >= MAX_V) {
+        const bonus = MAX_V * comp.cells.length;
+        roundMerges.push({ value: comp.value, nv: 0, escape: true,
+                           cells: comp.cells.map(x => ({ c: x.c, i: x.i })),
+                           anchor: { c: comp.anchor.c, i: comp.anchor.i } });
+        for (const cell of comp.cells) s.board[cell.c][cell.i] = 0;   // 全部清空,无幸存者
+        gained += bonus * chain;
+        merges++;
+        s.events.push({ t: 'escape', v: MAX_V, n: comp.cells.length, chain });
+        continue;
+      }
       // 连通块 N 个 → 合并 N-1 次 → V × 2^(N-1)。
       // 「憋大团」是核心爽点与赌注:3 连=4 倍、4 连=8 倍、5 连=16 倍。
       // (旧规则不论 N 一律塌成 ×2,导致凑的团越大亏得越多、反玩家,已废弃。)
-      const nv = comp.value * Math.pow(2, comp.cells.length - 1);
+      // 指数规则会冲过梯顶(如 5 连 16384 → ×16 = 262144),结果钳到梯顶。
+      const nv = Math.min(MAX_V, comp.value * Math.pow(2, comp.cells.length - 1));
       const anchor = pickAnchor(comp, pref);      // 优先向击中块/上一轮合出的鱼合并
       // 本轮合并明细在「变更前」采集,供动画把参与格飞向锚点
       roundMerges.push({ value: comp.value, nv, cells: comp.cells.map(x => ({ c: x.c, i: x.i })),
@@ -198,6 +230,6 @@ function shoot(s, col) {
 }
 
 // 双导出:node 走 module.exports;浏览器靠顶层 const Core 当全局(同 snake core.js)
-const Core = { createGame, genAmmo, smallestTile, boardValues, pickFromBoard, gravityUp, findComponents, resolve, spawnRow, shoot, snapBoard,
+const Core = { createGame, genAmmo, spawnTile, smallestTile, boardValues, pickFromBoard, gravityUp, findComponents, resolve, spawnRow, shoot, snapBoard,
   PREVIEW, SPAWN_EVERY, TILE_MIN, AMMO_BIAS, SPAWN_BIAS };
 if (typeof module !== 'undefined' && module.exports) module.exports = Core;

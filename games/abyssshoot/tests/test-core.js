@@ -177,6 +177,45 @@ Core.shoot(s, 1);                    // 列1=[4,4] → 两个 4 合成 8(锚=击
 assert.deepStrictEqual(s.board.flat(), [16], '连锁合成 16');
 assert.deepStrictEqual(s.board[1], [16], '连锁后的大鱼仍在击中的列1(原地滚雪球)');
 
+// --- 梯顶:相遇则双双游走(不做「永久稳定块」——那会造死墙,见 CLAUDE.md 规则5) ---
+const Tiles = require('../js/tiles.js');
+const MAXV = Tiles.MAX_TILE_VALUE;   // 131072 皇带鱼
+
+// (a) 两条以上顶档鱼相邻 → 全部游回深渊(清空) + 巨额分数
+s = Core.createGame({ seed: 1 });
+s.board = [[MAXV, MAXV], [], [], [], []];
+const rTop = Core.resolve(s);
+assert.deepStrictEqual(s.board[0], [], '两条皇带鱼相遇 → 双双游走,格子清空');
+assert.strictEqual(rTop.gained, MAXV * 2, '巨额分数 = 梯顶值 × 条数 × 连锁轮数(1)');
+assert(s.events.some(e => e.t === 'escape' && e.n === 2), '发 escape 事件(供音效/特效消费)');
+
+// (b) 单条顶档鱼不成块 → 原地不动(稳定块)。你可以主动再合一条来清掉它 → 策略目标而非死刑。
+s = Core.createGame({ seed: 1 });
+s.board = [[MAXV, 4], [], [], [], []];
+Core.resolve(s);
+assert.deepStrictEqual(s.board[0], [MAXV, 4], '单条皇带鱼原地不动');
+
+// (c) 指数规则冲过梯顶时,结果钳到梯顶(不会溢出成没有鱼的数)
+s = Core.createGame({ seed: 1 });
+const big = MAXV / 8;                    // 16384;5 连 → ×16 = 8×MAXV,必然冲过头
+s.board = [[big, big, big, big, big], [], [], [], []];
+Core.resolve(s);
+assert.deepStrictEqual(s.board[0], [MAXV], '冲过梯顶的结果被钳到梯顶');
+assert(Tiles.fishOf(s.board[0][0]) !== null, '钳制后仍是有鱼的档位(不会变成没鱼的数)');
+
+// (d) 顶档鱼不挡路:它旁边的低档鱼照常合并
+s = Core.createGame({ seed: 1 });
+s.board = [[MAXV, 4, 4], [], [], [], []];
+Core.resolve(s);
+assert.deepStrictEqual(s.board[0], [MAXV, 8], '单条皇带鱼稳定,下方两个 4 照常合成 8');
+
+// (e) resolve 必定收敛(escape 清空格子,不会与自己反复成块)
+s = Core.createGame({ seed: 1 });
+s.board = [[MAXV, MAXV], [MAXV, MAXV], [], [], []];
+Core.resolve(s);                          // 不许抛「未收敛」
+assert.strictEqual(s.board.flat().length, 0, '四条皇带鱼连成块 → 全部游走');
+console.log('test-core: 梯顶「相遇则游走」OK(清场/爆分/钳制/收敛)');
+
 // --- 越界/死局不炸 ---
 s = Core.createGame({ seed: 1 });
 Core.shoot(s, 9);          // 越界:无操作
@@ -211,31 +250,43 @@ console.log('test-core: shoot OK');
 //   ② 弹药挂 baseTier(只升不降) → 早期留在盘上的 2/4 再也抽不到 → 小鱼合不掉(小鱼死墙,同病反向)
 // 结构性解法:直接从**盘面现有值**抽样。以下两条断言把这条性质钉死。
 
-// (a) 弹药永远是「盘上真实存在的值」——不会出现盘上没有、你却拿到的废弹
 s = Core.createGame({ seed: 5 });
 s.board = [[2, 512], [4, 256], [1024], [], []];
-const present = new Set(s.board.flat());
-for (let k = 0; k < 800; k++) {
+const present = new Set(s.board.flat());          // {2,4,256,512,1024}
+const boardMax = Math.max(...present);            // 1024
+
+// (a) 弹药永远是「盘上真实存在的值」——不会出现盘上没有、你却拿到的废弹
+for (let k = 0; k < 2000; k++) {
   const a = Core.genAmmo(s);
   assert(present.has(a), `弹药 ${a} 必须是盘上真实存在的值(不能是废弹)`);
 }
-// (b) 盘上**每一个**不同的值都抽得到(含最大和最小)——两端都不会被永久遗弃
+// (b) ⚠ **盘上当前最大的值绝不发给你**(弹药 + 刷行)。
+// 否则:射一条 1024 贴到 1024 上就白嫖 2048 —— 「挣到最深的鱼」这件事就没意义了。
+// 最大的鱼**只能靠合并去挣**。也顺带堵死「皇带鱼被抽成弹药、射出更多顶档大块」的坑。
 const seenAmmo = new Set(), seenSpawn = new Set();
-for (let k = 0; k < 20000; k++) seenAmmo.add(Core.genAmmo(s));
+for (let k = 0; k < 30000; k++) seenAmmo.add(Core.genAmmo(s));
+assert(!seenAmmo.has(boardMax), `盘上最大的 ${boardMax} 绝不能被抽成弹药`);
+for (let k = 0; k < 30000; k++) seenSpawn.add(Core.spawnTile(s));
+assert(!seenSpawn.has(boardMax), `盘上最大的 ${boardMax} 绝不能被刷出来`);
+// (c) 除最大值外,**每一个**其余的值都抽得到——小鱼不会被永久遗弃(防小鱼死墙)
 for (const v of present) {
+  if (v === boardMax) continue;
   assert(seenAmmo.has(v), `盘上的 ${v} 必须抽得到弹药(否则它成为永久合不掉的死墙)`);
 }
-// (c) 刷行的鱼同样只从盘面抽 → 刷下来的必定是你合得掉的东西
-for (let k = 0; k < 20000; k++) {
-  const g = Core.createGame({ seed: 9 });
-  g.board = [[2, 512], [4, 256], [1024], [], []];
-  seenSpawn.add(Core.pickFromBoard(g, Core.SPAWN_BIAS));
-}
+// (d) 小数字概率大、大数字概率小(偏小抽样)
+const hist = {};
+for (let k = 0; k < 20000; k++) { const a = Core.genAmmo(s); hist[a] = (hist[a] || 0) + 1; }
+assert(hist[2] > hist[4] && hist[4] > hist[256] && hist[256] >= hist[512],
+  `偏小抽样:小数字概率必须更大 (实测 2:${hist[2]} 4:${hist[4]} 256:${hist[256]} 512:${hist[512]})`);
+// (e) 刷行的鱼也只从盘面抽 → 刷下来的必定是你合得掉的东西
 for (const v of seenSpawn) assert(present.has(v), `刷行的鱼 ${v} 必须是盘上存在的值`);
-// (d) 空盘兜底:从最小档起手,不炸
+// (f) 兜底不炸:空盘 / 盘上只剩一种值(排除最大后池子空了)
 const empty = Core.createGame({ seed: 1 });
 assert.strictEqual(Core.genAmmo(empty), Core.TILE_MIN, '空盘弹药 = TILE_MIN');
-console.log('test-core: 弹药/刷行 从盘面抽样 不变量 OK(防两端死墙)');
+const uni = Core.createGame({ seed: 1 });
+uni.board = [[8, 8], [8], [], [], []];            // 只有一种值,排除最大后池子空
+assert.strictEqual(Core.genAmmo(uni), Core.TILE_MIN, '盘上只剩一种值 → 给条新小鱼当火种,不炸');
+console.log('test-core: 弹药/刷行 从盘面抽样 不变量 OK(防死墙 + 最大值不出现 + 偏小)');
 
 // ── P2a-1: 级联逐轮快照(动画回放要用) ──
 // snapBoard 深拷贝,round 事件带本轮合并明细 + 本轮结算后的盘面
