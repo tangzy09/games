@@ -6,10 +6,12 @@
 
 ## 当前状态（2026-07-11）
 
-**P1 纯逻辑内核 + P1b 可玩壳 + P2a-1 动画/音效 + P2b-1 存档/最高分/鱼图鉴 + P2b-2 金币/三道具 + P3a 广告钩子已完成 —— 浏览器里能真玩、能续玩、能收集、能救场、能挂广告钩子了**（仓库根起 http 服 → `http://localhost:8080/games/abyssshoot/`）。
-已有：`js/{tiles,core,storage,codex,tools,render,main}.js` + `index.html`（含 `#panel` 图鉴浮层 + `#toasts`）+ `css/game.css` + `locales/{en,zh-CN}.json`（17 条鱼名 + 图鉴/最高分/道具/广告文案）+ `assets/audio/*.wav`（9 个合成音效）+ `assets/fish/*.webp`（17 条鱼图，复用 fishId）；测试：`npm run test:abyss`（单测+蒙特卡洛，含 storage/codex/tools/revive）、`npm run test:abyss:e2e`（Playwright 无头整局，含动画/图鉴/存档续玩/道具/广告流程验证）。
-版本化存档（`SAVE_V=2`）落在 `Platform.storage` 键 `abyss_save`：最高分 + 最深鱼 + 金币 + 图鉴 seen 集 + 累计统计（含广告计数）+ 当局快照（含 RNG 游标 seed+rolls，可中途关页精确续玩）。
-**还没做**：皮肤、成就、每日盘、iOS 壳、真实广告位（现为 Google 测试位）—— 见下方「广告（P3a）」「DESIGN 里已定但未实现」与 DESIGN.md 的 P3/P4。
+**已上 TestFlight（`VALID`），功能完整可玩。** 线上 web：<https://fishshoot.ai-speeds.com>
+
+- **玩法**：五条核心规则（全部经玩家实战校正）+ 动画 + 9 音效 + 17 条深海鱼 + 🐟 鱼图鉴 + 存档续玩 + 最高分 + 🔨🔀↩ 三道具 + 金币经济 + 激励广告（复活/换金币/插屏）。
+- **iOS**：Bundle ID `com.aispeeds.fishshooter`；ASC「**2048 Shooter: Fish Merge**」Apple ID `6790052330`；AdMob App `ca-app-pub-2141208066469648~1063418775`（激励 `/5808478997`、插屏 `/7442527234`，**本游戏专属，绝不复用他游戏的**）。
+- **⚠ 内部代号仍是 abyssshoot / Abyss Shooter，但面向用户的一切都不含 "Abyss"** —— 因为本账号已有上架的「2048 Abyss」，同名会撞 Apple 4.3(a)。原因与命名方案见 `docs/aso-appstore.md`，**别"优化"回去**。
+- **还没做**：商店截图与文案、提交审核、每日盘、成就、皮肤、Android。
 
 ## 验证（改 core/tiles/storage/codex/tools 后必跑）
 

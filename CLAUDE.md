@@ -15,7 +15,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 |---|---|
 | `minesweeper` | 已上线 + App Store 送审。完整。 |
 | `snake` | 已上线 + App Store 送审。完整。 |
-| `abyssshoot` | **只有 P1 纯逻辑 core + 测试，无 render/main/index.html —— 不可玩**。下一步 P1b 可玩壳。 |
+| `abyssshoot` | **已上 TestFlight**（ASC 名「2048 Shooter: Fish Merge」）。玩法/美术/图鉴/道具/广告全备，线上 <https://fishshoot.ai-speeds.com>。差商店截图+文案+提审。 |
 | `bouncerogue` | **只有 DESIGN.md，零代码**（纯 spec，已 park）。 |
 
 ## 常用命令
