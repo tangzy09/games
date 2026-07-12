@@ -44,6 +44,9 @@ function serve() {
     const errors = [];
     page.on('pageerror', e => errors.push(String(e)));
     page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+    // web 端 Ads 降级成 confirm() 模拟 → 必须应答,否则页面挂死
+    let adAnswer = true;                       // 用例可切换:模拟「看完」or「关掉」
+    page.on('dialog', d => d.accept());        // confirm 一律确认(=看完广告)
 
     await page.goto(`http://localhost:${PORT}/games/abyssshoot/`);
     await page.waitForFunction(() => window.G && window.G.phase === 'HOME', { timeout: 8000 });
@@ -52,7 +55,12 @@ function serve() {
     console.log('OK HOME 渲染');
 
     // 开局
-    await page.evaluate(() => dispatch('START', {}));
+    // ⚠ P3a 插屏「每 3 局一次」不是本文件要测的东西(它靠跨 RESTART 的计数,和后面
+    //   大量 setup 用的 RESTART 混一起会不确定命中第 3 次——命中时 newGame() 会被
+    //   Ads.showInterstitial().finally() 推迟到微任务,若同一个 evaluate 里紧跟着
+    //   还有 dispatch('SHOOT',...) 就会打在「还没 newGame」的旧盘上,静默失败）。
+    //   故这里每次 START/RESTART 前都把计数清零,让插屏逻辑不在本测试里意外触发。
+    await page.evaluate(() => { if (G.save) G.save.stats.runsSinceAd = 0; dispatch('START', {}); });
     let st = await page.evaluate(() => ({ phase: G.phase, dead: G.s.dead, shots: G.s.shots }));
     if (st.phase !== 'PLAYING') throw new Error('START 后应进 PLAYING,实为 ' + st.phase);
     console.log('OK START → PLAYING');
@@ -160,7 +168,7 @@ function serve() {
     console.log(`OK 动画播完才亮红警 → DEAD(红 ${redDuringFly} → ${redAfterDeath})`);
 
     // ── 道具:锤子 ──
-    await page.evaluate(() => { dispatch('RESTART', {}); G.noAnim = true;
+    await page.evaluate(() => { G.save.stats.runsSinceAd = 0; dispatch('RESTART', {}); G.noAnim = true;
                                 for (let i = 0; i < 10; i++) dispatch('SHOOT', { col: i % 5 });
                                 G.save.coins = 999; });
     const t0 = await page.evaluate(() => ({ coins: G.save.coins, tiles: G.s.board.flat().length }));
@@ -201,8 +209,45 @@ function serve() {
     if (poor !== null) throw new Error('金币不够时不该进入瞄准模式');
     console.log('OK 金币不够:道具点不动');
 
+    // ── 广告:看广告换金币 ──
+    await page.evaluate(() => { G.save.stats.runsSinceAd = 0; dispatch('RESTART', {}); G.noAnim = true;
+                                for (let i = 0; i < 4; i++) dispatch('SHOOT', { col: i % 5 });
+                                G.save.coins = 0; });
+    await page.evaluate(() => dispatch('AD_COINS', {}));
+    await page.waitForFunction(() => window.G.adBusy === false, { timeout: 8000 });
+    const adc = await page.evaluate(() => G.save.coins);
+    if (adc !== 100) throw new Error(`看广告应 +100 币,实为 ${adc}`);
+    console.log('OK 看广告换金币:+100');
+
+    // ── 广告:死亡复活(削顶部,列高应下降) ──
+    await page.evaluate(() => {
+      G.save.stats.runsSinceAd = 0; dispatch('RESTART', {}); G.noAnim = true;
+      // 造一个必死盘:一列填满不相邻同值
+      const alt = []; for (let i = 0; i < G.s.rows; i++) alt.push(i % 2 === 0 ? 2 : 4);
+      G.s.board = [alt, [], [], [], []];
+      G.s.ammo = 8;
+      dispatch('SHOOT', { col: 0 });
+    });
+    await page.waitForFunction(() => window.G.phase === 'DEAD', { timeout: 5000 });
+    const d0 = await page.evaluate(() => ({ h: G.s.board[0].length, revives: G.revives }));
+    await page.screenshot({ path: path.join(SHOT_DIR, 'e2e-ad-revive.png') });
+    await page.evaluate(() => dispatch('REVIVE', {}));
+    await page.waitForFunction(() => window.G.adBusy === false && window.G.anim === null, { timeout: 8000 });
+    const d1 = await page.evaluate(() => ({ phase: G.phase, h: G.s.board[0].length, revives: G.revives, dead: G.s.dead }));
+    if (d1.phase !== 'PLAYING') throw new Error(`复活后应回到 PLAYING,实为 ${d1.phase}`);
+    if (d1.dead) throw new Error('复活后 core 的 dead 应清除');
+    if (!(d1.h < d0.h)) throw new Error(`复活应削掉格子(列高 ${d0.h}→${d1.h})`);
+    if (d1.revives !== 1) throw new Error('复活次数应 +1');
+    console.log(`OK 死亡复活:列高 ${d0.h}→${d1.h},回到 PLAYING`);
+
+    // ── 复活次数用尽后,按钮不再生效 ──
+    await page.evaluate(() => { G.revives = 2; G.phase = 'DEAD'; dispatch('REVIVE', {}); });
+    const spent = await page.evaluate(() => G.phase);
+    if (spent !== 'DEAD') throw new Error('复活次数用尽后不该还能复活');
+    console.log('OK 复活上限:用尽后点不动');
+
     // ── 整局:重开,关动画瞬间结算(保持快且确定)──
-    await page.evaluate(() => { dispatch('RESTART', {}); G.noAnim = true; });
+    await page.evaluate(() => { G.save.stats.runsSinceAd = 0; dispatch('RESTART', {}); G.noAnim = true; });
 
     // 连射直到死(确定性选列,上限保护)
     let guard = 0;
@@ -268,7 +313,7 @@ function serve() {
       return n;
     });
 
-    await page.evaluate(() => { dispatch('RESTART', {}); G.noAnim = true;
+    await page.evaluate(() => { G.save.stats.runsSinceAd = 0; dispatch('RESTART', {}); G.noAnim = true;
                                 for (let i = 0; i < 6; i++) dispatch('SHOOT', { col: i % 5 }); });
     const before = await snapOf();
     const cxBefore = await codexUnlocked();
@@ -296,7 +341,7 @@ function serve() {
     console.log(`OK 图鉴跨 reload 存活:${cxAfter} 条解锁,seen 集一致`);
 
     // 重开
-    await page.evaluate(() => dispatch('RESTART', {}));
+    await page.evaluate(() => { G.save.stats.runsSinceAd = 0; dispatch('RESTART', {}); });
     st = await page.evaluate(() => ({ phase: G.phase, shots: G.s.shots, score: G.s.score }));
     if (st.phase !== 'PLAYING' || st.shots !== 0 || st.score !== 0)
       throw new Error('RESTART 应回到全新 PLAYING 局,实为 ' + JSON.stringify(st));
