@@ -46,9 +46,12 @@ function layout(s) {
   const { SW, SH, safeTop } = GameGlobal;
   const hudY = safeTop + 8;
   const hudH = 44;
-  const topY = hudY + hudH + 8;
+  // 棋盘上方常驻留出「瞄准提示横幅」的高度(0.4 cell + 边距)——横幅**不能**画进棋盘里,
+  // 否则会盖住第一排的鱼,而瞄准时你恰恰要看清每条鱼。空间常驻预留,避免开关道具时布局跳动。
+  const hintH = 26;
+  const topY = hudY + hudH + 8 + hintH;
   const bottomPad = 16;
-  // 竖向要塞下:rows 行棋盘 + 1 行越线区 + 1 行炮台 + 1 行道具栏(+ 余量)
+  // 竖向要塞下:提示横幅 + rows 行棋盘 + 1 行越线区 + 1 行炮台 + 1 行道具栏(+ 余量)
   const availH = SH - topY - bottomPad;
   const availW = SW - PAD * 2;
   // ⚠ 极小视口(门户 iframe)下 availH/availW 可能为负 → cell 负数 → fillRR 负宽高、
@@ -260,13 +263,16 @@ function drawToolsBar(L, s) {
   }
 }
 
-// 道具瞄准提示(顶部横幅,盖在棋盘首行之上,只在瞄准模式画)
+// 道具瞄准提示横幅。
+// ⚠ 必须画在棋盘**上方**(boardY 之上),不能画在棋盘里 —— 否则它会盖住第一排的鱼,
+//   而瞄准模式下你恰恰要看清每一条鱼才能选。(实测踩过:横幅把首行 4 条鱼遮掉一半。)
 function drawToolHint(L) {
   if (!G.tool) return;
   const key = G.tool === 'hammer' ? 'tools.hammerHint' : 'tools.swapHint';
-  const h = Math.max(18, Math.round(L.cell * 0.42));
-  const y = L.boardY + 2;
-  fillRR(L.boardX + 2, y, L.boardW - 4, h, 8, 'rgba(4,18,31,0.9)');
+  const h = Math.max(18, Math.round(L.cell * 0.40));
+  const y = L.boardY - h - 3;                       // 棋盘上方
+  fillRR(L.boardX + 2, y, L.boardW - 4, h, 8, 'rgba(4,18,31,0.92)');
+  strokeRR(L.boardX + 2, y, L.boardW - 4, h, 8, '#fcd34d', 1);
   txt(T(key), L.boardX + L.boardW / 2, y + h / 2, '#fcd34d',
       `bold ${Math.max(10, Math.round(h * 0.52))}px sans-serif`);
 }
