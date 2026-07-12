@@ -159,6 +159,48 @@ function serve() {
     await page.screenshot({ path: path.join(SHOT_DIR, 'e2e-1b-anim-death-red.png') });
     console.log(`OK 动画播完才亮红警 → DEAD(红 ${redDuringFly} → ${redAfterDeath})`);
 
+    // ── 道具:锤子 ──
+    await page.evaluate(() => { dispatch('RESTART', {}); G.noAnim = true;
+                                for (let i = 0; i < 10; i++) dispatch('SHOOT', { col: i % 5 });
+                                G.save.coins = 999; });
+    const t0 = await page.evaluate(() => ({ coins: G.save.coins, tiles: G.s.board.flat().length }));
+    await page.evaluate(() => dispatch('TOOL', { k: 'hammer' }));
+    const aiming = await page.evaluate(() => G.tool);
+    if (aiming !== 'hammer') throw new Error('点锤子应进入瞄准模式');
+    await page.screenshot({ path: path.join(SHOT_DIR, 'e2e-tool-aim.png') });
+    await page.evaluate(() => { const c = G.s.board.findIndex(col => col.length); dispatch('TOOL_CELL', { c, i: 0 }); });
+    await page.waitForFunction(() => window.G.anim === null, { timeout: 5000 });
+    const t1 = await page.evaluate(() => ({ coins: G.save.coins, tiles: G.s.board.flat().length, tool: G.tool }));
+    if (t1.coins !== t0.coins - 60) throw new Error(`锤子应扣 60 币,实为 ${t0.coins - t1.coins}`);
+    if (t1.tool !== null) throw new Error('用完应退出瞄准模式');
+    console.log(`OK 锤子:扣 60 币,格子 ${t0.tiles}→${t1.tiles}`);
+
+    // ── 道具:撤销(精确回退,不能刷弹药) ──
+    const u0 = await page.evaluate(() => {
+      G.save.coins = 999;
+      const before = { board: JSON.stringify(G.s.board), ammo: G.s.ammo, score: G.s.score };
+      dispatch('SHOOT', { col: 0 });
+      return before;
+    });
+    await page.waitForFunction(() => window.G.anim === null, { timeout: 5000 });
+    // ⚠ 这一发本身可能触发合并/连锁(newGame 用 Date.now() 播种,非固定种子),
+    // 会先给一笔 coinsFor 收益——所以撤销扣币要比「撤销前一刻」少 COST.undo,
+    // 不能想当然假设射这一发净不赚币(999 - 30 会在撞上合并时误报)。
+    const coinsBeforeUndo = await page.evaluate(() => G.save.coins);
+    await page.evaluate(() => dispatch('TOOL', { k: 'undo' }));
+    const u1 = await page.evaluate(() => ({ board: JSON.stringify(G.s.board), ammo: G.s.ammo, score: G.s.score, coins: G.save.coins }));
+    if (u1.board !== u0.board) throw new Error('撤销后盘面应回到射击前');
+    if (u1.ammo !== u0.ammo) throw new Error('撤销后弹药应回到射击前');
+    if (u1.score !== u0.score) throw new Error('撤销后分数应回退');
+    if (u1.coins !== coinsBeforeUndo - 30) throw new Error('撤销应精确扣 30 币,实为 ' + (coinsBeforeUndo - u1.coins));
+    console.log('OK 撤销:盘面/弹药/分数精确回退,扣 30 币');
+
+    // ── 金币不够时:按钮点不动 ──
+    await page.evaluate(() => { G.save.coins = 0; dispatch('TOOL', { k: 'hammer' }); });
+    const poor = await page.evaluate(() => G.tool);
+    if (poor !== null) throw new Error('金币不够时不该进入瞄准模式');
+    console.log('OK 金币不够:道具点不动');
+
     // ── 整局:重开,关动画瞬间结算(保持快且确定)──
     await page.evaluate(() => { dispatch('RESTART', {}); G.noAnim = true; });
 

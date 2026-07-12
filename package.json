@@ -7,7 +7,7 @@
     "test:mines": "node games/minesweeper/tests/test-mines.js && node games/minesweeper/tests/test-mines-sim.js 100",
     "test:mines:e2e": "node games/minesweeper/tests/test-mines-e2e.cjs",
     "test:snake": "node games/snake/tests/test-prng.js && node games/snake/tests/test-core.js && node games/snake/tests/test-fruits.js && node games/snake/tests/test-ai.js && node games/snake/tests/test-storage.js && node games/snake/tests/test-achievements.js && node games/snake/tests/test-gallery.js",
-    "test:abyss": "node games/abyssshoot/tests/test-tiles.js && node games/abyssshoot/tests/test-core.js && node games/abyssshoot/tests/test-storage.js && node games/abyssshoot/tests/test-codex.js && node games/abyssshoot/tests/test-anim.js && node games/abyssshoot/tests/test-sim.js",
+    "test:abyss": "node games/abyssshoot/tests/test-tiles.js && node games/abyssshoot/tests/test-core.js && node games/abyssshoot/tests/test-storage.js && node games/abyssshoot/tests/test-codex.js && node games/abyssshoot/tests/test-anim.js && node games/abyssshoot/tests/test-tools.js && node games/abyssshoot/tests/test-sim.js",
     "test:abyss:e2e": "node games/abyssshoot/tests/e2e-p1b.cjs"
   }
 }
