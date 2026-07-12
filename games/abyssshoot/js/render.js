@@ -257,7 +257,12 @@ const TOOL_DEFS = [
   { k: 'swap', icon: '🔀' },
   { k: 'undo', icon: '↩' },
 ];
+// 道具栏(三道具 + 看广告换金币)。
+// ⚠ **只在 PLAYING 时画和响应**。之前在 HOME/DEAD 也画且 addHit,但 dispatch 里
+//    TOOL/AD_COINS 的守卫都要求 phase==='PLAYING' → 按钮**看起来能点、点了没反应**(死按钮),
+//    还挤在死亡覆盖层里跟「再次下潜」抢视线。DEAD 有它自己的按钮(继续/再次下潜),职责分明。
 function drawToolsBar(L, s) {
+  if (G.phase !== 'PLAYING') return;
   const coins = G.save ? G.save.coins : 0;
   const n = TOOL_DEFS.length + 1;   // 三个道具 + 🪙看广告换金币(P3a)
   const gap = Math.round(L.cell * 0.14);

@@ -60,7 +60,7 @@ function serve() {
     //   Ads.showInterstitial().finally() 推迟到微任务,若同一个 evaluate 里紧跟着
     //   还有 dispatch('SHOOT',...) 就会打在「还没 newGame」的旧盘上,静默失败）。
     //   故这里每次 START/RESTART 前都把计数清零,让插屏逻辑不在本测试里意外触发。
-    await page.evaluate(() => { if (G.save) G.save.stats.runsSinceAd = 0; dispatch('START', {}); });
+    await page.evaluate(() => { dispatch("START", {}); });
     let st = await page.evaluate(() => ({ phase: G.phase, dead: G.s.dead, shots: G.s.shots }));
     if (st.phase !== 'PLAYING') throw new Error('START 后应进 PLAYING,实为 ' + st.phase);
     console.log('OK START → PLAYING');
@@ -168,7 +168,7 @@ function serve() {
     console.log(`OK 动画播完才亮红警 → DEAD(红 ${redDuringFly} → ${redAfterDeath})`);
 
     // ── 道具:锤子 ──
-    await page.evaluate(() => { G.save.stats.runsSinceAd = 0; dispatch('RESTART', {}); G.noAnim = true;
+    await page.evaluate(() => { dispatch("RESTART", {}); G.noAnim = true;
                                 for (let i = 0; i < 10; i++) dispatch('SHOOT', { col: i % 5 });
                                 G.save.coins = 999; });
     const t0 = await page.evaluate(() => ({ coins: G.save.coins, tiles: G.s.board.flat().length }));
@@ -210,7 +210,7 @@ function serve() {
     console.log('OK 金币不够:道具点不动');
 
     // ── 广告:看广告换金币 ──
-    await page.evaluate(() => { G.save.stats.runsSinceAd = 0; dispatch('RESTART', {}); G.noAnim = true;
+    await page.evaluate(() => { dispatch("RESTART", {}); G.noAnim = true;
                                 for (let i = 0; i < 4; i++) dispatch('SHOOT', { col: i % 5 });
                                 G.save.coins = 0; });
     await page.evaluate(() => dispatch('AD_COINS', {}));
@@ -221,7 +221,7 @@ function serve() {
 
     // ── 广告:死亡复活(削顶部,列高应下降) ──
     await page.evaluate(() => {
-      G.save.stats.runsSinceAd = 0; dispatch('RESTART', {}); G.noAnim = true;
+      dispatch("RESTART", {}); G.noAnim = true;
       // 造一个必死盘:一列填满不相邻同值
       const alt = []; for (let i = 0; i < G.s.rows; i++) alt.push(i % 2 === 0 ? 2 : 4);
       G.s.board = [alt, [], [], [], []];
@@ -247,7 +247,7 @@ function serve() {
     console.log('OK 复活上限:用尽后点不动');
 
     // ── 整局:重开,关动画瞬间结算(保持快且确定)──
-    await page.evaluate(() => { G.save.stats.runsSinceAd = 0; dispatch('RESTART', {}); G.noAnim = true; });
+    await page.evaluate(() => { dispatch("RESTART", {}); G.noAnim = true; });
 
     // 连射直到死(确定性选列,上限保护)
     let guard = 0;
@@ -292,6 +292,40 @@ function serve() {
     await page.screenshot({ path: path.join(SHOT_DIR, 'e2e-codex.png') });
     console.log(`OK 图鉴:${cx.unlocked}/${cx.total} 解锁 · "${cx.sub}"`);
     await page.evaluate(() => document.getElementById('panel-close').click());
+  // ── 插屏:每 3 局一次,且 RESTART 之后必须**立刻**是可玩的新局(不能因广告异步而延迟) ──
+  // ⚠ 这条守着一个真实设计缺陷:若把 newGame() 放进 showInterstitial().finally(),
+  //   建新局会被推迟到微任务 → RESTART 后紧跟的操作会打在旧的死盘上、静默失效。
+  await page.evaluate(() => { G.save.stats.runsSinceAd = 2; });   // 下一次 RESTART 正好触发插屏
+  const inter = await page.evaluate(() => {
+    dispatch('RESTART', {});                 // 这一发会弹插屏(confirm 模拟已自动 accept)
+    // 同一个同步块里立刻检查:新局必须已经建好
+    return { phase: G.phase, shots: G.s.shots, score: G.s.score, tiles: G.s.board.flat().length };
+  });
+  if (inter.phase !== 'PLAYING' || inter.shots !== 0 || inter.tiles !== 0)
+    throw new Error('插屏那一局:RESTART 之后必须立刻是可玩的新局,实为 ' + JSON.stringify(inter));
+  console.log('OK 插屏:每3局触发,且新局同步建好(无异步竞态)');
+  // ── 死按钮防回归:DEAD 时道具栏(含 📺+100)必须**不可点** ──
+  // ⚠ 曾经的 bug:render 在任何相位都画出并 addHit 这些按钮,但 dispatch 的守卫要求 PLAYING
+  //   → 按钮看起来能点、点了没反应(死按钮),还挤在死亡覆盖层里跟「再次下潜」抢视线。
+  await page.evaluate(() => {
+    dispatch('RESTART', {}); G.noAnim = true;
+    const alt = []; for (let i = 0; i < G.s.rows; i++) alt.push(i % 2 === 0 ? 2 : 4);
+    G.s.board = [alt, [], [], [], []]; G.s.ammo = 8;
+    dispatch('SHOOT', { col: 0 });
+  });
+  await page.waitForFunction(() => window.G.phase === 'DEAD', { timeout: 5000 });
+  const deadHits = await page.evaluate(() => {
+    G.save.coins = 999;
+    renderAll();
+    // 从引擎的 hitAreas 里找有没有道具/广告金币的热区
+    return hitAreas.filter(h => h.action === 'TOOL' || h.action === 'AD_COINS').map(h => h.action);
+  });
+  if (deadHits.length) throw new Error('DEAD 时道具栏不该有可点热区,实为: ' + deadHits.join(','));
+  const coinsAfter = await page.evaluate(() => { dispatch('AD_COINS', {}); return G.save.coins; });
+  if (coinsAfter !== 999) throw new Error('DEAD 时 AD_COINS 不该生效');
+  console.log('OK 死按钮防回归:DEAD 时道具栏无热区、AD_COINS 不生效');
+
+
 
     // ── 存档续玩:射几发 → 重新载入页面 → 整个 run 原样恢复 ──
     // ⚠ 这里是**唯一**验证「真实浏览器 + Platform.storage + localStorage + JSON 往返」整条链路的地方
@@ -313,7 +347,7 @@ function serve() {
       return n;
     });
 
-    await page.evaluate(() => { G.save.stats.runsSinceAd = 0; dispatch('RESTART', {}); G.noAnim = true;
+    await page.evaluate(() => { dispatch("RESTART", {}); G.noAnim = true;
                                 for (let i = 0; i < 6; i++) dispatch('SHOOT', { col: i % 5 }); });
     const before = await snapOf();
     const cxBefore = await codexUnlocked();
@@ -341,7 +375,7 @@ function serve() {
     console.log(`OK 图鉴跨 reload 存活:${cxAfter} 条解锁,seen 集一致`);
 
     // 重开
-    await page.evaluate(() => { G.save.stats.runsSinceAd = 0; dispatch('RESTART', {}); });
+    await page.evaluate(() => { dispatch("RESTART", {}); });
     st = await page.evaluate(() => ({ phase: G.phase, shots: G.s.shots, score: G.s.score }));
     if (st.phase !== 'PLAYING' || st.shots !== 0 || st.score !== 0)
       throw new Error('RESTART 应回到全新 PLAYING 局,实为 ' + JSON.stringify(st));

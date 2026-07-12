@@ -181,11 +181,17 @@ function dispatch(action, data) {
     case 'START':
     case 'RESTART': {
       const st = G.save && G.save.stats;
-      // 每 3 局一插屏。⚠ 放在 RESTART(局间),不放死亡那一刻——别打断情绪。
+      // ⚠ 顺序:**先 newGame(同步),再放插屏**。
+      // 不能反过来 —— `Ads.showInterstitial().finally(() => newGame())` 会把建新局推迟到微任务,
+      // 于是 RESTART 之后紧跟的任何操作(玩家连点/脚本/E2E)都会打在**旧的死盘**上、静默失效。
+      // 先建好新局、让广告盖在新盘之上,时序竞态就根本不存在。
+      newGame();
+      // 每 3 局一插屏。放在局间,不放死亡那一刻——别打断情绪。
       if (st && ++st.runsSinceAd >= 3) {
         st.runsSinceAd = 0;
         persist();
-        Ads.showInterstitial().finally(() => { newGame(); renderAll(); });
+        Ads.showInterstitial().finally(() => renderAll());
+        renderAll();
         return;
       }
       newGame();
