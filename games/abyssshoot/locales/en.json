@@ -43,5 +43,15 @@
     "humpbackwhale": "Humpback Whale",
     "spermwhale": "Sperm Whale",
     "oarfish": "Oarfish"
+  },
+  "tools": {
+    "coins": "Coins",
+    "hammer": "Smash",
+    "swap": "Swap",
+    "undo": "Undo",
+    "hammerHint": "Tap a fish to smash it",
+    "swapHint": "Tap two columns to swap them",
+    "needCoins": "Not enough coins",
+    "cancel": "Cancel"
   }
 }

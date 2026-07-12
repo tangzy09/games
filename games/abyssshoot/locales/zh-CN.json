@@ -43,5 +43,15 @@
     "humpbackwhale": "座头鲸",
     "spermwhale": "抹香鲸",
     "oarfish": "皇带鱼"
+  },
+  "tools": {
+    "coins": "金币",
+    "hammer": "锤子",
+    "swap": "换列",
+    "undo": "撤销",
+    "hammerHint": "点一条鱼把它砸掉",
+    "swapHint": "点两列交换它们",
+    "needCoins": "金币不够",
+    "cancel": "取消"
   }
 }
