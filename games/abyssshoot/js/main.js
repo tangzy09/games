@@ -5,14 +5,58 @@ var G = {
   s: null,         // core 状态(Core.createGame 产出)
   anim: null,      // 动画时间线:{ steps:[...], i, elapsed } —— 非 null 时封锁输入
   noAnim: false,   // E2E 用:置 true 则跳过动画瞬间结算
+  save: null,      // 存档(Storage.load 产出)
+  saveKey: null,
+  newRecord: false,   // 本局是否破了纪录(DEAD 画面用)
 };
 var rafId = null;
+
+// 落盘。⚠ 只在「连锁结算完成的稳定盘」落——Core.shoot 返回时盘面已结算完毕,
+// 动画只是视觉回放,不影响状态。绝不在动画中途落(否则续玩恢复成半截盘)。
+function persist() {
+  if (!G.save || !G.saveKey) return;
+  G.save.run = (G.phase === 'PLAYING' && G.s && !G.s.dead) ? Storage.snapshotRun(G.s) : null;
+  Storage.save(Platform.storage, G.saveKey, G.save);
+}
+
+// 每发之后:记图鉴 + 刷最高分
+function afterShot() {
+  if (!G.save) return;
+  Codex.record(G.save, G.s);
+  G.save.stats.shots++;
+  for (const e of G.s.events) {
+    if (e.t === 'merge') G.save.stats.merges++;
+    if (e.t === 'escape') G.save.stats.escapes++;
+  }
+  if (G.s.maxTile > G.save.best.maxTile) G.save.best.maxTile = G.s.maxTile;
+  if (G.s.score > G.save.best.score) { G.save.best.score = G.s.score; G.newRecord = true; }
+  persist();
+}
+
+// 图鉴浮层:17 档鱼,未解锁显示灰剪影 + ???
+function openCodex() {
+  const panel = document.getElementById('panel');
+  const p = Codex.progress(G.save);
+  document.getElementById('panel-title').textContent = T('codex.title');
+  document.getElementById('panel-sub').textContent =
+    T('codex.progress', { cur: p.seen, max: p.total }) + ' · ' + T('codex.hint');
+  document.getElementById('panel-body').innerHTML = Codex.entries(G.save).map(e => `
+    <div class="cx-item${e.seen ? '' : ' locked'}">
+      <img src="assets/fish/${e.fish}.webp" alt="" loading="lazy">
+      <div class="cx-name">${e.seen ? T('fish.' + e.fish) : T('codex.locked')}</div>
+      <div class="cx-val">${e.seen ? Tiles.fmt(e.v) : '—'}</div>
+    </div>`).join('');
+  document.getElementById('panel-close').onclick = () => panel.classList.add('hidden');
+  panel.classList.remove('hidden');
+}
 
 function newGame() {
   // 种子用真随机起(非 core 内部;core 自身禁 Date.now,但外部起局可以)
   G.s = Core.createGame({ seed: (Date.now() % 2147483647) });
   G.anim = null;
   G.phase = 'PLAYING';
+  G.newRecord = false;
+  if (G.save) { G.save.stats.runs++; persist(); }
 }
 
 // 从事件流编排动画时间线。事件是按时间顺序 push 的,顺着走即可。
@@ -82,7 +126,7 @@ function frame(ts) {
 function finishAnim() {
   G.anim = null;                                 // 先解锁再绘制:哪怕绘制炸了,输入也已经放开
   rafId = null;
-  if (G.s.dead) G.phase = 'DEAD';               // 动画播完才进死亡画面
+  if (G.s.dead) { G.phase = 'DEAD'; persist(); } // 动画播完才进死亡画面;persist 因 phase 非 PLAYING 会把 run 置 null
   safeRender();
 }
 
@@ -107,9 +151,11 @@ function dispatch(action, data) {
     case 'SHOOT': {
       if (G.phase !== 'PLAYING' || !G.s || G.s.dead) break;
       Core.shoot(G.s, data.col);
+      afterShot();                                // 图鉴/最高分/落盘(盘面此刻已是稳定态)
       startAnim(G.s.events);                     // 内部会 renderAll / 起 RAF / 播完判死
       return;                                    // 不走下面的 renderAll(动画循环自己画)
     }
+    case 'CODEX': openCodex(); return;
     default: break;
   }
   renderAll();
@@ -117,18 +163,31 @@ function dispatch(action, data) {
 
 async function boot() {
   try {
-    await Platform.hydrate([CFG.key('lang'), CFG.key('sfx')]);
+    await Platform.hydrate([CFG.key('lang'), CFG.key('sfx'), CFG.key('save')]);
     restoreAudioPrefs();
     Portal.boot();
     await Ads.init();
     I18N.onChange(() => { Controls.render(); renderAll(); });
     await I18N.setLang(I18N.detect());
     initCanvas();
-    G.s = Core.createGame({ seed: 1 });   // HOME 期先建一个空盘供渲染
-    G.phase = 'HOME';
+    G.saveKey = CFG.key('save');
+    G.save = Storage.load(Platform.storage, G.saveKey);
+    // 有当局快照 → 恢复续玩;形状不对 restoreRun 会返回 null,直接丢弃回 HOME
+    const restored = G.save.run ? Storage.restoreRun(G.save.run) : null;
+    if (restored) { G.s = restored; G.phase = 'PLAYING'; }
+    else { G.s = Core.createGame({ seed: 1 }); G.phase = 'HOME'; G.save.run = null; }
     Input.bind({ onAction: dispatch });
     window.addEventListener('resize', () => { initCanvas(); renderAll(); });
-    Controls.render();
+    document.addEventListener('visibilitychange', () => { if (document.hidden) persist(); });
+    Controls.render(
+      `<div class="ctl-btn" id="codex-btn" title="${T('codex.open')}">🐟</div>
+       <div class="ctl-btn" id="sfx-btn">${Sfx.on ? '🔊' : '🔇'}</div>`,
+      bar => {
+        const c = bar.querySelector('#codex-btn');
+        if (c) c.onclick = () => dispatch('CODEX', {});
+        const b = bar.querySelector('#sfx-btn');
+        if (b) b.onclick = () => { b.textContent = Sfx.toggle() ? '🔊' : '🔇'; };
+      });
     renderAll();
     try { Platform.Cap?.Plugins?.SplashScreen?.hide(); } catch (e) {}
   } catch (err) {
