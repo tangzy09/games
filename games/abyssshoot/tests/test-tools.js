@@ -92,4 +92,44 @@ assert.deepStrictEqual(Core.snapBoard(s), Core.snapBoard(s2),
   '撤销后重射,盘面必须与没撤销时一模一样 —— 否则撤销 = 刷弹药(save-scum)');
 assert.strictEqual(s.ammo, s2.ammo, '撤销后重射,下一发弹药也必须一样');
 
+// ── P3a: 看广告复活 ──
+// ⚠ 削掉每列**顶部**(index 0 侧)的 n 格,不是底部:
+//    两者同样降低列高(同样远离死线),但顶部是最老的杂鱼、底部是玩家辛苦垒的大鱼。
+//    削底部 = 毁掉玩家的成果;削顶部保住它。
+assert.strictEqual(Tools.REVIVE_ROWS, 3, '每次复活削 3 格');
+assert.strictEqual(Tools.MAX_REVIVES, 2, '每局限 2 次');
+
+s = Core.createGame({ seed: 1 });
+s.board = [[2, 4, 8, 16, 32], [64], [], [128, 256], []];
+s.dead = true;
+let rv = Tools.revive(s, 3);
+assert(rv.ok);
+assert(!s.dead, '复活后 dead 清除');
+assert.deepStrictEqual(s.board[0], [16, 32], '列0 削掉顶部 3 格(2,4,8),保住底部的 16,32');
+assert.deepStrictEqual(s.board[1], [], '列1 只有 1 格,全削掉');
+assert.deepStrictEqual(s.board[3], [], '列3 只有 2 格,全削掉');
+assertDense(s, '复活后');
+assert(s.events.some(e => e.t === 'revive'), '发 revive 事件');
+
+// ⚠ 复活必须 resolve:削掉顶部会制造新的相邻,可能连锁
+// (⚠ 每列独立按 k 削顶,列1若比 k 短会被整列削空,不会剩下东西去横邻——
+//  故这里让列0/列1**同形**,削顶后两列都剩 [8],才会在 index0 横邻合成 16。)
+s = Core.createGame({ seed: 1 });
+s.board = [[2, 2, 2, 8], [2, 2, 2, 8], [], [], []];   // 削掉顶部 3 格(2,2,2) → 列0=[8],列1=[8],横邻 → 合成 16
+s.dead = true;
+Tools.revive(s, 3);
+assert(s.board.flat().includes(16), '削顶后形成横向同值 → 必须合成 16(连锁要触发)');
+assertDense(s, '复活连锁后');
+
+// 空盘/削光不炸
+s = Core.createGame({ seed: 1 });
+s.board = [[], [], [], [], []];
+s.dead = true;
+assert(Tools.revive(s, 3).ok, '空盘复活不炸');
+assert(!s.dead);
+
+// 广告金币常量
+assert(Tools.AD_COINS > 0, '看广告给的金币为正');
+console.log('test-tools: 复活 OK(削顶部保住大鱼/触发连锁/不炸)');
+
 console.log('test-tools OK');

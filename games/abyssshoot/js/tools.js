@@ -12,6 +12,10 @@ const COST = { undo: 30, hammer: 60, swap: 80 };
 // 技巧仍被奖励但不失控。
 const COIN = { merge: 1, chain: 5, escape: 50 };
 
+const REVIVE_ROWS = 3;    // 复活:每列削掉顶部几格(可调)
+const MAX_REVIVES = 2;    // 每局最多复活几次(防无限续命)
+const AD_COINS = 100;     // 看一次激励广告给多少金币(≈ 中位一局收入的 3/4)
+
 function coinsFor(events) {
   let c = 0;
   for (const e of events || []) {
@@ -75,5 +79,21 @@ function undo(s, snap) {
   return { ok: true };
 }
 
-const Tools = { COST, COIN, coinsFor, hammer, swap, snapshot, undo };
+// ☠️ 看广告复活:削掉每列**顶部**的 n 格,清除死亡,继续玩。
+// ⚠ 为什么削顶部而不是底部:两者同样降低列高(同样远离死线),但**顶部是最老的杂鱼、
+//    底部是玩家辛苦垒起来的大鱼**。削底部 = 毁掉玩家的成果;削顶部保住它。
+//    (棋盘 index0 = 顶 = 远离玩家;末尾 = 底 = 玩家侧/死线。)
+// ⚠ 削完必须 resolve:移除会制造新的相邻,可能触发连锁。
+function revive(s, n) {
+  s.events = [];
+  const k = Math.max(1, n || REVIVE_ROWS);
+  for (let c = 0; c < s.cols; c++) s.board[c] = s.board[c].slice(k);   // 砍掉顶部 k 格
+  s.dead = false;
+  s.events.push({ t: 'revive', rows: k });
+  CORE_T_.resolve(s);
+  return { ok: true };
+}
+
+const Tools = { COST, COIN, REVIVE_ROWS, MAX_REVIVES, AD_COINS,
+  coinsFor, hammer, swap, snapshot, undo, revive };
 if (typeof module !== 'undefined' && module.exports) module.exports = Tools;
