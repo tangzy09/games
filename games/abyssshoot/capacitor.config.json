@@ -1,0 +1,16 @@
+{
+  "appId": "com.aispeeds.abyssshooter",
+  "appName": "Abyss Shooter",
+  "webDir": "www",
+  "backgroundColor": "#04121f",
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 800,
+      "backgroundColor": "#04121f",
+      "showSpinner": false
+    },
+    "AdMob": {
+      "initializeForTesting": false
+    }
+  }
+}
