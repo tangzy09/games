@@ -6,16 +6,19 @@
 
 ## 当前状态（2026-07-11）
 
-**P1 纯逻辑内核 + P1b 可玩壳 + P2a-1 动画/音效已完成 —— 浏览器里能真玩了**（仓库根起 http 服 → `http://localhost:8080/games/abyssshoot/`）。
-已有：`js/{tiles,core,render,main}.js` + `index.html` + `css/game.css` + `locales/{en,zh-CN}.json` + `assets/audio/*.wav`（6 个合成音效）；测试：`npm run test:abyss`（单测+蒙特卡洛）、`npm run test:abyss:e2e`（Playwright 无头整局，含动画启动/封锁输入验证）。
-**还没做**：道具（锤子/交换列/撤销）、图鉴、皮肤、成就、存档续玩、鱼图美术、iOS 壳 —— 见下方「DESIGN 里已定但未实现」与 DESIGN.md 的 P2/P3/P4。
+**P1 纯逻辑内核 + P1b 可玩壳 + P2a-1 动画/音效 + P2b-1 存档/最高分/鱼图鉴已完成 —— 浏览器里能真玩、能续玩、能收集了**（仓库根起 http 服 → `http://localhost:8080/games/abyssshoot/`）。
+已有：`js/{tiles,core,storage,codex,render,main}.js` + `index.html`（含 `#panel` 图鉴浮层）+ `css/game.css` + `locales/{en,zh-CN}.json`（17 条鱼名 + 图鉴/最高分文案）+ `assets/audio/*.wav`（6 个合成音效）+ `assets/fish/*.webp`（17 条鱼图，复用 fishId）；测试：`npm run test:abyss`（单测+蒙特卡洛，含 storage/codex）、`npm run test:abyss:e2e`（Playwright 无头整局，含动画/图鉴/存档续玩验证）。
+版本化存档（`SAVE_V=1`）落在 `Platform.storage` 键 `abyss_save`：最高分 + 最深鱼 + 图鉴 seen 集 + 累计统计 + 当局快照（可中途关页续玩）。
+**还没做**：道具（锤子/交换列/撤销）、皮肤、成就、每日盘、iOS 壳 —— 见下方「DESIGN 里已定但未实现」与 DESIGN.md 的 P2/P3/P4。
 
-## 验证（改 core/tiles 后必跑）
+## 验证（改 core/tiles/storage/codex 后必跑）
 
 ```bash
-npm run test:abyss                          # 单测(tiles+core) + 蒙特卡洛冒烟,已挂进全量 npm test
-npm run test:abyss:e2e                      # Playwright 无头:整局跑通 + 截图到 C:\tmp\abyssshoot
+npm run test:abyss                          # 单测(tiles+core+storage+codex) + 蒙特卡洛冒烟,已挂进全量 npm test
+npm run test:abyss:e2e                      # Playwright 无头:整局跑通 + 图鉴 + 存档续玩 + 截图到 C:\tmp\abyssshoot
 node games/abyssshoot/tests/test-core.js    # 单跑 core 单测
+node games/abyssshoot/tests/test-storage.js # 单跑存档单测(版本门控/保守合并/开放map/形状校验)
+node games/abyssshoot/tests/test-codex.js   # 单跑图鉴单测(见过即解锁/允许有洞)
 node games/abyssshoot/tests/test-sim.js     # 单跑蒙特卡洛(300 局)
 node tools/check-locales.js games/abyssshoot/locales   # 必 0 fail
 ```
@@ -70,10 +73,27 @@ node tools/check-locales.js games/abyssshoot/locales   # 必 0 fail
 
 `mapColumn`（重力压实后的 index 重映射，动画位置插值的心脏）逻辑最绕，**改它必跑 `test-anim.js`**（render.js 末尾有薄双导出供 node require）。
 
+## 存档（P2b-1）—— 三条别踩回去的坑
+
+- **版本门控丢弃不迁移**：`SAVE_V` 不匹配 → 整份回 `defaults()`。改 `G`/存档形状必 bump。畸形快照恢复 = 0×0 盘面 = **无报错白屏**，全新档案的 E2E 测不出来。
+- **保守合并的「开放 map」陷阱**（snake 的 Critical，勿重蹈）：`merge()` 靠「defaults 里是空对象 `{}`」判断某字段是动态-key 的开放 map 并**整体透传**。`stats.fishSeenCount` 必须保持 `{}` 默认——**塞了非空默认就会退回逐 key 递归、每次 load 清空动态 key**。以后新增开放 map 字段照此保持 `{}`。
+- **只在稳定盘落盘**：`Core.shoot` 返回时盘面已结算完毕（动画只是视觉回放）。绝不在动画中途 `persist()`，否则续玩恢复成半截盘。
+- **续玩换新种子**（`snapshotRun` 的 `seed2`，唯一允许用 `Math.random` 的地方，且不在 core 里）：弹药是从盘面抽样的，换种子不影响公平；盘面/分数/图鉴才是要保的。
+
+## 图鉴（P2b-1）
+
+**「见过即解锁」**：某个值只要在盘面上**真实存在过**（合出来的/射上去的/刷下来的）就永久进 `save.codex.seen`。
+⚠ **允许有洞、不许撒谎**：指数合并可跳档（3 个 2 连 → 直接 8，跳过 4）。某档从没出现过就该**如实显示未解锁**——这是完美主义者的收集动力。**不要**用「≤ maxTile 就全解锁」去填洞。
+UI 是 DOM 浮层 `#panel`（同 snake 的 gallery，canvas 只画游戏）：已解锁 = 彩色鱼图 + 名字 + 数值；未解锁 = `filter: brightness(0) invert(0.28)` 灰剪影 + `???`（`.cx-item.locked img`，见 `css/game.css`）。
+
+## 命名冲突提醒（P2b-1 踩过一次）
+
+浏览器里各 `<script>` 共享全局词法环境。`core.js` 已声明 `PRNG_`/`TILES_`，`storage.js`/`codex.js` 必须换名（`PRNG_S_`/`TILES_C_`）——重名会 `SyntaxError: Identifier has already been declared`，整个游戏白屏。以后新增纯逻辑模块照此检查命名。
+
 ## DESIGN 里已定但 core 尚未实现的规则（P1b/P2 接线时补）
 
-- **梯子封顶**：DESIGN §3 定「合到最深鱼即封顶、顶档鱼不再合当稳定块」——`resolve` 目前**未消费 `tiles.js` 的 `MAX_TILE_VALUE`**，8192 之上仍会继续合。做图鉴时要回来接。
-- 巨数显示（高档纯鱼图/缩写）、道具（锤子 / 交换列或清行 / 单步撤销含 RNG 游标三件套 + 每日盘禁用撤销）、图鉴、皮肤（纯背景群系，不换鱼）、成就——全在 DESIGN 里，均未做。
+- **梯子封顶**：DESIGN §3 定「合到最深鱼即封顶、顶档鱼不再合当稳定块」——`resolve` 已消费 `tiles.js` 的 `MAX_TILE_VALUE`（梯顶「相遇则游走」，见上方「五条核心规则」第 4 条），此项已接。
+- 巨数显示（高档纯鱼图/缩写）、道具（锤子 / 交换列或清行 / 单步撤销含 RNG 游标三件套 + 每日盘禁用撤销）、皮肤（纯背景群系，不换鱼）、成就——全在 DESIGN 里，均未做。图鉴/存档/最高分已在 P2b-1 做完，见上方对应小节。
 
 ## 美术
 
