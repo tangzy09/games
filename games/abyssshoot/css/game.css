@@ -9,3 +9,25 @@ body {
   background: #04121f;   /* 深渊底色,与 render.js 的 PAL.bg 保持一致 */
   color: #cfe8f5;
 }
+
+/* ── 图鉴浮层(canvas 只画游戏,列表用 DOM) ── */
+#panel { position: fixed; inset: 0; background: rgba(2,10,18,0.86); z-index: 50;
+         display: flex; align-items: center; justify-content: center; padding: 16px; }
+#panel.hidden { display: none; }
+#panel-card { background: #0a1f33; border: 1px solid #1e3550; border-radius: 16px;
+              width: 100%; max-width: 420px; max-height: 84vh; display: flex; flex-direction: column; }
+#panel-head { display: flex; align-items: center; justify-content: space-between;
+              padding: 14px 16px 8px; }
+#panel-title { font-weight: 700; font-size: 18px; color: #cfe8f5; }
+#panel-close { background: none; border: none; color: #6f9ab5; font-size: 20px; cursor: pointer; }
+#panel-sub { padding: 0 16px 10px; color: #6f9ab5; font-size: 13px; }
+#panel-body { overflow-y: auto; padding: 4px 12px 16px;
+              display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.cx-item { background: #0d2740; border-radius: 12px; padding: 8px 6px; text-align: center; }
+.cx-item.locked { opacity: 0.55; }
+.cx-item img { width: 100%; aspect-ratio: 1/1; object-fit: contain; display: block; }
+.cx-item.locked img { filter: brightness(0) invert(0.28); }   /* 未解锁:灰剪影 */
+.cx-name { font-size: 11px; color: #cfe8f5; margin-top: 4px;
+           white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cx-val { font-size: 11px; font-weight: 700; color: #2bb3c0; }
+.cx-item.locked .cx-name, .cx-item.locked .cx-val { color: #4c7089; }
