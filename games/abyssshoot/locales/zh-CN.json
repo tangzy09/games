@@ -1,6 +1,14 @@
 {
   "lang": { "name": "中文", "toggle": "语言" },
-  "ads": { "simWatch": "[广告模拟] 观看激励广告？", "simInterstitial": "[广告模拟] 插屏广告" },
+  "ads": {
+    "simWatch": "[广告模拟] 观看激励广告？",
+    "simInterstitial": "[广告模拟] 插屏广告",
+    "revive": "📺 继续游戏",
+    "reviveLeft": "还剩 {n} 次",
+    "coins": "📺 +{n}",
+    "noAd": "暂时没有广告",
+    "privacy": "广告隐私"
+  },
   "abyss": {
     "title": "深渊射手",
     "tagline": "把小鱼射上去，同数合并，别被压垮。",
