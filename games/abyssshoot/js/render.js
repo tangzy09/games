@@ -40,26 +40,28 @@ function tileY(L, rows, i) {
   return L.boardY + i * L.cell - L.cell * BREACH_RISE * rise;
 }
 
-// 布局:HUD 在顶(避开引擎顶栏 safeTop),棋盘居中,死线下留一整格的「越线区」,再是炮台行。
+// 布局:HUD 在顶(避开引擎顶栏 safeTop),棋盘居中,死线下留一整格的「越线区」,再是炮台行,
+// 最下面再留一行道具栏(P2b-2)。
 function layout(s) {
   const { SW, SH, safeTop } = GameGlobal;
   const hudY = safeTop + 8;
   const hudH = 44;
   const topY = hudY + hudH + 8;
   const bottomPad = 16;
-  // 竖向要塞下:rows 行棋盘 + 1 行越线区 + 1 行炮台(+ 余量)
+  // 竖向要塞下:rows 行棋盘 + 1 行越线区 + 1 行炮台 + 1 行道具栏(+ 余量)
   const availH = SH - topY - bottomPad;
   const availW = SW - PAD * 2;
   // ⚠ 极小视口(门户 iframe)下 availH/availW 可能为负 → cell 负数 → fillRR 负宽高、
   //   font 尺寸非法(浏览器静默忽略,画面全乱)。夹一个下限,保证永不为负。
-  const cell = Math.max(8, Math.floor(Math.min(availW / s.cols, availH / (s.rows + 2.1))));
+  const cell = Math.max(8, Math.floor(Math.min(availW / s.cols, availH / (s.rows + 3.1))));
   const boardW = cell * s.cols;
   const boardH = cell * s.rows;
   const boardX = Math.round((SW - boardW) / 2);
   const boardY = topY;
   const lineY = boardY + boardH;          // 死线
   const cannonY = lineY + cell;           // 越线区占死线下方一整格,炮台再往下一行
-  return { SW, SH, hudY, hudH, cell, boardW, boardH, boardX, boardY, lineY, cannonY };
+  const toolsY = cannonY + cell;          // 炮台下方再一行:道具栏(P2b-2)
+  return { SW, SH, hudY, hudH, cell, boardW, boardH, boardX, boardY, lineY, cannonY, toolsY };
 }
 
 // 鱼图:引擎 makeArt 预载 assets/fish/<id>.webp(素材由 tools/prep-fish.py 归一化产出)。
@@ -229,6 +231,46 @@ function button(cy, key, action) {
   return cy + bh;   // 按钮底边,方便在其下继续排版
 }
 
+// 道具栏(P2b-2):炮台行下方一排三个按钮,图标+价格。金币不够 → 画灰、不可点。
+// 选中的道具(G.tool)画高亮边框。
+const TOOL_DEFS = [
+  { k: 'hammer', icon: '🔨' },
+  { k: 'swap', icon: '🔀' },
+  { k: 'undo', icon: '↩' },
+];
+function drawToolsBar(L, s) {
+  const coins = G.save ? G.save.coins : 0;
+  const n = TOOL_DEFS.length;
+  const gap = Math.round(L.cell * 0.14);
+  const bw = Math.floor((L.boardW - gap * (n - 1)) / n);
+  const bh = Math.round(L.cell * 0.72);
+  const y = L.toolsY + Math.round((L.cell - bh) / 2);
+  for (let idx = 0; idx < n; idx++) {
+    const d = TOOL_DEFS[idx];
+    const x = L.boardX + idx * (bw + gap);
+    const cost = Tools.COST[d.k];
+    const afford = coins >= cost;
+    const selected = G.tool === d.k;
+    fillRR(x, y, bw, bh, 10, selected ? PAL.btn : (afford ? PAL.colBg : 'rgba(13,39,64,0.45)'));
+    if (selected) strokeRR(x + 1, y + 1, bw - 2, bh - 2, 10, '#fcd34d', 2);
+    const textColor = !afford ? '#3d5b73' : (selected ? PAL.btnText : PAL.text);
+    txt(`${d.icon} ${cost}`, x + bw / 2, y + bh / 2, textColor,
+        `bold ${Math.max(10, Math.round(L.cell * 0.3))}px sans-serif`);
+    if (afford) addHit(x, y, bw, bh, 'TOOL', { k: d.k });   // 金币不够:不 addHit,点不动
+  }
+}
+
+// 道具瞄准提示(顶部横幅,盖在棋盘首行之上,只在瞄准模式画)
+function drawToolHint(L) {
+  if (!G.tool) return;
+  const key = G.tool === 'hammer' ? 'tools.hammerHint' : 'tools.swapHint';
+  const h = Math.max(18, Math.round(L.cell * 0.42));
+  const y = L.boardY + 2;
+  fillRR(L.boardX + 2, y, L.boardW - 4, h, 8, 'rgba(4,18,31,0.9)');
+  txt(T(key), L.boardX + L.boardW / 2, y + h / 2, '#fcd34d',
+      `bold ${Math.max(10, Math.round(h * 0.52))}px sans-serif`);
+}
+
 // 顶爆列:把越过死线的格子(i >= rows)画出来 —— 骑跨死线 + 整列红洗 + 红环,
 // 一眼看出是哪一列被顶爆。最后画(在覆盖层之上),不被 dim 压暗。
 function drawBreaches(L, s) {
@@ -260,12 +302,14 @@ function renderAll() {
   ctx.fillStyle = PAL.bg;
   ctx.fillRect(0, 0, SW, SH);
 
-  // ── HUD:左=当前分 + 历史最高分(两行),右=本局最深鱼 ──
+  // ── HUD:左=当前分 + 历史最高分(两行),右=本局最深鱼 + 金币(两行,P2b-2) ──
   txtL(`${T('abyss.score')} ${s.score}`, PAD, L.hudY + L.hudH / 2 - 8, PAL.text, 'bold 18px sans-serif');
   const bestScore = G.save ? G.save.best.score : 0;
   txtL(`${T('abyss.best')} ${bestScore}`, PAD, L.hudY + L.hudH / 2 + 12, '#6f9ab5', '12px sans-serif');
   txtR(`${T('abyss.deepestShort')} ${s.maxTile ? Tiles.fmt(s.maxTile) : '—'}`,
-       SW - PAD, L.hudY + L.hudH / 2, PAL.text, '14px sans-serif');
+       SW - PAD, L.hudY + L.hudH / 2 - 8, PAL.text, '14px sans-serif');
+  const coins = G.save ? G.save.coins : 0;
+  txtR(`🪙 ${T('tools.coins')} ${coins}`, SW - PAD, L.hudY + L.hudH / 2 + 12, '#fcd34d', '12px sans-serif');
 
   // ── 棋盘底 + 列底 ──
   fillRR(L.boardX - 4, L.boardY - 4, L.boardW + 8, L.boardH + 8, 10, PAL.boardBg);
@@ -292,7 +336,22 @@ function renderAll() {
         drawTile(L.boardX + c * L.cell, L.boardY + i * L.cell, L.cell, col[i]);
       }
     }
+    // ── 道具瞄准态高亮(P2b-2):锤子=每条可点鱼描边;交换=已选第一列描边 ──
+    if (G.tool === 'hammer') {
+      for (let c = 0; c < s.cols; c++) {
+        const col = s.board[c];
+        for (let i = 0; i < col.length && i < s.rows; i++) {
+          const x = L.boardX + c * L.cell, y = L.boardY + i * L.cell;
+          const m = Math.round(L.cell * 0.05);
+          strokeRR(x + m, y + m, L.cell - m * 2, L.cell - m * 2, Math.round(L.cell * 0.18), '#fcd34d', 2);
+        }
+      }
+    } else if (G.tool === 'swap' && G.swapFirst != null) {
+      const x = L.boardX + G.swapFirst * L.cell;
+      strokeRR(x + 2, L.boardY + 2, L.cell - 4, L.boardH - 4, 8, '#fcd34d', 3);
+    }
   }
+  drawToolHint(L);   // 瞄准提示横幅(仅 G.tool 非空时画,盖在棋盘首行之上)
 
   // ── 死线 ──
   ctx.strokeStyle = PAL.line; ctx.lineWidth = 2;
@@ -322,10 +381,31 @@ function renderAll() {
     drawTile(nx - sz / 2, ny - sz / 2 + 4, sz, s.queue[0]);
   }
 
-  // ── 可点区域:5 条整列竖条(棋盘顶 → 炮台底),点哪列射哪列 ──
+  // ── 道具栏(P2b-2):炮台行下方一排三个按钮 ──
+  if (G.phase === 'PLAYING') drawToolsBar(L, s);
+
+  // ── 可点区域 ──
+  // 道具瞄准模式下【不】画射击热区(否则点一下既射击又用道具)。
   if (G.phase === 'PLAYING') {
-    for (let c = 0; c < s.cols; c++) {
-      addHit(L.boardX + c * L.cell, L.boardY, L.cell, L.cannonY + L.cell - L.boardY, 'SHOOT', { col: c });
+    if (G.tool === 'hammer') {
+      // 兜底可取消:先铺满屏,再让下面逐格的热区盖过它(hitTest 后加的优先命中)
+      addHit(0, 0, SW, SH, 'TOOL_CANCEL', {});
+      for (let c = 0; c < s.cols; c++) {
+        const col = s.board[c];
+        for (let i = 0; i < col.length && i < s.rows; i++) {
+          addHit(L.boardX + c * L.cell, L.boardY + i * L.cell, L.cell, L.cell, 'TOOL_CELL', { c, i });
+        }
+      }
+    } else if (G.tool === 'swap') {
+      addHit(0, 0, SW, SH, 'TOOL_CANCEL', {});
+      for (let c = 0; c < s.cols; c++) {
+        addHit(L.boardX + c * L.cell, L.boardY, L.cell, L.boardH, 'TOOL_COL', { col: c });
+      }
+    } else {
+      // 5 条整列竖条(棋盘顶 → 炮台底),点哪列射哪列
+      for (let c = 0; c < s.cols; c++) {
+        addHit(L.boardX + c * L.cell, L.boardY, L.cell, L.cannonY + L.cell - L.boardY, 'SHOOT', { col: c });
+      }
     }
   }
 
