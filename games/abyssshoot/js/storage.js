@@ -3,14 +3,18 @@
 // ⚠ 命名:浏览器里各 <script> 共享全局词法环境,core.js 已声明 PRNG_/TILES_,这里必须换名。
 const PRNG_S_ = (typeof module !== 'undefined' && module.exports)
   ? require('../../../engine/prng.js') : PRNG;
+// core.js 在浏览器加载顺序里排在 storage.js 之前(见 index.html),Core 全局已存在,安全引入。
+const CORE_S_ = (typeof module !== 'undefined' && module.exports)
+  ? require('./core.js') : Core;
 
-const SAVE_V = 1;
+const SAVE_V = 2;   // P2b-2: 加 coins、快照结构变(seed+rolls 精确恢复),旧档丢弃不迁移
 const COLS = 5;   // 形状校验用(与 core 的默认一致)
 
 function defaults() {
   return {
     v: SAVE_V,
     best: { score: 0, maxTile: 0 },
+    coins: 0,
     codex: { seen: [] },              // 见过的鱼(值的数组,升序);「见过即解锁」
     stats: {
       // ⚠ fishSeenCount 是「开放 map」(动态 key = 鱼的值):默认必须保持空对象 {}。
@@ -60,7 +64,8 @@ function save(backend, key, s) {
 }
 
 // 当局快照:core state 里除 rand(函数)外全部可 JSON 化。
-// 续玩换新种子(seed2)——弹药是从盘面抽样的,换种子不影响公平;盘面/分数/图鉴才是要保的。
+// ⚠ 精确恢复:带 seed + rolls,重建时空转 rolls 次快进到原位(Core.attachRand)——
+// 这样刷新页面续玩不再能重摇弹药(P2b-2 前的版本靠「换新种子」,等于白送一次 save-scum)。
 function snapshotRun(s) {
   return {
     v: SAVE_V,
@@ -69,7 +74,7 @@ function snapshotRun(s) {
     ammo: s.ammo, queue: s.queue.slice(),
     score: s.score, maxTile: s.maxTile,
     shots: s.shots, shotsSinceSpawn: s.shotsSinceSpawn,
-    seed2: Math.floor(Math.random() * 2147483647),   // 唯一允许用 Math.random 的地方(不在 core 里)
+    seed: s.seed, rolls: s.rolls,
   };
 }
 
@@ -88,16 +93,17 @@ function restoreRun(snap) {
   if (!(snap.rows > 0) || !Array.isArray(snap.queue)) return null;
   if (!Number.isFinite(snap.ammo) || !(snap.ammo > 0)) return null;        // 弹药畸形 → 丢弃(否则射出 undefined)
   if (!snap.queue.every(v => Number.isFinite(v) && v > 0)) return null;    // 预览队列同理
-  return {
+  if (!Number.isFinite(snap.seed) || !Number.isFinite(snap.rolls) || snap.rolls < 0) return null;  // RNG 游标畸形 → 丢弃
+  const obj = {
     cols: snap.cols || COLS, rows: snap.rows,
-    seed: snap.seed2 || 1,
-    rand: PRNG_S_.create(snap.seed2 || 1),
     board: JSON.parse(JSON.stringify(snap.board)),
     score: num_(snap.score), maxTile: num_(snap.maxTile),
     shots: num_(snap.shots), shotsSinceSpawn: num_(snap.shotsSinceSpawn),
     dead: false, events: [],
     ammo: snap.ammo, queue: snap.queue.slice(),
   };
+  CORE_S_.attachRand(obj, snap.seed, snap.rolls);   // 精确恢复:同 seed 空转 rolls 次快进到原位
+  return obj;
 }
 
 const Storage = { SAVE_V, defaults, merge, load, save, snapshotRun, restoreRun };

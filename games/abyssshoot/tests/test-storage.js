@@ -71,7 +71,7 @@ assert.strictEqual(Storage.restoreRun({ v: Storage.SAVE_V, board: 'nope' }), nul
 // 合法基底:改一个字段就该被拒/被净化
 const ok = () => ({ v: Storage.SAVE_V, board: [[2], [], [], [], []], cols: 5, rows: 9,
                     ammo: 4, queue: [2, 4, 8], score: 10, maxTile: 4,
-                    shots: 3, shotsSinceSpawn: 1, seed2: 123 });
+                    shots: 3, shotsSinceSpawn: 1, seed: 123, rolls: 0 });
 assert(Storage.restoreRun(ok()), '合法基底本身必须能恢复(否则下面的负向断言不成立)');
 
 // ammo 畸形 → 整份丢弃(否则 Core.shoot 把 undefined push 进棋盘 → 画面出现 "undefined" 文字块)
@@ -106,3 +106,30 @@ for (const bad of [undefined, 0, 'x', null]) {
 }
 
 console.log('test-storage OK');
+
+// --- P2b-2: coins + SAVE_V=2 ---
+assert.strictEqual(Storage.SAVE_V, 2, 'SAVE_V bump 到 2(加了 coins、快照结构变了)');
+b = mem();
+s = Storage.load(b, 'k');
+assert.strictEqual(s.coins, 0, '新档金币为 0');
+s.coins = 250;
+Storage.save(b, 'k', s);
+assert.strictEqual(Storage.load(b, 'k').coins, 250, '金币存得住');
+
+// --- ⚠ 快照带 seed+rolls → 精确恢复(刷新页面不能重摇弹药) ---
+const gg = Core.createGame({ seed: 11 });
+for (let k = 0; k < 5; k++) Core.shoot(gg, k % gg.cols);
+const snap2 = Storage.snapshotRun(gg);
+assert.strictEqual(snap2.seed, gg.seed, '快照带 seed');
+assert.strictEqual(snap2.rolls, gg.rolls, '快照带 rolls');
+const rr = Storage.restoreRun(JSON.parse(JSON.stringify(snap2)));
+assert.strictEqual(rr.rolls, gg.rolls, '恢复后 rolls 对齐');
+// 恢复后继续射,弹药序列必须与「没保存过」完全一致
+const gg2 = Core.createGame({ seed: 11 });
+for (let k = 0; k < 5; k++) Core.shoot(gg2, k % gg2.cols);
+const amA = [], amB = [];
+for (let k = 0; k < 4; k++) { Core.shoot(gg2, 1); amA.push(gg2.ammo); }
+for (let k = 0; k < 4; k++) { Core.shoot(rr, 1); amB.push(rr.ammo); }
+assert.deepStrictEqual(amB, amA,
+  '续玩后的弹药序列必须与没存过一模一样 —— 否则刷新页面就能重摇弹药(save-scum)');
+console.log('test-storage: coins + 精确恢复 OK');
