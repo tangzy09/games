@@ -206,18 +206,52 @@ function serve() {
     console.log(`OK 图鉴:${cx.unlocked}/${cx.total} 解锁 · "${cx.sub}"`);
     await page.evaluate(() => document.getElementById('panel-close').click());
 
-    // ── 存档续玩:射几发 → 重新载入页面 → 盘面/分数原样恢复 ──
+    // ── 存档续玩:射几发 → 重新载入页面 → 整个 run 原样恢复 ──
+    // ⚠ 这里是**唯一**验证「真实浏览器 + Platform.storage + localStorage + JSON 往返」整条链路的地方
+    //   (test-storage.js 用的是内存假后端,走最短路径)。故 run 的每个可玩字段都要逐个断言:
+    //   若 ammo/queue 在真实 localStorage 往返后丢了却没影响 board/score,只验 3 个字段的旧断言
+    //   会绿灯放行,等真机上「续玩后弹药显示异常」才发现。
+    const snapOf = () => page.evaluate(() => ({
+      phase: G.phase,
+      board: JSON.stringify(G.s.board),
+      queue: JSON.stringify(G.s.queue),
+      ammo: G.s.ammo, score: G.s.score, maxTile: G.s.maxTile, shots: G.s.shots,
+      codexSeen: JSON.stringify(G.save.codex.seen),
+    }));
+    // 开一次图鉴,数一下解锁格数(reload 后要比对同一口径)
+    const codexUnlocked = () => page.evaluate(() => {
+      dispatch('CODEX', {});
+      const n = [...document.querySelectorAll('.cx-item')].filter(i => !i.classList.contains('locked')).length;
+      document.getElementById('panel-close').click();
+      return n;
+    });
+
     await page.evaluate(() => { dispatch('RESTART', {}); G.noAnim = true;
                                 for (let i = 0; i < 6; i++) dispatch('SHOOT', { col: i % 5 }); });
-    const before = await page.evaluate(() => ({ board: JSON.stringify(G.s.board), score: G.s.score, shots: G.s.shots }));
+    const before = await snapOf();
+    const cxBefore = await codexUnlocked();
     await page.reload();
-    await page.waitForFunction(() => window.G && window.G.s);
-    const after = await page.evaluate(() => ({ phase: G.phase, board: JSON.stringify(G.s.board), score: G.s.score, shots: G.s.shots }));
+    await page.waitForFunction(() => window.G && window.G.s && window.G.save);
+    const after = await snapOf();
+    const cxAfter = await codexUnlocked();
+
     if (after.phase !== 'PLAYING') throw new Error('重载后应恢复续玩(PLAYING),实为 ' + after.phase);
-    if (after.board !== before.board) throw new Error('重载后盘面应原样恢复');
-    if (after.score !== before.score || after.shots !== before.shots)
-      throw new Error('重载后分数/发数应原样恢复');
-    console.log(`OK 存档续玩:重载后盘面/分数(${after.score})/发数(${after.shots}) 原样恢复`);
+    for (const k of ['board', 'queue', 'ammo', 'score', 'maxTile', 'shots']) {
+      if (after[k] !== before[k])
+        throw new Error(`重载后 ${k} 应原样恢复:before=${before[k]} after=${after[k]}`);
+    }
+    if (!(after.ammo > 0)) throw new Error('重载后弹药必须是正数(不能是 undefined/0),实为 ' + after.ammo);
+    if (JSON.parse(after.queue).length === 0) throw new Error('重载后预览队列不该为空');
+    if (!JSON.parse(after.queue).every(v => typeof v === 'number' && v > 0))
+      throw new Error('重载后预览队列必须全是正数,实为 ' + after.queue);
+    // 图鉴也要跨 reload 存活(storage + codex 两个新模块的完整回归)
+    if (after.codexSeen !== before.codexSeen)
+      throw new Error(`重载后图鉴 seen 应原样恢复:before=${before.codexSeen} after=${after.codexSeen}`);
+    if (cxAfter !== cxBefore)
+      throw new Error(`重载后图鉴解锁数应一致:before=${cxBefore} after=${cxAfter}`);
+    if (!(cxAfter >= 3)) throw new Error('重载后图鉴解锁数应 >= 3,实为 ' + cxAfter);
+    console.log(`OK 存档续玩:重载后 board/queue/ammo(${after.ammo})/分数(${after.score})/最深(${after.maxTile})/发数(${after.shots}) 全部原样恢复`);
+    console.log(`OK 图鉴跨 reload 存活:${cxAfter} 条解锁,seen 集一致`);
 
     // 重开
     await page.evaluate(() => dispatch('RESTART', {}));

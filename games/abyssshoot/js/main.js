@@ -33,7 +33,8 @@ function afterShot() {
   persist();
 }
 
-// 图鉴浮层:17 档鱼,未解锁显示灰剪影 + ???
+// 图鉴浮层:17 档鱼,未解锁显示灰剪影 + ???;已解锁额外显示「见过 N 次」
+// (count 来自 save.stats.fishSeenCount —— 真读出来用,别让它变成只写不读的死字段)
 function openCodex() {
   const panel = document.getElementById('panel');
   const p = Codex.progress(G.save);
@@ -45,6 +46,7 @@ function openCodex() {
       <img src="assets/fish/${e.fish}.webp" alt="" loading="lazy">
       <div class="cx-name">${e.seen ? T('fish.' + e.fish) : T('codex.locked')}</div>
       <div class="cx-val">${e.seen ? Tiles.fmt(e.v) : '—'}</div>
+      <div class="cx-count">${e.seen ? T('codex.seenCount', { n: e.count }) : ''}</div>
     </div>`).join('');
   document.getElementById('panel-close').onclick = () => panel.classList.add('hidden');
   panel.classList.remove('hidden');

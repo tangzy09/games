@@ -28,6 +28,8 @@ function progress(save) {
 }
 
 // 给 UI 的完整列表(鱼梯顺序):{ v, fish, seen, count }
+// count 来自 save.stats.fishSeenCount(开放 map),**图鉴 UI 真的读它**(已解锁条目显示「见过 N 次」,
+// 见 main.js 的 openCodex)。别当废字段删掉 —— 它同时是以后统计/成就的数据源。
 function entries(save) {
   return TILES_C_.TILES.map(t => ({
     v: t.v, fish: t.fish,

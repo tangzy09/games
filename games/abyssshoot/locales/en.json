@@ -20,6 +20,7 @@
     "title": "Fish Codex",
     "open": "Codex",
     "progress": "{cur} / {max} discovered",
+    "seenCount": "seen {n}×",
     "locked": "???",
     "hint": "Merge a fish to discover it",
     "close": "Close"

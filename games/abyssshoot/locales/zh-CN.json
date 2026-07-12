@@ -20,6 +20,7 @@
     "title": "深海鱼图鉴",
     "open": "图鉴",
     "progress": "已发现 {cur} / {max}",
+    "seenCount": "见过 {n} 次",
     "locked": "？？？",
     "hint": "合出这条鱼即可解锁",
     "close": "关闭"
