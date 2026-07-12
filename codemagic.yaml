@@ -124,7 +124,7 @@ workflows:
     publishing: *ios_publishing
 
   abyss-ios-testflight:
-    name: Abyss Shooter iOS → TestFlight
+    name: 2048 Shooter Fish Merge iOS → TestFlight
     instance_type: mac_mini_m2
     max_build_duration: 60
     integrations:
@@ -133,7 +133,7 @@ workflows:
       <<: *ios_env
       vars:
         GAME_DIR: "games/abyssshoot"
-        BUNDLE_ID: "com.aispeeds.abyssshooter"
+        BUNDLE_ID: "com.aispeeds.fishshooter"
         APP_STORE_APP_ID: "TODO"             # ⚠ ASC 建完 App 记录后回填数字 Apple ID
         GAD_APP_ID: "TODO"                   # ⚠ AdMob 建完 app 后回填(~号那个;绝不复用他游戏的)
     scripts: *ios_scripts

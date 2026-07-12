@@ -1,6 +1,6 @@
 {
-  "appId": "com.aispeeds.abyssshooter",
-  "appName": "Abyss Shooter",
+  "appId": "com.aispeeds.fishshooter",
+  "appName": "2048 Fish",
   "webDir": "www",
   "backgroundColor": "#04121f",
   "plugins": {
