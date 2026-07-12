@@ -14,11 +14,14 @@ const PAL = {
   breach: '#ff4d5e',                  // 顶爆列的高亮红
   breachWash: 'rgba(255,77,94,0.18)', // 顶爆列的整列红洗
   // 按档位上色(浅礁→深渊,越深越冷艳)
-  // 17 档,与 tiles.js 的鱼梯一一对应(必须够长,否则高档取模绕回浅色、与最小档撞色)
-  tiers: ['#38bdf8', '#34d399', '#a3e635', '#fbbf24', '#fb923c',
-          '#f87171', '#f472b6', '#c084fc', '#a78bfa', '#818cf8',
-          '#60a5fa', '#22d3ee', '#e2e8f0',
-          '#fcd34d', '#fdba74', '#fca5a5', '#f0abfc'],   // 梯顶四档巨兽:暖金→珊瑚→绯→紫罗兰
+  // 17 档,与 tiles.js 的鱼梯一一对应(必须够长,否则高档取模绕回、与最小档撞色)。
+  // ⚠ 必须**深而饱和**:fishId 的可爱鱼全是浅色调(白鲸近纯白、大白鲨浅灰),
+  // 底色若用浅粉彩,鱼会糊进背景里看不见(实测过)。深底 + 浅鱼 = 跳得出来,
+  // 且「浅礁明亮 → 深渊浓郁」的色彩进阶正好契合主题。
+  tiers: ['#0e7490', '#0f766e', '#15803d', '#4d7c0f', '#a16207',
+          '#c2410c', '#b91c1c', '#be185d', '#7e22ce', '#6d28d9',
+          '#4338ca', '#1d4ed8', '#0369a1', '#115e59', '#5b21b6',
+          '#9d174d', '#92400e'],
 };
 
 const PAD = 12;
@@ -59,18 +62,19 @@ function layout(s) {
   return { SW, SH, hudY, hudH, cell, boardW, boardH, boardX, boardY, lineY, cannonY };
 }
 
-// 画一个鱼格:圆角色块 + 数字(P1b 用纯色+数字占位,鱼图 P2 接 makeArt/drawArtIcon)
-function drawTile(x, y, cell, v) {
-  const t = Tiles.tierOf(v);
-  // 超纲档(tierOf → -1,如合出 16384)取最后一档色,别退化成 tier0 的最浅礁色:
-  // 那会让最大的鱼画得跟最小的一样,方向性误导。
-  const color = t < 0 ? PAL.tiers[PAL.tiers.length - 1] : PAL.tiers[t % PAL.tiers.length];
-  const m = Math.round(cell * 0.06);
-  fillRR(x + m, y + m, cell - m * 2, cell - m * 2, Math.round(cell * 0.18), color);
-  const label = Tiles.fmt(v);
-  const fs = Math.max(6, Math.round(cell * (label.length >= 4 ? 0.28 : label.length === 3 ? 0.34 : 0.42)));
-  txt(label, x + cell / 2, y + cell / 2, '#04121f', `bold ${fs}px sans-serif`);
+// 鱼图:引擎 makeArt 预载 assets/fish/<id>.webp(素材由 tools/prep-fish.py 归一化产出)。
+// load() 幂等,在 renderAll 里踢一次;图没到位就自动回退「大数字」——游戏永远可玩。
+// ⚠ 必须**惰性 + 守卫**:makeArt/Tiles 是浏览器全局,而 test-anim.js 在 node 里 require 本文件
+// (为了测 mapColumn/tileY)。写成模块顶层 `const FishArt = makeArt(...)` 会让 node 直接炸。
+let _fishArt = null;
+function fishArt() {
+  if (!_fishArt && typeof makeArt === 'function' && typeof Tiles !== 'undefined')
+    _fishArt = makeArt('fish', Tiles.TILES.map(t => t.fish));
+  return _fishArt;
 }
+
+// 画一个鱼格(按格坐标)。静态与动画统一走 drawTileAt,别再分叉两套画法。
+function drawTile(x, y, cell, v) { drawTileAt(x, y, cell, v, 1, 1); }
 
 // 按像素位置+缩放画一个格子(动画用)。scale=1 即正常大小,alpha 控淡出。
 function drawTileAt(px, py, cell, v, scale = 1, alpha = 1) {
@@ -82,9 +86,27 @@ function drawTileAt(px, py, cell, v, scale = 1, alpha = 1) {
   ctx.save();
   ctx.globalAlpha = alpha;
   fillRR(cx - size / 2, cy - size / 2, size, size, Math.round(size * 0.18), color);
+
   const label = Tiles.fmt(v);
-  const fs = Math.max(6, Math.round(size * (label.length >= 4 ? 0.28 : label.length === 3 ? 0.34 : 0.42)));
-  txt(label, cx, cy, '#04121f', `bold ${fs}px sans-serif`);
+  const fishId = Tiles.fishOf(v);
+  const fa = fishArt();
+  const im = (fishId && fa) ? fa.get(fishId) : null;
+  if (im) {
+    // 鱼是主角:铺满格子(略上移),数字压成底部深色药丸——两者都读得清。
+    const fw = size * 0.96;
+    ctx.drawImage(im, cx - fw / 2, cy - fw / 2 - size * 0.05, fw, fw);
+    const fz = Math.max(7, Math.round(size * 0.23));
+    ctx.font = `bold ${fz}px sans-serif`;
+    const pw = ctx.measureText(label).width + size * 0.18;
+    const ph = fz * 1.5;
+    const pyTop = cy + size / 2 - ph - size * 0.05;
+    fillRR(cx - pw / 2, pyTop, pw, ph, ph / 2, 'rgba(4,18,31,0.86)');
+    txt(label, cx, pyTop + ph / 2, '#ffffff', `bold ${fz}px sans-serif`);
+  } else {
+    // 鱼图未加载/超纲档:回退大数字居中(底色已深,字用白)
+    const fs = Math.max(6, Math.round(size * (label.length >= 4 ? 0.28 : label.length === 3 ? 0.34 : 0.42)));
+    txt(label, cx, cy, '#ffffff', `bold ${fs}px sans-serif`);
+  }
   ctx.restore();
 }
 
@@ -217,6 +239,7 @@ function drawBreaches(L, s) {
 
 function renderAll() {
   clearHits();
+  { const fa = fishArt(); if (fa) fa.load(); }   // 幂等;引擎在图加载完成时会自动回调 renderAll 重绘
   const s = G.s;
   const L = layout(s);
   const { SW, SH } = L;
