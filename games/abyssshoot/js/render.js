@@ -234,6 +234,22 @@ function button(cy, key, action) {
   return cy + bh;   // 按钮底边,方便在其下继续排版
 }
 
+// ☠️ 看广告复活按钮(P3a):比下方「再次下潜」更醒目(金色、更大),画在其上方。
+// 仅当本局还有复活次数时画(用完不画,不留一个点不动的死按钮)。
+// G.adBusy(广告播放中)时画灰且【不 addHit】——防连点重复请求广告。
+function reviveButton(cy) {
+  if (G.revives >= Tools.MAX_REVIVES) return cy;
+  const { SW } = GameGlobal;
+  const bw = 220, bh = 60, bx = SW / 2 - bw / 2;
+  const busy = G.adBusy;
+  fillRR(bx, cy, bw, bh, 16, busy ? 'rgba(252,211,77,0.35)' : '#fcd34d');
+  txt(T('ads.revive'), SW / 2, cy + bh * 0.36, busy ? 'rgba(4,18,31,0.55)' : '#04121f', 'bold 20px sans-serif');
+  txt(T('ads.reviveLeft', { n: Tools.MAX_REVIVES - G.revives }), SW / 2, cy + bh * 0.74,
+      busy ? 'rgba(4,18,31,0.4)' : 'rgba(4,18,31,0.72)', '12px sans-serif');
+  if (!busy) addHit(bx, cy, bw, bh, 'REVIVE', {});
+  return cy + bh;
+}
+
 // 道具栏(P2b-2):炮台行下方一排三个按钮,图标+价格。金币不够 → 画灰、不可点。
 // 选中的道具(G.tool)画高亮边框。
 const TOOL_DEFS = [
@@ -243,12 +259,12 @@ const TOOL_DEFS = [
 ];
 function drawToolsBar(L, s) {
   const coins = G.save ? G.save.coins : 0;
-  const n = TOOL_DEFS.length;
+  const n = TOOL_DEFS.length + 1;   // 三个道具 + 🪙看广告换金币(P3a)
   const gap = Math.round(L.cell * 0.14);
   const bw = Math.floor((L.boardW - gap * (n - 1)) / n);
   const bh = Math.round(L.cell * 0.72);
   const y = L.toolsY + Math.round((L.cell - bh) / 2);
-  for (let idx = 0; idx < n; idx++) {
+  for (let idx = 0; idx < TOOL_DEFS.length; idx++) {
     const d = TOOL_DEFS[idx];
     const x = L.boardX + idx * (bw + gap);
     const cost = Tools.COST[d.k];
@@ -260,6 +276,17 @@ function drawToolsBar(L, s) {
     txt(`${d.icon} ${cost}`, x + bw / 2, y + bh / 2, textColor,
         `bold ${Math.max(10, Math.round(L.cell * 0.3))}px sans-serif`);
     if (afford) addHit(x, y, bw, bh, 'TOOL', { k: d.k });   // 金币不够:不 addHit,点不动
+  }
+  // 🪙 看广告换金币(P3a):不吃金币门槛,受 adBusy/瞄准中/动画中约束(防连点/误触)
+  {
+    const idx = TOOL_DEFS.length;
+    const x = L.boardX + idx * (bw + gap);
+    const clickable = !G.adBusy && !G.tool && !G.anim;
+    fillRR(x, y, bw, bh, 10, clickable ? '#fcd34d' : 'rgba(13,39,64,0.45)');
+    const textColor = clickable ? PAL.btnText : '#3d5b73';
+    txt(T('ads.coins', { n: Tools.AD_COINS }), x + bw / 2, y + bh / 2, textColor,
+        `bold ${Math.max(9, Math.round(L.cell * 0.24))}px sans-serif`);
+    if (clickable) addHit(x, y, bw, bh, 'AD_COINS', {});   // 忙碌/瞄准/动画中:不 addHit,点不动
   }
 }
 
@@ -429,7 +456,9 @@ function renderAll() {
     txt(T('abyss.deepest', { v: Tiles.fmt(s.maxTile || 0) }), SW / 2, SH * 0.50, '#8ab6cd', '14px sans-serif');
     if (G.newRecord)
       txt(T('abyss.newRecord'), SW / 2, SH * 0.545, '#fcd34d', 'bold 15px sans-serif');
-    button(SH * 0.58, 'abyss.restart', 'RESTART');
+    // 复活按钮画在「再次下潜」之上、更醒目(金色更大);没有复活次数时不占位,下潜按钮回落原位。
+    const rBot = reviveButton(SH * 0.58);
+    button(rBot > SH * 0.58 ? rBot + 14 : SH * 0.58, 'abyss.restart', 'RESTART');
   }
 
   // ── 顶爆列最后画:压过死线、也压过 dim,死亡画面必须一眼看出是哪列被顶爆 ──
