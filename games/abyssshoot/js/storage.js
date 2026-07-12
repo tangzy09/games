@@ -22,6 +22,9 @@ function defaults() {
       //   (snake 的 Critical 事故,勿重蹈)。以后新增开放 map 字段也照此保持 {}。
       fishSeenCount: {},
       runs: 0, shots: 0, merges: 0, escapes: 0,
+      revives: 0,        // 累计看广告复活次数
+      adCoins: 0,        // 累计看广告换到的金币
+      runsSinceAd: 0,    // 距上次插屏的局数(每 3 局一插屏)
     },
     run: null,                        // 当局快照(可续玩)
   };
