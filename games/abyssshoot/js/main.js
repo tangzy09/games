@@ -11,6 +11,8 @@ var G = {
   tool: null,        // null | 'hammer' | 'swap'  —— 道具瞄准模式
   swapFirst: null,   // 交换列:已选的第一列
   undoSnap: null,    // 上一发之前的快照(撤销用)
+  revives: 0,        // 本局已复活次数(每局限 MAX_REVIVES)
+  adBusy: false,     // 广告播放中(防连点重复请求)
 };
 var rafId = null;
 
@@ -63,6 +65,7 @@ function newGame() {
   G.phase = 'PLAYING';
   G.newRecord = false;
   G.tool = null; G.swapFirst = null; G.undoSnap = null;
+  G.revives = 0; G.adBusy = false;
   if (G.save) { G.save.stats.runs++; persist(); }
 }
 
@@ -176,9 +179,53 @@ function dispatch(action, data) {
   if (G.anim) return;                            // 动画播放中,封锁一切输入(防连点错乱)
   switch (action) {
     case 'START':
-    case 'RESTART':
+    case 'RESTART': {
+      const st = G.save && G.save.stats;
+      // 每 3 局一插屏。⚠ 放在 RESTART(局间),不放死亡那一刻——别打断情绪。
+      if (st && ++st.runsSinceAd >= 3) {
+        st.runsSinceAd = 0;
+        persist();
+        Ads.showInterstitial().finally(() => { newGame(); renderAll(); });
+        return;
+      }
       newGame();
       break;
+    }
+    // ☠️ 看广告复活
+    case 'REVIVE': {
+      if (G.phase !== 'DEAD' || G.adBusy) break;
+      if (G.revives >= Tools.MAX_REVIVES) break;
+      G.adBusy = true; renderAll();
+      Ads.showRewarded().then(ok => {
+        G.adBusy = false;
+        if (!ok || G.phase !== 'DEAD') { renderAll(); return; }   // 没看完 = 不给奖励
+        G.revives++;
+        G.save.stats.revives++;
+        Tools.revive(G.s, Tools.REVIVE_ROWS);
+        G.phase = 'PLAYING';
+        G.undoSnap = null;                    // 盘面变了,旧快照作废
+        afterToolUse();                       // 复活可能触发连锁 → 走同一套动画/结算/落盘
+      }).catch(() => { G.adBusy = false; renderAll(); });
+      break;
+    }
+    // 🪙 看广告换金币
+    case 'AD_COINS': {
+      if (G.phase !== 'PLAYING' || G.anim || G.tool || G.adBusy) break;
+      G.adBusy = true; renderAll();
+      Ads.showRewarded().then(ok => {
+        G.adBusy = false;
+        if (ok) {
+          G.save.coins += Tools.AD_COINS;
+          G.save.stats.adCoins += Tools.AD_COINS;
+          toast(T('ads.coins', { n: Tools.AD_COINS }));
+          Sfx.play('newfish');
+          persist();
+        }
+        renderAll();
+      }).catch(() => { G.adBusy = false; renderAll(); });
+      break;
+    }
+    case 'PRIVACY': Ads.showPrivacyOptions(); break;
     case 'SHOOT': {
       if (G.phase !== 'PLAYING' || !G.s || G.s.dead) break;
       if (G.tool) break;                            // 道具瞄准中,不许射击
@@ -254,12 +301,15 @@ async function boot() {
     document.addEventListener('visibilitychange', () => { if (document.hidden) persist(); });
     Controls.render(
       `<div class="ctl-btn" id="codex-btn" title="${T('codex.open')}">🐟</div>
-       <div class="ctl-btn" id="sfx-btn">${Sfx.on ? '🔊' : '🔇'}</div>`,
+       <div class="ctl-btn" id="sfx-btn">${Sfx.on ? '🔊' : '🔇'}</div>
+       <div class="ctl-btn" id="priv-btn" title="${T('ads.privacy')}">🛡️</div>`,
       bar => {
         const c = bar.querySelector('#codex-btn');
         if (c) c.onclick = () => dispatch('CODEX', {});
         const b = bar.querySelector('#sfx-btn');
         if (b) b.onclick = () => { b.textContent = Sfx.toggle() ? '🔊' : '🔇'; };
+        const pv = bar.querySelector('#priv-btn');
+        if (pv) pv.onclick = () => dispatch('PRIVACY', {});
       });
     renderAll();
     try { Platform.Cap?.Plugins?.SplashScreen?.hide(); } catch (e) {}
