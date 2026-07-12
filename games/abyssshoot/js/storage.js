@@ -75,19 +75,26 @@ function snapshotRun(s) {
 
 // 恢复:形状不对一律返回 null(调用方丢弃重开)。
 // ⚠ 畸形快照恢复成 0×0 盘面 = 无报错白屏,全新档案的 E2E 测不出来(root CLAUDE.md 铁律)。
+// ⚠ 光查「是不是数组」不够,数值字段的类型也要查死(devtools 改档 / 未来某次序列化 bug):
+//   ① ammo=undefined 放行 → 下一发 Core.shoot 把 undefined push 进棋盘 → 画面出现 "undefined" 文字块;
+//   ② score="abc" 用 `|| 0` 兜底会放行(非空字符串是 truthy)→ `s.score += gained` 变字符串拼接 → 分数彻底乱。
+//   故:能玩的字段(ammo/queue)不合法 → 整份丢弃;计数字段一律 Number.isFinite 过一道,脏值归 0。
+const num_ = (x) => (Number.isFinite(x) ? x : 0);
 function restoreRun(snap) {
   if (!snap || typeof snap !== 'object') return null;
   if (snap.v !== SAVE_V) return null;
   if (!Array.isArray(snap.board) || snap.board.length !== (snap.cols || COLS)) return null;
-  if (!snap.board.every(col => Array.isArray(col) && col.every(v => v > 0))) return null;
+  if (!snap.board.every(col => Array.isArray(col) && col.every(v => Number.isFinite(v) && v > 0))) return null;
   if (!(snap.rows > 0) || !Array.isArray(snap.queue)) return null;
+  if (!Number.isFinite(snap.ammo) || !(snap.ammo > 0)) return null;        // 弹药畸形 → 丢弃(否则射出 undefined)
+  if (!snap.queue.every(v => Number.isFinite(v) && v > 0)) return null;    // 预览队列同理
   return {
     cols: snap.cols || COLS, rows: snap.rows,
     seed: snap.seed2 || 1,
     rand: PRNG_S_.create(snap.seed2 || 1),
     board: JSON.parse(JSON.stringify(snap.board)),
-    score: snap.score || 0, maxTile: snap.maxTile || 0,
-    shots: snap.shots || 0, shotsSinceSpawn: snap.shotsSinceSpawn || 0,
+    score: num_(snap.score), maxTile: num_(snap.maxTile),
+    shots: num_(snap.shots), shotsSinceSpawn: num_(snap.shotsSinceSpawn),
     dead: false, events: [],
     ammo: snap.ammo, queue: snap.queue.slice(),
   };
