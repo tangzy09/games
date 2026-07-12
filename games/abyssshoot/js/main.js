@@ -8,6 +8,9 @@ var G = {
   save: null,      // 存档(Storage.load 产出)
   saveKey: null,
   newRecord: false,   // 本局是否破了纪录(DEAD 画面用)
+  tool: null,        // null | 'hammer' | 'swap'  —— 道具瞄准模式
+  swapFirst: null,   // 交换列:已选的第一列
+  undoSnap: null,    // 上一发之前的快照(撤销用)
 };
 var rafId = null;
 
@@ -22,6 +25,7 @@ function persist() {
 // 每发之后:记图鉴 + 刷最高分
 function afterShot() {
   if (!G.save) return;
+  G.save.coins += Tools.coinsFor(G.s.events);      // 合并×1 + 连锁×5 + 梯顶游走×50
   Codex.record(G.save, G.s);
   G.save.stats.shots++;
   for (const e of G.s.events) {
@@ -58,6 +62,7 @@ function newGame() {
   G.anim = null;
   G.phase = 'PLAYING';
   G.newRecord = false;
+  G.tool = null; G.swapFirst = null; G.undoSnap = null;
   if (G.save) { G.save.stats.runs++; persist(); }
 }
 
@@ -143,6 +148,19 @@ function startAnim(events) {
   if (rafId == null) rafId = requestAnimationFrame(frame);
 }
 
+// 道具用完:道具本身可能触发连锁 → 走同一套动画/结算
+function afterToolUse() {
+  G.undoSnap = null;                 // 道具改了盘面,旧的射击快照作废(否则撤销会回到错误状态)
+  if (G.save) {
+    G.save.coins += Tools.coinsFor(G.s.events);   // 道具触发的连锁照常给币
+    Codex.record(G.save, G.s);
+    if (G.s.maxTile > G.save.best.maxTile) G.save.best.maxTile = G.s.maxTile;
+    if (G.s.score > G.save.best.score) { G.save.best.score = G.s.score; G.newRecord = true; }
+    persist();
+  }
+  startAnim(G.s.events);
+}
+
 function dispatch(action, data) {
   if (G.anim) return;                            // 动画播放中,封锁一切输入(防连点错乱)
   switch (action) {
@@ -152,11 +170,53 @@ function dispatch(action, data) {
       break;
     case 'SHOOT': {
       if (G.phase !== 'PLAYING' || !G.s || G.s.dead) break;
+      if (G.tool) break;                            // 道具瞄准中,不许射击
+      G.undoSnap = Tools.snapshot(G.s);             // 射击前快照(撤销用)
       Core.shoot(G.s, data.col);
       afterShot();                                // 图鉴/最高分/落盘(盘面此刻已是稳定态)
       startAnim(G.s.events);                     // 内部会 renderAll / 起 RAF / 播完判死
       return;                                    // 不走下面的 renderAll(动画循环自己画)
     }
+    // 点道具按钮:进入瞄准模式(撤销是即时的,不用瞄准)
+    case 'TOOL': {
+      if (G.phase !== 'PLAYING' || G.anim) break;
+      const k = data.k;
+      if (G.save.coins < Tools.COST[k]) { toast(T('tools.needCoins')); break; }
+      if (k === 'undo') {
+        if (!G.undoSnap) break;                     // 还没射过,没得撤
+        Tools.undo(G.s, G.undoSnap);
+        G.undoSnap = null;                          // 单步撤销:用掉就没了
+        G.save.coins -= Tools.COST.undo;
+        Sfx.play('undo'); persist();
+        break;
+      }
+      G.tool = (G.tool === k) ? null : k;           // 再点一次取消
+      G.swapFirst = null;
+      break;
+    }
+    // 瞄准模式下点格子/列
+    case 'TOOL_CELL': {                             // 锤子:点一条鱼
+      if (G.tool !== 'hammer') break;
+      const r = Tools.hammer(G.s, data.c, data.i);
+      if (!r.ok) break;
+      G.save.coins -= Tools.COST.hammer;
+      G.tool = null;
+      afterToolUse();
+      return;
+    }
+    case 'TOOL_COL': {                              // 交换:点两列
+      if (G.tool !== 'swap') break;
+      if (G.swapFirst == null) { G.swapFirst = data.col; break; }
+      if (G.swapFirst === data.col) { G.swapFirst = null; break; }
+      const r = Tools.swap(G.s, G.swapFirst, data.col);
+      G.swapFirst = null;
+      if (!r.ok) break;
+      G.save.coins -= Tools.COST.swap;
+      G.tool = null;
+      afterToolUse();
+      return;
+    }
+    case 'TOOL_CANCEL': G.tool = null; G.swapFirst = null; break;
     case 'CODEX': openCodex(); return;
     default: break;
   }
