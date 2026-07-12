@@ -260,10 +260,12 @@ function renderAll() {
   ctx.fillStyle = PAL.bg;
   ctx.fillRect(0, 0, SW, SH);
 
-  // ── HUD:分数(左) + 最深(右,用引擎 txtR 右对齐:变长文案不会双向溢出) ──
-  txtL(`${T('abyss.score')} ${s.score}`, PAD, L.hudY + L.hudH / 2, PAL.text, 'bold 18px sans-serif');
-  const best = s.maxTile ? Tiles.fmt(s.maxTile) : '—';
-  txtR(`${T('abyss.best')} ${best}`, SW - PAD, L.hudY + L.hudH / 2, PAL.text, '14px sans-serif');
+  // ── HUD:左=当前分 + 历史最高分(两行),右=本局最深鱼 ──
+  txtL(`${T('abyss.score')} ${s.score}`, PAD, L.hudY + L.hudH / 2 - 8, PAL.text, 'bold 18px sans-serif');
+  const bestScore = G.save ? G.save.best.score : 0;
+  txtL(`${T('abyss.best')} ${bestScore}`, PAD, L.hudY + L.hudH / 2 + 12, '#6f9ab5', '12px sans-serif');
+  txtR(`${T('abyss.deepestShort')} ${s.maxTile ? Tiles.fmt(s.maxTile) : '—'}`,
+       SW - PAD, L.hudY + L.hudH / 2, PAL.text, '14px sans-serif');
 
   // ── 棋盘底 + 列底 ──
   fillRR(L.boardX - 4, L.boardY - 4, L.boardW + 8, L.boardH + 8, 10, PAL.boardBg);
@@ -339,6 +341,8 @@ function renderAll() {
     txt(T('abyss.gameOver'), SW / 2, SH * 0.36, '#f87171', 'bold 28px sans-serif');
     txt(T('abyss.finalScore', { n: s.score }), SW / 2, SH * 0.44, PAL.text, 'bold 20px sans-serif');
     txt(T('abyss.deepest', { v: Tiles.fmt(s.maxTile || 0) }), SW / 2, SH * 0.50, '#8ab6cd', '14px sans-serif');
+    if (G.newRecord)
+      txt(T('abyss.newRecord'), SW / 2, SH * 0.545, '#fcd34d', 'bold 15px sans-serif');
     button(SH * 0.58, 'abyss.restart', 'RESTART');
   }
 
