@@ -32,3 +32,11 @@ body {
 .cx-val { font-size: 11px; font-weight: 700; color: #2bb3c0; }
 .cx-count { font-size: 9px; color: #4c7089; min-height: 11px; }   /* 「见过 N 次」;未解锁为空串,min-height 保住格高一致 */
 .cx-item.locked .cx-name, .cx-item.locked .cx-val { color: #4c7089; }
+
+/* ── 道具 toast(金币不够的提示,P2b-2) ── */
+#toasts { position: fixed; left: 50%; bottom: 22%; transform: translateX(-50%);
+          z-index: 60; pointer-events: none; }
+.toast { background: rgba(4,18,31,0.92); border: 1px solid #2bb3c0; color: #cfe8f5;
+         padding: 8px 16px; border-radius: 999px; font-size: 13px; margin-top: 6px;
+         opacity: 1; transition: opacity .4s; }
+.toast.out { opacity: 0; }

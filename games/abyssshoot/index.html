@@ -14,12 +14,13 @@
 <meta property="og:description" content="Shoot fish up, merge matching numbers, collect 17 deep-sea creatures.">
 <meta property="og:image" content="assets/icons/icon-512.png">
 <meta property="og:type" content="website">
-<link rel="stylesheet" href="../../engine/engine.css?v=4">
-<link rel="stylesheet" href="css/game.css?v=4">
+<link rel="stylesheet" href="../../engine/engine.css?v=5">
+<link rel="stylesheet" href="css/game.css?v=5">
 </head>
 <body>
 <canvas id="game-canvas"></canvas>
 <div id="controls"></div>
+<div id="toasts"></div>
 <div id="panel" class="hidden">
   <div id="panel-card">
     <div id="panel-head"><span id="panel-title"></span><button id="panel-close" type="button">✕</button></div>
@@ -36,24 +37,27 @@
       shoot: 'assets/audio/shoot.wav', merge: 'assets/audio/merge.wav',
       chain: 'assets/audio/chain.wav', spawn: 'assets/audio/spawn.wav',
       newfish: 'assets/audio/newfish.wav', death: 'assets/audio/death.wav',
+      hammer: 'assets/audio/hammer.wav', swap: 'assets/audio/swap.wav',
+      undo: 'assets/audio/undo.wav',
     },
   };
 </script>
-<script src="../../engine/config.js?v=4"></script>
-<script src="../../engine/platform.js?v=4"></script>
-<script src="../../engine/i18n.js?v=4"></script>
-<script src="../../engine/portal.js?v=4"></script>
-<script src="../../engine/ads.js?v=4"></script>
-<script src="../../engine/audio.js?v=4"></script>
-<script src="../../engine/canvas.js?v=4"></script>
-<script src="../../engine/input.js?v=4"></script>
-<script src="../../engine/controls.js?v=4"></script>
-<script src="../../engine/prng.js?v=4"></script>
-<script src="js/tiles.js?v=4"></script>
-<script src="js/core.js?v=4"></script>
-<script src="js/storage.js?v=4"></script>
-<script src="js/codex.js?v=4"></script>
-<script src="js/render.js?v=4"></script>
-<script src="js/main.js?v=4"></script>
+<script src="../../engine/config.js?v=5"></script>
+<script src="../../engine/platform.js?v=5"></script>
+<script src="../../engine/i18n.js?v=5"></script>
+<script src="../../engine/portal.js?v=5"></script>
+<script src="../../engine/ads.js?v=5"></script>
+<script src="../../engine/audio.js?v=5"></script>
+<script src="../../engine/canvas.js?v=5"></script>
+<script src="../../engine/input.js?v=5"></script>
+<script src="../../engine/controls.js?v=5"></script>
+<script src="../../engine/prng.js?v=5"></script>
+<script src="js/tiles.js?v=5"></script>
+<script src="js/core.js?v=5"></script>
+<script src="js/storage.js?v=5"></script>
+<script src="js/codex.js?v=5"></script>
+<script src="js/tools.js?v=5"></script>
+<script src="js/render.js?v=5"></script>
+<script src="js/main.js?v=5"></script>
 </body>
 </html>

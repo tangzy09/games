@@ -148,6 +148,17 @@ function startAnim(events) {
   if (rafId == null) rafId = requestAnimationFrame(frame);
 }
 
+// 简易 toast(金币不够等提示):追加一个节点,2s 后淡出移除。
+function toast(msg) {
+  const box = document.getElementById('toasts');
+  if (!box) return;
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  box.appendChild(el);
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 400); }, 1600);
+}
+
 // 道具用完:道具本身可能触发连锁 → 走同一套动画/结算
 function afterToolUse() {
   G.undoSnap = null;                 // 道具改了盘面,旧的射击快照作废(否则撤销会回到错误状态)

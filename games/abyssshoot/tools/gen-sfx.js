@@ -67,6 +67,9 @@ const SFX = {
   spawn:   mix(tone(200, 150, 0.16, 0.34), noise(0.10, 0.06)),    // 刷行:低沉下压
   newfish: concat(tone(660, 880, 0.10, 0.40), tone(880, 1320, 0.16, 0.42)), // 新最深鱼:欢快两段
   death:   mix(tone(260, 70, 0.55, 0.48), noise(0.30, 0.10)),     // 死亡:下坠闷响
+  hammer:  mix(tone(180, 60, 0.18, 0.5), noise(0.08, 0.18)),      // 砸:闷响+碎裂
+  swap:    concat(tone(400, 600, 0.08, 0.35), tone(600, 400, 0.08, 0.35)),  // 换:来回
+  undo:    tone(520, 300, 0.16, 0.36),                            // 撤销:下滑
 };
 
 for (const [name, buf] of Object.entries(SFX)) {
@@ -74,4 +77,4 @@ for (const [name, buf] of Object.entries(SFX)) {
   fs.writeFileSync(f, toWav(buf));
   console.log('写出', f, fs.statSync(f).size, 'bytes');
 }
-console.log('gen-sfx OK — 6 个音效已生成');
+console.log('gen-sfx OK — 9 个音效已生成');
