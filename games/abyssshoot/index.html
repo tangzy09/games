@@ -33,6 +33,12 @@
   window.GAME_CONFIG = {
     id: 'abyss',
     languages: ['en', 'zh-CN'],
+    // 本游戏**专属** AdMob 广告位(iOS)——绝不复用他游戏的 ID(AdMob 判作弊封号)。
+    // 引擎按「该平台有真值即关测试模式」自动切换;web 端不走这里(confirm/门户模拟)。
+    adUnits: {
+      rewarded:     { ios: 'ca-app-pub-2141208066469648/5808478997' },
+      interstitial: { ios: 'ca-app-pub-2141208066469648/7442527234' },
+    },
     sfx: {
       shoot: 'assets/audio/shoot.wav', merge: 'assets/audio/merge.wav',
       chain: 'assets/audio/chain.wav', spawn: 'assets/audio/spawn.wav',

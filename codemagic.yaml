@@ -135,7 +135,7 @@ workflows:
         GAME_DIR: "games/abyssshoot"
         BUNDLE_ID: "com.aispeeds.fishshooter"
         APP_STORE_APP_ID: "TODO"             # ⚠ ASC 建完 App 记录后回填数字 Apple ID
-        GAD_APP_ID: "TODO"                   # ⚠ AdMob 建完 app 后回填(~号那个;绝不复用他游戏的)
+        GAD_APP_ID: "ca-app-pub-2141208066469648~1063418775"   # 2048 Shooter 专属 AdMob App ID
     scripts: *ios_scripts
     artifacts: *ios_artifacts
     publishing: *ios_publishing
