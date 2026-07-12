@@ -36,11 +36,13 @@ function boardValues(s) {
 // 顺带堵死一个坑:否则皇带鱼(梯顶)自己也能被抽成弹药,你会射出更多顶档大块。
 function pickFromBoard(s, bias, excludeMax) {
   let vs = boardValues(s);
-  if (!vs.length) return TILE_MIN;                       // 空盘:从最小档起手
+  // ⚠ 早退分支也要 s.rand() 烧一次游标:结果仍是确定性的 TILE_MIN(规则不变),
+  // 但保持「每次抽样尝试都推进一次 rolls」的语义一致,撤销/续玩回放才对得上(P2b-2)。
+  if (!vs.length) { s.rand(); return TILE_MIN; }         // 空盘:从最小档起手
   if (excludeMax) {
     const mx = Math.max.apply(null, vs);
     vs = vs.filter(v => v < mx);
-    if (!vs.length) return TILE_MIN;                     // 盘上只剩一种值:给条新小鱼当火种
+    if (!vs.length) { s.rand(); return TILE_MIN; }       // 盘上只剩一种值:给条新小鱼当火种
   }
   vs.sort((a, b) => a - b);
   const r = Math.pow(s.rand(), bias);                    // bias>1 → 偏向小端
@@ -55,18 +57,32 @@ function genAmmo(s)   { return pickFromBoard(s, AMMO_BIAS, true); }
 // 刷行的鱼同样从盘面抽(偏小更狠)——刷下来的行必定是你合得掉的东西。
 function spawnTile(s) { return pickFromBoard(s, SPAWN_BIAS, true); }
 
+// rand 是闭包,内部状态读不出来。所以记「调用次数」(rolls),
+// 要回退时用同一 seed 重建、空转 rolls 次快进到原位 —— 精确,且一局才几百次,开销可忽略。
+// ⚠ 没有这个,撤销就等于「重摇弹药」(save-scum);页面刷新续玩同理。
+function attachRand(s, seed, rolls) {
+  const base = PRNG_.create(seed);
+  for (let k = 0; k < rolls; k++) base();     // 快进
+  s.seed = seed;
+  s.rolls = rolls;
+  s.rand = () => { s.rolls++; return base(); };
+}
+function restoreRand(s, seed, rolls) { attachRand(s, seed, rolls); return s; }
+
 function createGame(opts = {}) {
   const cols = opts.cols || 5, rows = opts.rows || 9;
   const seed = opts.seed == null ? 1 : opts.seed;
   const s = {
     cols, rows, seed,
-    rand: PRNG_.create(seed),
+    rolls: 0,                       // rand 被调用的次数(撤销/精确续玩靠它回退)
+    rand: null,
     board: Array.from({ length: cols }, () => []),
     score: 0, maxTile: 0,
     shots: 0, shotsSinceSpawn: 0,
     dead: false, events: [],
     ammo: 0, queue: [],
   };
+  attachRand(s, seed, 0);
   s.ammo = genAmmo(s);
   for (let k = 0; k < PREVIEW; k++) s.queue.push(genAmmo(s));
   return s;
@@ -230,6 +246,7 @@ function shoot(s, col) {
 }
 
 // 双导出:node 走 module.exports;浏览器靠顶层 const Core 当全局(同 snake core.js)
-const Core = { createGame, genAmmo, spawnTile, smallestTile, boardValues, pickFromBoard, gravityUp, findComponents, resolve, spawnRow, shoot, snapBoard,
+const Core = { createGame, attachRand, restoreRand, genAmmo, spawnTile, smallestTile, boardValues,
+  pickFromBoard, gravityUp, findComponents, resolve, spawnRow, shoot, snapBoard,
   PREVIEW, SPAWN_EVERY, TILE_MIN, AMMO_BIAS, SPAWN_BIAS };
 if (typeof module !== 'undefined' && module.exports) module.exports = Core;
