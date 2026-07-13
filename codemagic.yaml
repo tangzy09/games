@@ -43,6 +43,21 @@ definitions:
         cd $GAME_DIR
         PLIST=ios/App/App/Info.plist
         plutil -replace ITSAppUsesNonExemptEncryption -bool false "$PLIST"
+        # App Store 商品页的「语言」栏**只读 CFBundleLocalizations**,不看商店页本地化。Capacitor 用 JS
+        # 切语言、包里没 .lproj → 不声明就只显示 "English"(多语 UI 白做,各语言商店排序也吃亏)。
+        # ⚠ 本模板服务多个游戏,且各游戏语言数不同、还会扩(snake/minesweeper 注释里写着日后扩十语)
+        # → **从该游戏的 GAME_CONFIG.languages 动态读**,而不是硬编码。绝不能照抄 engine/i18n.js 里那个
+        # 10 语默认值:三个游戏都在 index.html 显式收窄成 ['en','zh-CN'],虚报=苹果 2.3 拒审。
+        LANGS=$(node -e "
+          const fs=require('fs');
+          const m=fs.readFileSync('index.html','utf8').match(/languages:\s*\[([^\]]+)\]/);
+          if(!m) throw new Error('GAME_CONFIG.languages 没找到 —— 别静默 fallback,直接失败');
+          const APPLE={'zh-CN':'zh-Hans','zh-TW':'zh-Hant','pt':'pt-BR'};
+          const list=m[1].split(',').map(s=>s.trim().replace(/['\"]/g,'')).filter(Boolean);
+          console.log(JSON.stringify(list.map(l=>APPLE[l]||l)));
+        ")
+        echo "声明界面语言: $LANGS"
+        plutil -replace CFBundleLocalizations -json "$LANGS" "$PLIST"
         plutil -replace GADApplicationIdentifier -string "$GAD_APP_ID" "$PLIST"
         plutil -replace NSUserTrackingUsageDescription -string "Your device identifier is used to deliver and measure more relevant ads." "$PLIST"
         # SKAdNetwork 归因清单(Google 官方 50 家,tools/skadnetworks.json 为唯一事实源)
