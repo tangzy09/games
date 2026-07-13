@@ -12,6 +12,8 @@ const G = window.G = {
   progress: {},                  // levelId → 星数（0 = 未过）
   profile: null,                 // 成就/累计/每日（Achievements.emptyProfile()）
   theme: 'candy',                // 当前皮肤
+  wallet: null,                  // 金币 / 去广告 / 插屏计数（Shop.emptyWallet()）
+  items: null,                   // 本局道具（每局重置）
   s: null,                       // core 状态
   best: 0,
   drag: null,
@@ -25,6 +27,7 @@ const K_RUN = () => CFG.key('run');
 const K_PROG = () => CFG.key('progress');
 const K_PROFILE = () => CFG.key('profile');
 const K_THEME = () => CFG.key('theme');
+const K_WALLET = () => CFG.key('wallet');
 
 function saveRun() {
   try {
@@ -63,6 +66,7 @@ function newRun() {
   G.drag = null;
   G.fly = null;
   G.phase = 'PLAYING';
+  G.items = Shop.newRunItems();
   FX.reset();
   clearRun();
 }
@@ -79,6 +83,7 @@ function startLevel(id) {
   }
   G.drag = null; G.fly = null;
   G.phase = 'PLAYING';
+  G.items = Shop.newRunItems();
   FX.reset();
   // ⚠ 别 clearRun()：K_RUN 存的是**无尽模式**的当前局。进一次关卡就把它抹了 = 玩家没打完的
   //    无尽局凭空消失（红队指出）。关卡局本来就不做续玩存档，跟 K_RUN 无关。
@@ -89,6 +94,37 @@ function saveProgress() {
 }
 function saveProfile() {
   try { Platform.storage.set(K_PROFILE(), JSON.stringify(G.profile)); } catch (e) {}
+}
+function saveWallet() {
+  try { Platform.storage.set(K_WALLET(), JSON.stringify(G.wallet)); } catch (e) {}
+}
+
+/**
+ * 用一个道具。⛔ 红线 2：如果玩家**拒绝**看广告，我们**什么也不做** ——
+ * 绝不「你不看就强塞一个无奖励广告」（Block Blast 被骂最狠的一条，它拿走了「我不看」的选择权）。
+ */
+function useItem(kind) {
+  const mode = kind === 'undo' ? Shop.undoMode(G.wallet, G.items) : Shop.refreshMode(G.wallet, G.items);
+  if (mode === 'no') return;
+
+  const apply = () => {
+    const okPay = kind === 'undo' ? Shop.payUndo(G.wallet, G.items, mode) : Shop.payRefresh(G.wallet, G.items, mode);
+    if (!okPay) return;
+    if (kind === 'undo') { if (Core.undo(G.s)) { FX.reset(); Sound.pick(); } }
+    else { if (Core.refreshHand(G.s)) { FX.reset(); Sound.pick(); } }
+    saveWallet();
+    if (G.s.mode === 'endless') saveRun();
+    renderAll();
+  };
+
+  if (mode === 'ad') {
+    Ads.showRewarded().then(rewarded => {
+      if (rewarded) apply();          // 看完了才给
+      else renderAll();               // ⛔ 拒绝/失败 ⇒ 什么也不发生。绝不惩罚、绝不强塞广告。
+    });
+    return;
+  }
+  apply();
 }
 
 /** 新解锁的成就：弹一条 toast（不打断玩法）*/
@@ -108,6 +144,7 @@ function settleRun() {
   const fresh = Achievements.settle(G.profile, s);
   if (s.daily) {
     const r = Daily.settleDaily(G.profile, new Date(), s.score);
+    if (r.first) { Shop.earnDaily(G.wallet); saveWallet(); }
     fresh.push(...Achievements.check(G.profile));
   }
   announce(fresh);
@@ -182,6 +219,12 @@ function consume(events) {
       G.profile.stars = Object.values(G.progress).reduce((a, v) => a + v, 0);
       if (!s.usedUndo) G.profile.cleanWins += 1;
       announce(Achievements.check(G.profile));
+      Shop.earnLevel(G.wallet, e.stars);
+      // ⛔ 插屏**只在通关**（正反馈时刻）出，且每 3 次通关最多一个。失败/局中永远不出。
+      const show = Shop.canShowInterstitial(G.wallet);
+      Shop.noteWin(G.wallet, show);
+      saveWallet();
+      if (show) Ads.showInterstitial().finally(() => renderAll());
       FX.toast(T('blockblast.levelWin'), Lo.cx, Lo.boardY + Lo.boardW / 2, '#7ef2a0', 'bold 30px sans-serif', 1.3);
       FX.shake(16);
       Sound.sweep('perfect');
@@ -235,15 +278,28 @@ function dispatch(action, data) {
       }
       break;
     }
-    case 'UNDO':
-      if (Core.undo(G.s)) { FX.reset(); Sound.pick(); if (G.s.mode === 'endless') saveRun(); }
+    case 'UNDO': useItem('undo'); return;              // 走 Shop 的三段阶梯（免费/广告/金币）
+    case 'REFRESH': useItem('refresh'); return;
+    case 'PAGE_SHOP': G.phase = 'SHOP'; break;
+    case 'AD_COINS':
+      Ads.showRewarded().then(rewarded => {
+        if (rewarded) { Shop.earnAd(G.wallet); saveWallet(); }   // 拒绝 ⇒ 什么也不发生
+        renderAll();
+      });
+      return;
+    case 'BUY_NOADS':
+      // TODO(P4b): 接真 IAP（RevenueCat）。web 上先本地开启，便于验证「买了之后功能不变少」。
+      G.wallet.noAds = true;
+      saveWallet();
       break;
     default: break;
   }
   renderAll();
 }
 function onPlace(slot, r, c) {
-  consume(Core.place(G.s, slot, r, c));
+  const evs = Core.place(G.s, slot, r, c);
+  if (evs) Shop.onTurn(G.items);            // 每落一子给「换一手」充能
+  consume(evs);
   renderAll();
 }
 
@@ -261,7 +317,7 @@ function loop(ts) {
 }
 
 async function boot() {
-  await Platform.hydrate([CFG.key('lang'), CFG.key('sfx'), K_BEST(), K_RUN(), K_PROG(), K_PROFILE(), K_THEME()]);
+  await Platform.hydrate([CFG.key('lang'), CFG.key('sfx'), K_BEST(), K_RUN(), K_PROG(), K_PROFILE(), K_THEME(), K_WALLET()]);
   restoreAudioPrefs();
   Portal.boot();
   await Ads.init();
@@ -277,6 +333,11 @@ async function boot() {
     G.profile = Object.assign(Achievements.emptyProfile(), raw || {});
     if (!Array.isArray(G.profile.unlocked)) G.profile.unlocked = [];
   } catch (e) { G.profile = Achievements.emptyProfile(); }
+  try {
+    const raw = JSON.parse(Platform.storage.get(K_WALLET()) || 'null');
+    G.wallet = Object.assign(Shop.emptyWallet(), raw || {});
+  } catch (e) { G.wallet = Shop.emptyWallet(); }
+  G.items = Shop.newRunItems();
   const savedTheme = Platform.storage.get(K_THEME()) || 'candy';
   const stars0 = Object.values(G.progress).reduce((a, v) => a + v, 0);
   G.theme = Themes.isUnlocked(Themes.byId(savedTheme), stars0) ? savedTheme : 'candy';

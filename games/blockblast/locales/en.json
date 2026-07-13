@@ -103,6 +103,17 @@
       "forest": "Forest",
       "ocean": "Ocean",
       "sunset": "Sunset"
-    }
+    },
+    "coins": "{n}",
+    "refresh": "New Pieces",
+    "watchAd": "Watch Ad",
+    "free": "FREE",
+    "shop": "Shop",
+    "getCoins": "+25 coins",
+    "removeAds": "Remove Ads",
+    "removeAdsDesc": "No interstitials, ever. Rewards stay — you just get them instantly.",
+    "adsRemoved": "Ads removed",
+    "notEnough": "Not enough coins",
+    "buy": "Buy"
   }
 }

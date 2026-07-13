@@ -9,8 +9,8 @@
     "test:snake": "node games/snake/tests/test-prng.js && node games/snake/tests/test-core.js && node games/snake/tests/test-fruits.js && node games/snake/tests/test-ai.js && node games/snake/tests/test-storage.js && node games/snake/tests/test-achievements.js && node games/snake/tests/test-gallery.js",
     "test:abyss": "node games/abyssshoot/tests/test-tiles.js && node games/abyssshoot/tests/test-core.js && node games/abyssshoot/tests/test-storage.js && node games/abyssshoot/tests/test-codex.js && node games/abyssshoot/tests/test-anim.js && node games/abyssshoot/tests/test-tools.js && node games/abyssshoot/tests/test-sim.js",
     "test:abyss:e2e": "node games/abyssshoot/tests/e2e-p1b.cjs",
-    "test:block": "node games/blockblast/tests/test-pieces.js && node games/blockblast/tests/test-dealer.js && node games/blockblast/tests/test-core.js && node games/blockblast/tests/test-levels.js && node games/blockblast/tests/test-meta.js",
-    "test:block:e2e": "node games/blockblast/tests/e2e-p1.cjs && node games/blockblast/tests/e2e-p2.cjs && node games/blockblast/tests/e2e-p3.cjs",
+    "test:block": "node games/blockblast/tests/test-pieces.js && node games/blockblast/tests/test-dealer.js && node games/blockblast/tests/test-core.js && node games/blockblast/tests/test-levels.js && node games/blockblast/tests/test-meta.js && node games/blockblast/tests/test-shop.js",
+    "test:block:e2e": "node games/blockblast/tests/e2e-p1.cjs && node games/blockblast/tests/e2e-p2.cjs && node games/blockblast/tests/e2e-p3.cjs && node games/blockblast/tests/e2e-p4.cjs",
     "sim:block": "node games/blockblast/tools/sim.js",
     "verify:levels": "node games/blockblast/tools/verify-levels.js"
   }

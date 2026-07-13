@@ -292,6 +292,20 @@
     return events;
   }
 
+  /**
+   * 换一手（刷新道具）：丢掉当前托盘、直接跳到块流的下一手。
+   * ⚠ 块流是**预生成**的 ⇒ 换一手只是把 streamIndex 往前推，**不会「重抽」出更合你意的块**。
+   *   这正是公平承诺的一部分：道具能让你跳过这一手，但改变不了后面是什么。
+   */
+  function refreshHand(s) {
+    if (s.over) return false;
+    s.undo = null;                       // 换过手就不能撤销回去了（否则可以来回刷）
+    s.streamIndex += 3;
+    s.placed = [false, false, false];
+    if (isOver(s)) { s.over = true; return true; }   // 极端情况：新的一手也放不下
+    return true;
+  }
+
   /** 撤销上一步（含棋盘/分数/streak/streamIndex/统计的精确复原）*/
   function undo(s) {
     if (!s.undo) return false;
@@ -311,7 +325,7 @@
     W, H, N, SAVE_VERSION, idx, canPlace, placements, canPlaceAnywhere, fillCount,
     findFullLines, comboTier, streakMult, clearScore, sweepOf,
     newGame, tray, nextHand, remaining, isOver, place, undo, snapshot,
-    newLevel, goalsMet, isUnwinnable, starsFor, levelFill,
+    newLevel, goalsMet, isUnwinnable, starsFor, levelFill, refreshHand,
   };
   if (isNode) module.exports = API;
   else root.Core = API;

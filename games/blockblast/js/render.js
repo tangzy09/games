@@ -239,7 +239,12 @@
     const totalStars = Object.values(G.progress).reduce((a, v) => a + v, 0);
     txt(T('blockblast.stars', { n: totalStars }) + '  \u00b7  ' +
         T('blockblast.achProgress', { a: G.profile.unlocked.length, b: Achievements.total() }),
-        cx, by2 + 56, PAL.sub, '12px sans-serif');
+        cx, by2 + 52, PAL.sub, '12px sans-serif');
+
+    // 金币 + 商店
+    fillRR(cx - 60, by2 + 64, 120, 32, 10, 'rgba(0,0,0,0.22)');
+    txt('\u{1FA99} ' + G.wallet.coins + '   \u002B', cx, by2 + 80, PAL.accent, 'bold 13px sans-serif');
+    addHit(cx - 60, by2 + 64, 120, 32, 'PAGE_SHOP', {});
   }
 
   /** 成就页 */
@@ -319,6 +324,36 @@
     backButton();
   }
 
+  /** 商店：看广告领币 + 一次性去广告 IAP */
+  function renderShop() {
+    clearHits(); layout();
+    const { SW, SH } = GameGlobal, G = root.G, cx = L.cx;
+    const grad = ctx.createLinearGradient(0, 0, SW, SH);
+    grad.addColorStop(0, PAL.bg1); grad.addColorStop(1, PAL.bg2);
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, SW, SH);
+    txt(T('blockblast.shop'), cx, GameGlobal.safeTop + 30, '#fff', 'bold 22px sans-serif');
+    txt('\u{1FA99} ' + G.wallet.coins, cx, GameGlobal.safeTop + 56, PAL.accent, 'bold 16px sans-serif');
+
+    // 看广告领币（玩家**主动**触发的激励视频 —— 唯一允许的广告形态之一）
+    const y1 = GameGlobal.safeTop + 90;
+    fillRR(L.playX + 20, y1, L.playW - 40, 58, 12, '#22c55e');
+    txt('\u{1F4FA} ' + T('blockblast.getCoins'), cx, y1 + 29, '#fff', 'bold 15px sans-serif');
+    addHit(L.playX + 20, y1, L.playW - 40, 58, 'AD_COINS', {});
+
+    // 一次性去广告（Woodoku 被骂多年就是没有这个选项）
+    const y2 = y1 + 74;
+    const bought = G.wallet.noAds;
+    fillRR(L.playX + 20, y2, L.playW - 40, 78, 12, bought ? 'rgba(255,255,255,0.18)' : '#f59e0b');
+    txt(bought ? T('blockblast.adsRemoved') : T('blockblast.removeAds'), cx, y2 + 22,
+        '#fff', 'bold 15px sans-serif');
+    ctx.font = '10px sans-serif';
+    wrapLines(T('blockblast.removeAdsDesc'), L.playW - 70, 3)
+      .forEach((ln, i) => txt(ln, cx, y2 + 42 + i * 13, 'rgba(255,255,255,0.85)', '10px sans-serif'));
+    if (!bought) addHit(L.playX + 20, y2, L.playW - 40, 78, 'BUY_NOADS', {});
+
+    backButton();
+  }
+
   function backButton() {
     const { SH } = GameGlobal, cx = L.cx;
     fillRR(cx - 70, SH - 66, 140, 42, 12, 'rgba(255,255,255,0.20)');
@@ -332,6 +367,7 @@
     if (G0.phase === 'ACH') return renderAchievements();
     if (G0.phase === 'SKIN') return renderSkins();
     if (G0.phase === 'FAIR') return renderFair();
+    if (G0.phase === 'SHOP') return renderShop();
     clearHits();
     layout();
     const { SW, SH } = GameGlobal;
@@ -460,13 +496,35 @@
       drawPieceAt(f.piece, f.x0 + (f.x1 - f.x0) * k, f.y0 + (f.y1 - f.y0) * k, size, 0.9);
     }
 
-    // ── 撤销按钮（每局 1 次免费；DESIGN §10 的减压机制之一）──
-    if (!s.over && s.undo) {
-      const uw = 92, uh = 34, ux = L.cx - uw / 2, uy = L.trayY + L.trayH + 6;
-      fillRR(ux, uy, uw, uh, 10, 'rgba(255,255,255,0.18)');
-      txt('↩ ' + T('blockblast.undo'), L.cx, uy + uh / 2, '#fff', '13px sans-serif');
-      addHit(ux, uy, uw, uh, 'UNDO', {});
+    // ── 道具条：撤销 / 换一手。标签直接显示「免费 / 看广告 / 多少金币」——
+    //    玩家永远先拿到不花钱的选项（DESIGN §9；原作的撤销要 1300 金币是逼氪价，不学）。
+    if (!s.over) {
+      const bw2 = 108, bh2 = 36, gap2 = 10, uy = L.trayY + L.trayH + 6;
+      const items = [
+        { act: 'UNDO', on: !!s.undo, label: '\u21A9 ' + T('blockblast.undo'),
+          mode: Shop.undoMode(G.wallet, G.items), price: Shop.PRICE.undo },
+        { act: 'REFRESH', on: true, label: '\u21BB ' + T('blockblast.refresh'),
+          mode: Shop.refreshMode(G.wallet, G.items), price: Shop.PRICE.refresh },
+      ];
+      items.forEach((it, i) => {
+        const x = L.cx - (bw2 * 2 + gap2) / 2 + i * (bw2 + gap2);
+        const usable = it.on && it.mode !== 'no';
+        fillRR(x, uy, bw2, bh2, 10, usable ? 'rgba(255,255,255,0.20)' : 'rgba(0,0,0,0.18)');
+        txt(it.label, x + bw2 / 2, uy + 12, usable ? '#fff' : 'rgba(255,255,255,0.35)', '11px sans-serif');
+        const tag = it.mode === 'free' ? T('blockblast.free')
+                  : it.mode === 'ad' ? '\u{1F4FA} ' + T('blockblast.watchAd')
+                  : it.mode === 'coins' ? '\u{1FA99} ' + it.price
+                  : T('blockblast.notEnough');
+        txt(tag, x + bw2 / 2, uy + 26,
+            it.mode === 'free' ? '#7ef2a0' : usable ? PAL.accent : 'rgba(255,255,255,0.3)', '10px sans-serif');
+        if (usable) addHit(x, uy, bw2, bh2, it.act, {});
+      });
     }
+
+    // 金币（左上）
+    fillRR(L.boardX, L.hudY - 30, 66, 22, 8, 'rgba(0,0,0,0.25)');
+    txt('\u{1FA99} ' + G.wallet.coins, L.boardX + 33, L.hudY - 19, PAL.accent, 'bold 11px sans-serif');
+    addHit(L.boardX, L.hudY - 30, 66, 22, 'PAGE_SHOP', {});
 
     FX.draw(ctx);
     ctx.restore();
@@ -522,7 +580,7 @@
     }
   }
 
-  const API = { layout, renderMenu, renderAchievements, renderSkins, renderFair, computeTray, cellXY, cellAt, traySlotCenter, traySlotAt,
+  const API = { layout, renderMenu, renderAchievements, renderSkins, renderFair, renderShop, computeTray, cellXY, cellAt, traySlotCenter, traySlotAt,
                 colorOf, applyTheme, drawCrystal, L, COLORS };
   root.Render = API;
   applyTheme('candy');          // 默认皮肤（必须在 API 定义之后 —— 见上面的 TDZ 说明）

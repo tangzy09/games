@@ -103,6 +103,17 @@
       "forest": "森林",
       "ocean": "海洋",
       "sunset": "落日"
-    }
+    },
+    "coins": "{n}",
+    "refresh": "换一手",
+    "watchAd": "看广告",
+    "free": "免费",
+    "shop": "商店",
+    "getCoins": "+25 金币",
+    "removeAds": "去除广告",
+    "removeAdsDesc": "再也没有插屏。激励奖励照旧——只是不用看广告，直接给你。",
+    "adsRemoved": "已去广告",
+    "notEnough": "金币不够",
+    "buy": "购买"
   }
 }
