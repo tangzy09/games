@@ -7,19 +7,34 @@
 (function (root) {
   'use strict';
 
+  // 调色板由**当前皮肤**决定（Themes）。皮肤只换颜色，**绝不改任何规则**。
   const PAL = {
     bg1: '#6d3fb4', bg2: '#8e5ad0',
     boardBg: 'rgba(40,26,74,0.55)', cellEmpty: 'rgba(255,255,255,0.06)',
     text: '#ffffff', sub: 'rgba(255,255,255,0.75)',
     ghostOk: 'rgba(255,255,255,0.35)', lineHint: 'rgba(255,236,140,0.55)',
   };
-  // 块的颜色纯装饰（消除只看行列是否填满，不看颜色）。
+  let COLORS = Themes.THEMES[0].blocks.slice();
+  const COLOR_BY_ID = {};
   // ⚠ 按块在表中的**序号**取色，不要用 id 的字符串哈希 —— 哈希会撞车，
   //    实机出现过「一手三块全是黄的」（34 块 % 7 色，序号取色则均匀铺开）。
-  const COLORS = ['#ef4444', '#f59e0b', '#facc15', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899'];
-  const COLOR_BY_ID = {};
-  Pieces.PIECES.forEach((p, i) => { COLOR_BY_ID[p.id] = COLORS[i % COLORS.length]; });
+  const hexA = (hex, a) => {
+    const n = parseInt(hex.slice(1), 16);
+    return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+  };
+  function applyTheme(id) {
+    const t = Themes.byId(id);
+    PAL.bg1 = t.bg1; PAL.bg2 = t.bg2; PAL.boardBg = t.boardBg; PAL.cellEmpty = t.cellEmpty;
+    PAL.accent = t.accent;
+    PAL.lineHint = hexA(t.accent, 0.55);        // 消行预览的高亮跟着主题走
+    COLORS = t.blocks.slice();
+    Pieces.PIECES.forEach((p, i) => { COLOR_BY_ID[p.id] = COLORS[i % COLORS.length]; });
+    if (typeof API !== 'undefined') API.COLORS = COLORS;
+  }
   const colorOf = id => COLOR_BY_ID[id] || COLORS[4];
+  // ⚠ 不能在这里调 applyTheme('candy')：它内部要写 API.COLORS，而 API 在文件末尾才定义
+  //    ⇒ TDZ 报错「Cannot access 'API' before initialization」，整个 render 模块挂掉。
+  //    初始化挪到 API 定义之后（见文件末尾）。
 
   const L = {};   // 布局（drag.js 也用）
 
@@ -192,16 +207,131 @@
       if (unlocked) addHit(x + 3, y + 3, cell - 6, cell - 6, 'PLAY_LEVEL', { id: lv.id });
     });
 
-    const by = gy0 + Math.ceil(Levels.count() / cols) * cell + 24;
-    fillRR(cx - 95, by, 190, 50, 14, '#f59e0b');
-    txt(T('blockblast.endless'), cx, by + 25, '#fff', 'bold 17px sans-serif');
-    addHit(cx - 95, by, 190, 50, 'PLAY_ENDLESS', {});
-    txt(T('blockblast.best') + ' ' + G.best, cx, by + 72, PAL.sub, '13px sans-serif');
+    const by = gy0 + Math.ceil(Levels.count() / cols) * cell + 20;
+
+    // 每日谜题（同一天全球同一条块流 —— 只有预生成块流才做得到）
+    const doneToday = Daily.playedToday(G.profile, new Date());
+    fillRR(cx - 150, by, 145, 46, 12, doneToday ? 'rgba(255,255,255,0.18)' : '#22c55e');
+    txt('\u{1F4C5} ' + T('blockblast.daily'), cx - 77, by + 17, '#fff', 'bold 13px sans-serif');
+    txt(doneToday ? T('blockblast.dailyDone')
+                  : (G.profile.dailyStreak ? T('blockblast.dailyStreak', { n: G.profile.dailyStreak }) : ''),
+        cx - 77, by + 33, PAL.sub, '10px sans-serif');
+    addHit(cx - 150, by, 145, 46, 'PLAY_DAILY', {});
+
+    fillRR(cx + 5, by, 145, 46, 12, '#f59e0b');
+    txt(T('blockblast.endless'), cx + 77, by + 18, '#fff', 'bold 15px sans-serif');
+    txt(T('blockblast.best') + ' ' + G.best, cx + 77, by + 34, PAL.sub, '10px sans-serif');
+    addHit(cx + 5, by, 145, 46, 'PLAY_ENDLESS', {});
+
+    // 成就 / 皮肤 / 公平
+    const by2 = by + 56, bw = 95;
+    const tabs = [
+      ['\u{1F3C6} ' + T('blockblast.achievements'), 'PAGE_ACH'],
+      ['\u{1F3A8} ' + T('blockblast.skins'), 'PAGE_SKIN'],
+      ['\u2696 ' + T('blockblast.fair'), 'PAGE_FAIR'],
+    ];
+    tabs.forEach(([label, act], i) => {
+      const x = cx - (bw * 3 + 16) / 2 + i * (bw + 8);
+      fillRR(x, by2, bw, 36, 10, 'rgba(255,255,255,0.16)');
+      txt(label, x + bw / 2, by2 + 18, '#fff', '11px sans-serif');
+      addHit(x, by2, bw, 36, act, {});
+    });
+    const totalStars = Object.values(G.progress).reduce((a, v) => a + v, 0);
+    txt(T('blockblast.stars', { n: totalStars }) + '  \u00b7  ' +
+        T('blockblast.achProgress', { a: G.profile.unlocked.length, b: Achievements.total() }),
+        cx, by2 + 56, PAL.sub, '12px sans-serif');
+  }
+
+  /** 成就页 */
+  function renderAchievements() {
+    clearHits(); layout();
+    const { SW, SH } = GameGlobal, G = root.G, cx = L.cx;
+    const grad = ctx.createLinearGradient(0, 0, SW, SH);
+    grad.addColorStop(0, PAL.bg1); grad.addColorStop(1, PAL.bg2);
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, SW, SH);
+    txt(T('blockblast.achievements'), cx, GameGlobal.safeTop + 30, '#fff', 'bold 22px sans-serif');
+    txt(T('blockblast.achProgress', { a: G.profile.unlocked.length, b: Achievements.total() }),
+        cx, GameGlobal.safeTop + 54, PAL.sub, '13px sans-serif');
+
+    const got = new Set(G.profile.unlocked);
+    const cols = 2, cw = (L.playW - 24) / cols, ch = 34;
+    Achievements.ACHIEVEMENTS.forEach((a, i) => {
+      const r = Math.floor(i / cols), c = i % cols;
+      const x = L.playX + 12 + c * cw, y = GameGlobal.safeTop + 76 + r * ch;
+      if (y > SH - 80) return;                       // 放不下就不画（P3 先不做滚动视图）
+      const on = got.has(a.id);
+      fillRR(x + 2, y, cw - 6, ch - 4, 7, on ? 'rgba(255,255,255,0.20)' : 'rgba(0,0,0,0.18)');
+      txtL((on ? '\u2605 ' : '\u00b7 ') + T('blockblast.ach.' + a.id), x + 10, y + (ch - 4) / 2,
+           on ? PAL.accent : 'rgba(255,255,255,0.45)', '11px sans-serif');
+    });
+    backButton();
+  }
+
+  /** 皮肤页（靠星星解锁 —— 三星评级的兑现出口）*/
+  function renderSkins() {
+    clearHits(); layout();
+    const { SW, SH } = GameGlobal, G = root.G, cx = L.cx;
+    const grad = ctx.createLinearGradient(0, 0, SW, SH);
+    grad.addColorStop(0, PAL.bg1); grad.addColorStop(1, PAL.bg2);
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, SW, SH);
+    const stars = Object.values(G.progress).reduce((a, v) => a + v, 0);
+    txt(T('blockblast.skins'), cx, GameGlobal.safeTop + 30, '#fff', 'bold 22px sans-serif');
+    txt(T('blockblast.stars', { n: stars }), cx, GameGlobal.safeTop + 54, PAL.sub, '13px sans-serif');
+
+    Themes.THEMES.forEach((t, i) => {
+      const y = GameGlobal.safeTop + 80 + i * 76;
+      const on = Themes.isUnlocked(t, stars), cur = G.theme === t.id;
+      fillRR(L.playX + 14, y, L.playW - 28, 66, 12, cur ? 'rgba(255,255,255,0.26)' : 'rgba(0,0,0,0.20)');
+      txtL(T('blockblast.theme.' + t.id), L.playX + 28, y + 20, on ? '#fff' : 'rgba(255,255,255,0.4)', 'bold 14px sans-serif');
+      t.blocks.forEach((c, k) => { fillRR(L.playX + 28 + k * 22, y + 34, 18, 18, 4, c); });   // 色板预览
+      if (!on) {
+        txtR('\u{1F512} ' + T('blockblast.skinLocked', { n: t.stars }), L.playX + L.playW - 28, y + 20, PAL.sub, '11px sans-serif');
+      } else if (cur) {
+        txtR(T('blockblast.equipped'), L.playX + L.playW - 28, y + 20, '#7ef2a0', 'bold 11px sans-serif');
+      } else {
+        txtR(T('blockblast.equip'), L.playX + L.playW - 28, y + 20, PAL.accent, 'bold 11px sans-serif');
+        addHit(L.playX + 14, y, L.playW - 28, 66, 'EQUIP', { id: t.id });
+      }
+    });
+    backButton();
+  }
+
+  /** 公平页 —— 本作最强的差异化：三条**可验证**的承诺（头部产品没人敢写） */
+  function renderFair() {
+    clearHits(); layout();
+    const { SW, SH } = GameGlobal, G = root.G, cx = L.cx, w = L.playW - 44;
+    const grad = ctx.createLinearGradient(0, 0, SW, SH);
+    grad.addColorStop(0, PAL.bg1); grad.addColorStop(1, PAL.bg2);
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, SW, SH);
+    txt(T('blockblast.fairTitle'), cx, GameGlobal.safeTop + 36, '#fff', 'bold 19px sans-serif');
+
+    let y = GameGlobal.safeTop + 76;
+    for (const k of ['fair1', 'fair2', 'fair3']) {
+      ctx.font = '12px sans-serif';
+      const lines = wrapLines(T('blockblast.' + k), w, 6);
+      lines.forEach((ln, i) => txtL(ln, L.playX + 22, y + i * 17, PAL.sub, '12px sans-serif'));
+      y += lines.length * 17 + 14;
+    }
+    // 本局种子：玩家可以拿它复现整条块流 —— 承诺 1 的「可验证」就落在这里
+    fillRR(L.playX + 22, y + 6, w, 46, 10, 'rgba(0,0,0,0.22)');
+    txt(T('blockblast.fairSeed', { s: G.s ? G.s.seed : '\u2014' }), cx, y + 22, PAL.accent, 'bold 13px sans-serif');
+    txt(T('blockblast.fairVerify'), cx, y + 40, PAL.sub, '10px sans-serif');
+    backButton();
+  }
+
+  function backButton() {
+    const { SH } = GameGlobal, cx = L.cx;
+    fillRR(cx - 70, SH - 66, 140, 42, 12, 'rgba(255,255,255,0.20)');
+    txt('\u2039 ' + T('blockblast.back'), cx, SH - 45, '#fff', '14px sans-serif');
+    addHit(cx - 70, SH - 66, 140, 42, 'MENU', {});
   }
 
   function renderAll() {
     const G0 = root.G;
     if (G0.phase === 'MENU') return renderMenu();
+    if (G0.phase === 'ACH') return renderAchievements();
+    if (G0.phase === 'SKIN') return renderSkins();
+    if (G0.phase === 'FAIR') return renderFair();
     clearHits();
     layout();
     const { SW, SH } = GameGlobal;
@@ -392,6 +522,9 @@
     }
   }
 
-  root.Render = { layout, renderMenu, computeTray, cellXY, cellAt, traySlotCenter, traySlotAt, colorOf, L, COLORS };
+  const API = { layout, renderMenu, renderAchievements, renderSkins, renderFair, computeTray, cellXY, cellAt, traySlotCenter, traySlotAt,
+                colorOf, applyTheme, drawCrystal, L, COLORS };
+  root.Render = API;
+  applyTheme('candy');          // 默认皮肤（必须在 API 定义之后 —— 见上面的 TDZ 说明）
   root.renderAll = renderAll;
 })(typeof self !== 'undefined' ? self : this);

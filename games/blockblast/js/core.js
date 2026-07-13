@@ -101,7 +101,7 @@
       placed: [false, false, false],  // 当前一手里，哪几块已经放下
       score: 0, streak: 0, dryTurns: 0,
       over: false,
-      stats: { turns: 0, lines: 0, sweeps: 0, deeps: 0, perfects: 0, maxStreak: 0 },
+      stats: { turns: 0, lines: 0, sweeps: 0, deeps: 0, perfects: 0, maxStreak: 0, bestL: 0 },
       undo: null,                     // 只存 1 步
       // ── 关卡模式（无尽模式下这些是空的，逻辑完全不受影响）──
       mode: 'endless',
@@ -244,6 +244,7 @@
       s.dryTurns = 0;
       s.score += clearScore(L, s.streak);
       s.stats.lines += L;
+      s.stats.bestL = Math.max(s.stats.bestL || 0, L);      // 单局最大同消条数（成就用）
       events.push({ t: 'clear', rows, cols, L, streak: s.streak });
       if (gained.length) events.push({ t: 'collect', gained });
 

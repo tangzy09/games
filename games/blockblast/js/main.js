@@ -8,8 +8,10 @@
 // 而 render.js / drag.js 读的是 root.G（= window.G）—— 少了这一句，渲染层拿到的是 undefined。
 // （E2E 抓到的；单测永远抓不到这类跨文件的全局约定问题。）
 const G = window.G = {
-  phase: 'MENU',                 // MENU | PLAYING
+  phase: 'MENU',                 // MENU | PLAYING | ACH | SKIN | FAIR
   progress: {},                  // levelId → 星数（0 = 未过）
+  profile: null,                 // 成就/累计/每日（Achievements.emptyProfile()）
+  theme: 'candy',                // 当前皮肤
   s: null,                       // core 状态
   best: 0,
   drag: null,
@@ -21,6 +23,8 @@ const G = window.G = {
 const K_BEST = () => CFG.key('best');
 const K_RUN = () => CFG.key('run');
 const K_PROG = () => CFG.key('progress');
+const K_PROFILE = () => CFG.key('profile');
+const K_THEME = () => CFG.key('theme');
 
 function saveRun() {
   try {
@@ -83,6 +87,41 @@ function startLevel(id) {
 function saveProgress() {
   try { Platform.storage.set(K_PROG(), JSON.stringify(G.progress)); } catch (e) {}
 }
+function saveProfile() {
+  try { Platform.storage.set(K_PROFILE(), JSON.stringify(G.profile)); } catch (e) {}
+}
+
+/** 新解锁的成就：弹一条 toast（不打断玩法）*/
+function announce(freshIds) {
+  if (!freshIds || !freshIds.length) return;
+  saveProfile();
+  const Lo = Render.L;
+  freshIds.slice(0, 2).forEach((id, i) => {
+    FX.toast('🏆 ' + T('blockblast.ach.' + id), Lo.cx, Lo.boardY + 40 + i * 30,
+             '#ffe08a', 'bold 15px sans-serif', 1);
+  });
+}
+
+/** 一局结束（无尽/每日）：结算成就 + 每日 */
+function settleRun() {
+  const s = G.s;
+  const fresh = Achievements.settle(G.profile, s);
+  if (s.daily) {
+    const r = Daily.settleDaily(G.profile, new Date(), s.score);
+    fresh.push(...Achievements.check(G.profile));
+  }
+  announce(fresh);
+  saveProfile();
+}
+
+/** 开今天的每日谜题：同一天全球同一条块流 */
+function startDaily() {
+  G.s = Daily.newDaily(new Date());
+  G.cellColor = new Array(Core.N).fill(null);
+  G.drag = null; G.fly = null;
+  G.phase = 'PLAYING';
+  FX.reset();
+}
 
 // ── 事件消费：core 事件流 → 画面 + 声音（DESIGN §8）──
 function consume(events) {
@@ -138,6 +177,11 @@ function consume(events) {
     } else if (e.t === 'win') {
       const prev = G.progress[s.levelId] || 0;
       if (e.stars > prev) { G.progress[s.levelId] = e.stars; saveProgress(); }
+      // 累计统计 → 成就（星数按「每关最好成绩」求和，重打不会灌水）
+      G.profile.levelsWon += 1;
+      G.profile.stars = Object.values(G.progress).reduce((a, v) => a + v, 0);
+      if (!s.usedUndo) G.profile.cleanWins += 1;
+      announce(Achievements.check(G.profile));
       FX.toast(T('blockblast.levelWin'), Lo.cx, Lo.boardY + Lo.boardW / 2, '#7ef2a0', 'bold 30px sans-serif', 1.3);
       FX.shake(16);
       Sound.sweep('perfect');
@@ -152,10 +196,11 @@ function consume(events) {
       // ⚠ 只有**无尽模式**的结束才动最高分和 K_RUN：
       //    关卡失败也会走 'over'，若不门控，关卡的分数会污染无尽的最高分、还会抹掉无尽存档。
       if (s.mode === 'endless') {
-        if (s.score > G.best) {
+        if (!s.daily && s.score > G.best) {            // 每日谜题的分不进无尽最高分（是两条赛道）
           G.best = s.score;
           try { Platform.storage.set(K_BEST(), String(G.best)); } catch (err) {}
         }
+        settleRun();
         clearRun();
       }
     }
@@ -176,6 +221,20 @@ function dispatch(action, data) {
       break;
     }
     case 'MENU': G.phase = 'MENU'; break;
+    case 'PLAY_DAILY': startDaily(); break;
+    case 'PAGE_ACH': G.phase = 'ACH'; break;
+    case 'PAGE_SKIN': G.phase = 'SKIN'; break;
+    case 'PAGE_FAIR': G.phase = 'FAIR'; break;
+    case 'EQUIP': {
+      const stars = Object.values(G.progress).reduce((a, v) => a + v, 0);
+      const t = Themes.byId(data.id);
+      if (Themes.isUnlocked(t, stars)) {              // 二次校验：不能靠伪造点击装上没解锁的皮肤
+        G.theme = t.id;
+        Render.applyTheme(t.id);
+        try { Platform.storage.set(K_THEME(), t.id); } catch (e) {}
+      }
+      break;
+    }
     case 'UNDO':
       if (Core.undo(G.s)) { FX.reset(); Sound.pick(); if (G.s.mode === 'endless') saveRun(); }
       break;
@@ -202,7 +261,7 @@ function loop(ts) {
 }
 
 async function boot() {
-  await Platform.hydrate([CFG.key('lang'), CFG.key('sfx'), K_BEST(), K_RUN(), K_PROG()]);
+  await Platform.hydrate([CFG.key('lang'), CFG.key('sfx'), K_BEST(), K_RUN(), K_PROG(), K_PROFILE(), K_THEME()]);
   restoreAudioPrefs();
   Portal.boot();
   await Ads.init();
@@ -212,6 +271,16 @@ async function boot() {
 
   G.best = parseInt(Platform.storage.get(K_BEST()) || '0', 10) || 0;
   try { G.progress = JSON.parse(Platform.storage.get(K_PROG()) || '{}') || {}; } catch (e) { G.progress = {}; }
+  // profile：缺字段用默认值补齐（老档也能平滑升级；成就 id 是稳定的，不会错位）
+  try {
+    const raw = JSON.parse(Platform.storage.get(K_PROFILE()) || 'null');
+    G.profile = Object.assign(Achievements.emptyProfile(), raw || {});
+    if (!Array.isArray(G.profile.unlocked)) G.profile.unlocked = [];
+  } catch (e) { G.profile = Achievements.emptyProfile(); }
+  const savedTheme = Platform.storage.get(K_THEME()) || 'candy';
+  const stars0 = Object.values(G.progress).reduce((a, v) => a + v, 0);
+  G.theme = Themes.isUnlocked(Themes.byId(savedTheme), stars0) ? savedTheme : 'candy';
+  Render.applyTheme(G.theme);
   const resumed = loadRun();
   if (resumed) { G.s = resumed; G.phase = 'PLAYING'; }
   else { G.s = Core.newGame(Dealer.randomSeed()); G.phase = 'MENU'; }   // 起手在菜单
