@@ -10,21 +10,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **游戏专属的一切**（代码/测试/工具/文档/CLAUDE.md）放 `games/<name>/` 下。各游戏细节看它自己的 `games/<name>/CLAUDE.md`。
 - `games/_demo/` 是引擎契约的最小活样板，新游戏从它起步。
 
-**各游戏成熟度差很多，动手前先看它自己的 CLAUDE.md/DESIGN.md**：
+**各游戏成熟度差很多，动手前先看它自己的 CLAUDE.md/DESIGN.md**（游戏内的 `DESIGN.md` 是该游戏玩法/数值的**权威规格**，改核心前必查）：
 | 目录 | 状态 |
 |---|---|
 | `minesweeper` | 已上线 + App Store 送审。完整。 |
 | `snake` | 已上线 + App Store 送审。完整。 |
 | `abyssshoot` | **已提交 App Store 审核**（ASC 名「2048 Shooter: Fish Merge」）。玩法/美术/图鉴/道具/广告/商店页全备，线上 <https://fishshoot.ai-speeds.com>。 |
+| `blockblast` | **只有 DESIGN.md + tools/sim.js，零游戏代码**（8×8 block puzzle，设计已用模拟校准过，待开 P1）。 |
 | `bouncerogue` | **只有 DESIGN.md，零代码**（纯 spec，已 park）。 |
 
 ## 常用命令
 
 ```bash
-npm test                  # 全量（改 engine/ 后必跑）；单游戏用 npm run test:mines / test:snake / test:abyss
+npm test                  # 全量单测（改 engine/ 后必跑）；单游戏：npm run test:mines / test:snake / test:abyss
+npm run test:mines:e2e    # E2E 单独跑，⚠ 不在 npm test 里（另有 test:abyss:e2e）
 npx http-server -p 8080   # 本地跑游戏：必须 http（locale 走 fetch，file:// 白屏）
 node tools/check-locales.js games/<name>/locales
 ```
+
+**新游戏必须把自己的 `test:<name>` 挂进 `package.json` 的 `test`**，否则它的测试永远不会被跑到（`npm test` 是手写的串联，不是自动发现）。
+
+## 数值靠模拟校准，不靠拍脑袋（本仓惯例）
+
+涉及随机性/难度/经济的数值（掉率、发牌、分数曲线、平衡），**先写一个 node 蒙特卡洛脚本跑几千局，用数据定值**，脚本留在 `games/<name>/tools/` 当回归基线——abyssshoot 的 P1 平衡、blockblast 的整份设计都是这么定的（后者靠模拟证伪了两个想当然的核心机制）。这类脚本同时是「改了核心逻辑有没有把手感搞坏」的回归工具。
 
 ## 引擎契约（速记）
 
