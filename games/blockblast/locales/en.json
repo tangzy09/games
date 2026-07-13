@@ -24,6 +24,21 @@
       "sweep": "SWEEP!",
       "deep": "DEEP SWEEP!",
       "perfect": "PERFECT!"
-    }
+    },
+    "levels": "Levels",
+    "endless": "Endless",
+    "level": "Level {n}",
+    "levelWin": "Level Complete!",
+    "levelFail": "Out of Moves",
+    "levelFailHint": "No piece fits. Nothing was rigged — try again, free.",
+    "unwinnable": "This board can't be finished",
+    "unwinnableHint": "A crystal got sealed off. Our fault, not yours — here is a free restart.",
+    "retry": "Try Again",
+    "nextLevel": "Next Level",
+    "menu": "Menu",
+    "moves": "Moves {n}",
+    "parHint": "{n} moves for 3 stars",
+    "locked": "Locked",
+    "goal": "Collect"
   }
 }

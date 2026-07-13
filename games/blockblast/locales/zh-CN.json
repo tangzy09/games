@@ -24,6 +24,21 @@
       "sweep": "横扫！",
       "deep": "深度横扫！",
       "perfect": "完美清空！"
-    }
+    },
+    "levels": "闯关",
+    "endless": "无尽",
+    "level": "第 {n} 关",
+    "levelWin": "过关！",
+    "levelFail": "无处可放",
+    "levelFailHint": "手上的块都放不下了。没有暗箱——再来一次，免费。",
+    "unwinnable": "这一关走不通了",
+    "unwinnableHint": "有颗水晶被封死了。这是我们的问题，不是你的——免费重开。",
+    "retry": "再来一次",
+    "nextLevel": "下一关",
+    "menu": "菜单",
+    "moves": "落子 {n}",
+    "parHint": "{n} 步内三星",
+    "locked": "未解锁",
+    "goal": "收集"
   }
 }

@@ -8,7 +8,8 @@
 // 而 render.js / drag.js 读的是 root.G（= window.G）—— 少了这一句，渲染层拿到的是 undefined。
 // （E2E 抓到的；单测永远抓不到这类跨文件的全局约定问题。）
 const G = window.G = {
-  phase: 'PLAYING',
+  phase: 'MENU',                 // MENU | PLAYING
+  progress: {},                  // levelId → 星数（0 = 未过）
   s: null,                       // core 状态
   best: 0,
   drag: null,
@@ -19,6 +20,7 @@ const G = window.G = {
 // ── 存档 ──
 const K_BEST = () => CFG.key('best');
 const K_RUN = () => CFG.key('run');
+const K_PROG = () => CFG.key('progress');
 
 function saveRun() {
   try {
@@ -56,8 +58,29 @@ function newRun() {
   G.cellColor = new Array(Core.N).fill(null);
   G.drag = null;
   G.fly = null;
+  G.phase = 'PLAYING';
   FX.reset();
   clearRun();
+}
+
+/** 开一关。每次重开换一个新种子（块流不同）—— 但**绝不看你之前失败过几次**。*/
+function startLevel(id) {
+  const def = Levels.byId(id);
+  if (!def) return;
+  G.s = Core.newLevel(def, Dealer.randomSeed());
+  G.cellColor = new Array(Core.N).fill(null);
+  // 预置块也要有颜色（关卡盘面不能是一片死灰）
+  for (let i = 0; i < Core.N; i++) {
+    if (G.s.board[i] && !G.s.stone[i]) G.cellColor[i] = Render.COLORS[(i * 3) % Render.COLORS.length];
+  }
+  G.drag = null; G.fly = null;
+  G.phase = 'PLAYING';
+  FX.reset();
+  clearRun();
+}
+
+function saveProgress() {
+  try { Platform.storage.set(K_PROG(), JSON.stringify(G.progress)); } catch (e) {}
 }
 
 // ── 事件消费：core 事件流 → 画面 + 声音（DESIGN §8）──
@@ -102,6 +125,29 @@ function consume(events) {
       FX.shake(e.kind === 'perfect' ? 22 : 12);
       Sound.sweep(e.kind);
 
+    } else if (e.t === 'collect') {
+      // 水晶飞向顶部目标条（贝塞尔感：用粒子近似）+ 叮
+      for (const g of e.gained) {
+        const r = Math.floor(g.i / 8), c = g.i % 8;
+        const { x, y } = Render.cellXY(r, c);
+        FX.burst(x + Lo.cell / 2, y + Lo.cell / 2, '#67e8f9', 6);
+      }
+      Sound.sweep('sweep');
+
+    } else if (e.t === 'win') {
+      const prev = G.progress[s.levelId] || 0;
+      if (e.stars > prev) { G.progress[s.levelId] = e.stars; saveProgress(); }
+      FX.toast(T('blockblast.levelWin'), Lo.cx, Lo.boardY + Lo.boardW / 2, '#7ef2a0', 'bold 30px sans-serif', 1.3);
+      FX.shake(16);
+      Sound.sweep('perfect');
+      clearRun();
+
+    } else if (e.t === 'unwinnable') {
+      // 软锁死兜底：这是**我们的**错，不是玩家的 ⇒ 免费重开，绝不推广告
+      s.unwinnable = true;
+      Sound.over();
+      clearRun();
+
     } else if (e.t === 'over') {
       Sound.over();
       if (s.score > G.best) {
@@ -111,13 +157,22 @@ function consume(events) {
       clearRun();
     }
   }
-  if (!s.over) saveRun();
+  if (!s.over && s.mode === 'endless') saveRun();     // 关卡局不做续玩存档（重开成本低）
 }
 
 // ── 交互入口 ──
 function dispatch(action, data) {
   switch (action) {
     case 'RESTART': newRun(); break;
+    case 'PLAY_ENDLESS': newRun(); break;
+    case 'PLAY_LEVEL': startLevel(data.id); break;
+    case 'RETRY_LEVEL': startLevel(G.s.levelId); break;          // ⚠ 免费重来：零广告、零插屏
+    case 'NEXT_LEVEL': {
+      const next = G.s.levelId + 1;
+      if (Levels.byId(next)) startLevel(next); else G.phase = 'MENU';
+      break;
+    }
+    case 'MENU': G.phase = 'MENU'; break;
     default: break;
   }
   renderAll();
@@ -141,7 +196,7 @@ function loop(ts) {
 }
 
 async function boot() {
-  await Platform.hydrate([CFG.key('lang'), CFG.key('sfx'), K_BEST(), K_RUN()]);
+  await Platform.hydrate([CFG.key('lang'), CFG.key('sfx'), K_BEST(), K_RUN(), K_PROG()]);
   restoreAudioPrefs();
   Portal.boot();
   await Ads.init();
@@ -150,8 +205,10 @@ async function boot() {
   initCanvas();
 
   G.best = parseInt(Platform.storage.get(K_BEST()) || '0', 10) || 0;
+  try { G.progress = JSON.parse(Platform.storage.get(K_PROG()) || '{}') || {}; } catch (e) { G.progress = {}; }
   const resumed = loadRun();
-  if (resumed) G.s = resumed; else newRun();
+  if (resumed) { G.s = resumed; G.phase = 'PLAYING'; }
+  else { G.s = Core.newGame(Dealer.randomSeed()); G.phase = 'MENU'; }   // 起手在菜单
 
   Input.bind({ onAction: dispatch });                      // 只处理浮层按钮（棋盘/托盘不注册 hit）
   Drag.bind(document.getElementById(CFG.canvasId), { onPlace, onChange: renderAll });

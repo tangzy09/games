@@ -128,12 +128,79 @@
     ctx.globalAlpha = 1;
   }
 
+  // ── 水晶（消行时才收集，所以它长在方块上）──
+  const CRYSTAL = {
+    blue:   { fill: '#67e8f9', edge: '#0891b2', emoji: '💎' },
+    pink:   { fill: '#f0abfc', edge: '#a21caf', emoji: '🔮' },
+    orange: { fill: '#fdba74', edge: '#c2410c', emoji: '🔶' },
+  };
+  function drawCrystal(x, y, size, kind) {
+    const cr = CRYSTAL[kind] || CRYSTAL.blue;
+    const cx = x + size / 2, cy = y + size / 2, r = size * 0.26;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - r); ctx.lineTo(cx + r, cy); ctx.lineTo(cx, cy + r); ctx.lineTo(cx - r, cy);
+    ctx.closePath();
+    ctx.fillStyle = cr.fill; ctx.fill();
+    ctx.strokeStyle = cr.edge; ctx.lineWidth = Math.max(1.5, size * 0.05); ctx.stroke();
+    ctx.beginPath();                                    // 高光
+    ctx.moveTo(cx - r * 0.35, cy - r * 0.2); ctx.lineTo(cx, cy - r * 0.62); ctx.lineTo(cx + r * 0.18, cy - r * 0.25);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(255,255,255,0.75)'; ctx.fill();
+  }
+  // 石块：不可消除的惰性格 —— 视觉上必须一眼看出「这玩意儿不会消失」
+  function drawStone(x, y, size) {
+    fillRR(x + 1, y + 1, size - 2, size - 2, size * 0.18, '#6b7280');
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    roundRect(x + size * 0.16, y + size * 0.12, size * 0.68, size * 0.18, size * 0.06); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    for (const [dx, dy, w, h] of [[0.22, 0.42, 0.2, 0.12], [0.55, 0.55, 0.22, 0.14], [0.3, 0.7, 0.3, 0.1]]) {
+      roundRect(x + size * dx, y + size * dy, size * w, size * h, size * 0.04); ctx.fill();
+    }
+  }
+
   function drawPieceAt(piece, x, y, size, alpha) {
     const col = colorOf(piece.id);
     for (const [dr, dc] of piece.cells) drawBlock(x + dc * size, y + dr * size, size, col, alpha);
   }
 
+  /** 主菜单 + 关卡地图（关卡是「审核员 5 秒能看见」的外壳之一，也是进度感的载体）*/
+  function renderMenu() {
+    clearHits();
+    layout();
+    const { SW, SH } = GameGlobal;
+    const G = root.G;
+    const grad = ctx.createLinearGradient(0, 0, SW, SH);
+    grad.addColorStop(0, PAL.bg1); grad.addColorStop(1, PAL.bg2);
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, SW, SH);
+
+    const cx = L.cx;
+    txt(T('blockblast.title'), cx, GameGlobal.safeTop + 46, '#fff', 'bold 30px sans-serif');
+    txtLWrap(T('blockblast.tagline'), cx - 150, GameGlobal.safeTop + 78, 300, PAL.sub, '12px sans-serif', 16);
+
+    // 关卡格子（已通关的显示星数；未解锁的锁住）
+    const cols = 5, cell = Math.min(58, (L.playW - 40) / cols);
+    const gx0 = cx - (cols * cell) / 2, gy0 = GameGlobal.safeTop + 120;
+    Levels.LEVELS.forEach((lv, i) => {
+      const r = Math.floor(i / cols), c = i % cols;
+      const x = gx0 + c * cell, y = gy0 + r * cell;
+      const stars = G.progress[lv.id] || 0;
+      const unlocked = lv.id === 1 || (G.progress[lv.id - 1] || 0) > 0;
+      fillRR(x + 3, y + 3, cell - 6, cell - 6, 10, unlocked ? (stars ? '#22c55e' : 'rgba(255,255,255,0.20)') : 'rgba(0,0,0,0.25)');
+      txt(unlocked ? String(lv.id) : '🔒', x + cell / 2, y + cell / 2 - 5, '#fff', 'bold 16px sans-serif');
+      if (stars) txt('★'.repeat(stars), x + cell / 2, y + cell - 14, '#ffe08a', '10px sans-serif');
+      if (unlocked) addHit(x + 3, y + 3, cell - 6, cell - 6, 'PLAY_LEVEL', { id: lv.id });
+    });
+
+    const by = gy0 + Math.ceil(Levels.count() / cols) * cell + 24;
+    fillRR(cx - 95, by, 190, 50, 14, '#f59e0b');
+    txt(T('blockblast.endless'), cx, by + 25, '#fff', 'bold 17px sans-serif');
+    addHit(cx - 95, by, 190, 50, 'PLAY_ENDLESS', {});
+    txt(T('blockblast.best') + ' ' + G.best, cx, by + 72, PAL.sub, '13px sans-serif');
+  }
+
   function renderAll() {
+    const G0 = root.G;
+    if (G0.phase === 'MENU') return renderMenu();
     clearHits();
     layout();
     const { SW, SH } = GameGlobal;
@@ -152,14 +219,33 @@
     const s = G.s;
 
     // ── HUD（全部相对游戏区，不用 SW）──
-    txt(String(s.score), L.cx, L.hudY, PAL.text, 'bold 34px sans-serif');
-    txtL(T('blockblast.best') + ' ' + G.best, L.boardX, L.hudY, PAL.sub, '13px sans-serif');
-    if (s.streak >= 2) {
-      const m = Core.streakMult(s.streak);
-      txtR(T('blockblast.combo', { m: m.toFixed(1) }), L.boardX + L.boardW, L.hudY, '#ffe08a', 'bold 14px sans-serif');
+    if (s.mode === 'level') {
+      // 目标条：每种水晶的「已收集 / 需要」；达成打勾
+      txtL(T('blockblast.level', { n: s.levelId }), L.boardX, L.hudY, PAL.sub, '13px sans-serif');
+      txtR(T('blockblast.moves', { n: s.stats.turns }) +
+           (s.par ? '  ·  ' + T('blockblast.parHint', { n: s.par }) : ''),
+           L.boardX + L.boardW, L.hudY, PAL.sub, '12px sans-serif');
+      const kinds = Object.keys(s.goals);
+      const gw = L.boardW / kinds.length;
+      kinds.forEach((k, i) => {
+        const gx = L.boardX + gw * i + gw / 2, gy = L.nextY + 2;
+        const got = s.collected[k] || 0, need = s.goals[k];
+        drawCrystal(gx - 26 - L.cell * 0.5, gy - L.cell * 0.5, L.cell, k);
+        const done = got >= need;
+        txtL(done ? '✔' : `${need - got}`, gx - 4, gy,
+             done ? '#7ef2a0' : '#fff', 'bold 17px sans-serif');
+      });
+    } else {
+      txt(String(s.score), L.cx, L.hudY, PAL.text, 'bold 34px sans-serif');
+      txtL(T('blockblast.best') + ' ' + G.best, L.boardX, L.hudY, PAL.sub, '13px sans-serif');
+      if (s.streak >= 2) {
+        const m = Core.streakMult(s.streak);
+        txtR(T('blockblast.combo', { m: m.toFixed(1) }), L.boardX + L.boardW, L.hudY, '#ffe08a', 'bold 14px sans-serif');
+      }
     }
 
     // ── 下一手预览（块流是预生成的 ⇒ 预览天然成立，绝不会被偷偷换掉）──
+    if (s.mode === 'level') { /* 关卡模式：这一行给目标条用了 */ } else {
     const nh = Core.nextHand(s);
     const nSize = Math.max(5, Math.round(L.cell * 0.20));
     txtL(T('blockblast.next'), L.boardX, L.nextY, PAL.sub, '11px sans-serif');
@@ -167,6 +253,7 @@
     for (const p of nh) {
       drawPieceAt(p, nx, L.nextY - (p.h * nSize) / 2, nSize, 0.5);
       nx += p.wdt * nSize + 14;
+    }
     }
 
     // ── 棋盘 ──
@@ -192,8 +279,11 @@
       if (hinted) { ctx.fillStyle = PAL.lineHint; roundRect(x + 1, y + 1, L.cell - 2, L.cell - 2, L.cell * 0.18); ctx.fill(); }
       else { ctx.fillStyle = PAL.cellEmpty; roundRect(x + 2, y + 2, L.cell - 4, L.cell - 4, L.cell * 0.16); ctx.fill(); }
 
-      if (s.board[Core.idx(r, c)] && !FX.isDying(x, y)) {
-        drawBlock(x, y, L.cell, G.cellColor[Core.idx(r, c)] || COLORS[4]);
+      const i = Core.idx(r, c);
+      if (s.mode === 'level' && s.stone[i]) { drawStone(x, y, L.cell); continue; }   // 石块永不消失
+      if (s.board[i] && !FX.isDying(x, y)) {
+        drawBlock(x, y, L.cell, G.cellColor[i] || COLORS[4]);
+        if (s.mode === 'level' && s.crystal[i]) drawCrystal(x, y, L.cell, s.crystal[i]);
       }
     }
 
@@ -236,7 +326,40 @@
     FX.draw(ctx);
     ctx.restore();
 
-    // ── 结束浮层 ──
+    // ── 关卡浮层：胜利（三星）/ 失败 / 不可胜 ──
+    if (s.mode === 'level' && s.over) {
+      drawDim('rgba(20,10,40,0.80)');
+      const cx = L.cx, w = Math.min(L.playW - 40, 300);
+      if (s.won) {
+        txt(T('blockblast.levelWin'), cx, SH * 0.32, '#fff', 'bold 28px sans-serif');
+        const stars = Core.starsFor(s);
+        for (let i = 0; i < 3; i++) {
+          txt('★', cx - 52 + i * 52, SH * 0.42, i < stars ? '#ffe08a' : 'rgba(255,255,255,0.18)',
+              (i < stars ? 'bold 44px' : '44px') + ' sans-serif');
+        }
+        txt(T('blockblast.moves', { n: s.stats.turns }) + (s.par ? ` / ${T('blockblast.parHint', { n: s.par })}` : ''),
+            cx, SH * 0.50, PAL.sub, '13px sans-serif');
+        txt(String(s.score), cx, SH * 0.56, '#ffe08a', 'bold 26px sans-serif');
+        fillRR(cx - 95, SH * 0.63, 190, 48, 14, '#22c55e');
+        txt(T('blockblast.nextLevel'), cx, SH * 0.63 + 24, '#fff', 'bold 16px sans-serif');
+        addHit(cx - 95, SH * 0.63, 190, 48, 'NEXT_LEVEL', {});
+      } else {
+        const unwin = s.unwinnable;
+        txt(T(unwin ? 'blockblast.unwinnable' : 'blockblast.levelFail'), cx, SH * 0.34, '#fff', 'bold 24px sans-serif');
+        txtLWrap(T(unwin ? 'blockblast.unwinnableHint' : 'blockblast.levelFailHint'),
+                 cx - w / 2, SH * 0.44, w, PAL.sub, '13px sans-serif', 18);
+        // ⚠ 关卡失败**只给「立刻重来」** —— 零广告、零插屏、零续命兜售（DESIGN §6.2）
+        fillRR(cx - 95, SH * 0.60, 190, 48, 14, '#22c55e');
+        txt(T('blockblast.retry'), cx, SH * 0.60 + 24, '#fff', 'bold 16px sans-serif');
+        addHit(cx - 95, SH * 0.60, 190, 48, 'RETRY_LEVEL', {});
+      }
+      fillRR(cx - 95, SH * 0.72, 190, 42, 12, 'rgba(255,255,255,0.16)');
+      txt(T('blockblast.menu'), cx, SH * 0.72 + 21, '#fff', '14px sans-serif');
+      addHit(cx - 95, SH * 0.72, 190, 42, 'MENU', {});
+      return;                       // ⚠ 别再 restore：上面 FX.draw 之后已经 restore 过了
+    }
+
+    // ── 结束浮层（无尽）──
     if (s.over) {
       drawDim('rgba(20,10,40,0.78)');
       const cx = L.cx, w = Math.min(L.playW - 40, 300);
@@ -251,6 +374,6 @@
     }
   }
 
-  root.Render = { layout, computeTray, cellXY, cellAt, traySlotCenter, traySlotAt, colorOf, L, COLORS };
+  root.Render = { layout, renderMenu, computeTray, cellXY, cellAt, traySlotCenter, traySlotAt, colorOf, L, COLORS };
   root.renderAll = renderAll;
 })(typeof self !== 'undefined' ? self : this);

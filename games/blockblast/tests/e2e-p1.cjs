@@ -44,6 +44,7 @@ const ok = (cond, msg) => { if (!cond) { console.error('✗ ' + msg); process.ex
 
   await page.goto(`http://127.0.0.1:${PORT}/games/blockblast/index.html`);
   await page.waitForFunction(() => window.G && window.G.s, null, { timeout: 5000 });
+  await page.evaluate(() => dispatch('PLAY_ENDLESS'));   // P2 起：起手在菜单，先进无尽模式
   await page.waitForTimeout(300);
 
   ok(errors.length === 0, '加载零 console/page error' + (errors.length ? ': ' + errors[0] : ''));
