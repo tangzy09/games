@@ -88,11 +88,18 @@
   /** 托盘里还没放下的块 */
   const remaining = s => tray(s).filter(Boolean);
 
-  /** game over = 剩余的**任一**块无处可放 */
+  /**
+   * game over = 剩余的**每一块**都无处可放。
+   *
+   * ⚠ 不是「任一块放不下就结束」（这是最初的错，实机被玩家一眼看穿）：
+   *   托盘剩 2 块、一块能放一块不能，玩家有权先把能放的放下 ——
+   *   那一步可能**消掉一行、腾出空间**，原本放不下的块就又能放了。
+   *   只有当所有剩余块都塞不进去，才真的没救。
+   */
   function isOver(s) {
     const rem = remaining(s);
     if (!rem.length) return false;                       // 刚好放完，等补牌
-    return rem.some(p => !canPlaceAnywhere(s.board, p));
+    return rem.every(p => !canPlaceAnywhere(s.board, p));
   }
 
   const snapshot = s => ({

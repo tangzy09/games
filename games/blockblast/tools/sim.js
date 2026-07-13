@@ -46,18 +46,19 @@ function simulate(board, piece, r, c) {
 }
 
 /**
- * 一手的决策。真实规则：三块必须**全部放完**才补牌 ⇒ 放不下的块不能跳过。
+ * 通盘规划当前这一手（剩余块的所有顺序 × 所有位置，贪心 rollout），返回最优序列。
+ * ⚠ 放不下的块**跳过**、不中断规划 —— 因为后面某一步消了行，它可能又能放了。
+ *   （调用方只执行 seq[0] 然后重新规划，正是为了吃到这个「消行救活卡住的块」的效应。）
  * casual = 随手放（噪声大、不穷举顺序）；mid = 全排列贪心；pro = 贪心 + 主动追清盘。
  */
 function planHand(state, level, rnd) {
   const perms = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
   const tray = Core.tray(state);
   const tryPerms = level === 'casual' ? [perms[Math.floor(rnd() * 6)]] : perms;
-  const need = tray.filter(Boolean).length;
 
   let best = null;
   for (const order of tryPerms) {
-    let board = state.board.slice(), seq = [], gained = 0, stuck = false;
+    let board = state.board.slice(), seq = [], gained = 0;
     for (const i of order) {
       const p = tray[i];
       if (!p) continue;
@@ -70,13 +71,12 @@ function planHand(state, level, rnd) {
         if (level === 'pro' && Core.fillCount(sim.board) === 0) v += 1000;
         if (v > bv) { bv = v; bp = { r, c, slot: i, board: sim.board, L: sim.L }; }
       }
-      if (!bp) { stuck = true; break; }
+      if (!bp) continue;                       // 这块暂时放不下 → 跳过，先放别的（可能消行救活它）
       seq.push(bp); board = bp.board; gained += bp.L;
     }
-    const placedAll = !stuck && seq.length === need;
-    const val = (placedAll ? 1e6 : 0) + evalBoard(board) + gained * 40 + seq.length * 30;
-    if (!best || val > best.val) best = { val, seq, placedAll };
-    if (level === 'casual' && placedAll) break;
+    const val = evalBoard(board) + gained * 40 + seq.length * 30;
+    if (!best || val > best.val) best = { val, seq };
+    if (level === 'casual' && seq.length) break;
   }
   return best;
 }
@@ -90,17 +90,19 @@ function mulberry32(a) {
   };
 }
 
+/**
+ * 逐子决策（不是一手规划死）。
+ * ⚠ 必须逐子：放下能放的那块可能**消掉一行、腾出空间**，让原本放不下的块又能放。
+ *   （最初这里按「一手三块规划、有块放不下就结束」写，把局判死得太早 —— 与 core 的 bug 同源。）
+ */
 function playGame(seed, level) {
   const rnd = mulberry32(seed ^ 0xabcdef);
   const s = Core.newGame(seed);
-  for (let guard = 0; guard < 2000 && !s.over; guard++) {
+  for (let guard = 0; guard < 3000 && !s.over; guard++) {
     const plan = planHand(s, level, rnd);
-    if (!plan || !plan.seq.length) break;
-    for (const mv of plan.seq) {
-      if (!Core.place(s, mv.slot, mv.r, mv.c)) break;
-      if (s.over) break;
-    }
-    if (!plan.placedAll) break;          // 有块放不下 = game over（core 自己也会置 over）
+    if (!plan || !plan.seq.length) break;      // 一块都放不下 = 真的没救（core 也会置 over）
+    const mv = plan.seq[0];                    // 只执行第一步，然后**重新规划**
+    Core.place(s, mv.slot, mv.r, mv.c);        // ——因为这一步若消了行，后面的可放性全变了
   }
   return s;
 }

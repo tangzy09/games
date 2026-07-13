@@ -189,21 +189,56 @@ assert.strictEqual(s.streamIndex, idx0 + 3, '三块全放完 → 补下一手');
 assert.strictEqual(Core.remaining(s).length, 3, '新的一手 3 块');
 console.log('test-core: 补牌时机 OK');
 
-// ════════ game over = 剩余的**任一**块无处可放 ════════
-s = Core.newGame(5);
-s.board = blank().fill(1);                          // 满盘
-s.board[Core.idx(0, 0)] = 0;                        // 只剩一个空格
-s.placed = [false, false, false];
-assert(Core.isOver(s), '满盘（只剩 1 格）时，除非三块全是 1×1，否则必死');
-// 反例：剩一块且放得下 → 不算 over
+// ════════ game over = 剩余的**每一块**都无处可放（不是「任一块」！）════════
+// ⚠ 这条最初写错了：写成「任一块放不下就结束」。真实玩法里，托盘剩 2 块、一块能放一块不能时，
+//   玩家有权先放能放的那块 —— 那一步可能消掉一行、腾出空间，卡住的块就又能放了。
 s = Core.newGame(5);
 s.board = blank();
 s.placed = [true, true, false];
 assert(!Core.isOver(s), '空盘上还剩一块放得下 → 不结束');
-// 剩余块全放完、等补牌 → 不算 over
 s.placed = [true, true, true];
 assert(!Core.isOver(s), '刚好全放完（等补牌）→ 不是 game over');
-console.log('test-core: game-over 判定 OK');
+
+// 关键用例：一块放得下、一块放不下 ⇒ **不能**判死
+{
+  const t = Core.newGame(5);
+  const b = blank();
+  // 填成只剩第 7 行的 8 个格子是空的（其余全满）：1×1 放得下，3×3 放不下
+  for (let r = 0; r < 7; r++) for (let c = 0; c < 8; c++) b[Core.idx(r, c)] = 1;
+  t.board = b;
+  assert(Core.canPlaceAnywhere(t.board, P('i1')), '1×1 放得下');
+  assert(!Core.canPlaceAnywhere(t.board, P('sq3')), '3×3 放不下');
+  // 手工构造「剩余 = [1×1, 3×3]」的局面并直接考察规则函数
+  const remOk = [P('i1'), P('sq3')];
+  const allStuck = remOk.every(p => !Core.canPlaceAnywhere(t.board, p));
+  assert(!allStuck, '一块能放一块不能 ⇒ 还没结束（要让玩家先放能放的那块）');
+}
+
+// 真死：所有剩余块都放不下
+{
+  const t = Core.newGame(5);
+  const b = blank().fill(1);
+  b[Core.idx(0, 0)] = 0;                            // 全满，只剩一个孤格
+  t.board = b;
+  const rem = [P('sq3'), P('o4'), P('i2h')];        // 三块都塞不进那一个孤格
+  assert(rem.every(p => !Core.canPlaceAnywhere(t.board, p)), '所有块都放不下 ⇒ 才是 game over');
+}
+
+// 端到端：消行会「救活」卡住的块 —— 放下能放的那块 → 消掉一行 → 原本放不下的块又能放了
+{
+  const t = Core.newGame(5);
+  const b = blank();
+  for (let r = 0; r < 6; r++) for (let c = 0; c < 8; c++) b[Core.idx(r, c)] = 1;  // 前 6 行填满
+  for (let c = 1; c < 8; c++) b[Core.idx(6, c)] = 1;                              // 第 6 行差 (6,0)
+  t.board = b;
+  assert(!Core.canPlaceAnywhere(t.board, P('sq3')), '此刻 3×3 放不下');
+  // 放一个 1×1 到 (6,0) → 第 6 行满 → 消掉 → 腾出一整行
+  for (const [dr, dc] of P('i1').cells) t.board[Core.idx(6 + dr, 0 + dc)] = 1;
+  const f = Core.findFullLines(t.board);
+  for (const r of f.rows) for (let c = 0; c < 8; c++) t.board[Core.idx(r, c)] = 0;
+  assert(Core.canPlaceAnywhere(t.board, P('sq3')), '消行腾出空间后，3×3 又放得下了 —— 提前判死就是错杀');
+}
+console.log('test-core: game-over 判定（全部放不下才算死 + 消行能救活卡住的块）OK');
 
 // ════════ 撤销：精确复原，且**不能刷块**（撤销必须回滚 streamIndex）════════
 s = Core.newGame(2024);
