@@ -1,0 +1,16 @@
+{
+  "appId": "com.aispeeds.cubeblast",
+  "appName": "Cube Blast",
+  "webDir": "www",
+  "backgroundColor": "#6d3fb4",
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 800,
+      "backgroundColor": "#6d3fb4",
+      "showSpinner": false
+    },
+    "AdMob": {
+      "initializeForTesting": false
+    }
+  }
+}

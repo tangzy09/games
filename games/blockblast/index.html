@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
 <title>Block Puzzle</title>
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon-180.png">
+<meta property="og:image" content="assets/icons/icon-512.png">
+<meta name="theme-color" content="#290A5A">
 <link rel="stylesheet" href="../../engine/engine.css">
 <link rel="stylesheet" href="css/game.css?v=7">
 </head>
@@ -17,6 +22,16 @@
   window.GAME_CONFIG = {
     id: 'blockblast',
     languages: ['en', 'zh-CN', 'es', 'hi', 'bn', 'pt-BR', 'ru', 'ja', 'pa', 'de'],
+
+    // ⚠ 广告位:**本游戏专属,绝不复用他游戏的**(引擎契约)。
+    //    没填 ⇒ 引擎自动用 Google 测试位 + initializeForTesting(安全;
+    //    ⛔ 反过来「拿测试位跑真实流量」= 封号)。
+    //    TODO(上线前): 在 AdMob 后台建 iOS app(Bundle com.aispeeds.cubeblast)+ 两个广告位,
+    //    把 `/` 号的广告位 ID 填进来;`~` 号的 App ID 填进 codemagic 的 GAD_APP_ID。
+    // adUnits: {
+    //   rewarded:     { ios: 'ca-app-pub-XXXX/XXXX' },
+    //   interstitial: { ios: 'ca-app-pub-XXXX/XXXX' },
+    // },
   };
 </script>
 <script src="../../engine/config.js?v=7"></script>

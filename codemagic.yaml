@@ -154,3 +154,20 @@ workflows:
     scripts: *ios_scripts
     artifacts: *ios_artifacts
     publishing: *ios_publishing
+
+  cubeblast-ios-testflight:
+    name: Cube Blast Block Puzzle iOS → TestFlight
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    integrations:
+      app_store_connect: ASC API Key        # 同上,账号级 ASC API Key 复用
+    environment:
+      <<: *ios_env
+      vars:
+        GAME_DIR: "games/blockblast"
+        BUNDLE_ID: "com.aispeeds.cubeblast"
+        APP_STORE_APP_ID: "TODO"             # ⚠ 待填: ASC UI 建 App 记录后拿到的数字 Apple ID
+        GAD_APP_ID: "TODO"                   # ⚠ 待填: AdMob iOS app 的 App ID(~ 号,不是广告位的 / 号)
+    scripts: *ios_scripts
+    artifacts: *ios_artifacts
+    publishing: *ios_publishing
