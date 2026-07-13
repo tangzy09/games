@@ -1,0 +1,19 @@
+/* blockblast — 主题覆盖 + 游戏自有样式（引擎变量在 engine.css） */
+:root {
+  --bg: #6d3fb4;
+  --bg-2: #8e5ad0;
+  --accent: #ffe08a;
+}
+
+html, body {
+  background: var(--bg);
+  overscroll-behavior: none;      /* 拖拽时别触发下拉刷新/橡皮筋 */
+}
+
+#game-canvas {
+  display: block;
+  touch-action: none;             /* ⚠ 拖拽的前提：不交给浏览器做滚动/缩放手势 */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}

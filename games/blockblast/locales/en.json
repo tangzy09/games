@@ -1,0 +1,29 @@
+{
+  "blockblast": {
+    "title": "Block Puzzle",
+    "tagline": "The pieces are decided before you start.",
+    "start": "Play",
+    "score": "Score",
+    "best": "Best",
+    "next": "Next",
+    "streak": "Streak",
+    "combo": "COMBO ×{m}",
+    "gameOver": "No Moves Left",
+    "noMoves": "None of your pieces fit. Nothing was rigged — the pieces were set before you began.",
+    "finalScore": "Score {n}",
+    "newBest": "New Best!",
+    "restart": "Play Again",
+    "seed": "Seed {s}",
+    "praise": {
+      "good": "Good!",
+      "great": "Great!",
+      "amazing": "Amazing!",
+      "unbelievable": "Unbelievable!"
+    },
+    "sweep": {
+      "sweep": "SWEEP!",
+      "deep": "DEEP SWEEP!",
+      "perfect": "PERFECT!"
+    }
+  }
+}

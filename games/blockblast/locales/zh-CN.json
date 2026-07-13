@@ -1,0 +1,29 @@
+{
+  "blockblast": {
+    "title": "方块拼图",
+    "tagline": "出块顺序，在你落第一子前就定好了。",
+    "start": "开始",
+    "score": "分数",
+    "best": "最高",
+    "next": "下一手",
+    "streak": "连击",
+    "combo": "连击 ×{m}",
+    "gameOver": "无处可放",
+    "noMoves": "手上的块都放不下了。没有暗箱——这局的出块顺序在你开局前就定好了。",
+    "finalScore": "得分 {n}",
+    "newBest": "新纪录！",
+    "restart": "再来一局",
+    "seed": "种子 {s}",
+    "praise": {
+      "good": "不错！",
+      "great": "很棒！",
+      "amazing": "精彩！",
+      "unbelievable": "难以置信！"
+    },
+    "sweep": {
+      "sweep": "横扫！",
+      "deep": "深度横扫！",
+      "perfect": "完美清空！"
+    }
+  }
+}
