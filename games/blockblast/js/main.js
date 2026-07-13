@@ -12,6 +12,7 @@ const G = window.G = {
   s: null,                       // core 状态
   best: 0,
   drag: null,
+  fly: null,                     // 非法松手后正在飞回托盘的块
   cellColor: new Array(64).fill(null),   // 每格的颜色（纯装饰；消除不看颜色）
 };
 
@@ -54,6 +55,7 @@ function newRun() {
   G.s = Core.newGame(Dealer.randomSeed());
   G.cellColor = new Array(Core.N).fill(null);
   G.drag = null;
+  G.fly = null;
   FX.reset();
   clearRun();
 }
@@ -87,14 +89,14 @@ function consume(events) {
         G.cellColor[Core.idx(r, c)] = null;
       }
       const praise = e.L >= 4 ? 'unbelievable' : e.L === 3 ? 'amazing' : e.L === 2 ? 'great' : 'good';
-      FX.toast(T('blockblast.praise.' + praise), GameGlobal.SW / 2, Lo.boardY + Lo.boardW / 2,
+      FX.toast(T('blockblast.praise.' + praise), Lo.cx, Lo.boardY + Lo.boardW / 2,
         '#ffe08a', 'bold 30px sans-serif', e.L >= 3 ? 1.25 : 1);
       FX.shake(Math.min(3 + e.L * 3, 14));
       Sound.clear(e.streak, e.L);
       Haptics.medium ? Haptics.medium() : Haptics.light();
 
     } else if (e.t === 'sweep') {
-      FX.toast(T('blockblast.sweep.' + e.kind), GameGlobal.SW / 2, Lo.boardY + Lo.boardW / 2 - 50,
+      FX.toast(T('blockblast.sweep.' + e.kind), Lo.cx, Lo.boardY + Lo.boardW / 2 - 50,
         e.kind === 'perfect' ? '#ffffff' : '#7ef2a0',
         'bold ' + (e.kind === 'perfect' ? 40 : 30) + 'px sans-serif', 1.3);
       FX.shake(e.kind === 'perfect' ? 22 : 12);
@@ -130,8 +132,9 @@ let last = 0;
 function loop(ts) {
   const dt = last ? Math.min((ts - last) / 1000, 0.05) : 0;
   last = ts;
-  if (FX.busy()) {
+  if (FX.busy() || Drag.busy(G)) {
     FX.update(dt);
+    Drag.tick(G, dt);          // 拾起放大 / 回弹
     renderAll();
   }
   requestAnimationFrame(loop);

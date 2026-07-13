@@ -10,7 +10,21 @@
 (function (root) {
   'use strict';
 
-  const LIFT = 1.2;    // 拼块浮在指尖上方 1.2 格 —— 不做这个，移动端根本没法玩（手指盖住块）
+  const LIFT = 1.2;      // 拼块浮在指尖上方 1.2 格 —— 不做这个，移动端根本没法玩（手指盖住块）
+  const GROW_DUR = 0.12; // 拾起放大用时（秒）
+
+  const ease = t => 1 - Math.pow(1 - Math.min(Math.max(t, 0), 1), 3);   // easeOutCubic
+
+  /** 每帧推进拾起放大 / 回弹动画（由 main 的主循环调用）*/
+  function tick(G, dt) {
+    if (G.drag && G.drag.grow < 1) G.drag.grow = Math.min(1, G.drag.grow + dt / GROW_DUR);
+    if (G.fly) {
+      G.fly.t += dt;
+      if (G.fly.t >= G.fly.dur) G.fly = null;
+    }
+  }
+  /** 有没有拖拽相关动画在跑（主循环据此决定是否继续重画）*/
+  const busy = G => !!(G && (G.drag || G.fly));
 
   function bind(canvasEl, hooks) {
     const pos = e => {
@@ -27,12 +41,14 @@
       const piece = Core.tray(G.s)[slot];
       if (!piece) return;
 
-      // 锚点 = 手指压住的那一格（DESIGN §5）。托盘里的块是缩小画的，先换算到它的局部格坐标。
+      // 锚点 = 手指压住的那一格（DESIGN §5）。托盘块按实际大小画（scale 通常 = 1），
+      // 用它自己的槽 rect 换算到局部格坐标。
       const L = Render.L;
-      const size = Math.round(L.cell * L.trayScale);
-      const ctr = Render.traySlotCenter(slot);
-      const ox = ctr.x - (piece.wdt * size) / 2, oy = ctr.y - (piece.h * size) / 2;
-      let dr = Math.floor((y - oy) / size), dc = Math.floor((x - ox) / size);
+      const rect = L.traySlots[slot];
+      const size = rect.size;
+      let dr = Math.floor((y - rect.y) / size), dc = Math.floor((x - rect.x) / size);
+      dr = Math.max(0, Math.min(piece.h - 1, dr));
+      dc = Math.max(0, Math.min(piece.wdt - 1, dc));   // 容差区按下时可能落在块外，夹回块内
 
       // 按在 bounding box 的空洞上（L/S/T 形常见）→ 取最近的实心格
       if (!piece.cells.some(([r, c]) => r === dr && c === dc)) {
@@ -44,7 +60,10 @@
         dr = best[0]; dc = best[1];
       }
 
-      G.drag = { slot, piece, px: x, py: y, anchorDR: dr, anchorDC: dc, target: null };
+      // grow: 0→1 的拾起放大进度（托盘尺寸 → 棋盘格尺寸）。瞬间跳变很生硬，用它做平滑过渡。
+      G.drag = { slot, piece, px: x, py: y, anchorDR: dr, anchorDC: dc, target: null,
+                 grow: 0, fromSize: size };
+      G.fly = null;
       Sound.pick();
       updateTarget(G, x, y);
       if (canvasEl.setPointerCapture && e.pointerId != null) {
@@ -79,8 +98,20 @@
       const d = G.drag;
       const t = d.target;
       G.drag = null;
-      if (t && Core.canPlace(G.s.board, t.piece, t.r, t.c)) hooks.onPlace(d.slot, t.r, t.c);
-      else { Sound.invalid(); hooks.onChange(); }     // 非法：弹回托盘（下一帧它就画回去了）
+      if (t && Core.canPlace(G.s.board, t.piece, t.r, t.c)) { hooks.onPlace(d.slot, t.r, t.c); return; }
+
+      // 非法松手 → **飞回托盘**（150ms ease-out + 缩回原尺寸）。
+      // 直接消失重画会让人以为"我的块没了"；看得见它飞回去，才知道这一步没放上。
+      const L = Render.L, rect = L.traySlots[d.slot];
+      const cur = d.fromSize + (L.cell - d.fromSize) * ease(d.grow);
+      G.fly = {
+        piece: d.piece, slot: d.slot,
+        x0: d.px - d.anchorDC * cur - cur / 2, y0: d.py - d.anchorDR * cur - cur / 2 - L.cell * LIFT,
+        x1: rect.x, y1: rect.y, s0: cur, s1: rect.size,
+        t: 0, dur: 0.15,
+      };
+      Sound.invalid();
+      hooks.onChange();
     }
 
     canvasEl.addEventListener('pointerdown', down);
@@ -89,5 +120,5 @@
     canvasEl.addEventListener('pointercancel', () => { const G = root.G; if (G) { G.drag = null; hooks.onChange(); } });
   }
 
-  root.Drag = { bind, LIFT };
+  root.Drag = { bind, tick, busy, ease, LIFT };
 })(typeof self !== 'undefined' ? self : this);
