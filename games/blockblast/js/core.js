@@ -112,6 +112,7 @@
       par: 0,                         // 三星基准落子数（由 verify-levels 标定）
       won: false,
       levelId: null,
+      usedUndo: false,
     };
     return s;
   }
@@ -166,6 +167,7 @@
   /** 三星：按落子数（不限步 ⇒ 不会输，但要三星就得省步）*/
   function starsFor(s) {
     if (!s.par) return 1;
+    if (s.usedUndo) return Math.min(2, s.stats.turns <= Math.ceil(s.par * 1.4) ? 2 : 1);  // 用过撤销：最高两星
     if (s.stats.turns <= s.par) return 3;
     if (s.stats.turns <= Math.ceil(s.par * 1.4)) return 2;
     return 1;
@@ -197,6 +199,7 @@
     score: s.score, streak: s.streak, dryTurns: s.dryTurns, stats: Object.assign({}, s.stats),
     crystal: s.crystal ? s.crystal.slice() : null,           // 关卡：撤销必须把已收集的水晶吐回来
     collected: s.collected ? Object.assign({}, s.collected) : null,
+    over: s.over, won: s.won, unwinnable: !!s.unwinnable,    // 否则在结算浮层上撤销会「复活」出畸形状态
   });
 
   /**
@@ -297,7 +300,8 @@
     s.stats = Object.assign({}, u.stats);
     if (u.crystal) s.crystal = u.crystal.slice();
     if (u.collected) s.collected = Object.assign({}, u.collected);
-    s.over = false; s.won = false;
+    s.over = u.over; s.won = u.won; s.unwinnable = u.unwinnable;
+    s.usedUndo = true;                                       // 用过撤销 ⇒ 最高两星（DESIGN §6.4）
     s.undo = null;
     return true;
   }

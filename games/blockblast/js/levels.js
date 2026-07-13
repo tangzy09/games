@@ -20,14 +20,6 @@
   // 再由 tools/verify-levels.js 验证通关率并标定 par。**不要手改这段，改配方然后重新生成。**
   // 数据由 tools/gen-levels.js 生成（配方：水晶挂在几条线上 × 每条线留几个空格 × 石块数），
   // 再由 tools/verify-levels.js 验证通关率并标定 par。**别手改这段 —— 改配方再重新生成。**
-  // 数据由 tools/gen-levels.js 生成（配方：水晶挂在几条线上 × 每条线留几个空格 × 石块数），
-  // 再由 tools/verify-levels.js 验证通关率并标定 par。**别手改这段 —— 改配方再重新生成。**
-  // 数据由 tools/gen-levels.js 生成（配方：水晶挂在几条线上 × 每条线留几个空格 × 石块数），
-  // 再由 tools/verify-levels.js 验证通关率并标定 par。**别手改这段 —— 改配方再重新生成。**
-  // 数据由 tools/gen-levels.js 生成（配方：水晶挂在几条线上 × 每条线留几个空格 × 石块数），
-  // 再由 tools/verify-levels.js 验证通关率并标定 par。**别手改这段 —— 改配方再重新生成。**
-  // 数据由 tools/gen-levels.js 生成（配方：水晶挂在几条线上 × 每条线留几个空格 × 石块数），
-  // 再由 tools/verify-levels.js 验证通关率并标定 par。**别手改这段 —— 改配方再重新生成。**
   const LEVELS = [
     { id: 1, par: 3, // FTUE: 一步消掉第一行
       blocks: [[7,2],[7,3],[7,4],[7,5],[7,6]],
@@ -132,6 +124,21 @@
       const all = [...stones, ...crystals, ...blocks].map(key);
       if (new Set(all).size !== all.length) errs.push(`L${lv.id}: 有格子被重复占用`);
       if (!crystals.length) errs.push(`L${lv.id}: 没有水晶 = 没有目标`);
+
+      // ⚠ 开局盘面不许有**已填满的行/列**：行满就消（与落子位置无关）⇒ 玩家第一子随便落哪
+      //   都会白送一次消行 + 白拿那条线上的水晶。（单测构造关卡时踩到的。）
+      const occ = new Set([...stones, ...crystals, ...blocks].map(([r, c]) => r * 8 + c));
+      const stoneSet = new Set(stones.map(([r, c]) => r * 8 + c));
+      for (let r = 0; r < 8; r++) {
+        let full = true;
+        for (let c = 0; c < 8; c++) if (stoneSet.has(r * 8 + c) || !occ.has(r * 8 + c)) { full = false; break; }
+        if (full) errs.push(`L${lv.id}: 第 ${r} 行开局就是满的 ⇒ 第一子随便落哪都会白送一次消行`);
+      }
+      for (let c = 0; c < 8; c++) {
+        let full = true;
+        for (let r = 0; r < 8; r++) if (stoneSet.has(r * 8 + c) || !occ.has(r * 8 + c)) { full = false; break; }
+        if (full) errs.push(`L${lv.id}: 第 ${c} 列开局就是满的 ⇒ 同上`);
+      }
     }
     return errs;
   }

@@ -39,6 +39,7 @@
     "moves": "落子 {n}",
     "parHint": "{n} 步内三星",
     "locked": "未解锁",
-    "goal": "收集"
+    "goal": "收集",
+    "undo": "撤销"
   }
 }

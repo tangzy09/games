@@ -34,7 +34,10 @@
 
     function down(e) {
       const G = root.G;
-      if (!G || G.s.over) return;
+      // ⚠ 必须查 phase：菜单界面不算托盘布局（L.traySlots 是 undefined），
+      //    少了这道守卫，**菜单里每一次点击都抛 TypeError**（红队用真实鼠标点出来的；
+      //    我的 E2E 用 dispatch() 绕过了真实点击，所以「零 error」是假绿）。
+      if (!G || G.phase !== 'PLAYING' || G.s.over) return;
       const { x, y } = pos(e);
       const slot = Render.traySlotAt(x, y);
       if (slot < 0) return;

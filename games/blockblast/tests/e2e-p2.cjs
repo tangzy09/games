@@ -44,9 +44,17 @@ const ok = (c, m) => { if (!c) { console.error('✗ ' + m); process.exitCode = 1
   ok(await page.evaluate(() => G.phase === 'MENU'), '起手在菜单（关卡地图）');
   await page.screenshot({ path: path.join(SHOT_DIR, 'p2-01-menu.png') });
 
-  // ── 点第 1 关 ──
-  await page.evaluate(() => dispatch('PLAY_LEVEL', { id: 1 }));
-  await page.waitForTimeout(150);
+  // ── 点第 1 关：**真实鼠标点击**（不能用 dispatch 绕过 —— 正是这个绕过让
+  //    「菜单里每次点击都抛 TypeError」的 bug 藏了过去，E2E 还报「零 error」）──
+  const btn1 = await page.evaluate(() => {
+    const L = Render.L;
+    const cols = 5, cell = Math.min(58, (L.playW - 40) / cols);
+    const gx0 = L.cx - (cols * cell) / 2, gy0 = GameGlobal.safeTop + 120;
+    return { x: gx0 + cell / 2, y: gy0 + cell / 2 };      // 第 1 关格子的中心
+  });
+  await page.mouse.click(btn1.x, btn1.y);
+  await page.waitForTimeout(200);
+  ok(errors.length === 0, '菜单真实点击零 error（drag 层必须查 phase）' + (errors.length ? ': ' + errors[0] : ''));
   const lv = await page.evaluate(() => ({
     mode: G.s.mode, id: G.s.levelId, goals: G.s.goals, par: G.s.par,
     crystals: G.s.crystal.filter(Boolean).length, stones: G.s.stone.filter(Boolean).length,
@@ -127,16 +135,12 @@ const ok = (c, m) => { if (!c) { console.error('✗ ' + m); process.exitCode = 1
 
   // ── 关卡失败：**零广告**（DESIGN §6.2 的红线）──
   const failUi = await page.evaluate(() => {
-    // 强行造死局：棋盘填满（除石块外），托盘必然放不下
     const s = G.s;
-    for (let i = 0; i < 64; i++) s.board[i] = 1;
-    s.board[0] = 0;                       // 只留一个孤格
+    for (let i = 0; i < 64; i++) s.board[i] = 1;        // 强行造死局
+    s.board[0] = 0;                                     // 只留一个孤格
     s.over = Core.isOver(s);
     renderAll();
-    // 收集当前浮层上所有可点区域的 action
-    const acts = [];
-    const orig = window.addHit;
-    return { over: s.over, hasAdButton: false };
+    return { over: s.over };
   });
   ok(failUi.over, '造出死局 → 判负');
   const actions = await page.evaluate(() => {

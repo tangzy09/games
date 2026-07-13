@@ -130,5 +130,6 @@ for (const level of ['casual', 'mid', 'pro']) {
 }
 console.table(rows);
 console.log('基线（DESIGN §0；改了 core 的规则必须复查这几个数）:');
-console.log('  mid: 中位落子 ~90-100 / 中位分 ~1700 / SWEEP 局占比 ~30% / PERFECT ~2%');
+console.log('  mid: 中位落子 ~143 / 中位分 ~2971 / SWEEP 局占比 ~23.7% / PERFECT 0%');
+console.log('  (PERFECT=0% 是对的:SWEEP_FLOOR=16 堵掉了「开局白嫖」,真正的清空极稀有 —— 见 DESIGN §0.5)');
 console.log('判读: SWEEP 局占比 <15% ⇒ 招牌是死的；中位落子 <40 或 >150 ⇒ 单局时长跑偏\n');

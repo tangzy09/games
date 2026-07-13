@@ -108,6 +108,7 @@
   }
   /** 屏幕点命中哪个托盘槽（-1 = 没命中）。给一点容差，手指不必压得很准。*/
   function traySlotAt(x, y) {
+    if (!L.traySlots) return -1;                  // 菜单界面没有托盘（兜底，别抛）
     const pad = L.cell * 0.35;
     for (let i = 0; i < L.traySlots.length; i++) {
       const r = L.traySlots[i];
@@ -237,7 +238,11 @@
       });
     } else {
       txt(String(s.score), L.cx, L.hudY, PAL.text, 'bold 34px sans-serif');
-      txtL(T('blockblast.best') + ' ' + G.best, L.boardX, L.hudY, PAL.sub, '13px sans-serif');
+      txtL(T('blockblast.best') + ' ' + G.best, L.boardX, L.hudY - 14, PAL.sub, '12px sans-serif');
+      // 返回菜单：没有它，进过无尽模式的玩家**永远回不到关卡地图**（唯一出路是清 localStorage）
+      fillRR(L.boardX, L.hudY + 2, 52, 22, 8, 'rgba(255,255,255,0.18)');
+      txt('‹ ' + T('blockblast.menu'), L.boardX + 26, L.hudY + 13, '#fff', '11px sans-serif');
+      addHit(L.boardX, L.hudY + 2, 52, 22, 'MENU', {});
       if (s.streak >= 2) {
         const m = Core.streakMult(s.streak);
         txtR(T('blockblast.combo', { m: m.toFixed(1) }), L.boardX + L.boardW, L.hudY, '#ffe08a', 'bold 14px sans-serif');
@@ -268,7 +273,9 @@
         // 预演一次：这一步会消掉哪些行列（消行预览是本作最重要的一个 UI）
         const test = s.board.slice();
         for (const [dr, dc] of piece.cells) test[Core.idx(r + dr, c + dc)] = 1;
-        const f = Core.findFullLines(test);
+        // ⚠ 必须传 s.stone：不传的话，含石块的行会被高亮成「松手就消」，但 core 根本不消
+        //    —— 石块的全部教学意义就是「这条线走不通」，预览却告诉玩家能走（红队实测第 11 关）。
+        const f = Core.findFullLines(test, s.stone);
         hintRows = f.rows; hintCols = f.cols;
       }
     }
@@ -323,6 +330,14 @@
       drawPieceAt(f.piece, f.x0 + (f.x1 - f.x0) * k, f.y0 + (f.y1 - f.y0) * k, size, 0.9);
     }
 
+    // ── 撤销按钮（每局 1 次免费；DESIGN §10 的减压机制之一）──
+    if (!s.over && s.undo) {
+      const uw = 92, uh = 34, ux = L.cx - uw / 2, uy = L.trayY + L.trayH + 6;
+      fillRR(ux, uy, uw, uh, 10, 'rgba(255,255,255,0.18)');
+      txt('↩ ' + T('blockblast.undo'), L.cx, uy + uh / 2, '#fff', '13px sans-serif');
+      addHit(ux, uy, uw, uh, 'UNDO', {});
+    }
+
     FX.draw(ctx);
     ctx.restore();
 
@@ -366,11 +381,14 @@
       txt(T('blockblast.gameOver'), cx, SH * 0.34, '#fff', 'bold 26px sans-serif');
       txtLWrap(T('blockblast.noMoves'), cx - w / 2, SH * 0.43, w, PAL.sub, '13px sans-serif', 18);
       txt(T('blockblast.finalScore', { n: s.score }), cx, SH * 0.53, '#ffe08a', 'bold 30px sans-serif');
-      if (s.score >= G.best && s.score > 0) txt(T('blockblast.newBest'), cx, SH * 0.585, '#7ef2a0', 'bold 15px sans-serif');
+      if (s.score > G.best && s.score > 0) txt(T('blockblast.newBest'), cx, SH * 0.585, '#7ef2a0', 'bold 15px sans-serif');
       txt(T('blockblast.seed', { s: s.seed }), cx, SH * 0.63, 'rgba(255,255,255,0.45)', '11px sans-serif');
       fillRR(cx - 90, SH * 0.68, 180, 50, 14, '#22c55e');
       txt(T('blockblast.restart'), cx, SH * 0.68 + 25, '#fff', 'bold 17px sans-serif');
       addHit(cx - 90, SH * 0.68, 180, 50, 'RESTART', {});
+      fillRR(cx - 90, SH * 0.78, 180, 42, 12, 'rgba(255,255,255,0.16)');
+      txt(T('blockblast.menu'), cx, SH * 0.78 + 21, '#fff', '14px sans-serif');
+      addHit(cx - 90, SH * 0.78, 180, 42, 'MENU', {});
     }
   }
 

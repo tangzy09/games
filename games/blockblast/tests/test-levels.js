@@ -38,42 +38,52 @@ console.log(`test-levels: ${Levels.count()} 关，数据校验 0 错 OK`);
 }
 
 // ════════ 水晶：只有被消除时才收集（关卡模式的全部乐趣来源）════════
+// ⚠ 之前这两条写成「如果这一手恰好有 1×1 就测，否则 SKIP」—— 结果 seed 11 要到第 23 手才出 i1，
+//   于是 P2 最核心的两条断言**一次都没执行过**。有 SKIP 分支的测试等于没有测试。
+//   改法：前推 streamIndex 找到含 1×1 的那一手（块流是纯函数，这么做完全确定）。
+function seekPieceInTray(s, pieceId) {
+  for (let k = 0; k < 500; k++) {
+    s.streamIndex = k * 3;
+    s.placed = [false, false, false];
+    const slot = Core.tray(s).findIndex(p => p && p.id === pieceId);
+    if (slot >= 0) return slot;
+  }
+  throw new Error('块流里找不到 ' + pieceId);
+}
 {
   const def = { id: 2, blocks: [[7, 0], [7, 1], [7, 2], [7, 3], [7, 4], [7, 5], [7, 6]], crystals: [[7, 7, 'blue']] };
   const s = Core.newLevel(def, 7);
   assert.deepStrictEqual(s.goals, { blue: 1 }, '目标 = 盘上水晶总数（不可能凑不齐）');
-  assert.strictEqual(s.collected.blue, 0);
   assert.strictEqual(s.board[Core.idx(7, 7)], 1, '水晶长在方块上');
 
-  // 只是把别的格填上、没消行 → 不收集
-  s.board[Core.idx(0, 0)] = 1;
-  assert.strictEqual(s.collected.blue, 0, '没消行 ⇒ 不收集');
+  // 第 7 行现在是满的（blocks 0-6 + 水晶 7）——挖掉 (7,3)，用 1×1 补回去 ⇒ 消行 ⇒ 收集 ⇒ 胜利
+  s.board[Core.idx(7, 3)] = 0;
+  const slot = seekPieceInTray(s, 'i1');
+  const evs = Core.place(s, slot, 7, 3);
+  assert(evs, '落子成功');
+  const collect = evs.find(e => e.t === 'collect');
+  assert(collect, '消行时抛 collect 事件');
+  assert.strictEqual(collect.gained[0].kind, 'blue');
+  assert.strictEqual(s.collected.blue, 1, '水晶被收集');
+  assert.strictEqual(s.crystal[Core.idx(7, 7)], null, '收集后水晶从盘上消失');
+  const win = evs.find(e => e.t === 'win');
+  assert(win, '目标达成 ⇒ win 事件');
+  assert(s.won && s.over);
+  assert(win.stars >= 1 && win.stars <= 3);
+  console.log('test-levels: 水晶只在消行时收集 + win 事件 OK（不再 SKIP）');
 
-  // 真消掉水晶所在的行 → 收集 + 胜利
-  const s2 = Core.newLevel(def, 7);
-  // 第 7 行已有 0..6 + 水晶在 (7,7) ⇒ 已经满了？不：blocks 填 0-6，crystal 填 7 ⇒ 整行已满。
-  // 所以构造一个差一格的：清掉 (7,3) 再用 1×1 补
-  s2.board[Core.idx(7, 3)] = 0;
-  const slot = Core.tray(s2).findIndex(p => p && p.id === 'i1');
-  const evs = slot >= 0 ? Core.place(s2, slot, 7, 3) : null;
-  if (evs) {
-    const collect = evs.find(e => e.t === 'collect');
-    const win = evs.find(e => e.t === 'win');
-    assert(collect, '消行时抛 collect 事件');
-    assert.strictEqual(collect.gained[0].kind, 'blue');
-    assert.strictEqual(s2.collected.blue, 1);
-    assert(win, '目标达成 ⇒ win 事件');
-    assert(s2.won && s2.over);
-    console.log('test-levels: 水晶只在消行时收集 + 胜利判定 OK');
-  } else {
-    // 这一手没有 1×1 —— 直接测规则函数本身
-    const before = s2.collected.blue;
-    s2.board[Core.idx(7, 3)] = 1;
-    const f = Core.findFullLines(s2.board, s2.stone);
-    assert.deepStrictEqual(f.rows, [7]);
-    assert.strictEqual(before, 0);
-    console.log('test-levels: 水晶收集（规则函数级）OK');
-  }
+  // 反例：不消行 ⇒ 绝不收集
+  // ⚠ 用一个**开局不满行**的 def：上面那个 def 的第 7 行开局就是满的（7 block + 1 水晶 = 8 格），
+  //   于是在任何地方落一子都会触发消行、把水晶收走（规则没错——行满就消，与落子位置无关；
+  //   是测试数据造错了）。这也是关卡设计的一条隐性约束：**开局盘面不许有已填满的行/列**。
+  const def2 = { id: 3, blocks: [[7, 0], [7, 1], [7, 2], [7, 3], [7, 4], [7, 5]], crystals: [[7, 7, 'blue']] };
+  const s2 = Core.newLevel(def2, 7);               // 第 7 行差 (7,6)，开局不满
+  assert.deepStrictEqual(Core.findFullLines(s2.board, s2.stone).rows, [], '开局没有满行');
+  const slot2 = seekPieceInTray(s2, 'i1');
+  Core.place(s2, slot2, 0, 0);                     // 空地落子，不可能消行
+  assert.strictEqual(s2.collected.blue, 0, '没消行 ⇒ 不收集');
+  assert(!s2.won);
+  console.log('test-levels: 不消行绝不收集 OK');
 }
 
 // ════════ SWEEP 的 left/before 必须排除石块（否则含石块的关永远触发不了）════════
@@ -112,23 +122,27 @@ console.log(`test-levels: ${Levels.count()} 关，数据校验 0 错 OK`);
   console.log('test-levels: 三星评级 OK');
 }
 
-// ════════ 撤销必须把已收集的水晶「吐回来」════════
+// ════════ 撤销必须把已收集的水晶「吐回来」（且把 win 状态一起回滚）════════
 {
   const def = { id: 6, blocks: [[7, 0], [7, 1], [7, 2], [7, 3], [7, 4], [7, 5]], crystals: [[7, 6, 'blue'], [7, 7, 'pink']] };
   const s = Core.newLevel(def, 11);
-  s.board[Core.idx(7, 2)] = 0;                              // 第 7 行差一格
-  const slot = Core.tray(s).findIndex(p => p && p.id === 'i1');
-  if (slot >= 0) {
-    Core.place(s, slot, 7, 2);
-    assert.strictEqual(s.collected.blue, 1, '收集了');
-    Core.undo(s);
-    assert.strictEqual(s.collected.blue, 0, '撤销后已收集数回退');
-    assert.strictEqual(s.crystal[Core.idx(7, 6)], 'blue', '撤销后水晶回到盘上');
-    assert(!s.won && !s.over);
-    console.log('test-levels: 撤销吐回水晶 OK');
-  } else {
-    console.log('test-levels: 撤销吐回水晶 SKIP（这一手没有 1×1）');
-  }
+  s.board[Core.idx(7, 2)] = 0;                     // 第 7 行差一格
+  const slot = seekPieceInTray(s, 'i1');
+  const evs = Core.place(s, slot, 7, 2);
+  assert(evs.find(e => e.t === 'collect'), '消行收集');
+  assert.strictEqual(s.collected.blue, 1);
+  assert.strictEqual(s.collected.pink, 1);
+  assert(s.won, '两颗水晶都收齐 ⇒ 过关');
+
+  assert(Core.undo(s), '撤销成功');
+  assert.strictEqual(s.collected.blue, 0, '撤销后已收集数回退');
+  assert.strictEqual(s.crystal[Core.idx(7, 6)], 'blue', '撤销后水晶回到盘上');
+  assert.strictEqual(s.crystal[Core.idx(7, 7)], 'pink');
+  assert.strictEqual(s.board[Core.idx(7, 2)], 0, '棋盘回到落子前');
+  assert(!s.won && !s.over, '撤销把 win/over 一起回滚（否则会卡在结算浮层）');
+  assert(s.usedUndo, '用过撤销要留痕 ⇒ 最高两星');
+  assert(Core.starsFor(s) <= 2, '用过撤销 ⇒ 拿不到三星');
+  console.log('test-levels: 撤销吐回水晶 + 回滚 win + 降星 OK（不再 SKIP）');
 }
 
 // ════════ 无尽模式完全不受关卡逻辑影响（回归）════════

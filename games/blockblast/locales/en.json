@@ -39,6 +39,7 @@
     "moves": "Moves {n}",
     "parHint": "{n} moves for 3 stars",
     "locked": "Locked",
-    "goal": "Collect"
+    "goal": "Collect",
+    "undo": "Undo"
   }
 }

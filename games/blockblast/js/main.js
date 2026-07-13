@@ -76,7 +76,8 @@ function startLevel(id) {
   G.drag = null; G.fly = null;
   G.phase = 'PLAYING';
   FX.reset();
-  clearRun();
+  // ⚠ 别 clearRun()：K_RUN 存的是**无尽模式**的当前局。进一次关卡就把它抹了 = 玩家没打完的
+  //    无尽局凭空消失（红队指出）。关卡局本来就不做续玩存档，跟 K_RUN 无关。
 }
 
 function saveProgress() {
@@ -140,21 +141,23 @@ function consume(events) {
       FX.toast(T('blockblast.levelWin'), Lo.cx, Lo.boardY + Lo.boardW / 2, '#7ef2a0', 'bold 30px sans-serif', 1.3);
       FX.shake(16);
       Sound.sweep('perfect');
-      clearRun();
 
     } else if (e.t === 'unwinnable') {
       // 软锁死兜底：这是**我们的**错，不是玩家的 ⇒ 免费重开，绝不推广告
       s.unwinnable = true;
       Sound.over();
-      clearRun();
 
     } else if (e.t === 'over') {
       Sound.over();
-      if (s.score > G.best) {
-        G.best = s.score;
-        try { Platform.storage.set(K_BEST(), String(G.best)); } catch (err) {}
+      // ⚠ 只有**无尽模式**的结束才动最高分和 K_RUN：
+      //    关卡失败也会走 'over'，若不门控，关卡的分数会污染无尽的最高分、还会抹掉无尽存档。
+      if (s.mode === 'endless') {
+        if (s.score > G.best) {
+          G.best = s.score;
+          try { Platform.storage.set(K_BEST(), String(G.best)); } catch (err) {}
+        }
+        clearRun();
       }
-      clearRun();
     }
   }
   if (!s.over && s.mode === 'endless') saveRun();     // 关卡局不做续玩存档（重开成本低）
@@ -173,6 +176,9 @@ function dispatch(action, data) {
       break;
     }
     case 'MENU': G.phase = 'MENU'; break;
+    case 'UNDO':
+      if (Core.undo(G.s)) { FX.reset(); Sound.pick(); if (G.s.mode === 'endless') saveRun(); }
+      break;
     default: break;
   }
   renderAll();
