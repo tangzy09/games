@@ -162,15 +162,10 @@
     });
 
     y += 6;
-    // 去广告 IAP —— ⚠ **一次性买断，不是订阅**（「付费还看广告」是本品类最毒的一条差评）
-    if (Money.noAds) {
-      txt('✓ ' + T('sol.removeAdsDone'), cx, y + 20, '#7ef2a0', '13px sans-serif');
-    } else {
-      fillRR(cx - w / 2, y, w, 44, 10, 'rgba(255,216,77,0.22)');
-      txt('✨ ' + T('sol.removeAds'), cx, y + 22, '#ffd84d', 'bold 14px sans-serif');
-      addHit(cx - w / 2, y, w, 44, 'NOADS', {});
-      y += 52;
-      // 激励视频：**纯增益**，只换外观。绝不用它换提示/撤销 —— 那是基本人权（DESIGN 7.4）
+    // ⛔ 首版**没有去广告 IAP**：宣称有内购却没接 StoreKit ⇒ 审核员点了直接生效、
+    //    且在 ASC 里找不到 IAP 产品 ⇒ **2.1(b) 必被拒**。上线后的更新版再真接。
+    //    （激励视频保留 —— 它不是 IAP，只换外观。）
+    if (!Money.noAds) {
       fillRR(cx - w / 2, y, w, 44, 10, 'rgba(255,255,255,0.14)');
       txt('▶ ' + T('sol.watchAd') + '  ' + T('sol.watchAdSub'), cx, y + 22, '#fff', '13px sans-serif');
       addHit(cx - w / 2, y, w, 44, 'EARN_AD', {});
