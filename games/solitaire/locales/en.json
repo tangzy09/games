@@ -79,12 +79,12 @@
     "table_midnight": "Midnight",
     "table_wood": "Wood",
     "table_rose": "Rose",
-    "introTitle": "Every deal is proven solvable.",
-    "introSub": "A solver checks every deal before you see it. If it has no solution, you never get it.",
-    "introB1": "But \"solvable\" means solvable if you could see the face-down cards. You can't. So we won't pretend you're guaranteed to win.",
-    "introB2": "Stuck? Ask \"Is this deal still winnable?\" — a real solver runs on your device and answers honestly, including \"we couldn't work it out\".",
-    "introB3": "Undo, hints and restart are free. Forever. No ad to watch. 45% of the deals you lose are still winnable — charging you to find that out would be indefensible.",
+    "introTitle": "The solitaire you can argue with.",
+    "introSub": "Stuck? Ask it: \"is this deal still winnable?\" A real solver runs on your device and answers you.",
+    "introB1": "It gives one of three answers — still solvable / no longer solvable / \"we couldn't work it out\". We will not pretend to know something we don't.",
+    "introB2": "Every Klondike deal is verified solvable before it is dealt. But \"solvable\" means solvable if you could see the face-down cards — and you can't. So we never claim you are guaranteed to win.",
+    "introB3": "Undo, hints, restart and the solver are free. Forever. No ad. 45% of the deals you lose are still solvable — charging you to find that out would be indefensible.",
     "introGo": "Deal me in",
-    "introFair": "See the numbers"
+    "introFair": "Show me the numbers"
   }
 }

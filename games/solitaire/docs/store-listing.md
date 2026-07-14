@@ -21,7 +21,33 @@
 写 `Winnable` 会造出比「你坑我」更毒的差评：**「它说这局能赢，可我怎么都赢不了」**——而且是我们主动挑起的。
 `Solvable`（存在解法）是**事实**，`Winnable`（你能赢）是**谎言**。差一个词，差一条产品命。
 
-### 2. ASO 死线：`solitaire` 是红海，别抢大词
+### 2. ⚠⚠ 定位死线：**「只发可解局」不是我们的卖点 —— 竞品早就有了**
+
+**2026-07 查证（不是猜的）**：品类头部 **MobilityWare Solitaire 有 "Winning Deals" 滑块，
+可以拉到 100%**，每日挑战也取自 winnable pool。
+⇒ **「每局都验证过有解」这句话人人都在说。把它当第一卖点，审核员只会觉得我们在抄，反而加大 4.3 风险。**
+
+但同一批用户反馈里还有一条，比上面这条更重要：
+> *"many deals are just not possible even with the filter set to all wins"*
+
+**红队预测的那颗语义炸弹，已经在竞品身上引爆了**：他们承诺 winnable，但那是**透视口径**
+（solver 看得见暗牌，玩家看不见）；玩家赢不了 → 认定这个设置是假的 → 差评。
+**他们给了承诺，却给不出证明，也不肯说明边界。** 他们的官方 FAQ 里甚至专门有一条
+「I have lost a lot of games in a row. Are all games winnable?」来救火。
+
+⇒ **我们真正独特的（已查证，竞品都没有）**：
+| | MobilityWare | 我们 |
+|---|---|---|
+| 只发可解局 | ✅ 有 | ✅ 有（**不当卖点**） |
+| 提示 | 只列可行走法，无策略 | 同 |
+| **局中质询「这局还有解吗？」** | ❌ 官方建议「多按撤销试试」 | ✅ **真求解器，设备上跑** |
+| **敢答「我们算不出来」** | ❌ | ✅ |
+| **公开「有解 ≠ 你能赢」的落差** | ❌ 藏着，因此挨骂 | ✅ 首屏就讲 |
+
+**一句话定位**：**唯一一个你能当场质问、并且会诚实承认自己不知道的纸牌游戏。**
+（而这恰好是竞品那批差评的解药。）
+
+### 3. ASO 死线：`solitaire` 是红海，别抢大词
 
 `solitaire` 底下压着微软 / MobilityWare / Zynga，新 app 排它 = **零流量**。
 正解：让名字**一口气命中多个长尾**，大词只当「顺带被索引」。
@@ -33,11 +59,12 @@
 | 字段 | 内容 | 长度 |
 |---|---|---|
 | **name** (30) | `Solitaire: Klondike & FreeCell` | **30**（用满） |
-| **subtitle** (30) | `Proven solvable patience game` | 29 |
+| **subtitle** (30) | `Patience: ask if it's solvable` | 30 |
 | **keywords** (100) | `card,classic,windows,offline,solver,puzzle,brain,relax,senior,cards,logic,daily,winnable,fair` | 93 |
 
-**为什么名称不放我们的卖点**：`proven solvable` **零搜索量**（没人会去搜它）。
+**为什么名称不放卖点**：卖点词（`solver` / `proven`）**零搜索量**（没人会去搜它们）。
 名称那 30 个字符是最重的索引位，必须给**真实搜索词**；差异化放副标题（副标题一样进索引）。
+⚠ 副标题也**不再写 `proven solvable`**（竞品都这么说，无差异）——改成「你可以问它」，那才是独有的。
 
 命中的长尾：`solitaire` · `klondike solitaire` · `freecell` · `klondike freecell` · `patience`（英/欧主力词）。
 ⭐ **FreeCell 是突破口**：搜它的人比 `solitaire` 少，但**竞争小一个数量级**，而我们真有 FreeCell（还带微软局号）。
@@ -91,7 +118,7 @@ FAIR BY DESIGN
 | 字段 | 内容 | effLen (CJK×2) |
 |---|---|---|
 | **name** (30) | `纸牌接龙：经典与空当接龙` | 24 |
-| **subtitle** (30) | `每局发牌前都验证过有解` | 22 |
+| **subtitle** (30) | `卡住了？问它这局还有没有解` | 26 |
 | **keywords** (100) | `单人纸牌,windows纸牌,单机,离线,益智,休闲,老年,扑克,solitaire,klondike,freecell,求解器,烧脑,放松,每日` | 95 |
 
 ⚠ 中文 subtitle 用「验证过有解」，**不是**「每局都能赢」（措辞死线）。
@@ -172,19 +199,24 @@ This is a classic solitaire app (Klondike + FreeCell), and we know the App Store
 many of those. Here is what is genuinely different about this one, and how to see it
 in under a minute:
 
-1. EVERY KLONDIKE DEAL IS VERIFIED SOLVABLE BEFORE IT IS DEALT.
-   A real solver runs on-device. Deals with no solution are never given to you.
-   The app ships a pre-verified deal pool (games/solitaire/data/) built by replaying
-   each solution through the game's own rules engine.
-   -> Where to see it: the green "Solvable" badge at the top of the board. Tap it.
+1. A SOLVER THE PLAYER CAN INTERROGATE MID-GAME. (This is the core of the app.)
+   We are aware that other solitaire apps offer "winnable deals only" as a setting, so
+   that alone is not what makes this app different. What is different is that the player
+   can stop at ANY point in a game and ask "is this deal still winnable?" - and a real
+   search runs in a Web Worker on the device and answers with one of THREE results:
+     - still solvable
+     - no longer solvable (and, when it can prove it, the move number after which no
+       solution exists - stated as a fact, never as an accusation)
+     - "we couldn't work it out" - we refuse to report a guess as a proof
+   We are not aware of any other solitaire app that answers this question at all, let
+   alone one that will admit the third answer.
+   -> Where to see it: tap "Is this deal still winnable?" below the board on the main
+      screen. It answers in well under a second on an opening position.
 
-2. "IS THIS DEAL STILL WINNABLE?" - A SOLVER YOU CAN ACTUALLY PUSH.
-   The big button below the board runs a real search in a Web Worker on the device and
-   gives one of three answers: still solvable / no longer solvable (with the move number
-   after which no solution exists) / "we couldn't work it out". We do not know of another
-   solitaire app that will admit the third answer.
-   -> Where to see it: tap "Is this deal still winnable?" on the main screen. It answers
-      in well under a second on an opening position.
+2. EVERY KLONDIKE DEAL IS VERIFIED SOLVABLE BEFORE IT IS DEALT.
+   The app ships a pre-verified deal pool built offline by replaying each solver solution
+   through the game's own rules engine - a deal only ships if that replay actually wins.
+   -> Where to see it: the green "Solvable" badge at the top of the board. Tap it.
 
 3. WE PUBLISH THE HONEST GAP, WHICH IS NOT FLATTERING TO US.
    The Fairness page states plainly that "solvable" only means solvable IF you could see
