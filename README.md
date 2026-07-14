@@ -26,7 +26,7 @@ codemagic.yaml   iOS 流水线（共享模板，新游戏加一段 workflow 填 
 | `minesweeper` | 已上线 + App Store 送审 |
 | `snake` | 已上线 + App Store 送审 |
 | `abyssshoot` | 已提交 App Store 审核；线上 <https://fishshoot.ai-speeds.com> |
-| `blockblast` | 只有 DESIGN.md + 模拟器，零游戏代码（8×8 block puzzle，待开 P1） |
+| `blockblast` | 已提交 App Store 审核（「Cube Blast: Block Puzzle」）；线上 <https://blocks.ai-speeds.com> |
 | `bouncerogue` | 只有 DESIGN.md，零代码（纯 spec，已 park） |
 
 ## 起步

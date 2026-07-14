@@ -1,5 +1,8 @@
 # blockblast —— 设计文档 v4（终稿：调研 + 模拟数据 + 红队三轮之后）
 
+> **状态（2026-07-13）：P1-P4 全部完成，已提交 App Store 审核**（ASC「Cube Blast: Block Puzzle」，Apple ID 6790598746）。
+> 线上 web：<https://blocks.ai-speeds.com> · 商店页实际值见 `docs/store-listing.md` · 工程约定见 `CLAUDE.md`。
+
 > **内部代号 `blockblast`（目录名），⛔ 绝不能当商店名** —— *Block Blast!* 是 Hungry Studio 的商标+爆款。商店名二期另取原创名。
 > **定位**：8×8 block puzzle，关卡模式优先。root `CLAUDE.md` + `engine/README.md` 先读，本文件只讲本游戏专属设计。
 >

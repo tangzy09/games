@@ -16,7 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `minesweeper` | 已上线 + App Store 送审。完整。 |
 | `snake` | 已上线 + App Store 送审。完整。 |
 | `abyssshoot` | **已提交 App Store 审核**（ASC 名「2048 Shooter: Fish Merge」）。玩法/美术/图鉴/道具/广告/商店页全备，线上 <https://fishshoot.ai-speeds.com>。 |
-| `blockblast` | **只有 DESIGN.md + tools/sim.js，零游戏代码**（8×8 block puzzle，设计已用模拟校准过，待开 P1）。 |
+| `blockblast` | **已提交 App Store 审核**（ASC 名「Cube Blast: Block Puzzle」）。8×8 消除拼图；卖点是**预生成块流**（出块序列落子前就定死、种子可查）。线上 <https://blocks.ai-speeds.com>。 |
 | `bouncerogue` | **只有 DESIGN.md，零代码**（纯 spec，已 park）。 |
 
 ## 常用命令
