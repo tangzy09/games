@@ -166,7 +166,7 @@ workflows:
       vars:
         GAME_DIR: "games/blockblast"
         BUNDLE_ID: "com.aispeeds.cubeblast"
-        APP_STORE_APP_ID: "TODO"             # ⚠ 待填: ASC UI 建 App 记录后拿到的数字 Apple ID
+        APP_STORE_APP_ID: "6790598746"       # ASC「Cube Blast: Block Puzzle」数字 Apple ID
         GAD_APP_ID: "ca-app-pub-2141208066469648~6813744374"   # Cube Blast 专属 AdMob App ID(~ 号)
     scripts: *ios_scripts
     artifacts: *ios_artifacts
