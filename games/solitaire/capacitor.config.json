@@ -1,0 +1,16 @@
+{
+  "appId": "com.aispeeds.solitaireproven",
+  "appName": "Solitaire",
+  "webDir": "www",
+  "backgroundColor": "#0a4f2e",
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 800,
+      "backgroundColor": "#0a4f2e",
+      "showSpinner": false
+    },
+    "AdMob": {
+      "initializeForTesting": false
+    }
+  }
+}

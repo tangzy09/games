@@ -18,6 +18,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `abyssshoot` | **已提交 App Store 审核**（ASC 名「2048 Shooter: Fish Merge」）。玩法/美术/图鉴/道具/广告/商店页全备，线上 <https://fishshoot.ai-speeds.com>。 |
 | `blockblast` | **已提交 App Store 审核**（ASC 名「Cube Blast: Block Puzzle」）。8×8 消除拼图；卖点是**预生成块流**（出块序列落子前就定死、种子可查）。线上 <https://blocks.ai-speeds.com>。 |
 | `solitaire` | **P1 完成（Klondike 可玩 + 纸牌瀑布），未上线**。三合一纸牌；差异化 = **每局都存在解法且可验证**。⚠ 措辞是死线：可解率是「透视暗牌」意义下的，绝不能说成「你一定能赢」（见其 CLAUDE.md）。 |
+| `blockblast` | **已提交 App Store 审核**（ASC 名「Cube Blast: Block Puzzle」）。线上 <https://blocks.ai-speeds.com>。 |
+| `solitaire` | **P1-P6 完成，待上线**（Klondike 可解池 + FreeCell 微软局号 + 「这局还有解吗」证明器 + 变现）。未出包。 |
 | `bouncerogue` | **只有 DESIGN.md，零代码**（纯 spec，已 park）。 |
 
 ## 常用命令
@@ -72,3 +74,10 @@ ssh -i /c/Users/tangz/Documents/credentials/ec2_1.pem ec2-user@3.26.95.240 "sudo
 
 - **多个 Claude 会话并行共用本仓**。提交只 `git add` 精确路径，**禁止 `git add -A`**（曾把别会话的未提交文件夹带进提交）。改 `engine/` 或根级文件（package.json、本文件）前先 `git status` 看别的会话有没有未提交改动，改前先读当前内容（input.js 曾因替换旧版内容被贴进孤儿代码）。
 - 用脚本批量改代码时，**替换后必须 grep 验证生效**——`str.replace` 没匹配不报错，本仓已静默失败四次。
+  更稳的做法：python 脚本里对每个替换 `assert old in s`（不匹配直接炸，而不是静默跳过）。
+- **别用 shell heredoc 写含反斜杠/引号的代码**：`'C:\tmp'` 里的 `\t` 会被吃成 tab（真实踩过），
+  引号也会和 bash 打架。用 Write 工具写文件，或写成 `.py` 再 `python` 执行。
+- **Monte-Carlo / solver 是本仓的数值真值源**：拍脑袋的数值一律先用模拟器验（`games/*/tools/sim*.js`）。
+  已多次推翻自己的设计（blockblast 的两个机制、solitaire 的措辞）。
+- **有外部地面真值时，必须拿它验**（不能自我确认）：solitaire 的 FreeCell 用微软 #11982
+  （32000 局里唯一无解的那局）验发牌+规则，一次抓出「solver 提速 437×」的深层 bug。

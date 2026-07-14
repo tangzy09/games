@@ -112,8 +112,183 @@
     addHit(cx - 70, SH - 70, 140, 44, 'PLAY', {});
   }
 
+  /** 页面通用背景 + 返回按钮 */
+  function page(title) {
+    clearHits();
+    const L = Layout.layout({ noBanner: true });
+    const { SW, SH } = GameGlobal;
+    const tb = Sprite.tableStyle(Money.state.table);
+    const g = ctx.createLinearGradient(0, 0, 0, SH);
+    g.addColorStop(0, tb.a); g.addColorStop(1, tb.b);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, SW, SH);
+    txt(title, L.cx, GameGlobal.safeTop + 30, '#fff', 'bold 20px sans-serif');
+    fillRR(L.cx - 70, SH - 70, 140, 44, 12, 'rgba(255,255,255,0.20)');
+    txt('‹ ' + T('sol.back'), L.cx, SH - 48, '#fff', '14px sans-serif');
+    addHit(L.cx - 70, SH - 70, 140, 44, 'PLAY', {});
+    return L;
+  }
+
+  /** 菜单：每日 / 统计 / 收藏 / 公平 / 去广告 */
+  function renderMenu() {
+    const L = page(T('sol.menu'));
+    const { SH } = GameGlobal;
+    const cx = L.cx, w = Math.min(L.playW - 40, 380);
+    let y = GameGlobal.safeTop + 62;
+
+    txt(T('sol.coins', { n: Money.coins }), cx, y, '#ffd84d', 'bold 15px sans-serif');
+    y += 26;
+
+    const items = [
+      ['📅 ' + T('sol.daily'), T('sol.dailySub'), 'DAILY'],
+      ['📊 ' + T('sol.stats'), '', 'STATS'],
+      ['🎴 ' + T('sol.collection'), '', 'SHOP'],
+      ['⚖ ' + T('sol.fair'), T('sol.fairTitle'), 'FAIR'],
+    ];
+    items.forEach(function (it) {
+      const label = it[0], sub = it[1], act = it[2];
+      const hh = sub ? 52 : 42;
+      fillRR(cx - w / 2, y, w, hh, 10, 'rgba(0,0,0,0.26)');
+      txtL(label, cx - w / 2 + 14, y + (sub ? 18 : 21), '#fff', 'bold 14px sans-serif');
+      if (sub) txtL(wrapLines(sub, w - 28, 1)[0], cx - w / 2 + 14, y + 37, PAL.sub, '10px sans-serif');
+      addHit(cx - w / 2, y, w, hh, act, {});
+      y += hh + 8;
+    });
+
+    y += 6;
+    // 去广告 IAP —— ⚠ **一次性买断，不是订阅**（「付费还看广告」是本品类最毒的一条差评）
+    if (Money.noAds) {
+      txt('✓ ' + T('sol.removeAdsDone'), cx, y + 20, '#7ef2a0', '13px sans-serif');
+    } else {
+      fillRR(cx - w / 2, y, w, 44, 10, 'rgba(255,216,77,0.22)');
+      txt('✨ ' + T('sol.removeAds'), cx, y + 22, '#ffd84d', 'bold 14px sans-serif');
+      addHit(cx - w / 2, y, w, 44, 'NOADS', {});
+      y += 52;
+      // 激励视频：**纯增益**，只换外观。绝不用它换提示/撤销 —— 那是基本人权（DESIGN 7.4）
+      fillRR(cx - w / 2, y, w, 44, 10, 'rgba(255,255,255,0.14)');
+      txt('▶ ' + T('sol.watchAd') + '  ' + T('sol.watchAdSub'), cx, y + 22, '#fff', '13px sans-serif');
+      addHit(cx - w / 2, y, w, 44, 'EARN_AD', {});
+    }
+
+    txt(T('sol.freeForever'), cx, SH - 100, 'rgba(255,255,255,0.55)', '10px sans-serif');
+  }
+
+  /** 统计：**双口径**（DESIGN 4.5）—— 无限撤销会把总胜率架空，不分开记统计就是假的 */
+  function renderStats() {
+    const L = page(T('sol.stats'));
+    const st = root.G.stats;
+    const cx = L.cx, w = Math.min(L.playW - 40, 380);
+    let y = GameGlobal.safeTop + 70;
+
+    const rate = st.played ? Math.round(st.won / st.played * 100) : 0;
+    const clean = st.played ? Math.round(st.cleanWon / st.played * 100) : 0;
+
+    const rows = [
+      [T('sol.played'), String(st.played)],
+      [T('sol.wonN'), String(st.won)],
+      [T('sol.winRate'), rate + '%'],
+      [T('sol.streak'), String(st.streak || 0)],
+      [T('sol.bestStreak'), String(st.bestStreak || 0)],
+    ];
+    rows.forEach(function (r) {
+      fillRR(cx - w / 2, y, w, 34, 8, 'rgba(0,0,0,0.24)');
+      txtL(r[0], cx - w / 2 + 14, y + 17, PAL.sub, '12px sans-serif');
+      txtR(r[1], cx + w / 2 - 14, y + 17, '#fff', 'bold 14px sans-serif');
+      y += 40;
+    });
+
+    // 零撤销·零提示胜率 —— 这才是玩家会拿去炫的那个数字
+    y += 8;
+    fillRR(cx - w / 2, y, w, 58, 10, 'rgba(126,242,160,0.18)');
+    txtL(wrapLines(T('sol.cleanRate'), w - 90, 1)[0], cx - w / 2 + 14, y + 22, '#7ef2a0', 'bold 12px sans-serif');
+    txtR(clean + '%', cx + w / 2 - 14, y + 24, '#7ef2a0', 'bold 20px sans-serif');
+    txtL(String(st.cleanWon || 0) + ' / ' + st.played, cx - w / 2 + 14, y + 42, PAL.sub, '10px sans-serif');
+    y += 68;
+    wrapLines(T('sol.cleanNote'), w, 3).forEach(function (ln, i) {
+      txtL(ln, cx - w / 2, y + i * 14, 'rgba(255,255,255,0.55)', '10px sans-serif');
+    });
+  }
+
+  /** 收藏：牌背 / 桌布 —— 激励视频的**消耗端**（没有它，激励视频那条腿约等于零收入）*/
+  function renderShop() {
+    const L = page(T('sol.collection'));
+    const cx = L.cx, w = Math.min(L.playW - 40, 380);
+    let y = GameGlobal.safeTop + 58;
+
+    txt(T('sol.coins', { n: Money.coins }), cx, y, '#ffd84d', 'bold 14px sans-serif');
+    y += 24;
+
+    const cw = Math.floor((w - 24) / 5), ch = Math.round(cw * 1.42);
+    txtL(T('sol.backs'), cx - w / 2, y, '#fff', 'bold 13px sans-serif');
+    y += 16;
+    const backY = y;
+    Money.BACKS.forEach(function (it, i) {
+      const x = cx - w / 2 + i * (cw + 6);
+      const own = Money.owns('back', it.id);
+      const on = Money.state.back === it.id;
+      ctx.drawImage(backPreview(it.id, cw, ch), x, backY);
+      if (!own) {
+        // ⚠ 遮罩要**轻**：看不清自己要买什么，就没人愿意为它看广告（收集系统的命门）
+        fillRR(x, backY, cw, ch, 5, 'rgba(0,0,0,0.34)');
+        fillRR(x + cw / 2 - 17, backY + ch / 2 - 9, 34, 18, 9, 'rgba(0,0,0,0.75)');
+        txt(String(it.cost), x + cw / 2, backY + ch / 2, '#ffd84d', 'bold 11px sans-serif');
+      }
+      if (on) { ctx.strokeStyle = '#7ef2a0'; ctx.lineWidth = 3; Sprite.rr(ctx, x, backY, cw, ch, 5); ctx.stroke(); }
+      addHit(x, backY, cw, ch, 'PICK_BACK', { id: it.id });
+    });
+    y += ch + 22;
+
+    txtL(T('sol.tables'), cx - w / 2, y, '#fff', 'bold 13px sans-serif');
+    y += 16;
+    const tabY2 = y;
+    const tw = Math.floor((w - 18) / 4);
+    Money.TABLES.forEach(function (it, i) {
+      const x = cx - w / 2 + i * (tw + 6);
+      const own = Money.owns('table', it.id);
+      const on = Money.state.table === it.id;
+      const st = Sprite.tableStyle(it.id);
+      const gg = ctx.createLinearGradient(x, tabY2, x, tabY2 + 54);
+      gg.addColorStop(0, st.a); gg.addColorStop(1, st.b);
+      fillRR(x, tabY2, tw, 54, 7, gg);
+      if (!own) {
+        fillRR(x, tabY2, tw, 54, 7, 'rgba(0,0,0,0.30)');
+        fillRR(x + tw / 2 - 17, tabY2 + 18, 34, 18, 9, 'rgba(0,0,0,0.75)');
+        txt(String(it.cost), x + tw / 2, tabY2 + 27, '#ffd84d', 'bold 11px sans-serif');
+      }
+      if (on) { ctx.strokeStyle = '#7ef2a0'; ctx.lineWidth = 3; Sprite.rr(ctx, x, tabY2, tw, 54, 7); ctx.stroke(); }
+      addHit(x, tabY2, tw, 54, 'PICK_TABLE', { id: it.id });
+    });
+    y += 76;
+
+    if (!Money.noAds) {
+      fillRR(cx - w / 2, y, w, 42, 10, 'rgba(255,255,255,0.14)');
+      txt('▶ ' + T('sol.watchAd') + '  ' + T('sol.watchAdSub'), cx, y + 21, '#fff', '12px sans-serif');
+      addHit(cx - w / 2, y, w, 42, 'EARN_AD', {});
+    }
+  }
+
+  // 牌背预览（离屏缓存；⚠ 用完要把当前牌背还原，否则会污染牌桌）
+  const prevCache = {};
+  function backPreview(id, w, h) {
+    const k = id + 'x' + w;
+    if (!prevCache[k]) {
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const save = Money.state.back;
+      Sprite.setBack(id);
+      Sprite.ensure(w, h, root.G.fourColor, root.G.bigText);
+      c.getContext('2d').drawImage(Sprite.back(), 0, 0, w, h);
+      Sprite.setBack(save);
+      prevCache[k] = c;
+    }
+    return prevCache[k];
+  }
+
   function renderAll() {
-    if (root.G.phase === 'FAIR') return renderFair();
+    const ph = root.G.phase;
+    if (ph === 'FAIR') return renderFair();
+    if (ph === 'MENU') return renderMenu();
+    if (ph === 'STATS') return renderStats();
+    if (ph === 'SHOP') return renderShop();
     clearHits();
     const G = root.G;
     const s = G.s;
@@ -122,8 +297,10 @@
     Sprite.ensure(L.cardW, L.cardH, G.fourColor, G.bigText);
 
     const { SW, SH } = GameGlobal;
+    Sprite.setBack(Money.state.back);                     // 牌背（收藏品）
+    const tb = Sprite.tableStyle(Money.state.table);      // 桌布（收藏品）
     const g = ctx.createLinearGradient(0, 0, 0, SH);
-    g.addColorStop(0, PAL.felt1); g.addColorStop(1, PAL.felt2);
+    g.addColorStop(0, tb.a); g.addColorStop(1, tb.b);
     ctx.fillStyle = g; ctx.fillRect(0, 0, SW, SH);
 
     // ── 顶排 ──
@@ -230,7 +407,11 @@
     txt(badge, bx2 + bw2 / 2, L.hudY + L.hudH / 2,
         verified ? '#7ef2a0' : PAL.sub, 'bold 10px sans-serif');
     addHit(bx2, L.hudY, bw2, L.hudH, 'FAIR', {});
-    txtR(T('sol.deal', { n: s.seed }), L.playX + L.playW - 8, L.hudY + L.hudH / 2, PAL.sub, '10px sans-serif');
+    // 「☰ #N」= 菜单入口（工具条 5 个按钮已满，菜单挂这里）
+    const mw = 92;
+    fillRR(L.playX + L.playW - 8 - mw, L.hudY, mw, L.hudH, 6, 'rgba(0,0,0,0.22)');
+    txt('☰ #' + s.seed, L.playX + L.playW - 8 - mw / 2, L.hudY + L.hudH / 2, PAL.sub, '10px sans-serif');
+    addHit(L.playX + L.playW - 8 - mw, L.hudY, mw, L.hudH, 'MENU', {});
 
     // ══ ⭐ 「这局还有解吗？」条 —— 本作唯一没有竞品有的按钮，也是 4.3(a) 的正面回答 ══
     //    它永远免费、永远不看广告：这是产品的灵魂，不是道具（变现红线 §7.4）。
@@ -303,6 +484,6 @@
     }
   }
 
-  root.Render = { renderAll, renderFair, PAL };
+  root.Render = { renderAll, renderFair, renderMenu, renderStats, renderShop, PAL };
   root.renderAll = renderAll;
 })(typeof self !== 'undefined' ? self : this);

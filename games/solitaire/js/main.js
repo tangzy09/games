@@ -14,7 +14,9 @@ const G = window.G = {
   fourColor: false,        // 四色牌（无障碍）
   bigText: false,
   noAds: false,
-  stats: { played: 0, won: 0, cleanWon: 0 },   // ⚠ 双口径（DESIGN §4.5）
+  // ⚠ 双口径（DESIGN §4.5）：无限撤销会把总胜率架空 ⇒ 不分开记，统计就是假的
+  stats: { played: 0, won: 0, cleanWon: 0, streak: 0, bestStreak: 0 },
+  dailyDone: '',           // 今天的每日挑战完成了没（YYYYMMDD）
 };
 
 const K_RUN = () => CFG.key('run');
@@ -47,6 +49,18 @@ function loadRun() {
 const clearRun = () => { try { Platform.storage.set(K_RUN(), ''); } catch (e) {} };
 const saveStats = () => { try { Platform.storage.set(K_STATS(), JSON.stringify(G.stats)); } catch (e) {} };
 
+const todayId = () => {
+  const d = new Date();
+  return '' + d.getFullYear() + (d.getMonth() + 1) + d.getDate();
+};
+const saveOpts = () => {
+  try {
+    Platform.storage.set(K_OPT(), JSON.stringify({
+      fourColor: G.fourColor, bigText: G.bigText, dailyDone: G.dailyDone,
+    }));
+  } catch (e) {}
+};
+
 function newGame(drawCount, mode) {
   const md = mode || (G.s ? G.s.mode : 'klondike');
   const draw = drawCount || (G.s ? G.s.drawCount : 3);
@@ -58,6 +72,9 @@ function newGame(drawCount, mode) {
     : (Pool.pick(draw, G.difficulty || 'any') != null
         ? Pool.pick(draw, G.difficulty || 'any') : Deal.randomSeed());
   G.s = Core.newGame(seed, draw, md);
+  // 换局 = 放弃了上一局 ⇒ 连胜断（没打完就换，不能算赢）
+  if (G.s && !G.s.won && G.s.moves.length > 0) G.stats.streak = 0;
+  G.dailySeed = null;
   G.drag = G.pending = G.sel = G.hintMove = null;
   Prover.reset();
   G.stats.played++;
@@ -83,11 +100,22 @@ function doMove(m) {
 /** ⭐ 赢局 → 纸牌瀑布（产品的心脏） */
 function onWin() {
   const s = G.s;
+  const clean = !s.usedUndo && !s.usedHint;
   G.stats.won++;
-  // ⚠ 双口径：全程没用过撤销/提示的赢，才算「clean」（DESIGN §4.5）
-  if (!s.usedUndo && !s.usedHint) G.stats.cleanWon++;
+  if (clean) G.stats.cleanWon++;                 // 双口径：零撤销零提示才算「clean」
+  G.stats.streak = (G.stats.streak || 0) + 1;
+  G.stats.bestStreak = Math.max(G.stats.bestStreak || 0, G.stats.streak);
   saveStats();
   clearRun();
+
+  Money.earnWin(clean);                          // 金币（只能换外观，换不到任何优势）
+  if (G.dailySeed === s.seed) { G.dailyDone = todayId(); saveOpts(); }
+
+  // ⛔ 插屏**只在赢局后**出，且每 3 局最多 1 个。**输局永远不出** ——
+  //    刚输完还甩一脸广告，是这个品类最招恨的做法（微软的「12 连播」就是这么臭掉的）。
+  const showAd = Money.canShowInterstitial();
+  Money.noteWin(showAd);
+  if (showAd) setTimeout(() => Ads.showInterstitial().finally(() => renderAll()), 1800);  // 让瀑布先跑
 
   const L = Layout.L;
   const cards = [];
@@ -191,6 +219,49 @@ function dispatch(action, data) {
       break;
     }
     case 'FAIR': G.phase = 'FAIR'; break;
+    case 'MENU': G.phase = 'MENU'; break;
+    case 'STATS': G.phase = 'STATS'; break;
+    case 'SHOP': G.phase = 'SHOP'; break;
+
+    // 每日挑战：全世界同一天、同一副牌（且**从已验证可解池里取**）
+    case 'DAILY': {
+      const seed = Pool.daily(G.s.drawCount);
+      if (seed != null) {
+        G.s = Core.newGame(seed, G.s.drawCount, 'klondike');
+        G.dailySeed = seed;
+        G.drag = G.sel = G.hintMove = null;
+        Prover.reset(); FX.reset(); clearRun();
+        G.phase = 'PLAY';
+      }
+      break;
+    }
+
+    // 一次性去广告（⚠ 买断，不是订阅）
+    case 'NOADS': {
+      // TODO(P6): 接 StoreKit / Play Billing。web 端先直接给（本地测试）
+      Money.buyNoAds();
+      G.noAds = true;
+      Ads.hideBanner();
+      break;
+    }
+
+    // 激励视频 → 金币。⚠ **纯增益**：金币只能换外观，换不到提示/撤销（那是基本人权）
+    case 'EARN_AD': {
+      Ads.showRewarded().then(got => { if (got) Money.earnAd(); renderAll(); });
+      break;
+    }
+    case 'PICK_BACK': {
+      const id = data.id;
+      if (Money.owns('back', id)) Money.equip('back', id);
+      else Money.buy('back', id);
+      break;
+    }
+    case 'PICK_TABLE': {
+      const id = data.id;
+      if (Money.owns('table', id)) Money.equip('table', id);
+      else Money.buy('table', id);
+      break;
+    }
     // ⭐ 「这局还有解吗？」—— 永远免费、永远不看广告（它是产品的灵魂，不是道具）
     case 'PROVE': Prover.ask(G.s); break;
     case 'UNDO_TO': {                          // 从「死局」结论一键撤回到最后有解的那一步
@@ -255,6 +326,12 @@ async function boot() {
 
   try { G.stats = Object.assign(G.stats, JSON.parse(Platform.storage.get(K_STATS()) || '{}')); } catch (e) {}
   try { Object.assign(G, JSON.parse(Platform.storage.get(K_OPT()) || '{}')); } catch (e) {}
+
+  Money.load();
+  G.noAds = Money.noAds;
+  // ⭐ 横幅是**主力收入**（纸牌单次会话 10-15 分钟，曝光时长极高且不打断牌局）。
+  //    布局已为它**预留**了 Layout.BANNER_H —— 它永远不会盖在牌上（变现红线 §7.4-5）。
+  if (!Money.noAds) Ads.showBanner();
 
   await Pool.load();                                   // ⭐ 先加载可解池（决定发什么牌）
   const resumed = loadRun();

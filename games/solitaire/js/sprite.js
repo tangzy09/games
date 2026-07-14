@@ -66,7 +66,17 @@
     return c;
   }
 
-  function makeBack(w, h) {
+  // 牌背样式（激励视频的**消耗端** —— 没有可换的东西，激励视频约等于零收入）
+  const BACK_STYLES = {
+    classic:  { a: '#2b5fa8', b: '#17407a', ink: 'rgba(255,255,255,0.45)' },
+    waves:    { a: '#0e7490', b: '#083344', ink: 'rgba(255,255,255,0.40)' },
+    plaid:    { a: '#7f1d1d', b: '#450a0a', ink: 'rgba(255,220,180,0.40)' },
+    stars:    { a: '#3730a3', b: '#1e1b4b', ink: 'rgba(255,240,150,0.55)' },
+    gold:     { a: '#a16207', b: '#4a2c04', ink: 'rgba(255,240,190,0.60)' },
+  };
+
+  function makeBack(w, h, style) {
+    const st = BACK_STYLES[style] || BACK_STYLES.classic;
     const c = document.createElement('canvas');
     const dpr = window.devicePixelRatio || 1;
     c.width = Math.ceil(w * dpr); c.height = Math.ceil(h * dpr);
@@ -74,13 +84,56 @@
     g.scale(dpr, dpr);
     const r = Math.max(3, w * 0.09);
     const grad = g.createLinearGradient(0, 0, w, h);
-    grad.addColorStop(0, '#2b5fa8'); grad.addColorStop(1, '#17407a');
+    grad.addColorStop(0, st.a); grad.addColorStop(1, st.b);
     g.fillStyle = grad;
     rr(g, 0.5, 0.5, w - 1, h - 1, r); g.fill();
-    g.strokeStyle = 'rgba(255,255,255,0.45)'; g.lineWidth = 2;
+    g.strokeStyle = st.ink; g.lineWidth = 2;
     rr(g, 3.5, 3.5, w - 7, h - 7, r * 0.7); g.stroke();
+
+    // 花纹（各样式一眼可分 —— 分不出来的皮肤没人愿意为它看广告）
+    g.save();
+    rr(g, 3.5, 3.5, w - 7, h - 7, r * 0.7); g.clip();
+    g.strokeStyle = st.ink; g.fillStyle = st.ink;
+    if (style === 'waves') {
+      g.lineWidth = 1.4;
+      for (let y = 6; y < h; y += 7) {
+        g.beginPath();
+        for (let x = 0; x <= w; x += 4) g.lineTo(x, y + Math.sin(x / 5) * 2.2);
+        g.stroke();
+      }
+    } else if (style === 'plaid') {
+      g.lineWidth = 1.2;
+      for (let x = 5; x < w; x += 8) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.stroke(); }
+      for (let y = 5; y < h; y += 8) { g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); }
+    } else if (style === 'stars') {
+      for (let y = 8; y < h; y += 12) {
+        for (let x = 8; x < w; x += 12) {
+          const o = ((x + y) / 12) % 2 ? 0 : 6;
+          g.beginPath(); g.arc(x + o, y, 1.6, 0, 7); g.fill();
+        }
+      }
+    } else if (style === 'gold') {
+      g.lineWidth = 1.2;
+      for (let i = -h; i < w; i += 7) {
+        g.beginPath(); g.moveTo(i, 0); g.lineTo(i + h, h); g.stroke();
+      }
+    } else {
+      g.lineWidth = 1.2;
+      for (let i = -h; i < w; i += 6) {
+        g.beginPath(); g.moveTo(i, 0); g.lineTo(i + h, h); g.stroke();
+      }
+    }
+    g.restore();
     return c;
   }
+
+  // 桌布（同上：收藏品）
+  const TABLE_STYLES = {
+    felt:     { a: '#0f6b3f', b: '#0a4f2e' },
+    midnight: { a: '#1e293b', b: '#0f172a' },
+    wood:     { a: '#6b4423', b: '#3d2412' },
+    rose:     { a: '#7d2b4a', b: '#4a1229' },
+  };
 
   function rr(g, x, y, w, h, r) {
     g.beginPath();
@@ -107,10 +160,18 @@
     if (!cache[k]) cache[k] = make(id, curW, curH, curFour, curBig);
     return cache[k];
   }
+  let curBack = 'classic';
   function back() {
-    if (!backCache) backCache = makeBack(curW, curH);
+    if (!backCache) backCache = makeBack(curW, curH, curBack);
     return backCache;
   }
+  /** 换牌背（收藏品）*/
+  function setBack(style) {
+    if (style === curBack) return;
+    curBack = style; backCache = null;
+  }
+  const tableStyle = id => TABLE_STYLES[id] || TABLE_STYLES.felt;
 
-  root.Sprite = { ensure, face, back, suitColor, SUIT_SYM, RANK_STR, rr };
+  root.Sprite = { ensure, face, back, setBack, tableStyle, BACK_STYLES, TABLE_STYLES,
+                  suitColor, SUIT_SYM, RANK_STR, rr };
 })(typeof self !== 'undefined' ? self : this);

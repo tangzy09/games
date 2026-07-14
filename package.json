@@ -15,6 +15,12 @@
     "verify:levels": "node games/blockblast/tools/verify-levels.js",
     "test:sol": "node games/solitaire/tests/test-klondike.js",
     "test:sol:e2e": "node games/solitaire/tests/e2e-p1.cjs",
-    "sim:sol": "node games/solitaire/tools/sim-blind.js"
+    "sim:sol": "node games/solitaire/tools/sim-blind.js",
+    "test:sol:pool": "node games/solitaire/tools/test-prover.js",
+    "test:sol:fc": "node games/solitaire/tools/test-freecell.js",
+    "test:sol:e2e2": "node games/solitaire/tests/e2e-p2p3.cjs",
+    "test:sol:e2e3": "node games/solitaire/tests/e2e-freecell.cjs",
+    "test:sol:e2e4": "node games/solitaire/tests/e2e-p5p6.cjs",
+    "sim:fc": "node games/solitaire/tools/sim-freecell.js"
   }
 }

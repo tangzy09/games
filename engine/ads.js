@@ -15,7 +15,12 @@ const Ads = (() => {
     android: 'ca-app-pub-3940256099942544/1033173712',
     ios:     'ca-app-pub-3940256099942544/4411468910',
   };
-  const REAL = CFG.adUnits || {}; // { rewarded:{ios,android}, interstitial:{ios,android} }
+  const TEST_BANNER = {
+    android: 'ca-app-pub-3940256099942544/6300978111',
+    ios:     'ca-app-pub-3940256099942544/2934735716',
+  };
+  // { rewarded:{ios,android}, interstitial:{ios,android}, banner:{ios,android} }
+  const REAL = CFG.adUnits || {};
 
   const Cap = Platform.Cap;
   let plugin = null;
@@ -135,6 +140,43 @@ const Ads = (() => {
     }
   }
 
+  // ── Banner ────────────────────────────────────────────────────────────────
+  // For long-session genres (solitaire: 10-15 min a sitting — among the longest
+  // of any casual genre) the banner, not the rewarded video, is the main revenue:
+  // huge impression time and it never interrupts play.
+  //
+  // ⚠ The game MUST reserve space for it in its layout (see Layout.BANNER_H) and
+  // draw its board above that band. A banner that covers the cards is the single
+  // most-hated thing in this genre — never overlay it on the play area.
+  let bannerShown = false;
+
+  function bannerId() {
+    const p = Platform.platform;
+    return (REAL.banner && REAL.banner[p]) || TEST_BANNER[p] || TEST_BANNER.android;
+  }
+
+  async function showBanner() {
+    if (bannerShown) return true;
+    if (!Platform.isNative || !plugin) return false;   // web: the game draws a placeholder band
+    try {
+      await plugin.showBanner({
+        adId: bannerId(),
+        adSize: 'ADAPTIVE_BANNER',
+        position: 'BOTTOM_CENTER',
+        margin: 0,
+        isTesting: !hasRealIds(),
+      });
+      bannerShown = true;
+      return true;
+    } catch (e) { console.warn('banner failed', e); return false; }
+  }
+
+  async function hideBanner() {
+    if (!bannerShown || !plugin) return;
+    try { await plugin.removeBanner(); } catch (e) {}
+    bannerShown = false;
+  }
+
   // GDPR: let users change/withdraw ad consent anytime (required in EU).
   // Returns true if the native form was shown; false on web / not configured.
   async function showPrivacyOptions() {
@@ -143,5 +185,7 @@ const Ads = (() => {
     catch (e) { console.warn('privacy options failed', e); return false; }
   }
 
-  return { init, prepare, showRewarded, prepareInterstitial, showInterstitial, showPrivacyOptions, get ready() { return initialized; } };
+  return { init, prepare, showRewarded, prepareInterstitial, showInterstitial,
+           showBanner, hideBanner, showPrivacyOptions,
+           get ready() { return initialized; }, get bannerShown() { return bannerShown; } };
 })();
