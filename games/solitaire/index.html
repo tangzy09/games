@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
 <title>Solitaire</title>
 <link rel="stylesheet" href="../../engine/engine.css">
-<link rel="stylesheet" href="css/game.css?v=5">
+<link rel="stylesheet" href="css/game.css?v=6">
 </head>
 <body>
 <canvas id="game-canvas"></canvas>
@@ -16,34 +16,46 @@
   window.GAME_CONFIG = {
     id: 'solitaire',
     languages: ['en', 'zh-CN'],
+
+    // ⚠ 广告位：**本游戏专属**（AdMob app「Solitaire」，App ID ~1056120854）。
+    //    已核对不与 mines/snake/abyss/blockblast 的任何一个广告位重复 ——
+    //    复用别的游戏的位会污染两边的数据。
+    // ⚠ 三个 `/` 号 ID 形状完全一样、不含类型信息，**别填反**：
+    //       banner = /9972360374   interstitial = /2229601723   rewarded = /3947907881
+    // ⭐ banner 是本作的**主力收入**（纸牌单次会话 10-15 分钟，曝光时长极高且不打断牌局）。
+    adUnits: {
+      banner:       { ios: 'ca-app-pub-2141208066469648/9972360374' },
+      interstitial: { ios: 'ca-app-pub-2141208066469648/2229601723' },
+      rewarded:     { ios: 'ca-app-pub-2141208066469648/3947907881' },
+    },
     sfx: {},
   };
 </script>
-<script src="../../engine/config.js?v=5"></script>
-<script src="../../engine/platform.js?v=5"></script>
-<script src="../../engine/i18n.js?v=5"></script>
-<script src="../../engine/portal.js?v=5"></script>
-<script src="../../engine/ads.js?v=5"></script>
-<script src="../../engine/audio.js?v=5"></script>
-<script src="../../engine/canvas.js?v=5"></script>
-<script src="../../engine/input.js?v=5"></script>
-<script src="../../engine/controls.js?v=5"></script>
+<script src="../../engine/config.js?v=6"></script>
+<script src="../../engine/platform.js?v=6"></script>
+<script src="../../engine/i18n.js?v=6"></script>
+<script src="../../engine/portal.js?v=6"></script>
+<script src="../../engine/ads.js?v=6"></script>
+<script src="../../engine/audio.js?v=6"></script>
+<script src="../../engine/canvas.js?v=6"></script>
+<script src="../../engine/input.js?v=6"></script>
+<script src="../../engine/controls.js?v=6"></script>
 
 <!-- 加载顺 = 依赖顺：纯逻辑 → 表现 → 主循环 -->
-<script src="js/cards.js?v=5"></script>
-<script src="js/deal.js?v=5"></script>
-<script src="js/rules-klondike.js?v=5"></script>
-<script src="js/rules-freecell.js?v=5"></script>
-<script src="js/core.js?v=5"></script>
-<script src="js/solver.js?v=5"></script>
-<script src="js/pool.js?v=5"></script>
-<script src="js/money.js?v=5"></script>
-<script src="js/prover.js?v=5"></script>
-<script src="js/layout.js?v=5"></script>
-<script src="js/sprite.js?v=5"></script>
-<script src="js/fx.js?v=5"></script>
-<script src="js/render.js?v=5"></script>
-<script src="js/input.js?v=5"></script>
-<script src="js/main.js?v=5"></script>
+<script src="js/cards.js?v=6"></script>
+<script src="js/deal.js?v=6"></script>
+<script src="js/rules-klondike.js?v=6"></script>
+<script src="js/rules-freecell.js?v=6"></script>
+<script src="js/core.js?v=6"></script>
+<script src="js/solver.js?v=6"></script>
+<script src="js/pool.js?v=6"></script>
+<script src="js/money.js?v=6"></script>
+<script src="js/prover.js?v=6"></script>
+<script src="js/layout.js?v=6"></script>
+<script src="js/sprite.js?v=6"></script>
+<script src="js/fx.js?v=6"></script>
+<script src="js/render.js?v=6"></script>
+<script src="js/input.js?v=6"></script>
+<script src="js/main.js?v=6"></script>
 </body>
 </html>

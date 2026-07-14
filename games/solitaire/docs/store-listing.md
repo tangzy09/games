@@ -1,6 +1,11 @@
 # 商店页文案（solitaire）
 
-**内部代号 `solitaire` ≠ 商店名**。Bundle: `com.aispeeds.solitaireproven`，桌面图标名 `Solitaire`（短，不截断）。
+**内部代号 `solitaire` ≠ 商店名**。
+- Bundle ID: `com.aispeeds.solitaireproven`（已注册，ASC id `9JN3M7V238`）
+- 桌面图标名（`capacitor.config.appName`）: `Solitaire`（短，不截断；与商店名是**两个字段**）
+- AdMob app: `ca-app-pub-2141208066469648~1056120854`
+  banner `/9972360374` · interstitial `/2229601723` · rewarded `/3947907881`
+- Apple ID (APP_STORE_APP_ID): **待填** ← ASC UI 建完 App 记录后回填到 codemagic.yaml
 
 ## ⛔ 两条死线（写任何文案前先读）
 
@@ -27,20 +32,26 @@
 
 | 字段 | 内容 | 长度 |
 |---|---|---|
-| **name** (30) | `Solitaire: Proven Solvable` | 26 |
-| **subtitle** (30) | `Klondike & FreeCell Card Game` | 29 |
-| **keywords** (100) | `patience,card,classic,windows,offline,solver,deal,puzzle,brain,relax,senior,cards,logic,solitario` | 97 |
+| **name** (30) | `Solitaire: Klondike & FreeCell` | **30**（用满） |
+| **subtitle** (30) | `Proven solvable patience game` | 29 |
+| **keywords** (100) | `card,classic,windows,offline,solver,puzzle,brain,relax,senior,cards,logic,daily,winnable,fair` | 93 |
 
-命中的长尾：`proven solvable solitaire` / `klondike solitaire` / `freecell card game` / `windows solitaire` / `offline patience`。
-⚠ keywords 里不放 `solitaire`/`klondike`/`freecell`（已在 name/subtitle，索引取并集，重复 = 浪费额度）。
+**为什么名称不放我们的卖点**：`proven solvable` **零搜索量**（没人会去搜它）。
+名称那 30 个字符是最重的索引位，必须给**真实搜索词**；差异化放副标题（副标题一样进索引）。
+
+命中的长尾：`solitaire` · `klondike solitaire` · `freecell` · `klondike freecell` · `patience`（英/欧主力词）。
+⭐ **FreeCell 是突破口**：搜它的人比 `solitaire` 少，但**竞争小一个数量级**，而我们真有 FreeCell（还带微软局号）。
+
+⚠ `winnable` **只进 keywords 字段**（不显示给用户，纯索引）——搜「winnable solitaire」的人正是目标用户；
+   但**名称/副标题/正文里绝不出现这个词**（措辞死线，见上）。
+⚠ keywords 不重复 name/subtitle 里的词（索引取并集，重复 = 浪费额度）。
 ⚠ 不放价格词（`free` 等）—— App Store 2.3.7。
 
 ### description（首段 = 直接答案式，吃 AI/Google 引用）
 
 ```
-Solitaire: Proven Solvable is a classic card game (Klondike + FreeCell) where every
-deal is checked by a solver before you ever see it. If a deal has no solution, you
-never get it.
+Solitaire: Klondike & FreeCell is a classic card game where every deal is checked by
+a solver before you ever see it. If a deal has no solution, you never get it.
 
 But we'll be honest with you about what that means — and no other solitaire app will:
 
@@ -79,17 +90,18 @@ FAIR BY DESIGN
 
 | 字段 | 内容 | effLen (CJK×2) |
 |---|---|---|
-| **name** (30) | `纸牌接龙：每局都有解` | 20 |
-| **subtitle** (30) | `经典纸牌 + 空当接龙` | 19 |
-| **keywords** (100) | `单人纸牌,windows纸牌,蜘蛛纸牌,离线,单机,益智,休闲,老年,扑克,solitaire,克朗代克,求解器,烧脑,放松` | 88 |
+| **name** (30) | `纸牌接龙：经典与空当接龙` | 24 |
+| **subtitle** (30) | `每局发牌前都验证过有解` | 22 |
+| **keywords** (100) | `单人纸牌,windows纸牌,单机,离线,益智,休闲,老年,扑克,solitaire,klondike,freecell,求解器,烧脑,放松,每日` | 95 |
 
-⚠ 中文 name 用「每局都有解」，**不是**「每局都能赢」（见措辞死线）。
+⚠ 中文 subtitle 用「验证过有解」，**不是**「每局都能赢」（措辞死线）。
+⚠ **keywords 里不放「蜘蛛纸牌」** —— 我们没有蜘蛛玩法，放了是误导（也会拉低转化）。
 
 ### description
 
 ```
-《纸牌接龙：每局都有解》是一款经典纸牌游戏（经典纸牌 + 空当接龙）。每一局在发给你之前，
-都由求解器验证过——无解的局，你根本拿不到。
+《纸牌接龙：经典与空当接龙》是一款经典纸牌游戏。每一局在发给你之前，都由求解器验证过——
+无解的局，你根本拿不到。
 
 但有件事我们要跟你说实话，而别的纸牌 app 不会说：
 

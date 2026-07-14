@@ -171,3 +171,21 @@ workflows:
     scripts: *ios_scripts
     artifacts: *ios_artifacts
     publishing: *ios_publishing
+
+  solitaire-ios-testflight:
+    name: Solitaire Klondike FreeCell iOS -> TestFlight
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    integrations:
+      app_store_connect: ASC API Key        # 同上,账号级 ASC API Key 复用
+    environment:
+      <<: *ios_env
+      vars:
+        GAME_DIR: "games/solitaire"
+        BUNDLE_ID: "com.aispeeds.solitaireproven"
+        # TODO: ASC UI 建完 App 记录后回填数字 Apple ID(唯一手工步),否则 publishing 上传会失败
+        APP_STORE_APP_ID: "TODO"
+        GAD_APP_ID: "ca-app-pub-2141208066469648~1056120854"   # Solitaire 专属 AdMob App ID(~ 号)
+    scripts: *ios_scripts
+    artifacts: *ios_artifacts
+    publishing: *ios_publishing
