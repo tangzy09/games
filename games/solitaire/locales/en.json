@@ -85,6 +85,18 @@
     "introB2": "Every Klondike deal is verified solvable before it is dealt. But \"solvable\" means solvable if you could see the face-down cards — and you can't. So we never claim you are guaranteed to win.",
     "introB3": "Undo, hints, restart and the solver are free. Forever. No ad. 45% of the deals you lose are still solvable — charging you to find that out would be indefensible.",
     "introGo": "Deal me in",
-    "introFair": "Show me the numbers"
+    "introFair": "Show me the numbers",
+    "settings": "Settings",
+    "fourColor": "Four-colour deck",
+    "fourColorSub": "Spades black, hearts red, clubs green, diamonds blue",
+    "bigText": "Large card text",
+    "bigTextSub": "Bigger rank and suit in the corner",
+    "sound": "Sound",
+    "drawMode": "Draw",
+    "draw1": "Draw 1",
+    "draw3": "Draw 3",
+    "drawSub": "Draw 1 is far more forgiving — our blind AI wins 32% of draw-1 deals vs 7.6% of draw-3. Changing this starts a new deal.",
+    "on": "On",
+    "off": "Off"
   }
 }

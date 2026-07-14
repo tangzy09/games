@@ -143,6 +143,7 @@
       ['📊 ' + T('sol.stats'), '', 'STATS'],
       ['🎴 ' + T('sol.collection'), '', 'SHOP'],
       ['⚖ ' + T('sol.fair'), T('sol.fairTitle'), 'FAIR'],
+      ['⚙ ' + T('sol.settings'), '', 'SET'],
     ];
     items.forEach(function (it) {
       const label = it[0], sub = it[1], act = it[2];
@@ -334,8 +335,64 @@
     addHit(cx - 80, y, 160, 30, 'INTRO_FAIR', {});
   }
 
+  /**
+   * ⭐ 设置页 —— 四色牌 / 大字号 / 翻牌数 / 音效。
+   *
+   * ⚠ 这些功能**代码里一直都有，但玩家一个都开不了**（没有任何 UI 入口）——
+   *   等于死代码。尤其 **draw-1**：可解率 90.5%、盲打胜率 32%（draw-3 只有 7.6%），
+   *   是老年 / 休闲玩家的首选模式，而他们此前根本进不去。
+   * ⚠ 四色牌是无障碍标配：对老花 / 色觉衰退用户，它的价值**高于大字号** ——
+   *   小牌面上最难分的正是 ♠/♣ 和 ♥/♦。
+   */
+  function renderSettings() {
+    const L = page(T('sol.settings'));
+    const cx = L.cx, w = Math.min(L.playW - 40, 380);
+    let y = GameGlobal.safeTop + 66;
+    const G = root.G;
+
+    function toggle(label, sub, isOn, act) {
+      const lines = sub ? wrapLines(sub, w - 90, 2) : [];
+      const h = 44 + lines.length * 13;
+      fillRR(cx - w / 2, y, w, h, 10, 'rgba(0,0,0,0.26)');
+      txtL(label, cx - w / 2 + 14, y + 20, '#fff', 'bold 13px sans-serif');
+      lines.forEach((ln, i) =>
+        txtL(ln, cx - w / 2 + 14, y + 38 + i * 13, 'rgba(255,255,255,0.55)', '10px sans-serif'));
+      // 开关
+      const sx = cx + w / 2 - 60, sy = y + 12;
+      fillRR(sx, sy, 46, 24, 12, isOn ? '#22c55e' : 'rgba(255,255,255,0.20)');
+      ctx.beginPath();
+      ctx.arc(sx + (isOn ? 34 : 12), sy + 12, 9, 0, 7);
+      ctx.fillStyle = '#fff'; ctx.fill();
+      addHit(cx - w / 2, y, w, h, act, {});
+      y += h + 10;
+    }
+
+    toggle(T('sol.fourColor'), T('sol.fourColorSub'), !!G.fourColor, 'TOG_4COLOR');
+    toggle(T('sol.bigText'), T('sol.bigTextSub'), !!G.bigText, 'TOG_BIGTEXT');
+    toggle(T('sol.sound'), '', typeof AudioState === 'undefined' ? true : AudioState.sfxOn, 'TOG_SOUND');
+
+    // 翻牌数（只对 Klondike 有意义）—— ⚠ 开局前属性，改了就换一局（否则「已验证可解」角标失效）
+    if (G.s.mode !== 'freecell') {
+      y += 6;
+      const lines = wrapLines(T('sol.drawSub'), w - 28, 3);
+      const h = 48 + lines.length * 13;
+      fillRR(cx - w / 2, y, w, h, 10, 'rgba(0,0,0,0.26)');
+      txtL(T('sol.drawMode'), cx - w / 2 + 14, y + 18, '#fff', 'bold 13px sans-serif');
+      [[1, 'draw1'], [3, 'draw3']].forEach(function (d, i) {
+        const bx = cx + w / 2 - 14 - (2 - i) * 72 + 4;
+        const on = G.s.drawCount === d[0];
+        fillRR(bx, y + 6, 66, 26, 8, on ? '#22c55e' : 'rgba(255,255,255,0.16)');
+        txt(T('sol.' + d[1]), bx + 33, y + 19, '#fff', 'bold 11px sans-serif');
+        if (!on) addHit(bx, y + 6, 66, 26, 'SET_DRAW', { n: d[0] });
+      });
+      lines.forEach((ln, i) =>
+        txtL(ln, cx - w / 2 + 14, y + 42 + i * 13, 'rgba(255,255,255,0.55)', '10px sans-serif'));
+    }
+  }
+
   function renderAll() {
     const ph = root.G.phase;
+    if (ph === 'SET') return renderSettings();
     if (ph === 'INTRO') return renderIntro();
     if (ph === 'FAIR') return renderFair();
     if (ph === 'MENU') return renderMenu();
@@ -536,6 +593,6 @@
     }
   }
 
-  root.Render = { renderAll, renderIntro, renderFair, renderMenu, renderStats, renderShop, PAL };
+  root.Render = { renderAll, renderIntro, renderFair, renderMenu, renderStats, renderShop, renderSettings, PAL };
   root.renderAll = renderAll;
 })(typeof self !== 'undefined' ? self : this);

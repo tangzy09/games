@@ -78,6 +78,7 @@ function newGame(drawCount, mode) {
   G.dailySeed = null;
   G.drag = G.pending = G.sel = G.hintMove = null;
   Prover.reset();
+  Snd.deal();                                 // 洗牌声
   G.stats.played++;
   saveStats();
   FX.reset();
@@ -88,8 +89,12 @@ function newGame(drawCount, mode) {
 // ── 走子 ──
 function doMove(m) {
   const ev = Core.apply(G.s, m);
-  if (!ev) return false;
-  Sfx.play('card');
+  if (!ev) { Snd.nope(); return false; }     // 非法落点：一声轻的低音，不惩罚玩家
+  // 声音按**动作**分（纸牌的质感全在这里；此前全程静音）
+  if (m.t === 'draw' || m.t === 'recycle') Snd.draw();
+  else if (m.t === 'tf' || m.t === 'wf' || m.t === 'cf') Snd.found(G.s.foundations.reduce((a,f)=>a+f.length,0) % 8);
+  else if (m.t === 'tt' && ev.some(e => e.n > 1)) Snd.run(ev[0].n);
+  else Snd.place();
   G.sel = null; G.hintMove = null;
   Prover.reset();      // ⚠ 局面变了，旧的「还有解」结论立刻作废（留着它 = 撒谎）
   if (ev.some(e => e.t === 'win')) onWin();
@@ -126,7 +131,7 @@ function onWin() {
     }
   }
   FX.startCascade(cards);
-  Sfx.play('win');
+  Snd.win();
 }
 
 // ── 交互 ──
@@ -226,6 +231,19 @@ function dispatch(action, data) {
     case 'INTRO_FAIR': G.phase = 'FAIR'; G.seenIntro = 1; saveOpts(); break;
     case 'STATS': G.phase = 'STATS'; break;
     case 'SHOP': G.phase = 'SHOP'; break;
+    case 'SET': G.phase = 'SET'; break;
+
+    // ⚠ 这三个功能**代码里一直都有，但此前没有任何 UI 入口** —— 等于死代码
+    case 'TOG_4COLOR': G.fourColor = !G.fourColor; Sprite.ensure(0, 0); saveOpts(); break;
+    case 'TOG_BIGTEXT': G.bigText = !G.bigText; Sprite.ensure(0, 0); saveOpts(); break;
+    case 'TOG_SOUND': Sfx.toggle(); break;
+
+    // 翻牌数：**开局前属性**，改了必须换一局（否则「已验证可解」角标就是假的 ——
+    // draw-1 和 draw-3 是两个不同的可解性问题，池也是分开建的）
+    case 'SET_DRAW': {
+      if (data && data.n && data.n !== G.s.drawCount) { newGame(data.n, G.s.mode); G.phase = 'SET'; }
+      break;
+    }
 
     // 每日挑战：全世界同一天、同一副牌（且**从已验证可解池里取**）
     case 'DAILY': {
@@ -282,7 +300,7 @@ function dispatch(action, data) {
       const back = Core.undo(s);
       // ⚠ 撤销**必须**作废旧结论：玩家看到「死局」后最可能做的就是撤销，
       //   结论还挂着「死局」= 对一个已经不同的局面撒谎。
-      if (back) { G.s = back; G.sel = null; Prover.reset(); saveRun(); Sfx.play('card'); }
+      if (back) { G.s = back; G.sel = null; Prover.reset(); saveRun(); Snd.undo(); }
       break;
     }
     case 'HINT': {
@@ -296,7 +314,7 @@ function dispatch(action, data) {
       const ms = Core.autoPlayMoves(s);
       for (const m of ms) Core.apply(G.s, m);
       // ⚠ AUTO / UNDO 都**不经过 doMove()** ⇒ 得各自 reset（这就是当初漏掉的地方）
-      if (ms.length) { Prover.reset(); Sfx.play('card'); saveRun(); }
+      if (ms.length) { Prover.reset(); Snd.found(0); saveRun(); }
       if (G.s.won) onWin();
       break;
     }

@@ -20,6 +20,7 @@
         st.result = e.data.result;
         st.deadFrom = e.data.deadFrom != null ? e.data.deadFrom : null;
         st.ms = e.data.ms;
+        if (root.Snd) root.Snd.verdict(st.result === 'solvable');
         if (root.renderAll) root.renderAll();
       };
       worker.onerror = () => { st.phase = 'done'; st.result = 'unknown'; if (root.renderAll) root.renderAll(); };
