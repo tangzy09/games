@@ -302,26 +302,57 @@
     backButton();
   }
 
-  /** 公平页 —— 本作最强的差异化：三条**可验证**的承诺（头部产品没人敢写） */
+  /** 公平页 —— 本作最强的差异化：三条**可验证**的承诺（头部产品没人敢写）
+   *  也是 App Store 的第一张截图：审核员 30 秒试玩只会看到「又一个 block puzzle」，
+   *  差异化必须在这一屏里 5 秒说清（对抗 4.3(a)）。所以它要**填满屏幕**，不能一半空白。
+   */
   function renderFair() {
     clearHits(); layout();
     const { SW, SH } = GameGlobal, G = root.G, cx = L.cx, w = L.playW - 44;
     const grad = ctx.createLinearGradient(0, 0, SW, SH);
     grad.addColorStop(0, PAL.bg1); grad.addColorStop(1, PAL.bg2);
     ctx.fillStyle = grad; ctx.fillRect(0, 0, SW, SH);
-    txt(T('blockblast.fairTitle'), cx, GameGlobal.safeTop + 36, '#fff', 'bold 19px sans-serif');
 
-    let y = GameGlobal.safeTop + 76;
-    for (const k of ['fair1', 'fair2', 'fair3']) {
-      ctx.font = '12px sans-serif';
-      const lines = wrapLines(T('blockblast.' + k), w, 6);
-      lines.forEach((ln, i) => txtL(ln, L.playX + 22, y + i * 17, PAL.sub, '12px sans-serif'));
-      y += lines.length * 17 + 14;
+    // 先量高度，再整体垂直居中（原来从顶部堆，下半屏一片空白）
+    ctx.font = '13px sans-serif';
+    const paras = ['fair1', 'fair2', 'fair3'].map(k => wrapLines(T('blockblast.' + k), w, 6));
+    const textH = paras.reduce((a, ls) => a + ls.length * 19 + 16, 0);
+    const BAR_H = 132, SEED_H = 58;
+    const total = 44 + textH + BAR_H + SEED_H;
+    let y = Math.max(GameGlobal.safeTop + 24, GameGlobal.safeTop + (SH - GameGlobal.safeTop - total) / 2 - 40);
+
+    txt(T('blockblast.fairTitle'), cx, y, '#fff', 'bold 21px sans-serif');
+    y += 40;
+
+    for (const lines of paras) {
+      lines.forEach((ln, i) => txtL(ln, L.playX + 22, y + i * 19, PAL.sub, '13px sans-serif'));
+      y += lines.length * 19 + 16;
     }
+
+    // 出块权重可视化 —— 「固定且公开」这条承诺的证据，光靠文字说服力不够
+    const bars = [
+      { pct: 25, color: '#7ef2a0', label: '25%' },
+      { pct: 55, color: PAL.accent, label: '55%' },
+      { pct: 20, color: '#f0abfc', label: '20%' },
+    ];
+    const bw2 = w - 90;
+    bars.forEach((b, i) => {
+      const by = y + i * 34;
+      // 用真实的块画出「小/中/大」示意
+      const cs = 11;
+      const shape = [[[0, 0]], [[0, 0], [0, 1], [1, 0], [1, 1]], [[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2]]][i];
+      shape.forEach(([r, c]) => drawBlock(L.playX + 24 + c * (cs + 1), by + 2 + r * (cs + 1), cs, b.color));
+      fillRR(L.playX + 78, by + 6, bw2, 13, 6, 'rgba(0,0,0,0.25)');
+      fillRR(L.playX + 78, by + 6, bw2 * b.pct / 100, 13, 6, b.color);
+      txtR(b.label, L.playX + L.playW - 22, by + 12, PAL.sub, 'bold 11px sans-serif');
+    });
+    y += BAR_H;
+
     // 本局种子：玩家可以拿它复现整条块流 —— 承诺 1 的「可验证」就落在这里
-    fillRR(L.playX + 22, y + 6, w, 46, 10, 'rgba(0,0,0,0.22)');
-    txt(T('blockblast.fairSeed', { s: G.s ? G.s.seed : '\u2014' }), cx, y + 22, PAL.accent, 'bold 13px sans-serif');
-    txt(T('blockblast.fairVerify'), cx, y + 40, PAL.sub, '10px sans-serif');
+    fillRR(L.playX + 22, y, w, 50, 10, 'rgba(0,0,0,0.26)');
+    txt(T('blockblast.fairSeed', { s: G.s ? G.s.seed : '—' }), cx, y + 19, PAL.accent, 'bold 14px sans-serif');
+    txt(T('blockblast.fairVerify'), cx, y + 38, PAL.sub, '11px sans-serif');
+
     backButton();
   }
 
