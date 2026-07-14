@@ -9,8 +9,9 @@
   'use strict';
 
   const L = {};
-  const PLAY_MAX = 620;                 // 游戏区宽度上限（再宽牌就大得可笑）
+  const PLAY_MAX = 760;                 // 游戏区宽度上限（再宽牌就大得可笑）
   const BANNER_H = 56;                  // ⚠ 横幅**预留**空间（不是盖上去）—— DESIGN §7.2
+  const TABLET_W = 700;                 // ≥ 这个宽度算平板
 
   function layout(opts) {
     const { SW, SH, safeTop } = GameGlobal;
@@ -29,10 +30,23 @@
     //   踩过的坑：HUD 原来画在 topY-24 = safeTop 之上，直接侵入状态栏/刘海区，
     //   而右上角那块正好被 DOM 控制栏（#controls: fixed, top:8px right:8px, z-index 20）压住
     //   ⇒ **「✓ 有解」角标（进公平页的唯一入口）点不动** —— E2E 真实鼠标点击才抓出来。
-    const hudY = safeTop + 6;
+    const bannerH = showBanner ? BANNER_H : 0;
+
+    // ⚠ **iPad 必须单独处理**：手机的布局直接铺到 1024×1366 上，牌会挤在左上角、
+    //   右边和下面全是空的 —— 在 App Store 的 iPad 截图里不只是难看，
+    //   审核员会直接判定「没适配 iPad」（Capacitor 默认支持 iPad，这套截图躲不掉）。
+    //   ⇒ 平板上把整个游戏区**垂直居中**（像放大的手机布局），而不是顶着屏幕顶端。
+    const isTablet = SW >= TABLET_W;
+    const availH = SH - bannerH - safeTop - 16;
+    // ⚠ 这个系数决定 iPad 上「牌桌 + 工具条」这一整块的高度。
+    //   设太松（>= 可用高度）居中偏移就恒为 0，等于没居中 —— 第一版 1.72 就是这样，白改。
+    const gameH = isTablet ? Math.min(availH, Math.round(playW * 1.35)) : availH;
+    const gameTop = isTablet ? safeTop + Math.round((availH - gameH) / 2) : safeTop;
+
+    const hudY = gameTop + 6;
     const hudH = 20;
     const top = hudY + hudH + 8;
-    const bannerH = showBanner ? BANNER_H : 0;
+    const gameBottom = gameTop + gameH;
 
     Object.assign(L, {
       playX, playW, cx: playX + playW / 2,
@@ -52,13 +66,13 @@
       // 堆叠 offset：明牌/暗牌**不同**（暗牌挤一点，省高度）
       upOff: Math.round(cardH * 0.28),
       downOff: Math.round(cardH * 0.10),
-      // 底部工具条（在横幅之上）
+      // 底部工具条（平板上跟着居中的游戏区走，不是贴着屏幕最底）
       barH: 46,
-      barY: SH - bannerH - 46 - 8,
-      bannerY: SH - bannerH,
+      barY: gameBottom - 46 - 8,
+      bannerY: SH - bannerH,                 // 横幅永远贴屏幕底（原生横幅就在那儿）
       // ⭐ 「这局还有解吗？」条 —— 一等公民，占正经版面（在工具条正上方）
       proveH: 40,
-      proveY: SH - bannerH - 46 - 8 - 40 - 6,
+      proveY: gameBottom - 46 - 8 - 40 - 6,
     });
 
     // ⚠ 最长列压缩：Klondike 最长可能 6 暗 + 13 明 = 19 张。

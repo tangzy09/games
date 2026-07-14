@@ -101,7 +101,11 @@ function serve() {
   parts.push(`[1:a]aloop=loop=-1:size=2e9,atrim=0:30,loudnorm=I=-20,volume=0.42,aformat=channel_layouts=stereo[bg]`);
   mixIn.push('[bg]');
 
-  const amix = `${mixIn.join('')}amix=inputs=${mixIn.length}:normalize=0:duration=first,` +
+  // ⚠⚠ `duration=first` 的 "first" 是**第一个输入**，而第一个输入是 0.1s 的音效 ——
+  //   于是**音轨只有 4.3s、视频 28s**，音视频时长严重不匹配 ⇒ 苹果转码判 MOV_RESAVE_CORRUPTED。
+  //   （最阴的是：volumedetect 测得出声音、规格自检也全绿 —— 没有一项检查会发现音轨比视频短。）
+  //   ⇒ 必须 duration=longest，再用 -t 截到视频长度。
+  const amix = `${mixIn.join('')}amix=inputs=${mixIn.length}:normalize=0:duration=longest,` +
                `alimiter=limit=0.95,loudnorm=I=-16:TP=-1.5:LRA=11,` +
                `aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo[aout]`;   // ⭐ stereo（苹果硬要求）
   const fc = [...parts, amix].join(';');
@@ -112,10 +116,16 @@ function serve() {
     `-filter_complex "${fc}"`,
     '-map 0:v -map "[aout]"',
     `-vf "fps=${FPS},scale=${W}:${H}:flags=lanczos"`,
-    '-c:v libx264 -profile:v high -pix_fmt yuv420p -crf 20 -preset slow',
-    '-c:a aac -b:a 192k -ac 2',                            // ⭐ -ac 2 双保险
+    '-fps_mode cfr',                                       // 恒定帧率（webm 源是 VFR）
+    // ⚠ 苹果的 App Preview 转码器比一般播放器挑剔得多。
+    //   `-profile:v high -crf 20 -preset slow` 产出的流被它判 **MOV_RESAVE_CORRUPTED**（实锤）。
+    //   ⇒ 用**保守**编码：main profile / 无 B 帧 / 固定 GOP / CBR-ish。
+    '-c:v libx264 -profile:v main -level 4.0 -pix_fmt yuv420p',
+    '-bf 0 -g 30 -keyint_min 30 -sc_threshold 0',          // 无 B 帧 + 每秒一个关键帧
+    '-b:v 6M -maxrate 6M -bufsize 12M',
+    '-c:a aac -ar 44100 -b:a 128k -ac 2',                  // ⭐ stereo（mono 会 MOV_RESAVE_STEREO）
     '-movflags +faststart',
-    '-t 30',                                               // 硬上限 30s
+    '-t 28',                                               // 留余量（上限 30s，别贴边）
     `"${OUT}"`,
   ].join(' ');
 
@@ -137,6 +147,9 @@ function serve() {
     [`视频 ${v.codec_name}`, v.codec_name === 'h264'],
     [`音频 ${a && a.codec_name}`, a && a.codec_name === 'aac'],
     [`⭐ 声道 ${a && a.channels}（必须 2 —— mono 会被苹果转码打回）`, a && a.channels === 2],
+    // ⭐ 音轨必须和视频一样长：短了 ⇒ 苹果转码 MOV_RESAVE_CORRUPTED（而其它检查全绿，发现不了）
+    [`⭐ 音轨时长 ${a ? parseFloat(a.duration).toFixed(1) : '?'}s vs 视频 ${dur.toFixed(1)}s`,
+     a && Math.abs(parseFloat(a.duration) - dur) < 0.6],
   ];
   console.log('\n规格自检：');
   let bad = 0;

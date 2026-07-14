@@ -41,9 +41,11 @@
     const cx = L.cx, w = Math.min(L.playW - 40, 420);
     let y = GameGlobal.safeTop + 34;
 
+    // ⚠ wrapLines 依赖当前 ctx.font ⇒ **先设 font、只调一次、复用数组**（调两次会算出不同行数 ⇒ 文字重叠）
     ctx.font = 'bold 19px sans-serif';
-    wrapLines(T('sol.fairTitle'), w, 3).forEach((ln, i) => txt(ln, cx, y + i * 24, '#fff', 'bold 19px sans-serif'));
-    y += 24 * wrapLines(T('sol.fairTitle'), w, 3).length + 14;
+    const titleLines = wrapLines(T('sol.fairTitle'), w, 3);
+    titleLines.forEach((ln, i) => txt(ln, cx, y + i * 24, '#fff', 'bold 19px sans-serif'));
+    y += 24 * titleLines.length + 14;
 
     for (const k of ['fair1', 'fair2', 'fair3']) {
       ctx.font = '12px sans-serif';
@@ -80,20 +82,24 @@
 
     y += 4;
     ctx.font = '10px sans-serif';
-    wrapLines(T('sol.fairBlindNote'), w, 4).forEach((ln, i) =>
+    const noteLines = wrapLines(T('sol.fairBlindNote'), w, 4);
+    noteLines.forEach((ln, i) =>
       txtL(ln, cx - w / 2, y + i * 14, 'rgba(255,255,255,0.55)', '10px sans-serif'));
-    y += 14 * wrapLines(T('sol.fairBlindNote'), w, 4).length + 16;
+    y += 14 * noteLines.length + 16;
 
     // ⭐ 「你输的时候真的没救了吗」—— 本产品最重要的一个数字（tools/measure-deadlock.js 实测）
     y += 2;
     txt(T('sol.fairLost'), cx, y, '#ffd84d', 'bold 13px sans-serif');
     y += 18;
-    wrapLines(T('sol.fairLostVal'), w, 2).forEach((ln, i) =>
-      txt(ln, cx, y + i * 15, '#7ef2a0', 'bold 11px sans-serif'));
-    y += 15 * wrapLines(T('sol.fairLostVal'), w, 2).length + 4;
-    wrapLines(T('sol.fairLostSub'), w, 3).forEach((ln, i) =>
-      txtL(ln, cx - w / 2, y + i * 13, 'rgba(255,255,255,0.55)', '10px sans-serif'));
-    y += 13 * wrapLines(T('sol.fairLostSub'), w, 3).length + 12;
+    ctx.font = 'bold 11px sans-serif';
+    const lostLines = wrapLines(T('sol.fairLostVal'), w, 2);
+    lostLines.forEach((ln, i) => txt(ln, cx, y + i * 16, '#7ef2a0', 'bold 11px sans-serif'));
+    y += 16 * lostLines.length + 6;
+    ctx.font = '10px sans-serif';
+    const lostSub = wrapLines(T('sol.fairLostSub'), w, 3);
+    lostSub.forEach((ln, i) =>
+      txtL(ln, cx - w / 2, y + i * 14, 'rgba(255,255,255,0.55)', '10px sans-serif'));
+    y += 14 * lostSub.length + 12;
 
     // 本局信息 —— 跟随正文流（留白落在底部，比卡在中间好看），并带上**本局难度**：
     // 难度的定义就是上面那张表里的「盲打 AI 能不能赢」，两者互相印证。
@@ -204,6 +210,7 @@
     txtR(clean + '%', cx + w / 2 - 14, y + 24, '#7ef2a0', 'bold 20px sans-serif');
     txtL(String(st.cleanWon || 0) + ' / ' + st.played, cx - w / 2 + 14, y + 42, PAL.sub, '10px sans-serif');
     y += 68;
+    ctx.font = '10px sans-serif';
     wrapLines(T('sol.cleanNote'), w, 3).forEach(function (ln, i) {
       txtL(ln, cx - w / 2, y + i * 14, 'rgba(255,255,255,0.55)', '10px sans-serif');
     });
@@ -307,14 +314,14 @@
     let y = GameGlobal.safeTop + 52;
 
     ctx.font = 'bold 22px sans-serif';
-    wrapLines(T('sol.introTitle'), w, 2).forEach((ln, i) =>
-      txt(ln, cx, y + i * 28, '#fff', 'bold 22px sans-serif'));
-    y += 28 * wrapLines(T('sol.introTitle'), w, 2).length + 10;
+    const iTitle = wrapLines(T('sol.introTitle'), w, 2);
+    iTitle.forEach((ln, i) => txt(ln, cx, y + i * 28, '#fff', 'bold 22px sans-serif'));
+    y += 28 * iTitle.length + 10;
 
     ctx.font = '12px sans-serif';
-    wrapLines(T('sol.introSub'), w, 3).forEach((ln, i) =>
-      txt(ln, cx, y + i * 17, '#7ef2a0', '12px sans-serif'));
-    y += 17 * wrapLines(T('sol.introSub'), w, 3).length + 20;
+    const iSub = wrapLines(T('sol.introSub'), w, 3);
+    iSub.forEach((ln, i) => txt(ln, cx, y + i * 17, '#7ef2a0', '12px sans-serif'));
+    y += 17 * iSub.length + 20;
 
     [['⚖', 'introB1'], ['🔍', 'introB2'], ['🎁', 'introB3']].forEach(function (it) {
       const lines = wrapLines(T('sol.' + it[1]), w - 34, 4);
