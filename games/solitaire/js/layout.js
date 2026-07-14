@@ -79,7 +79,31 @@
     return L;
   }
 
-  const API = { layout, L, BANNER_H };
+  /**
+   * 一张牌**当前**画在哪（滑牌动画要用：算源/目标坐标）。
+   * loc: {p:'t', ti, i} | {p:'f', fi} | {p:'w'} | {p:'c', ci} | {p:'stock'}
+   * ⚠ 必须与 render 的绘制逻辑**完全一致** —— 不一致的话牌会从错误的地方飞出来。
+   */
+  function cardXY(s, loc) {
+    if (loc.p === 'f') return { x: L.foundX(loc.fi), y: L.topY };
+    if (loc.p === 'c') return { x: L.cellX(loc.ci), y: L.topY };
+    if (loc.p === 'stock') return { x: L.stockX, y: L.topY };
+    if (loc.p === 'w') {
+      // waste 是扇形展开的：顶牌在第 show-1 个位置（与 render 一致）
+      const show = Math.min(s.drawCount === 1 ? 1 : 3, s.waste.length);
+      const fan = Math.round(L.cardW * 0.22);
+      return { x: L.wasteX + Math.max(0, show - 1) * fan, y: L.topY };
+    }
+    // tableau：逐张累加 offset（明/暗 offset 不同，且列长时会被压缩）
+    const col = s.tableau[loc.ti];
+    const nDown = col.cards.length - col.up;
+    const off = L.fitOffsets(nDown, col.up);
+    let y = L.tabY;
+    for (let i = 0; i < loc.i; i++) y += (i >= nDown) ? off.up : off.down;
+    return { x: L.colX(loc.ti), y };
+  }
+
+  const API = { layout, L, BANNER_H, cardXY };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   else root.Layout = API;
 })(typeof self !== 'undefined' ? self : this);

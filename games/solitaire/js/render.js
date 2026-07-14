@@ -418,7 +418,7 @@
       for (let ci = 0; ci < 4; ci++) {
         const x = L.cellX(ci);
         const id = s.free[ci];
-        if (id != null) ctx.drawImage(Sprite.face(id), x, L.topY, L.cardW, L.cardH);
+        if (id != null && !FX.isFlying(id)) ctx.drawImage(Sprite.face(id), x, L.topY, L.cardW, L.cardH);
         else drawSlot(x, L.topY, L.cardW, L.cardH);
         addHit(x, L.topY, L.cardW, L.cardH, 'CELL', { ci });
       }
@@ -437,7 +437,8 @@
       for (let k = 0; k < show; k++) {
         const id = s.waste[s.waste.length - show + k];
         const x = L.wasteX + k * fan;
-        ctx.drawImage(Sprite.face(id), x, L.topY, L.cardW, L.cardH);
+        // ⚠ 正在飞的牌不能在目标位置画（否则同时出现在两处）
+        if (!FX.isFlying(id)) ctx.drawImage(Sprite.face(id), x, L.topY, L.cardW, L.cardH);
         if (k === show - 1) addHit(x, L.topY, L.cardW, L.cardH, 'WASTE', {});   // 只有顶牌可点
       }
     } else if (!fc) {
@@ -448,7 +449,10 @@
     for (let fi = 0; fi < 4; fi++) {
       const x = L.foundX(fi);
       const f = s.foundations[fi];
-      if (f.length) ctx.drawImage(Sprite.face(f[f.length - 1]), x, L.topY, L.cardW, L.cardH);
+      const ftop = f.length ? f[f.length - 1] : null;
+      if (ftop != null && !FX.isFlying(ftop)) ctx.drawImage(Sprite.face(ftop), x, L.topY, L.cardW, L.cardH);
+      else if (ftop != null && f.length > 1) ctx.drawImage(Sprite.face(f[f.length - 2]), x, L.topY, L.cardW, L.cardH);
+      else if (ftop == null) drawSlot(x, L.topY, L.cardW, L.cardH, Sprite.SUIT_SYM[fi]);
       else drawSlot(x, L.topY, L.cardW, L.cardH, Sprite.SUIT_SYM[fi]);
       addHit(x, L.topY, L.cardW, L.cardH, 'FOUND', { fi });
     }
@@ -471,7 +475,8 @@
         const up = i >= nDown;
         const id = col.cards[i];
         const isDragged = G.drag && G.drag.from === ti && i >= G.drag.idx;
-        if (!isDragged) {
+        // ⚠ 正在**滑动**中的牌不能在目标位置画 —— 否则它会同时出现在两个地方
+        if (!isDragged && !FX.isFlying(id)) {
           ctx.drawImage(up ? Sprite.face(id) : Sprite.back(), x, y, L.cardW, L.cardH);
           // 选中高亮（tap-to-move）
           if (G.sel && G.sel.p === 't' && G.sel.ti === ti && i >= G.sel.idx) {

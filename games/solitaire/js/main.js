@@ -87,9 +87,78 @@ function newGame(drawCount, mode) {
 }
 
 // ── 走子 ──
+/**
+ * ⭐ 走一步 + **滑牌动画**。
+ *
+ * ⚠ 顺序是死的：**源坐标必须在 apply 之前取**（牌还在原位），
+ *   **目标坐标必须在 apply 之后取**（牌已到位、列的 offset 也已重算）。
+ *   搞反了牌就会从错误的地方飞出来 —— 而且不会报错，只是看着诡异。
+ */
+function moveAnim(m, before) {
+  const s = G.s;
+  const L = Layout.L;
+  let ids = [], from = null, to = null;
+
+  if (m.t === 'draw') {
+    // 翻牌：只飞**最上面那张**（waste 是水平扇形的，多张各自位置不同，全飞反而乱）
+    if (!s.waste.length) return;
+    ids = [s.waste[s.waste.length - 1]];
+    from = Layout.cardXY(before, { p: 'stock' });
+    to = Layout.cardXY(s, { p: 'w' });
+  } else if (m.t === 'recycle') {
+    return;                                   // 回收：整堆搬回去，不演（演了反而乱）
+  } else if (m.t === 'tt') {
+    const col = before.tableau[m.ti];
+    ids = col.cards.slice(m.idx);
+    from = Layout.cardXY(before, { p: 't', ti: m.ti, i: m.idx });
+    to = Layout.cardXY(s, { p: 't', ti: m.tj, i: s.tableau[m.tj].cards.length - ids.length });
+  } else if (m.t === 'tf') {
+    const col = before.tableau[m.ti];
+    ids = [col.cards[col.cards.length - 1]];
+    from = Layout.cardXY(before, { p: 't', ti: m.ti, i: col.cards.length - 1 });
+    to = Layout.cardXY(s, { p: 'f', fi: m.fi });
+  } else if (m.t === 'wf') {
+    ids = [before.waste[before.waste.length - 1]];
+    from = Layout.cardXY(before, { p: 'w' });
+    to = Layout.cardXY(s, { p: 'f', fi: m.fi });
+  } else if (m.t === 'wt') {
+    ids = [before.waste[before.waste.length - 1]];
+    from = Layout.cardXY(before, { p: 'w' });
+    to = Layout.cardXY(s, { p: 't', ti: m.ti, i: s.tableau[m.ti].cards.length - 1 });
+  } else if (m.t === 'tc') {
+    const col = before.tableau[m.ti];
+    ids = [col.cards[col.cards.length - 1]];
+    from = Layout.cardXY(before, { p: 't', ti: m.ti, i: col.cards.length - 1 });
+    to = Layout.cardXY(s, { p: 'c', ci: m.ci });
+  } else if (m.t === 'ct') {
+    ids = [before.free[m.ci]];
+    from = Layout.cardXY(before, { p: 'c', ci: m.ci });
+    to = Layout.cardXY(s, { p: 't', ti: m.tj, i: s.tableau[m.tj].cards.length - 1 });
+  } else if (m.t === 'cf') {
+    ids = [before.free[m.ci]];
+    from = Layout.cardXY(before, { p: 'c', ci: m.ci });
+    to = Layout.cardXY(s, { p: 'f', fi: m.fi });
+  }
+  if (ids.length && from && to && ids.every(id => id != null)) {
+    FX.slide(ids, from.x, from.y, to.x, to.y);
+  }
+  void L;
+}
+
+/** 走子前的浅快照（只要坐标算得出来的那部分）*/
+const snapshot = s => ({
+  drawCount: s.drawCount,
+  tableau: s.tableau.map(c => ({ cards: c.cards.slice(), up: c.up })),
+  waste: s.waste.slice(),
+  free: s.free ? s.free.slice() : null,
+  foundations: s.foundations.map(f => f.slice()),
+});
+
 function doMove(m) {
+  const before = snapshot(G.s);             // ⚠ 必须在 apply 之前
   const ev = Core.apply(G.s, m);
   if (!ev) { Snd.nope(); return false; }     // 非法落点：一声轻的低音，不惩罚玩家
+  moveAnim(m, before);                      // ⚠ 必须在 apply 之后（目标坐标才对）
   // 声音按**动作**分（纸牌的质感全在这里；此前全程静音）
   if (m.t === 'draw' || m.t === 'recycle') Snd.draw();
   else if (m.t === 'tf' || m.t === 'wf' || m.t === 'cf') Snd.found(G.s.foundations.reduce((a,f)=>a+f.length,0) % 8);
@@ -312,7 +381,19 @@ function dispatch(action, data) {
     }
     case 'AUTO': {
       const ms = Core.autoPlayMoves(s);
-      for (const m of ms) Core.apply(G.s, m);
+      // ⚠ 逐张**错开**滑（一堆牌同时瞬移，比没有动画还怪）
+      ms.forEach((m, i) => {
+        const before = snapshot(G.s);
+        if (!Core.apply(G.s, m)) return;
+        const L = Layout.L; void L;
+        const sn = G.s;
+        // 复用 moveAnim 的坐标逻辑，但加一个递增延迟
+        const pending = FX.slide;
+        FX.slide = (ids, x0, y0, x1, y1) => pending(ids, x0, y0, x1, y1, i * 0.055);
+        moveAnim(m, before);
+        FX.slide = pending;
+        void sn;
+      });
       // ⚠ AUTO / UNDO 都**不经过 doMove()** ⇒ 得各自 reset（这就是当初漏掉的地方）
       if (ms.length) { Prover.reset(); Snd.found(0); saveRun(); }
       if (G.s.won) onWin();

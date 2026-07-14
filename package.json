@@ -23,6 +23,7 @@
     "test:sol:e2e4": "node games/solitaire/tests/e2e-p5p6.cjs",
     "sim:fc": "node games/solitaire/tools/sim-freecell.js",
     "test:sol:intro": "node games/solitaire/tests/e2e-intro.cjs",
-    "test:sol:set": "node games/solitaire/tests/e2e-settings.cjs"
+    "test:sol:set": "node games/solitaire/tests/e2e-settings.cjs",
+    "test:sol:slide": "node games/solitaire/tests/e2e-slide.cjs"
   }
 }
