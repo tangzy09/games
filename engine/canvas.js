@@ -48,9 +48,14 @@ function txtR(text,x,y,color,font){ctx.fillStyle=color;ctx.font=font;ctx.textAli
 // else char-by-char (CJK); ellipsizes the last line if it still overflows. Set ctx.font first.
 // i18n rule: EVERY non-fixed-length user string drawn on canvas goes through this —
 // canvas fillText never wraps, and long locales (de/ru) overflow silently otherwise.
+// 避头尾(禁则处理):这些字符绝不能出现在行首。CJK 没有空格,断行是逐字符的,
+// 不做禁则处理就会出现「。」「，」「」」自己占一行的孤字行 —— 中文排版一眼就看出是外行做的。
+const NO_LINE_START = '。，、；：？！）」』》〕】〉”’·…—,.;:?!)]}»›';
 function wrapLines(text,maxW,maxLines){const s=clean(String(text));const lines=[];let cur='';
   for(let i=0;i<s.length;i++){const ch=s[i];
     if(ctx.measureText(cur+ch).width<=maxW){cur+=ch;continue;}
+    // ⭐ 禁则:收尾标点宁可让本行轻微超宽,也不另起一行
+    if(cur&&NO_LINE_START.indexOf(ch)>=0){cur+=ch;continue;}
     if(lines.length>=maxLines-1){let rest=cur;while(rest.length>1&&ctx.measureText(rest+'…').width>maxW)rest=rest.slice(0,-1);lines.push(rest+'…');return lines;}
     const br=cur.lastIndexOf(' ');
     if(br>0){lines.push(cur.slice(0,br));cur=cur.slice(br+1)+ch;}else{lines.push(cur);cur=ch;}}

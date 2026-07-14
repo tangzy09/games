@@ -5,6 +5,7 @@
 
 // ⚠ 必须显式挂 window：脚本顶层的 const 不会成为 window 的属性（blockblast 实踩）
 const G = window.G = {
+  phase: 'PLAY',           // PLAY | FAIR
   s: null,                 // core 状态
   drag: null,
   pending: null,
@@ -47,8 +48,12 @@ const clearRun = () => { try { Platform.storage.set(K_RUN(), ''); } catch (e) {}
 const saveStats = () => { try { Platform.storage.set(K_STATS(), JSON.stringify(G.stats)); } catch (e) {} };
 
 function newGame(drawCount) {
-  G.s = Core.newGame(Deal.randomSeed(), drawCount || (G.s ? G.s.drawCount : 3));
+  const draw = drawCount || (G.s ? G.s.drawCount : 3);
+  // ⭐ 默认只发**已验证可解**的牌局（池里取）；池没加载成功才回落到随机
+  const seed = Pool.pick(draw, G.difficulty || 'any');
+  G.s = Core.newGame(seed != null ? seed : Deal.randomSeed(), draw);
   G.drag = G.pending = G.sel = G.hintMove = null;
+  Prover.reset();
   G.stats.played++;
   saveStats();
   FX.reset();
@@ -62,6 +67,7 @@ function doMove(m) {
   if (!ev) return false;
   Sfx.play('card');
   G.sel = null; G.hintMove = null;
+  Prover.reset();      // ⚠ 局面变了，旧的「还有解」结论立刻作废（留着它 = 撒谎）
   if (ev.some(e => e.t === 'win')) onWin();
   else saveRun();
   renderAll();
@@ -156,10 +162,24 @@ function dispatch(action, data) {
   const s = G.s;
   switch (action) {
     case 'NEW': newGame(); break;
+    case 'FAIR': G.phase = 'FAIR'; break;
+    // ⭐ 「这局还有解吗？」—— 永远免费、永远不看广告（它是产品的灵魂，不是道具）
+    case 'PROVE': Prover.ask(G.s); break;
+    case 'UNDO_TO': {                          // 从「死局」结论一键撤回到最后有解的那一步
+      const n = data && data.n;
+      if (n != null && n < G.s.moves.length) {
+        const back = Core.replay(G.s.seed, G.s.drawCount, G.s.moves.slice(0, n));
+        if (back) { back.usedUndo = true; G.s = back; G.sel = null; Prover.reset(); saveRun(); }
+      }
+      break;
+    }
+    case 'PLAY': G.phase = 'PLAY'; break;
     case 'UNDO': {
       // ⚠ 撤销永远免费、永远不看广告（DESIGN §7.4：纸牌的基本人权）
       const back = Core.undo(s);
-      if (back) { G.s = back; G.sel = null; saveRun(); Sfx.play('card'); }
+      // ⚠ 撤销**必须**作废旧结论：玩家看到「死局」后最可能做的就是撤销，
+      //   结论还挂着「死局」= 对一个已经不同的局面撒谎。
+      if (back) { G.s = back; G.sel = null; Prover.reset(); saveRun(); Sfx.play('card'); }
       break;
     }
     case 'HINT': {
@@ -172,7 +192,8 @@ function dispatch(action, data) {
     case 'AUTO': {
       const ms = Core.autoPlayMoves(s);
       for (const m of ms) Core.apply(G.s, m);
-      if (ms.length) { Sfx.play('card'); saveRun(); }
+      // ⚠ AUTO / UNDO 都**不经过 doMove()** ⇒ 得各自 reset（这就是当初漏掉的地方）
+      if (ms.length) { Prover.reset(); Sfx.play('card'); saveRun(); }
       if (G.s.won) onWin();
       break;
     }
@@ -187,7 +208,8 @@ let last = 0;
 function loop(ts) {
   const dt = last ? Math.min((ts - last) / 1000, 0.05) : 0;
   last = ts;
-  if (FX.busy() || G.drag) {
+  // ⚠ proving 时也要逐帧重画：动画不动 = 看起来卡死 = 毁掉「它真的在算」的全部说服力
+  if (FX.busy() || G.drag || Prover.st.phase === 'proving') {
     FX.update(dt);
     renderAll();
   }
@@ -206,8 +228,10 @@ async function boot() {
   try { G.stats = Object.assign(G.stats, JSON.parse(Platform.storage.get(K_STATS()) || '{}')); } catch (e) {}
   try { Object.assign(G, JSON.parse(Platform.storage.get(K_OPT()) || '{}')); } catch (e) {}
 
+  await Pool.load();                                   // ⭐ 先加载可解池（决定发什么牌）
   const resumed = loadRun();
-  if (resumed) G.s = resumed; else G.s = Core.newGame(Deal.randomSeed(), 3);
+  if (resumed) G.s = resumed;
+  else { const sd = Pool.pick(3, 'any'); G.s = Core.newGame(sd != null ? sd : Deal.randomSeed(), 3); }
 
   Input.bind({ onAction: dispatch });                       // 工具条
   Input2.bind(document.getElementById(CFG.canvasId), {      // 牌区：拖拽 + tap-to-move

@@ -23,13 +23,20 @@
     const cardW = Math.floor((playW - gap * 8) / 7);      // 7 列 + 8 个间隙
     const cardH = Math.round(cardW * 1.42);               // 标准扑克比例
 
-    const top = safeTop + 10;
+    // ⚠ HUD（分数 / 牌局号 / 「✓ 有解」角标）必须有**自己的一行**，且落在 safeTop 之下。
+    //   踩过的坑：HUD 原来画在 topY-24 = safeTop 之上，直接侵入状态栏/刘海区，
+    //   而右上角那块正好被 DOM 控制栏（#controls: fixed, top:8px right:8px, z-index 20）压住
+    //   ⇒ **「✓ 有解」角标（进公平页的唯一入口）点不动** —— E2E 真实鼠标点击才抓出来。
+    const hudY = safeTop + 6;
+    const hudH = 20;
+    const top = hudY + hudH + 8;
     const bannerH = showBanner ? BANNER_H : 0;
 
     Object.assign(L, {
       playX, playW, cx: playX + playW / 2,
       gap, cardW, cardH, bannerH,
       colX: i => playX + gap + i * (cardW + gap),         // 第 i 列的 x
+      hudY, hudH,
       // 顶排：stock + waste（左）| foundations ×4（右）
       topY: top,
       stockX: playX + gap,
@@ -44,11 +51,14 @@
       barH: 46,
       barY: SH - bannerH - 46 - 8,
       bannerY: SH - bannerH,
+      // ⭐ 「这局还有解吗？」条 —— 一等公民，占正经版面（在工具条正上方）
+      proveH: 40,
+      proveY: SH - bannerH - 46 - 8 - 40 - 6,
     });
 
     // ⚠ 最长列压缩：Klondike 最长可能 6 暗 + 13 明 = 19 张。
     //    竖屏放不下 ⇒ 动态压缩 offset（而不是让牌溢出屏幕）。
-    L.maxColH = L.barY - L.tabY - 8;
+    L.maxColH = L.proveY - L.tabY - 8;      // ⚠ 牌区高度要给证明条让位，否则最长的列会被它盖住
     L.fitOffsets = (nDown, nUp) => {
       let up = L.upOff, down = L.downOff;
       const need = () => nDown * down + Math.max(0, nUp - 1) * up + L.cardH;
