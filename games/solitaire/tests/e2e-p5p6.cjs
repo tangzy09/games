@@ -38,6 +38,9 @@ async function click(page, action, dm){
 
   await page.goto(`http://127.0.0.1:${PORT}/games/solitaire/index.html`);
   await page.waitForFunction(()=>window.G&&window.G.s&&window.Money);
+  // 首启一屏（4.3(a) 防线）会挡住一切 —— 测试里先跳过它
+  await page.evaluate(() => { if (G.phase === 'INTRO') dispatch('INTRO_GO'); });
+  await page.waitForTimeout(80);
 
   // ── 菜单 ──
   ok(await click(page,'MENU'), '「菜单」入口可点');

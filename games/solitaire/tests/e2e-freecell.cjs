@@ -38,6 +38,9 @@ async function clickAction(page, action, dataMatch) {
 
   await page.goto(`http://127.0.0.1:${PORT}/games/solitaire/index.html`);
   await page.waitForFunction(() => window.G && window.G.s);
+  // 首启一屏（4.3(a) 防线）会挡住一切 —— 测试里先跳过它
+  await page.evaluate(() => { if (G.phase === 'INTRO') dispatch('INTRO_GO'); });
+  await page.waitForTimeout(80);
 
   // ── 切到 FreeCell（真实点工具条按钮）──
   ok(await clickAction(page,'MODE'), '「模式」按钮可点');

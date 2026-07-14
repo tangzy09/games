@@ -5,7 +5,8 @@
 
 // ⚠ 必须显式挂 window：脚本顶层的 const 不会成为 window 的属性（blockblast 实踩）
 const G = window.G = {
-  phase: 'PLAY',           // PLAY | FAIR
+  phase: 'PLAY',           // INTRO | PLAY | FAIR | MENU | STATS | SHOP
+  seenIntro: 0,            // 首启一屏只出一次
   s: null,                 // core 状态
   drag: null,
   pending: null,
@@ -56,7 +57,7 @@ const todayId = () => {
 const saveOpts = () => {
   try {
     Platform.storage.set(K_OPT(), JSON.stringify({
-      fourColor: G.fourColor, bigText: G.bigText, dailyDone: G.dailyDone,
+      fourColor: G.fourColor, bigText: G.bigText, dailyDone: G.dailyDone, seenIntro: G.seenIntro,
     }));
   } catch (e) {}
 };
@@ -220,6 +221,9 @@ function dispatch(action, data) {
     }
     case 'FAIR': G.phase = 'FAIR'; break;
     case 'MENU': G.phase = 'MENU'; break;
+    // 首启一屏（4.3(a) 防线）：看过一次就不再出现
+    case 'INTRO_GO': G.phase = 'PLAY'; G.seenIntro = 1; saveOpts(); break;
+    case 'INTRO_FAIR': G.phase = 'FAIR'; G.seenIntro = 1; saveOpts(); break;
     case 'STATS': G.phase = 'STATS'; break;
     case 'SHOP': G.phase = 'SHOP'; break;
 
@@ -337,6 +341,9 @@ async function boot() {
   const resumed = loadRun();
   if (resumed) G.s = resumed;
   else { const sd = Pool.pick(3, 'any'); G.s = Core.newGame(sd != null ? sd : Deal.randomSeed(), 3); }
+
+  // ⭐ 第一次打开 → 先给首启一屏（App Store 4.3(a) 的主要防线：差异必须在头 5 秒撞到脸上）
+  if (!G.seenIntro) G.phase = 'INTRO';
 
   Input.bind({ onAction: dispatch });                       // 工具条
   Input2.bind(document.getElementById(CFG.canvasId), {      // 牌区：拖拽 + tap-to-move

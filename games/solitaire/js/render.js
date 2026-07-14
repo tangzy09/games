@@ -283,8 +283,60 @@
     return prevCache[k];
   }
 
+  /**
+   * ⭐ 首启一屏（仅第一次，可一键跳过）—— 这是 **App Store 4.3(a) 的主要防线**。
+   *
+   * 纸牌是极端红海，我们的玩法是 100% 经典规则。真正的差异（设备上跑求解器、公开可解率落差）
+   * 全都藏在按钮后面 —— 而审核员只花两三分钟：打开 → 看到一张普通牌桌 → 4.3(a) 拒。
+   * ⇒ 差异必须在**头 5 秒内自己撞到脸上**。这一屏就是干这个的。
+   *
+   * ⚠ 它同时是「诚实」的第一次亮相：这里就把「有解 ≠ 你一定能赢」说清楚。
+   *   把承诺吹大、让玩家自己撞上落差，是这个产品唯一会死的方式。
+   */
+  function renderIntro() {
+    clearHits();
+    const L = Layout.layout({ noBanner: true });
+    const { SW, SH } = GameGlobal;
+    const tb = Sprite.tableStyle('felt');
+    const g = ctx.createLinearGradient(0, 0, 0, SH);
+    g.addColorStop(0, tb.a); g.addColorStop(1, tb.b);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, SW, SH);
+
+    const cx = L.cx, w = Math.min(L.playW - 44, 400);
+    let y = GameGlobal.safeTop + 52;
+
+    ctx.font = 'bold 22px sans-serif';
+    wrapLines(T('sol.introTitle'), w, 2).forEach((ln, i) =>
+      txt(ln, cx, y + i * 28, '#fff', 'bold 22px sans-serif'));
+    y += 28 * wrapLines(T('sol.introTitle'), w, 2).length + 10;
+
+    ctx.font = '12px sans-serif';
+    wrapLines(T('sol.introSub'), w, 3).forEach((ln, i) =>
+      txt(ln, cx, y + i * 17, '#7ef2a0', '12px sans-serif'));
+    y += 17 * wrapLines(T('sol.introSub'), w, 3).length + 20;
+
+    [['⚖', 'introB1'], ['🔍', 'introB2'], ['🎁', 'introB3']].forEach(function (it) {
+      const lines = wrapLines(T('sol.' + it[1]), w - 34, 4);
+      const h = Math.max(44, lines.length * 16 + 16);
+      fillRR(cx - w / 2, y, w, h, 10, 'rgba(0,0,0,0.26)');
+      txt(it[0], cx - w / 2 + 17, y + h / 2, '#ffd84d', '15px sans-serif');
+      lines.forEach((ln, i) =>
+        txtL(ln, cx - w / 2 + 34, y + 8 + 16 * i + 8, PAL.sub, '11px sans-serif'));
+      y += h + 10;
+    });
+
+    y += 8;
+    fillRR(cx - 90, y, 180, 50, 13, '#22c55e');
+    txt(T('sol.introGo'), cx, y + 25, '#fff', 'bold 16px sans-serif');
+    addHit(cx - 90, y, 180, 50, 'INTRO_GO', {});
+    y += 60;
+    txt(T('sol.introFair') + ' ›', cx, y + 12, 'rgba(255,255,255,0.65)', '12px sans-serif');
+    addHit(cx - 80, y, 160, 30, 'INTRO_FAIR', {});
+  }
+
   function renderAll() {
     const ph = root.G.phase;
+    if (ph === 'INTRO') return renderIntro();
     if (ph === 'FAIR') return renderFair();
     if (ph === 'MENU') return renderMenu();
     if (ph === 'STATS') return renderStats();
@@ -484,6 +536,6 @@
     }
   }
 
-  root.Render = { renderAll, renderFair, renderMenu, renderStats, renderShop, PAL };
+  root.Render = { renderAll, renderIntro, renderFair, renderMenu, renderStats, renderShop, PAL };
   root.renderAll = renderAll;
 })(typeof self !== 'undefined' ? self : this);

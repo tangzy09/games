@@ -145,6 +145,77 @@ FAIR BY DESIGN
 5. 统计页（零撤销·零提示胜率）— `The win rate that actually means something`
 6. 收藏页（牌背/桌布）— `Collect card backs and tables`
 
+## ⚠ 4.3(a) spam 风险评估（中等偏高）—— 以及三道防线
+
+**为什么有风险**（不利的都要认）：
+1. 纸牌是 App Store 最极端的红海之一，Klondike/FreeCell 克隆成千上万，4.3(a) 正是冲这类品类去的。
+2. 我们的玩法是 **100% 经典规则，零原创机制**。审核员打开看到的就是一张标准 Klondike 牌桌。
+
+**真正的失败路径不是「差异化不够」，而是「差异化审核员没看见」**：
+真正的差异（设备上跑真求解器、公开可解率落差、微软局号）**全在按钮后面**，
+而审核员只花两三分钟。打开 → 普通牌桌 → 拒。
+
+⇒ 三道防线，全部指向同一件事：**让差异在头 5 秒自己撞到审核员脸上**。
+
+| # | 防线 | 位置 |
+|---|---|---|
+| 1 | **首启一屏**（全新用户必见，可一键进公平页） | `renderIntro()`，钉死在 `tests/e2e-intro.cjs` |
+| 2 | **审核备注**（下面这段，直接跟审核员说话，给 30 秒复现步骤） | `appStoreReviewDetails.notes` |
+| 3 | **截图 #1 = 公平页**（不是牌桌！） | 见上「截图脚本」 |
+
+（同账号的 5 个游戏题材/玩法各不同——扫雷/贪吃蛇/射击/方块/纸牌——**不构成 identical apps**；图标也完全不撞车。这一条不是风险。）
+
+### App Review Notes（原样贴进 ASC）
+
+```
+This is a classic solitaire app (Klondike + FreeCell), and we know the App Store has
+many of those. Here is what is genuinely different about this one, and how to see it
+in under a minute:
+
+1. EVERY KLONDIKE DEAL IS VERIFIED SOLVABLE BEFORE IT IS DEALT.
+   A real solver runs on-device. Deals with no solution are never given to you.
+   The app ships a pre-verified deal pool (games/solitaire/data/) built by replaying
+   each solution through the game's own rules engine.
+   -> Where to see it: the green "Solvable" badge at the top of the board. Tap it.
+
+2. "IS THIS DEAL STILL WINNABLE?" - A SOLVER YOU CAN ACTUALLY PUSH.
+   The big button below the board runs a real search in a Web Worker on the device and
+   gives one of three answers: still solvable / no longer solvable (with the move number
+   after which no solution exists) / "we couldn't work it out". We do not know of another
+   solitaire app that will admit the third answer.
+   -> Where to see it: tap "Is this deal still winnable?" on the main screen. It answers
+      in well under a second on an opening position.
+
+3. WE PUBLISH THE HONEST GAP, WHICH IS NOT FLATTERING TO US.
+   The Fairness page states plainly that "solvable" only means solvable IF you could see
+   the face-down cards - which you cannot - so we do NOT claim you are guaranteed to win.
+   We publish measured numbers, including that our own blind AI (which sees exactly what
+   the player sees) wins only 7.6% of random draw-3 deals.
+   -> Where to see it: it is the FIRST screen a new user sees, and it is also reachable
+      from the badge or from Menu > Fairness.
+
+4. FREECELL USES THE ORIGINAL MICROSOFT DEAL NUMBERS.
+   Deal #11982 - famously the only unsolvable deal of the original 32000 - is unsolvable
+   here too. Our solver proves it by exhaustive search. This is verified in our test suite
+   against that external ground truth.
+   -> Where to see it: tap "FreeCell" in the toolbar; the deal number is shown top-right.
+
+MONETIZATION
+Undo, hints, restart, new deal and the solver are ALWAYS free and never gated behind an
+ad. The banner never covers the cards (the layout reserves space for it). Interstitials
+appear only after a WIN, at most one per three wins, never after a loss. Remove Ads is a
+one-time purchase, not a subscription.
+
+NO GAMBLING
+There is no wagering, no chips, no coin betting, no real-money play and no payouts of any
+kind. Coins are earned only by winning and can only be spent on cosmetic card backs and
+table felts. Age rating declared accordingly (gambling: none).
+
+No account or login is required. The app works fully offline.
+```
+
+⚠ 备注里的每一句都必须是**真的**且**审核员点得到**——写一条他复现不了的，比不写更糟。
+
 ## 提交前必查（细节见 skill `appstore-listing`）
 
 - [ ] `primaryCategory` = GAMES + 子类 `GAMES_CARD` / `GAMES_PUZZLE`（**送审必填，建 app 后默认为空**）
@@ -156,3 +227,6 @@ FAIR BY DESIGN
 - [ ] `advertising=true`（含广告）
 - [ ] App 隐私问卷 Publish（UI-only）
 - [ ] `CFBundleLocalizations = ["en","zh-Hans"]`（否则商店「语言」栏只显示英语）
+- [ ] **审核备注贴进 appStoreReviewDetails.notes**（上面那段）—— 4.3(a) 的第二道防线
+- [ ] **截图 #1 必须是公平页，不是牌桌** —— 第三道防线
+- [ ] 首启一屏还在（`npm run test:sol:intro`）—— 第一道防线，别哪天被改没了
