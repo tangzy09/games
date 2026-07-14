@@ -43,6 +43,9 @@
     "fairLostVal": "45% of the deals you lose are still winnable. You just did not find it.",
     "fairLostSub": "That is why undo, hints and restart are free here, forever. Locking them behind an ad would mean charging you to find out you still had a chance.",
     "fairDiffEasy": "Difficulty: Easy (even our blind AI wins this one)",
-    "fairDiffHard": "Difficulty: Hard (solvable, but our blind AI cannot win it)"
+    "fairDiffHard": "Difficulty: Hard (solvable, but our blind AI cannot win it)",
+    "freecell": "FreeCell",
+    "klondike": "Klondike",
+    "mode": "Mode"
   }
 }

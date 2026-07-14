@@ -19,8 +19,10 @@
     const playW = Math.min(SW, PLAY_MAX);
     const playX = Math.round((SW - playW) / 2);
 
-    const gap = Math.max(4, Math.round(playW * 0.014));
-    const cardW = Math.floor((playW - gap * 8) / 7);      // 7 列 + 8 个间隙
+    // 列数随模式变：Klondike 7 列，FreeCell 8 列（Spider 将来 10 列）
+    const cols = (opts && opts.cols) || 7;
+    const gap = Math.max(3, Math.round(playW * 0.014));
+    const cardW = Math.floor((playW - gap * (cols + 1)) / cols);
     const cardH = Math.round(cardW * 1.42);               // 标准扑克比例
 
     // ⚠ HUD（分数 / 牌局号 / 「✓ 有解」角标）必须有**自己的一行**，且落在 safeTop 之下。
@@ -35,13 +37,16 @@
     Object.assign(L, {
       playX, playW, cx: playX + playW / 2,
       gap, cardW, cardH, bannerH,
+      cols,
       colX: i => playX + gap + i * (cardW + gap),         // 第 i 列的 x
       hudY, hudH,
-      // 顶排：stock + waste（左）| foundations ×4（右）
+      // 顶排（Klondike）：stock + waste（左）| foundations ×4（右）
       topY: top,
       stockX: playX + gap,
       wasteX: playX + gap + (cardW + gap),
-      foundX: i => playX + gap + (3 + i) * (cardW + gap),
+      foundX: i => playX + gap + (cols - 4 + i) * (cardW + gap),   // 永远靠右 4 格
+      // 顶排（FreeCell）：free cell ×4（左）| foundations ×4（右）
+      cellX: i => playX + gap + i * (cardW + gap),
       // tableau
       tabY: top + cardH + Math.round(cardH * 0.22),
       // 堆叠 offset：明牌/暗牌**不同**（暗牌挤一点，省高度）

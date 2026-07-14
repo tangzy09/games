@@ -117,7 +117,8 @@
     clearHits();
     const G = root.G;
     const s = G.s;
-    const L = Layout.layout({ noBanner: G.noAds });
+    const fc = s.mode === 'freecell';
+    const L = Layout.layout({ noBanner: G.noAds, cols: fc ? 8 : 7 });
     Sprite.ensure(L.cardW, L.cardH, G.fourColor, G.bigText);
 
     const { SW, SH } = GameGlobal;
@@ -125,18 +126,26 @@
     g.addColorStop(0, PAL.felt1); g.addColorStop(1, PAL.felt2);
     ctx.fillStyle = g; ctx.fillRect(0, 0, SW, SH);
 
-    // ── 顶排：stock / waste / foundations ──
-    // stock
-    if (s.stock.length) {
+    // ── 顶排 ──
+    if (fc) {
+      // FreeCell：4 个 free cell（左）+ 4 个 foundation（右）。没有牌堆。
+      for (let ci = 0; ci < 4; ci++) {
+        const x = L.cellX(ci);
+        const id = s.free[ci];
+        if (id != null) ctx.drawImage(Sprite.face(id), x, L.topY, L.cardW, L.cardH);
+        else drawSlot(x, L.topY, L.cardW, L.cardH);
+        addHit(x, L.topY, L.cardW, L.cardH, 'CELL', { ci });
+      }
+    } else if (s.stock.length) {
       ctx.drawImage(Sprite.back(), L.stockX, L.topY, L.cardW, L.cardH);
       txt(String(s.stock.length), L.stockX + L.cardW / 2, L.topY + L.cardH + 10, PAL.sub, '11px sans-serif');
     } else {
       drawSlot(L.stockX, L.topY, L.cardW, L.cardH, s.waste.length ? '↻' : '');
     }
-    addHit(L.stockX, L.topY, L.cardW, L.cardH, 'STOCK', {});
+    if (!fc) addHit(L.stockX, L.topY, L.cardW, L.cardH, 'STOCK', {});
 
     // waste（draw-3 时露出最后 3 张的一角）
-    if (s.waste.length) {
+    if (!fc && s.waste.length) {
       const show = Math.min(s.drawCount === 1 ? 1 : 3, s.waste.length);
       const fan = Math.round(L.cardW * 0.22);
       for (let k = 0; k < show; k++) {
@@ -145,7 +154,7 @@
         ctx.drawImage(Sprite.face(id), x, L.topY, L.cardW, L.cardH);
         if (k === show - 1) addHit(x, L.topY, L.cardW, L.cardH, 'WASTE', {});   // 只有顶牌可点
       }
-    } else {
+    } else if (!fc) {
       drawSlot(L.wasteX, L.topY, L.cardW, L.cardH);
     }
 
@@ -159,7 +168,7 @@
     }
 
     // ── tableau ──
-    for (let ti = 0; ti < 7; ti++) {
+    for (let ti = 0; ti < L.cols; ti++) {
       const col = s.tableau[ti];
       const x = L.colX(ti);
       const nDown = col.cards.length - col.up;
@@ -206,10 +215,13 @@
     // ── HUD ──
     txtL(T('sol.score') + ' ' + s.score, L.playX + 8, L.hudY + L.hudH / 2, PAL.sub, '12px sans-serif');
     // ⭐ 「✓ 有解」角标 —— 点它进公平页（措辞死线：只说「存在解法」，绝不说「你一定能赢」）
-    const verified = Pool.isVerified(s.drawCount, s.seed);
-    const diff = Pool.difficultyOf(s.drawCount, s.seed);
-    const badge = (verified ? T('sol.verified') : T('sol.unverified'))
-                + (diff ? ' · ' + T('sol.' + diff) : '');
+    // ⚠ 可解性角标**只对 Klondike 有意义**：FreeCell 本来就 ~100% 可解，标了等于没标。
+    //   FreeCell 显示的是**难度**（solver 求解节点数），那才是它真正的信息。
+    const verified = !fc && Pool.isVerified(s.drawCount, s.seed);
+    const diff = fc ? null : Pool.difficultyOf(s.drawCount, s.seed);
+    const badge = fc ? T('sol.freecell')
+                : (verified ? T('sol.verified') : T('sol.unverified'))
+                  + (diff ? ' · ' + T('sol.' + diff) : '');
     // ⚠ 角标必须**左对齐**排在分数右边，绝不能贴右上角 —— 那里被 DOM 控制栏（语言按钮）压着，点不动。
     const bw2 = Math.max(96, badge.length * 7 + 16);
     const bx2 = L.playX + 8 + 78;
@@ -255,17 +267,19 @@
     }
 
     // ── 底部工具条（撤销 / 提示 / 自动收牌 / 新局）—— 全部免费，永远不看广告（DESIGN §7.4）──
-    const bw = Math.floor((L.playW - 40) / 4);
     const tools = [
       ['↩ ' + T('sol.undo'), 'UNDO', s.moves.length > 0],
       ['💡 ' + T('sol.hint'), 'HINT', true],
       ['⤴ ' + T('sol.auto'), 'AUTO', true],
       ['🔄 ' + T('sol.newGame'), 'NEW', true],
+      // 切模式 = 换一局（模式是开局前属性，局中不可改）
+      [fc ? '♠ ' + T('sol.klondike') : '⬛ ' + T('sol.freecell'), 'MODE', true],
     ];
+    const bw = Math.floor((L.playW - 16 - (tools.length - 1) * 6) / tools.length);
     tools.forEach(([label, act, on], i) => {
-      const x = L.playX + 8 + i * (bw + 8);
+      const x = L.playX + 8 + i * (bw + 6);
       fillRR(x, L.barY, bw, L.barH, 10, on ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.18)');
-      txt(label, x + bw / 2, L.barY + L.barH / 2, on ? '#fff' : 'rgba(255,255,255,0.35)', '12px sans-serif');
+      txt(label, x + bw / 2, L.barY + L.barH / 2, on ? '#fff' : 'rgba(255,255,255,0.35)', '10px sans-serif');
       if (on) addHit(x, L.barY, bw, L.barH, act, {});
     });
 

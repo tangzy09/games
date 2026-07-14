@@ -18,7 +18,7 @@
 // ⚠ 顺序 = 依赖顺序，且 **cards.js 不能漏**（rules-klondike.js 解构 Cards.suitOf）。
 // 漏了它 Worker 一 new 就抛 TypeError → onerror 把结果兜成 'unknown' →
 // 看起来像「算不出来」，其实是**证明器从没跑起来过**。E2E 抓出来的。
-importScripts('cards.js', 'deal.js', 'rules-klondike.js', 'core.js', 'solver.js');
+importScripts('cards.js', 'deal.js', 'rules-klondike.js', 'rules-freecell.js', 'core.js', 'solver.js');
 
 const BUDGET = 300000;          // 主判定预算（~1-3s，Worker 里不卡 UI）
 const PROBE = 60000;            // 二分探测预算（要跑 log2(n) 次，单次得便宜些）
@@ -32,19 +32,20 @@ const PROBE = 60000;            // 二分探测预算（要跑 log2(n) 次，单
  *   一个字符串常量拼错，就把产品最核心的承诺变成了系统性谎言。
  *   ⇒ 两套枚举**只在出口处映射一次**（win → solvable），中间一律用 Solver 的原生枚举。
  */
-function probe(seed, drawCount, moves, n, maxNodes) {
-  const s = Core.replay(seed, drawCount, moves.slice(0, n));
+function probe(seed, drawCount, moves, n, maxNodes, mode) {
+  const s = Core.replay(seed, drawCount, moves.slice(0, n), mode);
   if (!s) return 'unknown';
   if (s.won) return 'win';
-  return Solver.solve(s, { maxNodes }).result;   // 'win' | 'dead' | 'unknown'
+  // FreeCell 走 best-first、Klondike 走 DFS —— solve() 内部按 mode 分派
+  return Solver.solve(s, { maxNodes, bfNodes: Math.min(maxNodes, 120000) }).result;
 }
 
 self.onmessage = (e) => {
-  const { seed, drawCount, moves } = e.data;
+  const { seed, drawCount, moves, mode } = e.data;
   const t0 = Date.now();
 
   // ① 当前局面还有解吗？（大预算）
-  const now = probe(seed, drawCount, moves, moves.length, BUDGET);
+  const now = probe(seed, drawCount, moves, moves.length, BUDGET, mode);
 
   if (now === 'win' || now === 'unknown') {
     // ⭐ 唯一的枚举映射点：Solver 的 'win' → UI 的 'solvable'
@@ -58,7 +59,7 @@ self.onmessage = (e) => {
   let bailed = false;
   while (hi - lo > 1) {
     const mid = (lo + hi) >> 1;
-    const r = probe(seed, drawCount, moves, mid, PROBE);
+    const r = probe(seed, drawCount, moves, mid, PROBE, mode);
     if (r === 'win') lo = mid;
     else if (r === 'dead') hi = mid;
     else { bailed = true; break; }        // 探测算不出来 ⇒ 不猜,直接停(见下)

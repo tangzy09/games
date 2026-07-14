@@ -47,11 +47,17 @@ function loadRun() {
 const clearRun = () => { try { Platform.storage.set(K_RUN(), ''); } catch (e) {} };
 const saveStats = () => { try { Platform.storage.set(K_STATS(), JSON.stringify(G.stats)); } catch (e) {} };
 
-function newGame(drawCount) {
+function newGame(drawCount, mode) {
+  const md = mode || (G.s ? G.s.mode : 'klondike');
   const draw = drawCount || (G.s ? G.s.drawCount : 3);
-  // ⭐ 默认只发**已验证可解**的牌局（池里取）；池没加载成功才回落到随机
-  const seed = Pool.pick(draw, G.difficulty || 'any');
-  G.s = Core.newGame(seed != null ? seed : Deal.randomSeed(), draw);
+  // ⭐ Klondike：只发**已验证可解**的牌局（池里取）。
+  //    FreeCell：**不需要池** —— 本来就 ~100% 可解（32000 局里只有 #11982 无解），
+  //    直接用微软局号随机取一个（这样玩家可以对照经典局号）。
+  const seed = md === 'freecell'
+    ? (1 + Math.floor(Math.random() * 32000))
+    : (Pool.pick(draw, G.difficulty || 'any') != null
+        ? Pool.pick(draw, G.difficulty || 'any') : Deal.randomSeed());
+  G.s = Core.newGame(seed, draw, md);
   G.drag = G.pending = G.sel = G.hintMove = null;
   Prover.reset();
   G.stats.played++;
@@ -113,7 +119,13 @@ function onTap(hit, cardHit) {
   }
 
   // 没有选中 ⇒ 这一下是「拿起」
-  if (hit.action === 'WASTE' && s.waste.length) {
+  if (hit.action === 'CELL') {                 // FreeCell 的 free cell
+    const ci = hit.data.ci;
+    if (s.free[ci] == null) return renderAll();
+    const auto = RulesF.legalMoves(s).find(m => m.t === 'cf' && m.ci === ci);
+    if (auto && doMove(auto)) return;          // 先试自动收 foundation
+    G.sel = { p: 'c', ci };
+  } else if (hit.action === 'WASTE' && s.waste.length) {
     // 先试自动送 foundation（双击/单击的常见期待）
     const auto = RulesK.legalMoves(s).find(m => m.t === 'wf');
     if (auto && doMove(auto)) return;
@@ -122,10 +134,10 @@ function onTap(hit, cardHit) {
     const { ti, idx } = hit.data;
     const col = s.tableau[ti];
     if (!col.cards.length) return;
-    if (!RulesK.isValidRun(s, ti, idx)) return;
+    if (!Core.rules(s).isValidRun(s, ti, idx)) return;
     // 单击顶牌 ⇒ 先试送 foundation
     if (idx === col.cards.length - 1) {
-      const auto = RulesK.legalMoves(s).find(m => m.t === 'tf' && m.ti === ti);
+      const auto = Core.rules(s).legalMoves(s).find(m => m.t === 'tf' && m.ti === ti);
       if (auto && doMove(auto)) return;
     }
     G.sel = { p: 't', ti, idx };
@@ -135,15 +147,26 @@ function onTap(hit, cardHit) {
 
 /** 从「选中 + 落点」构造一个 move */
 function buildMove(sel, hit) {
+  const s = G.s;
   if (hit.action === 'FOUND') {
     const fi = hit.data.fi;
+    if (sel.p === 'c') return { t: 'cf', ci: sel.ci, fi };        // free cell → foundation
     if (sel.p === 'w') return { t: 'wf', fi };
-    const col = G.s.tableau[sel.ti];
+    const col = s.tableau[sel.ti];
     if (sel.idx === col.cards.length - 1) return { t: 'tf', ti: sel.ti, fi };
     return null;
   }
+  if (hit.action === 'CELL') {                                     // → free cell（只收单张）
+    const ci = hit.data.ci;
+    if (s.free[ci] != null) return null;
+    if (sel.p !== 't') return null;
+    const col = s.tableau[sel.ti];
+    if (sel.idx !== col.cards.length - 1) return null;             // 只有顶牌能进格子
+    return { t: 'tc', ti: sel.ti, ci };
+  }
   if (hit.action === 'TAB') {
     const tj = hit.data.ti;
+    if (sel.p === 'c') return { t: 'ct', ci: sel.ci, tj };         // free cell → tableau
     if (sel.p === 'w') return { t: 'wt', ti: tj };
     if (sel.ti === tj) return null;
     return { t: 'tt', ti: sel.ti, idx: sel.idx, tj };
@@ -162,6 +185,11 @@ function dispatch(action, data) {
   const s = G.s;
   switch (action) {
     case 'NEW': newGame(); break;
+    case 'MODE': {                             // 切模式 = 换一局（模式是开局前属性）
+      const next = s.mode === 'freecell' ? 'klondike' : 'freecell';
+      newGame(undefined, next);
+      break;
+    }
     case 'FAIR': G.phase = 'FAIR'; break;
     // ⭐ 「这局还有解吗？」—— 永远免费、永远不看广告（它是产品的灵魂，不是道具）
     case 'PROVE': Prover.ask(G.s); break;
@@ -183,7 +211,7 @@ function dispatch(action, data) {
       break;
     }
     case 'HINT': {
-      const ms = RulesK.legalMoves(s).filter(m => m.t !== 'draw' && m.t !== 'recycle');
+      const ms = Core.rules(s).legalMoves(s).filter(m => m.t !== 'draw' && m.t !== 'recycle');
       G.s.usedHint = true;                       // 留痕（「零提示胜率」靠它）
       G.hintMove = ms.length ? ms[0] : null;
       if (!ms.length) G.hintMove = { t: 'none' };

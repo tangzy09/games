@@ -34,7 +34,7 @@
     st.phase = 'proving';
     st.result = null; st.deadFrom = null;
     st.t0 = Date.now();
-    w.postMessage({ seed: s.seed, drawCount: s.drawCount, moves: s.moves });
+    w.postMessage({ seed: s.seed, drawCount: s.drawCount, moves: s.moves, mode: s.mode });
   }
 
   function reset() {

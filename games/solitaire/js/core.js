@@ -14,15 +14,34 @@
   const Cards = isNode ? require('./cards.js') : root.Cards;
   const Deal = isNode ? require('./deal.js') : root.Deal;
   const R = isNode ? require('./rules-klondike.js') : root.RulesK;
+  const RF = isNode ? require('./rules-freecell.js') : root.RulesF;
+  /** 按模式取规则模块（新增模式只在这里加一行）*/
+  const rules = s => (s.mode === 'freecell' ? RF : R);
 
   const SAVE_VERSION = 1;
   const { rankOf } = Cards;
 
   /** 开局（纯函数：同 seed + 同 drawCount ⇒ 完全相同的一局）*/
-  function newGame(seed, drawCount) {
+  function newGame(seed, drawCount, mode) {
+    // ⭐ FreeCell：8 列全明牌、4 个 free cell、没有 stock/waste。
+    //    52 张全可见 ⇒ 「有解」和「你能赢」之间**没有信息差**（与 Klondike 的根本区别）。
+    if (mode === 'freecell') {
+      const f = RF.deal(seed);
+      return {
+        v: SAVE_VERSION, mode: 'freecell',
+        seed: seed >>> 0,
+        drawCount: 3,                          // 占位（FreeCell 无此概念，但存档/签名统一）
+        tableau: f.tableau.map(c => ({ cards: c.cards.slice(), up: c.up })),
+        free: [null, null, null, null],        // ⭐ 4 个 free cell
+        stock: [], waste: [],                  // FreeCell 没有牌堆（留空，保持 state 形状统一）
+        foundations: [[], [], [], []],
+        moves: [], score: 0, recycles: 0, won: false,
+        usedUndo: false, usedHint: false, usedSolver: false,
+      };
+    }
     const d = Deal.klondike(seed);
     return {
-      v: SAVE_VERSION,
+      v: SAVE_VERSION, mode: 'klondike',
       seed: seed >>> 0,
       drawCount: drawCount === 1 ? 1 : 3,     // ⚠ 开局前属性，局中不可改（改了可解性角标就失效）
       tableau: d.tableau.map(c => ({ cards: c.cards.slice(), up: c.up })),
@@ -50,6 +69,14 @@
   function apply(s, m, opts) {
     if (s.won) return null;
     const rec = !(opts && opts.replay);      // 重放时不再往 moves 里记
+
+    // FreeCell 的走子全在 rules-freecell.js 里（move 类型都不一样：tc/ct/cf + supermove）
+    if (s.mode === 'freecell') {
+      const fev = RF.apply(s, m);
+      if (!fev) return null;
+      if (rec) s.moves.push(m);
+      return fev;
+    }
     const ev = [];
 
     const flipIfNeeded = ti => {
@@ -154,8 +181,8 @@
   }
 
   /** 从头重放一串 move（用于撤销 / 存档恢复 / 验证 solver 的解）*/
-  function replay(seed, drawCount, moves) {
-    const s = newGame(seed, drawCount);
+  function replay(seed, drawCount, moves, mode) {
+    const s = newGame(seed, drawCount, mode);
     for (const m of moves) {
       if (!apply(s, m, { replay: true })) return null;   // 任何一步非法 ⇒ 整条 move list 无效
       s.moves.push(m);
@@ -166,7 +193,7 @@
   /** 撤销一步 = 重放到 n−1（⚠ 会打上 usedUndo，统计口径见 DESIGN §4.5）*/
   function undo(s) {
     if (!s.moves.length) return null;
-    const next = replay(s.seed, s.drawCount, s.moves.slice(0, -1));
+    const next = replay(s.seed, s.drawCount, s.moves.slice(0, -1), s.mode);
     if (!next) return null;
     next.usedUndo = true;                       // 一旦用过就永久留痕（「零撤销胜率」靠它）
     next.usedHint = s.usedHint;
@@ -177,15 +204,17 @@
   /** 一次 autoplay 能收的所有牌（安全判定见 rules.isSafeToAutoPlay）*/
   function autoPlayMoves(s) {
     const out = [];
-    const sim = replay(s.seed, s.drawCount, s.moves);   // 在副本上推演
+    const RR = rules(s);
+    const sim = replay(s.seed, s.drawCount, s.moves, s.mode);   // 在副本上推演
     for (let guard = 0; guard < 60; guard++) {
       let did = false;
-      for (const m of R.legalMoves(sim)) {
-        if (m.t !== 'tf' && m.t !== 'wf') continue;
-        const card = m.t === 'tf'
-          ? sim.tableau[m.ti].cards[sim.tableau[m.ti].cards.length - 1]
-          : sim.waste[sim.waste.length - 1];
-        if (!R.isSafeToAutoPlay(sim, card)) continue;
+      for (const m of RR.legalMoves(sim)) {
+        // 收牌的 move 类型按模式不同：Klondike 是 tf/wf，FreeCell 是 tf/cf
+        if (m.t !== 'tf' && m.t !== 'wf' && m.t !== 'cf') continue;
+        const card = m.t === 'tf' ? sim.tableau[m.ti].cards[sim.tableau[m.ti].cards.length - 1]
+                   : m.t === 'cf' ? sim.free[m.ci]
+                   : sim.waste[sim.waste.length - 1];
+        if (card == null || !RR.isSafeToAutoPlay(sim, card)) continue;
         apply(sim, m);
         out.push(m);
         did = true;
@@ -196,7 +225,7 @@
     return out;
   }
 
-  const API = { SAVE_VERSION, newGame, apply, replay, undo, autoPlayMoves, addScore };
+  const API = { SAVE_VERSION, newGame, apply, replay, undo, autoPlayMoves, addScore, rules };
   if (isNode) module.exports = API;
   else root.Core = API;
 })(typeof self !== 'undefined' ? self : this);

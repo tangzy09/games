@@ -43,15 +43,18 @@
     g.strokeStyle = 'rgba(0,0,0,0.22)'; g.lineWidth = 1;
     rr(g, 0.5, 0.5, w - 1, h - 1, r); g.stroke();
 
-    // 左上角：点数 + 花色（⚠ 小牌时只画左上角，这是 Spider/窄屏的出路）
-    const fs = Math.round(w * (big ? 0.46 : 0.40));
+    // 左上角：点数 + 花色 —— ⚠ **必须横排，不能竖排**。
+    //   牌是堆叠着画的，每张只露出顶上 ~0.28h。竖排（rank 在 0.17h、suit 在 0.34h）
+    //   会让**花色正好被下一张牌盖住** ⇒ 玩家只看得到点数、看不到花色。
+    //   FreeCell（8 列全明牌）和 Spider（10 列）牌又窄又密，这就直接没法玩了。
+    const fs = Math.round(w * (big ? 0.44 : 0.38));
     g.fillStyle = col;
     g.textAlign = 'center';
     g.textBaseline = 'middle';
     g.font = `bold ${fs}px system-ui, sans-serif`;
-    g.fillText(RANK_STR[rank], w * 0.27, h * 0.17);
-    g.font = `${Math.round(fs * 0.9)}px system-ui, sans-serif`;
-    g.fillText(SUIT_SYM[suit], w * 0.27, h * 0.34);
+    g.fillText(RANK_STR[rank], w * 0.26, h * 0.16);
+    g.font = `${Math.round(fs * 0.92)}px system-ui, sans-serif`;
+    g.fillText(SUIT_SYM[suit], w * 0.68, h * 0.16);
 
     // 中央大花色（牌够大时才画 —— 提高辨识度，老年用户友好）
     if (w >= 46) {
