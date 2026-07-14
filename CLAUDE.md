@@ -19,7 +19,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `blockblast` | **已提交 App Store 审核**（ASC 名「Cube Blast: Block Puzzle」）。8×8 消除拼图；卖点是**预生成块流**（出块序列落子前就定死、种子可查）。线上 <https://blocks.ai-speeds.com>。 |
 | `solitaire` | **P1 完成（Klondike 可玩 + 纸牌瀑布），未上线**。三合一纸牌；差异化 = **每局都存在解法且可验证**。⚠ 措辞是死线：可解率是「透视暗牌」意义下的，绝不能说成「你一定能赢」（见其 CLAUDE.md）。 |
 | `blockblast` | **已提交 App Store 审核**（ASC 名「Cube Blast: Block Puzzle」）。线上 <https://blocks.ai-speeds.com>。 |
-| `solitaire` | **P1-P6 完成，待上线**（Klondike 可解池 + FreeCell 微软局号 + 「这局还有解吗」证明器 + 变现）。未出包。 |
+| `solitaire` | **已提交 App Store 审核**（ASC 名「Fair Deal: Patience & Cards」，Apple ID 6790861224）。Klondike 可解池 + FreeCell 微软局号 + 「这局还有解吗」证明器。线上 <https://cards.ai-speeds.com>。⚠ 商店名**不含 solitaire**（品牌差异化），但 keywords 里有（公有品类，合规）。 |
 | `bouncerogue` | **只有 DESIGN.md，零代码**（纯 spec，已 park）。 |
 
 ## 常用命令
