@@ -62,11 +62,11 @@
 
     // 整块内容（HUD → Next → 棋盘 → 托盘）**垂直居中**于可用高度。
     // 不居中的话，桌面高屏下内容全挤在上半屏、底下一大片空白（实机踩到）。
-    const gapNext = 34, gapBoard = Math.round(cell * 0.8), gapTray = Math.round(cell * 0.55);
-    const contentH = 26 + gapNext + gapBoard + bw + gapTray + L.trayH;
+    const gapNext = 48, gapBoard = Math.round(cell * 0.7), gapTray = Math.round(cell * 0.55);
+    const contentH = 76 + gapNext + gapBoard + bw + gapTray + L.trayH;   // 76 = 金币行 + 分数行 + Best 行
     const top = Math.max(safeTop + 8, safeTop + (avail - contentH) / 2);
 
-    L.hudY = Math.round(top + 13);
+    L.hudY = Math.round(top + 46);            // 金币行画在 hudY-34,所以 hudY 上方要留空间
     L.nextY = Math.round(L.hudY + gapNext);
     L.boardY = Math.round(L.nextY + gapBoard);
     L.trayY = Math.round(L.boardY + bw + gapTray);
@@ -93,7 +93,8 @@
     const maxH = Math.max(...hand.map(p => p.h));
 
     // 先压间距、再缩块 —— 这样「实际大小」能覆盖尽可能多的手。
-    const GAP_MIN = 5, GAP_NICE = 14;
+    // ⚠ GAP_MIN 不能太小:压到 5px 时三块会糊成连续一排,玩家看不出是三块独立的块(截图验收发现)。
+    const GAP_MIN = Math.max(10, Math.round(cell * 0.28)), GAP_NICE = Math.round(cell * 0.4);
     let scale = 1;
     let gap = (availW - cellsW * cell) / 2;               // 1:1 时还剩多少空间当间距
     if (gap < GAP_MIN || maxH * cell > L.trayH) {
@@ -386,6 +387,14 @@
     const s = G.s;
 
     // ── HUD（全部相对游戏区，不用 SW）──
+    // 顶部一条：金币 + 返回菜单（并排；原来三者挤在一起，实机截图里 Best 被金币压成一团）
+    fillRR(L.boardX, L.hudY - 34, 66, 24, 8, 'rgba(0,0,0,0.25)');
+    txt('\u{1FA99} ' + G.wallet.coins, L.boardX + 33, L.hudY - 22, PAL.accent, 'bold 12px sans-serif');
+    addHit(L.boardX, L.hudY - 34, 66, 24, 'PAGE_SHOP', {});
+    fillRR(L.boardX + 72, L.hudY - 34, 58, 24, 8, 'rgba(255,255,255,0.18)');
+    txt('‹ ' + T('blockblast.menu'), L.boardX + 101, L.hudY - 22, '#fff', '11px sans-serif');
+    addHit(L.boardX + 72, L.hudY - 34, 58, 24, 'MENU', {});
+
     if (s.mode === 'level') {
       // 目标条：每种水晶的「已收集 / 需要」；达成打勾
       txtL(T('blockblast.level', { n: s.levelId }), L.boardX, L.hudY, PAL.sub, '13px sans-serif');
@@ -403,15 +412,11 @@
              done ? '#7ef2a0' : '#fff', 'bold 17px sans-serif');
       });
     } else {
-      txt(String(s.score), L.cx, L.hudY, PAL.text, 'bold 34px sans-serif');
-      txtL(T('blockblast.best') + ' ' + G.best, L.boardX, L.hudY - 14, PAL.sub, '12px sans-serif');
-      // 返回菜单：没有它，进过无尽模式的玩家**永远回不到关卡地图**（唯一出路是清 localStorage）
-      fillRR(L.boardX, L.hudY + 2, 52, 22, 8, 'rgba(255,255,255,0.18)');
-      txt('‹ ' + T('blockblast.menu'), L.boardX + 26, L.hudY + 13, '#fff', '11px sans-serif');
-      addHit(L.boardX, L.hudY + 2, 52, 22, 'MENU', {});
+      txt(String(s.score), L.cx, L.hudY + 2, PAL.text, 'bold 32px sans-serif');
+      txtL(T('blockblast.best') + ' ' + G.best, L.boardX, L.hudY + 28, PAL.sub, '12px sans-serif');
       if (s.streak >= 2) {
         const m = Core.streakMult(s.streak);
-        txtR(T('blockblast.combo', { m: m.toFixed(1) }), L.boardX + L.boardW, L.hudY, '#ffe08a', 'bold 14px sans-serif');
+        txtR(T('blockblast.combo', { m: m.toFixed(1) }), L.boardX + L.boardW, L.hudY + 28, PAL.accent, 'bold 14px sans-serif');
       }
     }
 
@@ -457,6 +462,17 @@
       if (s.board[i] && !FX.isDying(x, y)) {
         drawBlock(x, y, L.cell, G.cellColor[i] || COLORS[4]);
         if (s.mode === 'level' && s.crystal[i]) drawCrystal(x, y, L.cell, s.crystal[i]);
+        // ⚠ 消行预览要盖在**已填的块**上 —— 否则高亮只画在背景层、被实心块挡得严严实实，
+        //    玩家根本看不见「这一步会消掉这条线」。而这是本作最重要的一个 UI（DESIGN §5）。
+        //    出 App Store 截图、逐张验图时才发现它一直是坏的。
+        if (hinted) {
+          // 提亮 + 金边，而不是拿半透明色**盖**在块上 —— 覆盖会把彩色块冲成灰白，
+          // 看起来像「褪色/失焦」，而不是「这条线要炸了」（截图验收发现）。
+          ctx.fillStyle = 'rgba(255,255,255,0.22)';
+          roundRect(x + 1, y + 1, L.cell - 2, L.cell - 2, L.cell * 0.18); ctx.fill();
+          ctx.strokeStyle = PAL.accent; ctx.lineWidth = Math.max(2, L.cell * 0.07);
+          roundRect(x + 2, y + 2, L.cell - 4, L.cell - 4, L.cell * 0.16); ctx.stroke();
+        }
       }
     }
 
@@ -521,10 +537,6 @@
       });
     }
 
-    // 金币（左上）
-    fillRR(L.boardX, L.hudY - 30, 66, 22, 8, 'rgba(0,0,0,0.25)');
-    txt('\u{1FA99} ' + G.wallet.coins, L.boardX + 33, L.hudY - 19, PAL.accent, 'bold 11px sans-serif');
-    addHit(L.boardX, L.hudY - 30, 66, 22, 'PAGE_SHOP', {});
 
     FX.draw(ctx);
     ctx.restore();
