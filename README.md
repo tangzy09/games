@@ -27,6 +27,7 @@ codemagic.yaml   iOS 流水线（共享模板，新游戏加一段 workflow 填 
 | `snake` | 已上线 + App Store 送审 |
 | `abyssshoot` | 已提交 App Store 审核；线上 <https://fishshoot.ai-speeds.com> |
 | `blockblast` | 已提交 App Store 审核（「Cube Blast: Block Puzzle」）；线上 <https://blocks.ai-speeds.com> |
+| `solitaire` | P1 完成（Klondike 可玩 + 纸牌瀑布），未上线；三合一经典纸牌 |
 | `bouncerogue` | 只有 DESIGN.md，零代码（纯 spec，已 park） |
 
 ## 起步
