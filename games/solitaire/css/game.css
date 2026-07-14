@@ -1,0 +1,8 @@
+/* solitaire — 主题覆盖（引擎变量在 engine.css） */
+:root { --bg: #0a4f2e; }
+html, body { background: #0a4f2e; overscroll-behavior: none; }
+#game-canvas {
+  display: block;
+  touch-action: none;          /* 拖拽的前提：不交给浏览器做滚动/缩放 */
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+}

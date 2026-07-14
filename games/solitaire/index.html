@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<title>Solitaire</title>
+<link rel="stylesheet" href="../../engine/engine.css">
+<link rel="stylesheet" href="css/game.css?v=1">
+</head>
+<body>
+<canvas id="game-canvas"></canvas>
+<div id="controls"></div>
+
+<script>
+  // 首发 en + zh-CN；加语言 = 加一个 locales/<lang>.json + 在这里加一项，零改代码。
+  window.GAME_CONFIG = {
+    id: 'solitaire',
+    languages: ['en', 'zh-CN'],
+    sfx: {},
+  };
+</script>
+<script src="../../engine/config.js?v=1"></script>
+<script src="../../engine/platform.js?v=1"></script>
+<script src="../../engine/i18n.js?v=1"></script>
+<script src="../../engine/portal.js?v=1"></script>
+<script src="../../engine/ads.js?v=1"></script>
+<script src="../../engine/audio.js?v=1"></script>
+<script src="../../engine/canvas.js?v=1"></script>
+<script src="../../engine/input.js?v=1"></script>
+<script src="../../engine/controls.js?v=1"></script>
+
+<!-- 加载顺 = 依赖顺：纯逻辑 → 表现 → 主循环 -->
+<script src="js/cards.js?v=1"></script>
+<script src="js/deal.js?v=1"></script>
+<script src="js/rules-klondike.js?v=1"></script>
+<script src="js/core.js?v=1"></script>
+<script src="js/layout.js?v=1"></script>
+<script src="js/sprite.js?v=1"></script>
+<script src="js/fx.js?v=1"></script>
+<script src="js/render.js?v=1"></script>
+<script src="js/input.js?v=1"></script>
+<script src="js/main.js?v=1"></script>
+</body>
+</html>

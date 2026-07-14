@@ -1,0 +1,15 @@
+{
+  "sol": {
+    "score": "Score",
+    "deal": "Deal #{n}",
+    "undo": "Undo",
+    "hint": "Hint",
+    "auto": "Auto",
+    "newGame": "New Game",
+    "youWin": "You Win!",
+    "finalScore": "Score {n}",
+    "cleanWin": "No undo, no hint — clean win.",
+    "withHelp": "With undo/hint",
+    "adSlot": "ad space (reserved, never covers the cards)"
+  }
+}

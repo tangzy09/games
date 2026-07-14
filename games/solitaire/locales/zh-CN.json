@@ -1,0 +1,15 @@
+{
+  "sol": {
+    "score": "分数",
+    "deal": "牌局 #{n}",
+    "undo": "撤销",
+    "hint": "提示",
+    "auto": "自动",
+    "newGame": "新的一局",
+    "youWin": "你赢了！",
+    "finalScore": "得分 {n}",
+    "cleanWin": "没撤销、没提示——干净利落。",
+    "withHelp": "用过撤销/提示",
+    "adSlot": "广告位（预留，绝不遮牌）"
+  }
+}

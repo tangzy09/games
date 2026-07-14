@@ -3,7 +3,7 @@
     "playwright": "^1.61.1"
   },
   "scripts": {
-    "test": "npm run test:mines && npm run test:snake && npm run test:abyss && npm run test:block",
+    "test": "npm run test:mines && npm run test:snake && npm run test:abyss && npm run test:block && npm run test:sol",
     "test:mines": "node games/minesweeper/tests/test-mines.js && node games/minesweeper/tests/test-mines-sim.js 100",
     "test:mines:e2e": "node games/minesweeper/tests/test-mines-e2e.cjs",
     "test:snake": "node games/snake/tests/test-prng.js && node games/snake/tests/test-core.js && node games/snake/tests/test-fruits.js && node games/snake/tests/test-ai.js && node games/snake/tests/test-storage.js && node games/snake/tests/test-achievements.js && node games/snake/tests/test-gallery.js",
@@ -12,6 +12,9 @@
     "test:block": "node games/blockblast/tests/test-pieces.js && node games/blockblast/tests/test-dealer.js && node games/blockblast/tests/test-core.js && node games/blockblast/tests/test-levels.js && node games/blockblast/tests/test-meta.js && node games/blockblast/tests/test-shop.js",
     "test:block:e2e": "node games/blockblast/tests/e2e-p1.cjs && node games/blockblast/tests/e2e-p2.cjs && node games/blockblast/tests/e2e-p3.cjs && node games/blockblast/tests/e2e-p4.cjs",
     "sim:block": "node games/blockblast/tools/sim.js",
-    "verify:levels": "node games/blockblast/tools/verify-levels.js"
+    "verify:levels": "node games/blockblast/tools/verify-levels.js",
+    "test:sol": "node games/solitaire/tests/test-klondike.js",
+    "test:sol:e2e": "node games/solitaire/tests/e2e-p1.cjs",
+    "sim:sol": "node games/solitaire/tools/sim-blind.js"
   }
 }
