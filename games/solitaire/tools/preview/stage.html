@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Solitaire — App Preview stage</title>
+<style>
+  /* ⚠ recordVideo 按 CSS 像素录 ⇒ 视口直接设成输出尺寸 886×1920。
+     app 用**半尺寸 iframe (443×960) + scale(2)** 矢量放大：
+     iframe 内的媒体查询按 443px 走**手机布局**，放大后文字仍锐利。
+     直接把 iframe 设成 886 宽会触发桌面断点（牌会小得可笑）。 */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 886px; height: 1920px; overflow: hidden; background: #0a4f2e; }
+
+  #app {
+    position: absolute; left: 0; top: 0;
+    width: 443px; height: 960px;
+    border: 0;
+    transform: scale(2); transform-origin: 0 0;
+  }
+
+  /* 预滚黑幕：app 初始化会闪现在片头 —— t0 时先执行完 t=0 的动作再掀幕 */
+  #cover {
+    position: absolute; inset: 0; background: #06301c; z-index: 90;
+  }
+
+  /* 字幕：白色半透明胶囊 + 品牌绿描边 + 3D 底影（不是硬核黑描边，和牌桌不打架） */
+  #cap {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    bottom: 300px;                       /* ⚠ 竖屏底部 ~14% 会被平台 UI 压住 */
+    width: 780px; z-index: 80;
+    display: none;
+    text-align: center;
+    background: rgba(255,255,255,0.94);
+    border: 5px solid #1f9d5a;
+    border-radius: 34px;
+    box-shadow: 0 9px 0 rgba(15,107,63,0.5);
+    padding: 22px 26px;
+  }
+  #cap .w {
+    display: inline-block; margin-right: .32em;   /* ⚠ inline-block 的尾随空格会被折叠 */
+    font: 800 40px/1.28 system-ui, -apple-system, sans-serif;
+    color: #0c3d24;
+    animation: wpop .34s cubic-bezier(.2,1.5,.4,1) both;
+  }
+  #cap .w.hl {
+    background: linear-gradient(180deg,#FFE27A,#FFC531);
+    border-radius: 999px; padding: 0 12px;
+    box-shadow: 0 4px 0 rgba(200,140,0,.45);
+  }
+  #cap .w.hlg {
+    background: linear-gradient(180deg,#8ff0b4,#3fce7d);
+    border-radius: 999px; padding: 0 12px;
+    box-shadow: 0 4px 0 rgba(20,120,60,.45);
+  }
+  @keyframes wpop {
+    0%   { opacity: 0; transform: translateY(16px) scale(.72) rotate(-6deg); }
+    65%  { opacity: 1; transform: translateY(0) scale(1.1) rotate(1deg); }
+    100% { opacity: 1; transform: none; }
+  }
+
+  /* 结尾卡 */
+  #end {
+    position: absolute; inset: 0; z-index: 95; display: none;
+    background: linear-gradient(180deg,#0f6b3f,#06301c);
+    color: #fff; text-align: center;
+    padding-top: 620px;
+  }
+  #end h1 { font: 800 62px/1.2 system-ui, sans-serif; margin-bottom: 18px; }
+  #end h2 { font: 600 34px/1.35 system-ui, sans-serif; color: #7ef2a0; margin-bottom: 46px; }
+  #end p  { font: 500 30px/1.5 system-ui, sans-serif; color: rgba(255,255,255,.82); }
+</style>
+</head>
+<body>
+<iframe id="app" src="/games/solitaire/index.html"></iframe>
+<div id="cover"></div>
+<div id="cap"></div>
+<div id="end">
+  <h1>Solitaire</h1>
+  <h2>Klondike &amp; FreeCell</h2>
+  <p>Undo, hints and the solver<br>are free. Forever.</p>
+</div>
+
+<script>
+// ══ 音频（单一真相源：时间戳只在这里维护，混音从这读，杜绝漂移）══
+window.__audio = {
+  bgm: 'bgm.wav',
+  sfx: [
+    { t: 4.2,  type: 'think' },   // 开始证明
+    { t: 6.6,  type: 'good'  },   // 证明出「仍然有解」
+    { t: 13.4, type: 'pop'   },   // 落差表
+    { t: 19.6, type: 'win'   },   // 赢局瀑布
+  ],
+};
+window.__caps = [];
+window.__done = false;
+
+const cap = document.getElementById('cap');
+const cover = document.getElementById('cover');
+const endCard = document.getElementById('end');
+const app = document.getElementById('app');
+let t0 = 0;
+
+/** 字幕：逐词弹出；{y:..} 金色高亮，{g:..} 绿色高亮 */
+function showCap(text) {
+  if (!text) { cap.style.display = 'none'; return; }
+  window.__caps.push({ t: (performance.now() - t0) / 1000, text: text.replace(/\{[yg]:([^}]*)\}/g, '$1') });
+  cap.style.display = 'block';
+  cap.innerHTML = '';
+  // ⚠ 高亮内容**可能含空格**（"{g:still winnable}"）⇒ 不能先按空格切！
+  //    必须让 {..} 整体成为一个 token（含它后面粘的标点），其余才按空格切。
+  //    先按空格切会把 "{g:still" 和 "winnable}." 拆成两半，两半都不匹配正则 ⇒ 标记原样印在画面上。
+  const parts = text.match(/\{[yg]:[^}]*\}[^\s]*|\S+/g) || [];
+  parts.forEach((w, i) => {
+    // ⚠ 词尾常带标点（"{y:undo}."）—— 正则必须允许尾随字符，
+    //    否则标记会**原样印在画面上**（抽全尺寸帧才看得见，缩略图看不出来）
+    const m = w.match(/^\{([yg]):([^}]*)\}(.*)$/);
+    const span = document.createElement('span');
+    span.className = 'w' + (m ? (m[1] === 'y' ? ' hl' : ' hlg') : '');
+    span.textContent = m ? m[2] : w;
+    span.style.animationDelay = (i * 0.06) + 's';
+    cap.appendChild(span);
+    if (m && m[3]) {                      // 尾随标点单独一个 span（不进高亮胶囊）
+      const t = document.createElement('span');
+      t.className = 'w'; t.textContent = m[3];
+      t.style.animationDelay = (i * 0.06) + 's';
+      t.style.marginLeft = '-0.22em';
+      cap.appendChild(t);
+    }
+  });
+}
+
+/** 驱动**真实 app**：顶层 const/function 同 realm 可解析 ⇒ 用 eval（同源才行）*/
+const A = (code) => { try { app.contentWindow.eval(code); } catch (e) { console.warn('eval', code, e); } };
+
+// ══ 时间轴（只许 app 真实画面 + 文字浮层）══
+const T = [
+  [0.0, () => {
+    // 片头准备：跳过首启页、关广告位（横幅占位不该出现在预览里）、发一局「困难」的牌
+    A('G.seenIntro=1; Money.state.noAds=true; G.noAds=true;');
+    // ⚠⚠ 做出「玩到一半、卡住了」的样子，但**这局必须真的仍然有解** ——
+    //   第一版在这里走了 34 步烂棋，**把牌走死了**：app 的结论条真实地显示
+    //   「No solution exists after move 8」，而字幕在说「still winnable」——
+    //   **画面和字幕当场自打耳光**。（这反倒印证了我们自己测的数字：乱走会把有解局走死。）
+    //   ⇒ 我们**不能演一个假的 solvable**。走完必须用 solver 验一遍，不行就重发。
+    A([
+      'for (let tries = 0; tries < 8; tries++) {',   // 主线程同步跑 solver，别试太多次
+      '  G.difficulty = "hard"; dispatch("NEW");',
+      '  for (let i = 0; i < 22; i++) {',
+      '    const ms = RulesK.legalMoves(G.s).filter(m => m.t !== "recycle" && m.t !== "ft");',
+      '    if (!ms.length) break;',
+      // 走**像样的棋**（翻暗牌 > 收牌 > 打 waste），别乱走
+      '    const m = ms.find(x => x.t === "tt" && G.s.tableau[x.ti].cards.length - x.idx === G.s.tableau[x.ti].up && x.idx > 0)',
+      '           || ms.find(x => x.t === "tf") || ms.find(x => x.t === "wt") || ms.find(x => x.t === "draw") || ms[0];',
+      // ⚠ 片头是**预置局面**，必须用 Core.apply 直接改 state ——
+      //   走 doMove 会给每一步都排一个滑牌动画（8×22=176 个），FX.busy() 永远为真，
+      //   页面被逐帧重画拖死 → 录制直接超时。
+      '    Core.apply(G.s, m);',
+      '  }',
+      '  const r = Solver.solve(G.s, { maxNodes: 15000 });',
+      '  if (r.result === "win" && G.s.moves.length > 8) break;',   // ⭐ 必须**真的**仍有解
+      '}',
+      'G.phase = "PLAY"; FX.reset(); Prover.reset(); renderAll();',
+    ].join(' '));
+  }],
+  [0.35, () => { cover.remove(); }],                     // ⚠ 先执行完 t=0 再掀幕（否则漏帧闪现）
+  [0.6,  () => showCap('Stuck?') ],
+  [1.9,  () => showCap('Most solitaire apps just tell you to press {y:undo}.') ],
+  [4.0,  () => { showCap('Ask {g:ours} instead.'); A('dispatch("PROVE")'); } ],
+  [5.4,  () => showCap('A {y:real solver}. Running on your device.') ],
+  [7.4,  () => showCap('It just proved this deal is {g:still winnable}.') ],
+  [9.6,  () => showCap('And when it {y:cannot} tell? It says so.') ],
+  [11.6, () => { showCap(''); A('dispatch("FAIR")'); } ],
+  [12.2, () => showCap('We publish the number {y:no one else will}.') ],
+  [14.6, () => showCap('A random deal: {g:81.9%} have a solution.') ],
+  [16.4, () => showCap('A player with your information wins {y:7.6%}.') ],
+  [18.4, () => showCap('"Solvable" is {y:not} "you will win". We won\'t pretend.') ],
+  [21.0, () => {
+    showCap('');
+    // 赢局 → 纸牌瀑布（产品的心脏）
+    A('G.phase="PLAY"; const s=G.s; for(let r=0;r<13;r++)for(let f=0;f<4;f++)s.foundations[f].push(r*4+f); s.won=true; onWin(); renderAll();');
+  }],
+  [21.6, () => showCap('{g:45%} of the deals you lose are still winnable.') ],
+  [23.8, () => showCap('You just didn\'t find it. So we never charge you to find out.') ],
+  [26.4, () => { showCap(''); endCard.style.display = 'block'; } ],
+  [29.2, () => { window.__done = true; } ],
+];
+
+/**
+ * ⚠ app 的 boot() 是 **async**（要 await Pool.load()）。iframe 的 load 事件**早于**它完成 ——
+ *   在池加载完之前发牌，Pool.pick() 返回 null → 回落到随机 seed → 角标显示「Random deal」
+ *   而不是「✓ Solvable」。**等于在预览视频里把自己的核心卖点演砸了。**
+ *   ⇒ 必须等池真的就绪。
+ */
+function appReady() {
+  try {
+    const w = app.contentWindow;
+    return !!(w.G && w.G.s && w.Pool && w.Pool.has(3) && w.RulesK);
+  } catch (e) { return false; }
+}
+window.addEventListener('load', () => {
+  const wait = setInterval(() => {
+    if (!appReady()) return;
+    clearInterval(wait);
+    t0 = performance.now();
+    T.forEach(([s, fn]) => setTimeout(fn, s * 1000));
+  }, 40);
+});
+</script>
+</body>
+</html>
