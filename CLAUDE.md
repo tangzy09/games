@@ -17,6 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `snake` | 已上线 + App Store 送审。完整。 |
 | `abyssshoot` | **已提交 App Store 审核**（ASC 名「2048 Shooter: Fish Merge」）。玩法/美术/图鉴/道具/广告/商店页全备，线上 <https://fishshoot.ai-speeds.com>。 |
 | `blockblast` | **已提交 App Store 审核**（ASC 名「Cube Blast: Block Puzzle」）。8×8 消除拼图；卖点是**预生成块流**（出块序列落子前就定死、种子可查）。线上 <https://blocks.ai-speeds.com>。 |
+| `solitaire` | **只有 DESIGN.md（调研驱动），零代码**。三合一纸牌（Klondike/FreeCell/Spider）；差异化 = **每局都能赢且可验证**（Klondike 有 18% 的局天生无解，是品类最大信任伤口）。 |
 | `bouncerogue` | **只有 DESIGN.md，零代码**（纯 spec，已 park）。 |
 
 ## 常用命令
