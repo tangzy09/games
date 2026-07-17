@@ -570,6 +570,7 @@ async function boot() {
     G.saveKey = CFG.key('save');
     G.save = Storage.load(Platform.storage, G.saveKey);
     G.reduceMotion = computeReduceMotion();   // 减弱动态:显式设置优先,否则跟随系统
+    if (typeof preloadItems === 'function') preloadItems();   // 预载道具 sprite,防首次出现时 emoji 闪一下
     applyTheme(G.save.settings.theme);   // 主题不合法自动回 cloud
     Portal.boot();
     await Ads.init();

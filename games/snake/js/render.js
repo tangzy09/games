@@ -253,17 +253,34 @@ function drawBoardArea() {
   fxDrawPops();          // 分数飘字(不随缩放)
 }
 
+// 道具 sprite(本地 Flux 生成的可爱贴纸,取代 emoji 占位);懒加载,未就绪回退 emoji
+const ITEM_SPRITE = {};
+function itemSprite(name) {
+  if (!(name in ITEM_SPRITE)) {
+    if (typeof Image === 'undefined') ITEM_SPRITE[name] = null;
+    else { const im = new Image(); im.src = 'assets/items/' + name + '.png'; ITEM_SPRITE[name] = im; }
+  }
+  const im = ITEM_SPRITE[name];
+  return (im && im.complete && im.naturalWidth) ? im : null;
+}
+function preloadItems() {
+  ['apple', 'twin', 'gold', 'demon', 'meteor', 'feather', 'trail', 'cloud', 'scissors', 'halo', 'heart', 'magnet', 'gift'].forEach(itemSprite);
+}
+function drawSprite(im, cx, cy, size) { ctx.drawImage(im, cx - size / 2, cy - size / 2, size, size); }
+
 function drawApple(a) {
   const { bx, by, cell } = Layout;
   const cx = bx + a.x * cell + cell / 2;
   const cy = by + a.y * cell + cell / 2 + Math.sin(performance.now() / 250) * cell * 0.05;
-  ctx.fillStyle = PAL.apple;
+  const spr = itemSprite('apple');
+  if (spr) { drawSprite(spr, cx, cy, cell * 0.92); return; }
+  ctx.fillStyle = PAL.apple;                                   // 回退:画的圆苹果
   ctx.beginPath(); ctx.arc(cx, cy, cell * 0.32, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = PAL.leaf;
   ctx.beginPath(); ctx.ellipse(cx + cell * 0.1, cy - cell * 0.3, cell * 0.12, cell * 0.07, -0.6, 0, Math.PI * 2); ctx.fill();
 }
 
-// 特殊果:emoji 绘制(引擎美术哲学:emoji 占位,后补图零改码);临期急促闪烁
+// 特殊果:sprite 优先,未加载回退 emoji;临期急促闪烁
 function drawSpecial() {
   const sp = G.run.special;
   if (!sp) return;
@@ -271,16 +288,19 @@ function drawSpecial() {
   const remain = sp.expiresAt - (G.nowMs || 0);
   if (remain < Fruits.FRUIT_TIMES.blinkAt && Math.sin(performance.now() / 90) < 0) return;
   const bob = Math.sin(performance.now() / 250) * cell * 0.05;
-  txt(Fruits.FRUITS[sp.type].emoji,
-      bx + sp.x * cell + cell / 2, by + sp.y * cell + cell / 2 + bob,
-      '#fff', `${Math.round(cell * 0.8)}px sans-serif`);
+  const cx = bx + sp.x * cell + cell / 2, cy = by + sp.y * cell + cell / 2 + bob;
+  const spr = itemSprite(sp.type);
+  if (spr) drawSprite(spr, cx, cy, cell * 0.92);
+  else txt(Fruits.FRUITS[sp.type].emoji, cx, cy, '#fff', `${Math.round(cell * 0.8)}px sans-serif`);
 }
 function drawMeteor() {
   const m = G.run.meteor;
   if (!m) return;
   const { bx, by, cell } = Layout;
-  txt('🌠', bx + m.x * cell + cell / 2, by + m.y * cell + cell / 2,
-      '#fff', `${Math.round(cell * 0.8)}px sans-serif`);
+  const cx = bx + m.x * cell + cell / 2, cy = by + m.y * cell + cell / 2;
+  const spr = itemSprite('meteor');
+  if (spr) drawSprite(spr, cx, cy, cell * 0.95);
+  else txt('🌠', cx, cy, '#fff', `${Math.round(cell * 0.8)}px sans-serif`);
 }
 // 生效中的效果指示:分数下方一行小字(💖×n + 各效果剩余秒)
 function drawEffectsRow(safeTop) {
