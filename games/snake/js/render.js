@@ -198,28 +198,61 @@ function drawEffectsRow(safeTop) {
   }
 }
 
+// hex → 朝白/黑混合(t>0 提亮,t<0 压暗),给蛇身做体积高光
+function mix(hex, t) {
+  const n = parseInt(hex.slice(1), 16);
+  let r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  const to = t >= 0 ? 255 : 0, a = Math.abs(t);
+  r = Math.round(r + (to - r) * a); g = Math.round(g + (to - g) * a); b = Math.round(b + (to - b) * a);
+  return `rgb(${r},${g},${b})`;
+}
+
 function drawSnake() {
   const { bx, by, cell } = Layout;
   const s = G.run;
+  const cx = c => bx + c.x * cell + cell / 2, cy = c => by + c.y * cell + cell / 2;
+  const tracePath = w => {
+    ctx.beginPath();
+    s.snake.forEach((c, i) => (i ? ctx.lineTo(cx(c), cy(c)) : ctx.moveTo(cx(c), cy(c))));
+    if (s.snake.length === 1) ctx.lineTo(cx(s.snake[0]) + 0.1, cy(s.snake[0]));
+    ctx.lineWidth = w; ctx.stroke();
+  };
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  ctx.strokeStyle = PAL.snake; ctx.lineWidth = cell * 0.72;
-  ctx.beginPath();
-  s.snake.forEach((c, i) => {
-    const px = bx + c.x * cell + cell / 2, py = by + c.y * cell + cell / 2;
-    i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
-  });
-  if (s.snake.length === 1) ctx.lineTo(bx + s.snake[0].x * cell + cell / 2 + 0.1, by + s.snake[0].y * cell + cell / 2);
-  ctx.stroke();
-  const h = s.snake[0], hx = bx + h.x * cell + cell / 2, hy = by + h.y * cell + cell / 2;
+  // 三层管体:暗描边(轮廓)→ 主体 → 亮核(顺光高光),叠出圆润体积感
+  ctx.strokeStyle = mix(PAL.snake, -0.22); tracePath(cell * 0.82);
+  ctx.strokeStyle = PAL.snake;             tracePath(cell * 0.72);
+  ctx.strokeStyle = mix(PAL.snake, 0.42);  tracePath(cell * 0.30);
+
+  const h = s.snake[0], hx = cx(h), hy = cy(h), d = Core.DIRS[s.dir];
+  const R = cell * 0.46;
+  // 天使光环:头顶上方一圈金环(点题「天使蛇」)——屏幕正上方,不随朝向
+  ctx.lineWidth = Math.max(2, cell * 0.09);
+  ctx.strokeStyle = PAL.glow || '#ffe082';
+  ctx.beginPath(); ctx.ellipse(hx, hy - R - cell * 0.24, cell * 0.30, cell * 0.12, 0, 0, Math.PI * 2); ctx.stroke();
+  // 头(带暗描边 + 顺光高光)
+  ctx.fillStyle = mix(PAL.snake, -0.22);
+  ctx.beginPath(); ctx.arc(hx, hy, R + cell * 0.03, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = PAL.snake;
-  ctx.beginPath(); ctx.arc(hx, hy, cell * 0.42, 0, Math.PI * 2); ctx.fill();
-  const d = Core.DIRS[s.dir];
-  const ex = d.y !== 0 ? 0.16 : 0, ey = d.x !== 0 ? 0.16 : 0;
+  ctx.beginPath(); ctx.arc(hx, hy, R, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = mix(PAL.snake, 0.5);
+  ctx.beginPath(); ctx.arc(hx - R * 0.32, hy - R * 0.36, R * 0.44, 0, Math.PI * 2); ctx.fill();   // 额头高光
+  // 腮红(朝向两侧靠下)
+  const px = d.y !== 0 ? 0.30 : 0.10, py = d.x !== 0 ? 0.30 : 0.10;
+  ctx.fillStyle = 'rgba(255,138,171,0.5)';
   for (const sgn of [-1, 1]) {
-    const ox = hx + sgn * ex * cell + d.x * cell * 0.14, oy = hy + sgn * ey * cell + d.y * cell * 0.14;
-    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(ox, oy, cell * 0.13, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(hx + sgn * px * cell + d.x * cell * 0.10, hy + sgn * py * cell + d.y * cell * 0.10 + cell * 0.08,
+                cell * 0.11, cell * 0.08, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  // 大眼睛:白底 + 深瞳 + 高光点
+  const ex = d.y !== 0 ? 0.18 : 0, ey = d.x !== 0 ? 0.18 : 0;
+  for (const sgn of [-1, 1]) {
+    const ox = hx + sgn * ex * cell + d.x * cell * 0.15, oy = hy + sgn * ey * cell + d.y * cell * 0.15;
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(ox, oy, cell * 0.15, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = PAL.eye;
-    ctx.beginPath(); ctx.arc(ox + d.x * cell * 0.04, oy + d.y * cell * 0.04, cell * 0.07, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(ox + d.x * cell * 0.05, oy + d.y * cell * 0.05, cell * 0.085, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(ox - cell * 0.03, oy - cell * 0.03, cell * 0.035, 0, Math.PI * 2); ctx.fill();   // catchlight
   }
 }
 

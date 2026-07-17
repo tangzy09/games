@@ -48,6 +48,8 @@ node games/snake/tools/gen-appicon.js    # 合成 App 图标+启动屏(playwrigh
 - `themes.js`:4 主题,`render` 的 `PAL` 是**可切换引用**(`applyThemePal` 切完 `initLayers` 重建遮罩)。遮罩纹理函数**必须确定性**(格坐标散列,禁 `Math.random`),否则换肤/重建不一致。
 - `achievements.js`:`FAMILIES` 20 个阶梯族 → 展开 `CUM_DEFS` 恰 100(有运行时断言),`RUN_ACHS` 20 单局 tracker。加成就改数据表,别写死判定。
 - 图鉴/成就/皮肤 UI 都是 **DOM 浮层 `#panel`**(canvas 只画游戏),120/500 项列表 canvas 手搓不值。
+- **主界面 `#home`**(`openHome`,main.js):启动即显示的 hub——天使主视觉 + Play/继续 + 成就/图鉴/皮肤/说明入口 + 音效。**纯 DOM 浮层,不动 phase 机**(boot 后 phase 仍 `READY`,E2E 契约靠这条);`START`/`RESUME` 里 `hideHome()` 收起,PLAYING 时打开会先 `PAUSE`(兼当暂停菜单)。顶栏因此精简成 🏠+🔊。说明面板 `openHowTo` 复用 `#panel`,文案含 `<b>` 高亮(`howto.*` i18n key)。
+- **蛇的渲染**(`drawSnake`,render.js):三层管体(暗描边→主体→亮核高光,`mix()` 提亮/压暗 hex)+ 圆头带额头高光/腮红/大眼高光点 + **头顶金色天使光环**(点题)。全部确定性,随 `PAL.snake/eye/glow` 走主题。
 
 ## 项目状态(上架)
 

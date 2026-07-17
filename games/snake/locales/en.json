@@ -22,6 +22,21 @@
     "off": "OFF"
   },
   "menu": { "achievements": "Achievements", "gallery": "Gallery", "skins": "Skins" },
+  "home": {
+    "title": "Home",
+    "tag": "Reveal the hidden angel, one cell at a time",
+    "play": "Play",
+    "resume": "Resume"
+  },
+  "howto": {
+    "title": "How to Play",
+    "reveal": "Glide across the board to <b>uncover the angel</b> hidden underneath.",
+    "apple": "Eat <b>apples</b> 🍎 to grow longer and score more.",
+    "fruit": "Grab <b>special fruits</b> for shields 💖, halos 😇 and other power-ups.",
+    "collect": "Uncover the whole picture to clear the level and add it to your <b>Gallery</b> — collect all 500!",
+    "ai": "Stuck? Turn on <b>AI Play</b> 🤖 and let it play for you.",
+    "avoid": "Just don't hit the <b>walls</b> or your own <b>tail</b>."
+  },
   "share": { "btn": "Share 📤" },
   "skins": {
     "title": "Skins",

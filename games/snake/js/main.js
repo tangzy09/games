@@ -17,9 +17,9 @@ const loopState = { last: 0, acc: 0 };
 
 function dispatch(action) {
   switch (action) {
-    case 'START':  if (G.phase === 'READY') { G.phase = 'PLAYING'; loopState.last = 0; } break;
+    case 'START':  if (G.phase === 'READY') { hideHome(); G.phase = 'PLAYING'; loopState.last = 0; } break;
     case 'PAUSE':  if (G.phase === 'PLAYING') G.phase = 'PAUSED'; break;
-    case 'RESUME': if (G.phase === 'PAUSED') { G.phase = 'PLAYING'; loopState.last = 0; } break;
+    case 'RESUME': if (G.phase === 'PAUSED') { hideHome(); G.phase = 'PLAYING'; loopState.last = 0; } break;
     case 'AI_TOGGLE':
       G.ai = !G.ai; G.aiMem = AI.createMem();
       // AI 局标记粘性:本关一旦开过 AI,单局成就/纪录整关不判(设计 §4,防「AI 打完人工收尾」刷成就)
@@ -285,6 +285,55 @@ function renderSkinsBody() {
   });
 }
 
+// ——主界面(启动/暂停 hub)——
+// 纯 DOM 浮层,不动 phase 机(boot 后 phase 仍 READY,E2E 契约不变)。
+// PLAYING 时打开会先暂停(与成就/图鉴一致);Play/继续按钮收起浮层。
+const HERO_ANGEL = '0bep0x.webp';   // 主界面主视觉(= App 图标同一张,品牌一致)
+function hideHome() { const h = document.getElementById('home'); if (h) h.classList.add('hidden'); }
+function openHome() {
+  const home = document.getElementById('home');
+  if (!home) return;
+  if (G.phase === 'PLAYING') dispatch('PAUSE');       // 打开即暂停
+  const resuming = G.phase === 'PAUSED';
+  home.innerHTML =
+    `<img class="home-hero" src="assets/angels/${HERO_ANGEL}" alt="">
+     <div class="home-title">Angel Snake</div>
+     <div class="home-tag">${T('home.tag')}</div>
+     <button class="home-play" id="home-play" type="button">${resuming ? T('home.resume') : T('home.play')}</button>
+     <div class="home-menu">
+       <button class="home-btn" id="home-ach" type="button"><span class="ico">🏅</span>${T('menu.achievements')}</button>
+       <button class="home-btn" id="home-gal" type="button"><span class="ico">🖼️</span>${T('menu.gallery')}</button>
+       <button class="home-btn" id="home-skin" type="button"><span class="ico">🎨</span>${T('menu.skins')}</button>
+       <button class="home-btn" id="home-howto" type="button"><span class="ico">❓</span>${T('howto.title')}</button>
+     </div>
+     <div class="home-foot"><button id="home-sfx" type="button">${Sfx.on ? '🔊' : '🔇'}</button></div>`;
+  home.classList.remove('hidden');
+  const $ = id => document.getElementById(id);
+  $('home-play').onclick = () => { hideHome(); if (resuming) dispatch('RESUME'); };
+  $('home-ach').onclick = () => openAchievements();      // 面板 DOM 在 #home 之后,自动叠其上;关闭回到主界面
+  $('home-gal').onclick = () => openGallery();
+  $('home-skin').onclick = () => openSkins();
+  $('home-howto').onclick = () => openHowTo();
+  $('home-sfx').onclick = () => { $('home-sfx').textContent = Sfx.toggle() ? '🔊' : '🔇'; };
+}
+
+// ——玩法说明——(图文行,复用 #panel)
+function openHowTo() {
+  const panel = document.getElementById('panel');
+  document.getElementById('panel-title').textContent = T('howto.title');
+  document.getElementById('panel-tabs').innerHTML = '';
+  const rows = [['👼', 'reveal'], ['🍎', 'apple'], ['✨', 'fruit'],
+                ['🖼️', 'collect'], ['🤖', 'ai'], ['💥', 'avoid']];
+  document.getElementById('panel-body').innerHTML = rows.map(
+    ([ic, k]) => `<div class="howto-row"><span class="ico">${ic}</span><span class="tx">${T('howto.' + k)}</span></div>`).join('');
+  document.getElementById('panel-close').onclick = () => {
+    panel.classList.add('hidden');
+    if (G.phase === 'PAUSED') renderAll();
+  };
+  panel.classList.remove('hidden');
+  if (G.phase === 'PLAYING') dispatch('PAUSE');
+}
+
 // 解锁 toast:一次最多叠 3 条,2.6s 后淡出
 function showAchToasts(ids) {
   const host = document.getElementById('toasts');
@@ -429,22 +478,18 @@ async function boot() {
       if (document.hidden) { persist(); dispatch('PAUSE'); }   // 暂停前先落盘(切后台可能被杀进程)
     });
     window.addEventListener('resize', () => { initCanvas(); if (G.run) initLayers(G.img); renderAll(); });
+    // 顶栏精简:🏠 主界面(成就/图鉴/皮肤/说明都收在里面)+ 🔊 音效
     Controls.render(
-      `<div class="ctl-btn" id="ach-btn" title="${T('menu.achievements')}">🏅</div>
-       <div class="ctl-btn" id="gal-btn" title="${T('menu.gallery')}">🖼️</div>
-       <div class="ctl-btn" id="skin-btn" title="${T('menu.skins')}">🎨</div>
+      `<div class="ctl-btn" id="home-btn" title="${T('home.title')}">🏠</div>
        <div class="ctl-btn" id="sfx-btn">${Sfx.on ? '🔊' : '🔇'}</div>`,
       bar => {
-        const a = bar.querySelector('#ach-btn');
-        if (a) a.onclick = () => openAchievements();
-        const g = bar.querySelector('#gal-btn');
-        if (g) g.onclick = () => openGallery();
-        const s = bar.querySelector('#skin-btn');
-        if (s) s.onclick = () => openSkins();
+        const h = bar.querySelector('#home-btn');
+        if (h) h.onclick = () => openHome();
         const b = bar.querySelector('#sfx-btn');
         if (b) b.onclick = () => { b.textContent = Sfx.toggle() ? '🔊' : '🔇'; };
       });
     enterReady(resumed);
+    openHome();   // 启动即进主界面(天使主视觉 + 开始/成就/图鉴/皮肤/说明)
     requestAnimationFrame(frame);
   } catch (err) {
     // boot 任何异常(manifest fetch 失败等)不许静默白屏:能画就画到屏幕上

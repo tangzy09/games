@@ -1,8 +1,16 @@
 // games/snake/tools/gen-appicon.js — 合成 iOS 图标/启动屏源图(playwright 无头 canvas)
-// 产出 resources/icon.png(1024²,粉彩圆角底 + 精选天使 + 底部粉蛇胶囊)
-//     resources/splash.png(2732²,纯粉彩底 + 居中天使 512px)
+// 产出 resources/icon.png(1024²,天使满血出血,无边框/无烘焙圆角/无 alpha)
+//     resources/splash.png(2732²,粉彩底 + 居中天使)
 // 用法: node games/snake/tools/gen-appicon.js   (playwright 走仓库根 node_modules)
+//
+// ⚠ 图标铁律(见全局 skill generating-app-icons,踩过白边+alpha 双坑):
+//   1. 满血出血——美术画到 1024 四边,不留任何内缩边、不画描边框、不烘焙圆角(iOS 自己切角;
+//      自己再切一层 = 双圆角,四角露底色 = 「白边」)。
+//   2. 无 alpha——苹果拒收带透明通道的图标;产出后一律 flatten 成 RGB。
+//   3. 四角不得near-white——满血蓝天会让角发白,故略微放大(cover)+ 轻微下沉聚焦脸部,
+//      并给四角压一层同世界观的柔粉晕(不是描边框,是径向渐变叠色),读起来是天空不是白边。
 const fs = require('fs'), path = require('path');
+const { execSync } = require('child_process');
 const { chromium } = require('playwright');
 
 const ROOT = path.join(__dirname, '..');
@@ -19,40 +27,38 @@ const OUT = path.join(ROOT, 'resources');
     const img = new Image();
     await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = 'data:image/webp;base64,' + imgB64; });
 
-    function rr(x2, x, y, w, h, r) {
-      x2.beginPath();
-      x2.moveTo(x + r, y); x2.arcTo(x + w, y, x + w, y + h, r); x2.arcTo(x + w, y + h, x, y + h, r);
-      x2.arcTo(x, y + h, x, y, r); x2.arcTo(x, y, x + w, y, r); x2.closePath();
-    }
-
-    // —— icon 1024²:粉彩底(iOS 自己切圆角,这里铺满)+ 天使占满内区 + 底部粉蛇胶囊 ——
-    const ic = document.createElement('canvas'); ic.width = ic.height = 1024;
+    // —— icon 1024²:满血出血。源 512²,放大 1.12× cover 铺满,略上移聚焦脸部 ——
+    const N = 1024;
+    const ic = document.createElement('canvas'); ic.width = ic.height = N;
     const x = ic.getContext('2d');
-    x.fillStyle = '#fdf3f7'; x.fillRect(0, 0, 1024, 1024);
-    const pad = 72, iw = 1024 - pad * 2;
-    rr(x, pad, pad, iw, iw, 120); x.save(); x.clip();
-    x.drawImage(img, pad, pad, iw, iw);
-    x.restore();
-    rr(x, pad, pad, iw, iw, 120);
-    x.lineWidth = 14; x.strokeStyle = '#f7b8d4'; x.stroke();
-    // 底部粉蛇胶囊装饰(圆头 + 两眼)
-    x.lineCap = 'round';
-    x.strokeStyle = '#f7b8d4'; x.lineWidth = 64;
-    x.beginPath(); x.moveTo(300, 924); x.quadraticCurveTo(512, 868, 724, 924); x.stroke();
-    x.fillStyle = '#f7b8d4'; x.beginPath(); x.arc(724, 924, 44, 0, Math.PI * 2); x.fill();
-    x.fillStyle = '#fff';
-    x.beginPath(); x.arc(710, 912, 12, 0, Math.PI * 2); x.fill();
-    x.beginPath(); x.arc(740, 912, 12, 0, Math.PI * 2); x.fill();
-    x.fillStyle = '#5d4a57';
-    x.beginPath(); x.arc(712, 914, 6, 0, Math.PI * 2); x.fill();
-    x.beginPath(); x.arc(742, 914, 6, 0, Math.PI * 2); x.fill();
+    x.fillStyle = '#eaf4ff'; x.fillRect(0, 0, N, N);              // 兜底(几乎被完全盖住)
+    const zoom = 1.12, dw = N * zoom, dh = N * zoom;
+    x.drawImage(img, (N - dw) / 2, (N - dh) / 2 - N * 0.03, dw, dh);   // 略上移,让脸落在视觉中心
 
-    // —— splash 2732²:纯粉彩底 + 居中天使 512(圆角) ——
+    // 四角柔粉晕:四个径向渐变把最亮的天空角压成粉彩,避免「发白的角」(不是描边框)
+    for (const [cx, cy] of [[0, 0], [N, 0], [0, N], [N, N]]) {
+      const g = x.createRadialGradient(cx, cy, 0, cx, cy, N * 0.42);
+      g.addColorStop(0, 'rgba(247,184,212,0.55)');
+      g.addColorStop(1, 'rgba(247,184,212,0)');
+      x.fillStyle = g; x.fillRect(0, 0, N, N);
+    }
+    // 顶部再压一层极浅暖光,统一色温
+    const top = x.createLinearGradient(0, 0, 0, N);
+    top.addColorStop(0, 'rgba(255,245,157,0.10)');
+    top.addColorStop(0.4, 'rgba(255,245,157,0)');
+    x.fillStyle = top; x.fillRect(0, 0, N, N);
+
+    // —— splash 2732²:粉彩底 + 居中天使(圆角,启动屏可留边,非图标不受铁律限制) ——
+    function rr(x2, X, Y, w, h, r) {
+      x2.beginPath();
+      x2.moveTo(X + r, Y); x2.arcTo(X + w, Y, X + w, Y + h, r); x2.arcTo(X + w, Y + h, X, Y + h, r);
+      x2.arcTo(X, Y + h, X, Y, r); x2.arcTo(X, Y, X + w, Y, r); x2.closePath();
+    }
     const sp = document.createElement('canvas'); sp.width = sp.height = 2732;
     const y = sp.getContext('2d');
     y.fillStyle = '#fdf3f7'; y.fillRect(0, 0, 2732, 2732);
-    const s = 512, sx = (2732 - s) / 2;
-    rr(y, sx, sx, s, s, 64); y.save(); y.clip();
+    const s = 640, sx = (2732 - s) / 2;
+    rr(y, sx, sx, s, s, 80); y.save(); y.clip();
     y.drawImage(img, sx, sx, s, s);
     y.restore();
 
@@ -62,14 +68,28 @@ const OUT = path.join(ROOT, 'resources');
   for (const [name, url] of Object.entries(dataUrls)) {
     const buf = Buffer.from(url.split(',')[1], 'base64');
     fs.writeFileSync(path.join(OUT, name + '.png'), buf);
-    console.log(`resources/${name}.png ${buf.length} bytes`);
   }
   await browser.close();
 
-  // 地面真值:文件存在且尺寸合理
-  for (const [f, min] of [['icon.png', 50000], ['splash.png', 10000]]) {
-    const sz = fs.statSync(path.join(OUT, f)).size;
-    if (sz < min) throw new Error(`${f} too small: ${sz}`);
-  }
-  console.log('OK gen-appicon');
+  // flatten 去 alpha(RGB)+ 四角自检:任一角 near-white(min 通道>235 且饱和度<0.06)即报错
+  const py = `
+from PIL import Image
+for f,mn in [('icon.png',50000),('splash.png',10000)]:
+    p='${OUT.replace(/\\/g, '/')}/'+f
+    im=Image.open(p).convert('RGB'); im.save(p)   # 去 alpha
+    import os
+    assert os.path.getsize(p)>=mn, f+' too small'
+    if f=='icon.png':
+        w,h=im.size
+        assert (w,h)==(1024,1024), 'icon must be 1024²'
+        for cx,cy in [(6,6),(w-6,6),(6,h-6),(w-6,h-6)]:
+            r,g,b=im.getpixel((cx,cy)); mx,mn2=max(r,g,b),min(r,g,b)
+            sat=0 if mx==0 else (mx-mn2)/mx
+            assert not (mn2>235 and sat<0.06), f'corner {cx},{cy} near-white {(r,g,b)} — 会露白边'
+        # alpha 已去
+        assert Image.open(p).mode=='RGB', 'icon still has alpha'
+    print('OK',f,im.size,Image.open(p).mode)
+`;
+  execSync('python -c "' + py.replace(/"/g, '\\"') + '"', { stdio: 'inherit' });
+  console.log('OK gen-appicon —— 记得 Read icon.png 肉眼验(满血/无框/无白角/脸清晰)');
 })();

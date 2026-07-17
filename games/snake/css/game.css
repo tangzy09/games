@@ -63,3 +63,38 @@ body { background: #fdf3f7; }
 #lightbox img { width: min(92vw, 80vh); border-radius: 16px; }
 #lightbox button { border: 0; border-radius: 14px; padding: 12px 32px;
   font: 700 15px sans-serif; color: #fff; background: #e79cc2; }
+
+/* ============ 主界面(启动/暂停 hub;DOM 浮层,不改 phase 机) ============ */
+#home { position: fixed; inset: 0; z-index: 20; display: flex;
+  flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  padding: calc(env(safe-area-inset-top) + 20px) 24px calc(env(safe-area-inset-bottom) + 24px);
+  background:
+    radial-gradient(120% 80% at 50% 0%, #fff6fb 0%, #fbe6f2 42%, #f6d5e5 100%);
+  overflow-y: auto; }
+#home .home-hero { width: min(58vw, 232px); aspect-ratio: 1; border-radius: 28px;
+  object-fit: cover; box-shadow: 0 14px 40px rgba(214,51,108,.28);
+  border: 5px solid #fff; }
+#home .home-title { font: 900 30px/1 sans-serif; color: #d6336c; letter-spacing: .5px;
+  text-shadow: 0 2px 0 #fff; margin-top: 4px; }
+#home .home-tag { font: 600 14px sans-serif; color: #a85d7a; margin-top: -4px; text-align: center; }
+#home .home-play { border: 0; border-radius: 999px; padding: 15px 66px; margin-top: 6px;
+  font: 800 20px sans-serif; color: #fff; background: linear-gradient(#f489b6, #e3629d);
+  box-shadow: 0 8px 22px rgba(214,51,108,.4); }
+#home .home-play:active { transform: translateY(1px); }
+#home .home-menu { display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  width: min(88vw, 340px); margin-top: 6px; }
+#home .home-btn { display: flex; align-items: center; justify-content: center; gap: 8px;
+  border: 0; border-radius: 16px; padding: 15px 8px; background: #fff;
+  font: 700 15px sans-serif; color: #7a5c72; box-shadow: 0 5px 16px rgba(183,142,180,.28); }
+#home .home-btn .ico { font-size: 20px; }
+#home .home-btn:active { transform: translateY(1px); }
+#home .home-foot { display: flex; gap: 10px; margin-top: 2px; }
+#home .home-foot button { border: 0; background: rgba(255,255,255,.7); border-radius: 12px;
+  width: 42px; height: 42px; font-size: 18px; color: #a85d7a; }
+
+/* 说明面板:图文行 */
+.howto-row { display: flex; align-items: flex-start; gap: 12px; padding: 11px 4px;
+  border-bottom: 1px solid #f6d5e5; }
+.howto-row .ico { font-size: 24px; flex: none; width: 30px; text-align: center; }
+.howto-row .tx { font: 500 14px/1.45 sans-serif; color: #7a5c72; }
+.howto-row .tx b { color: #d6336c; }
