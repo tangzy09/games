@@ -60,6 +60,11 @@ function memBackend() {
   assert.strictEqual(s2.stats.specials.gold, 7, 'specials 动态 key 保留');
   assert.strictEqual(s2.stats.specials.twin, 3);
   assert.strictEqual(s2.stats.skinClears.star, 2, 'skinClears 动态 key 保留');
+  s.gallery.stars = { 'a.webp': 3, 'b.webp': 2 };     // stars 也是开放 map
+  Storage.save(be, 'k', s);
+  const s3 = Storage.load(be, 'k');
+  assert.strictEqual(s3.gallery.stars['a.webp'], 3, 'stars 动态 key 保留');
+  assert.strictEqual(s3.gallery.stars['b.webp'], 2);
   s.stats.levelsSinceAd = 1;                          // 插屏计数 round-trip(P3a)
   Storage.save(be, 'k', s);
   assert.strictEqual(Storage.load(be, 'k').stats.levelsSinceAd, 1, 'levelsSinceAd 保留');

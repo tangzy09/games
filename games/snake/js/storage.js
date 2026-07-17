@@ -4,13 +4,14 @@
 const PRNG_S_ = (typeof module !== 'undefined' && module.exports)
   ? require('../../../engine/prng.js') : PRNG;
 
-const SAVE_V = 2;   // v2: 加 daily(每日天使礼物)
+const SAVE_V = 3;   // v2: daily(每日天使);v3: gallery.stars(每关星级)
 
 function defaults() {
   return {
     v: SAVE_V,
     settings: { theme: 'cloud' },
-    gallery: { unlocked: [], imgPos: 0 },            // unlocked: 图片文件名列表(P2c 消费)
+    // ⚠ stars 是「开放 map」(动态 key=图片名),默认值必须保持空对象 {}(见 merge 注释)
+    gallery: { unlocked: [], imgPos: 0, stars: {} },  // unlocked: 图片文件名列表;stars: {文件名:1-3}
     daily: { lastGiftDay: '', giftStreak: 0 },       // 每日天使礼物:领取日(YYYY-MM-DD)+ 连续天数
     ach: { unlocked: [] },
     stats: {                                          // 累计计数(成就引擎消费)

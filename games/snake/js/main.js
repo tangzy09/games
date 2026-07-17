@@ -111,11 +111,15 @@ function enterReady(resumed) {
   G.phase = 'READY';
   G.revivesThisLevel = 0;
   loopState.last = 0;
+  G.lastClearStars = 0;
+  // 奖励关:每 10 张图一关(imgPos 末位=9),2× 分数。不改盘面尺寸 → AI 保证不受影响。
+  G.bonusLevel = !!(G.imgList && G.imgList.length && (G.imgPos % 10 === 9));
   if (G.save) {
     if (!resumed) G.save.stats.levelsStarted++;
     G.tracker = Ach.newTracker(loopState.gameMs || 0, G.ai);
     persist();
   }
+  if (G.bonusLevel && !resumed) showBonusBanner();
   if (G.ai) dispatch('START');
 }
 
@@ -196,10 +200,13 @@ function renderGalSet(i) {
   const body = document.getElementById('panel-body');
   const set = G.manifest.sets[i];
   const got = new Set(G.save.gallery.unlocked);
+  const stars = (G.save.gallery.stars) || {};
   body.innerHTML = `<div class="gal-set" id="gal-back">${T('gal.back')}</div>
     <div class="gal-grid">` + set.images.map(f => {
       const un = got.has(f);
-      return `<img loading="lazy" src="assets/angels/${f}"${un ? ` data-f="${f}"` : ' class="locked"'} alt="">`;
+      const st = stars[f] || 0;
+      const starRow = un ? `<span class="gal-stars">${'★'.repeat(st)}${'☆'.repeat(3 - st)}</span>` : '';
+      return `<div class="gal-cell"><img loading="lazy" src="assets/angels/${f}"${un ? ` data-f="${f}"` : ' class="locked"'} alt="">${starRow}</div>`;
     }).join('') + `</div>`;
   document.getElementById('gal-back').onclick = () => renderGalSets();
   body.querySelectorAll('.gal-grid img[data-f]').forEach(el => {
@@ -392,6 +399,18 @@ function showDailyGift(file, streak) {
   };
 }
 
+// 奖励关横幅(开局提示 2× 分)
+function showBonusBanner() {
+  const host = document.getElementById('toasts');
+  if (!host) return;
+  Sfx.play('milestone');
+  const el = document.createElement('div');
+  el.className = 'bonus-banner';
+  el.textContent = '⭐ ' + T('bonus.banner');
+  host.appendChild(el);
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 500); }, 2400);
+}
+
 // 集齐一个 20 张主题集:居中大横幅庆祝(比成就 toast 更隆重)
 function showSetComplete() {
   const host = document.getElementById('toasts');
@@ -449,7 +468,7 @@ function tick(nowMs, interval) {
   // 救场期间 AI 代驾,但不是 AI 局:全分、不碰 tracker.aiRun;交还瞬间不改方向(AI 最后设的 dir 自然延续)
   const rescue = nowMs < G.rescueUntil;
   if (G.ai || rescue) Core.setDir(run, AI.nextMove(run, G.cyc, G.aiMem));
-  Core.step(run, { nowMs, scoreScale: G.ai ? 0.5 : 1 });
+  Core.step(run, { nowMs, scoreScale: (G.ai ? 0.5 : 1) * (G.bonusLevel ? 2 : 1) });   // 奖励关 2×
   syncRevealDiff();
   // 事件驱动:音效与成就统一消费 run.events(取代散落 flag 判定)
   const ev = run.events || [];
@@ -488,6 +507,13 @@ function tick(nowMs, interval) {
     G.save.stats.distinctImgs = G.save.gallery.unlocked.length;   // img 族数「不同图」,重温不虚增
     const r1 = Ach.onLevelClear(G.tracker, G.save, nowMs, { aiRun });
     newly = r1.unlocked;
+    // 星级:★1 通关 + ★2 无死亡 + ★3 速通(<2min)或高连击(≥10);AI 局只给 1★(激励手动重玩)
+    const t = G.tracker;
+    const stars = aiRun ? 1
+      : 1 + (t.deathsInLevel === 0 ? 1 : 0) + ((t.clearMs - t.startMs < 120000 || t.comboMax >= 10) ? 1 : 0);
+    const cf = G.imgList[G.imgPos % G.imgList.length];
+    G.save.gallery.stars[cf] = Math.max(G.save.gallery.stars[cf] || 0, stars);
+    G.lastClearStars = stars;   // 结算浮层显示本次拿到几星
   }
   newly = newly.concat(Ach.checkCum(G.save).unlocked);
   if (newly.length) { showAchToasts(newly); if (!milestonePlayed) Sfx.play('milestone'); }   // 本 tick 播过就不双播

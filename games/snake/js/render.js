@@ -187,7 +187,7 @@ function renderAll() {
     // 先放完成庆祝(~0.8s 流光星光),再滑入结算浮层
     else if (!FX.celebrateStart || fxNow() - FX.celebrateStart > 800)
       drawOverlay(T('snake.levelDone', { n: G.run.level - 1 }), T('snake.scoreVal', { n: G.run.score }), T('snake.next'), 'NEXT', true,
-                     { label: T('share.btn'), action: 'SHARE' });
+                     { label: T('share.btn'), action: 'SHARE' }, G.lastClearStars || 0);
   }
 }
 
@@ -204,9 +204,10 @@ function drawImgFull() {
 
 function drawHud(safeTop) {
   const y = safeTop + 26;
-  txtL(`${T('snake.score')} ${G.run.score}`, Layout.bx, y, PAL.text, 'bold 18px sans-serif');
+  const bonus = G.bonusLevel && (G.phase === 'PLAYING' || G.phase === 'READY');
+  txtL(`${T('snake.score')} ${G.run.score}${bonus ? '  ⭐×2' : ''}`, Layout.bx, y, bonus ? '#ffb300' : PAL.text, 'bold 18px sans-serif');
   if (G.run.combo > 0)
-    txtL(T('snake.combo', { n: G.run.combo }), Layout.bx + 130, y, PAL.accent, 'bold 16px sans-serif');
+    txtL(T('snake.combo', { n: G.run.combo }), Layout.bx + 165, y, PAL.accent, 'bold 16px sans-serif');
   const pw = Layout.bsize * 0.42, px = Layout.bx + Layout.bsize - pw - 48, ph = 14;
   const pct = G.run.revealedCount / (G.run.cols * G.run.rows);
   fillRR(px, y - ph / 2, pw, ph, 7, PAL.bar);
@@ -385,7 +386,7 @@ function drawHint(text) {
 }
 
 // extra: 可选第二按钮 { label, action }(次级样式,主按钮下方)
-function drawOverlay(title, sub, btnLabel, action, showImg, extra) {
+function drawOverlay(title, sub, btnLabel, action, showImg, extra, stars) {
   const { SW, SH } = GameGlobal;
   drawDim('rgba(122,92,114,0.45)');
   const cw = Math.min(SW * 0.86, 360);
@@ -398,6 +399,13 @@ function drawOverlay(title, sub, btnLabel, action, showImg, extra) {
     const iw = cw - 44;
     ctx.drawImage(G.img, cx + 22, cy + 52, iw, iw);
     addHit(cx + 22, cy + 52, iw, iw, 'IMG_FULL', {});   // 点图全屏欣赏
+    // 星级带:成图底部一枚药丸 + 三颗星(得到=金,未得=灰)
+    if (stars) {
+      const sy = cy + 52 + iw - 8, pw = 128;
+      fillRR(cx + (cw - pw) / 2, sy - 26, pw, 40, 20, 'rgba(255,255,255,0.9)');
+      for (let i = 0; i < 3; i++)
+        txt('★', cx + cw / 2 + (i - 1) * 38, sy - 4, i < stars ? '#ffb300' : 'rgba(150,130,145,0.35)', '28px sans-serif');
+    }
     by = cy + 52 + iw + 24;
   }
   if (sub) { txt(sub, cx + cw / 2, by, PAL.text, '14px sans-serif'); by += 30; }

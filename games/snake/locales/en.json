@@ -45,6 +45,7 @@
     "ok": "Lovely!"
   },
   "set": { "complete": "Set complete!" },
+  "bonus": { "banner": "Bonus level · double score!" },
   "share": { "btn": "Share 📤" },
   "skins": {
     "title": "Skins",

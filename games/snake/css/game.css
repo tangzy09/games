@@ -133,3 +133,14 @@ body { background: #fdf3f7; }
 .set-banner.out { opacity: 0; transition: opacity .5s; }
 .set-banner .sb-emo { font-size: 28px; }
 @keyframes setPop { from { transform: scale(.6) translateY(-10px); opacity: 0; } }
+
+/* 图鉴缩略图下的星级 */
+.gal-cell { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.gal-stars { font: 10px/1 sans-serif; color: #ffb300; letter-spacing: -1px; }
+
+/* 奖励关横幅(复用 set-banner 动画,金色) */
+.bonus-banner { background: linear-gradient(#ffd36e, #ffa726); color: #fff;
+  border-radius: 18px; padding: 14px 26px; font: 900 19px sans-serif;
+  box-shadow: 0 10px 30px rgba(255,167,71,.5); animation: setPop .5s cubic-bezier(.2,1.5,.4,1);
+  pointer-events: none; }
+.bonus-banner.out { opacity: 0; transition: opacity .5s; }
