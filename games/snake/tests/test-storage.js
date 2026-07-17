@@ -99,3 +99,18 @@ function memBackend() {
   assert.strictEqual(r.state.lastEatMs, -Infinity, '恢复后回填 -Infinity');
 }
 console.log('OK test-storage');
+
+// --- reduceMotion 显式选择必须跨重载持久(修:settings 默认要含 reduceMotion,否则 merge 丢) ---
+{
+  const be = memBackend();
+  const s = Storage.load(be, 'k');
+  assert.strictEqual(s.settings.reduceMotion, null, '默认 null=跟随系统');
+  s.settings.reduceMotion = true;            // 用户显式开启减弱动态
+  Storage.save(be, 'k', s);
+  const s2 = Storage.load(be, 'k');
+  assert.strictEqual(s2.settings.reduceMotion, true, 'reduceMotion 显式选择重载后保留');
+  s2.settings.reduceMotion = false;
+  Storage.save(be, 'k', s2);
+  assert.strictEqual(Storage.load(be, 'k').settings.reduceMotion, false, 'false 也保留');
+}
+console.log('OK test-storage(reduceMotion)');

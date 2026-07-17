@@ -102,7 +102,6 @@ function fxPop(cx, cy, text, color) {
 }
 function fxShake(mag, ms = 260) { if (G.reduceMotion) return; FX.shakeMag = Math.max(FX.shakeMag, mag); FX.shakeUntil = Math.max(FX.shakeUntil, fxNow() + ms); }
 function fxCelebrate() { FX.celebrateStart = fxNow(); }   // 过关完成:流光+星光+回弹
-function fxCelebrating() { return FX.celebrateStart && fxNow() - FX.celebrateStart < 1500; }
 
 // 棋盘变换:庆祝回弹缩放 + 震屏偏移(围绕棋盘中心)
 function fxBoardTransform() {
