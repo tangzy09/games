@@ -15,7 +15,7 @@ function createGame(opts = {}) {
     cols, rows,
     rand: PRNG_.create(opts.seed == null ? 1 : opts.seed),
     snake: [{ x: Math.min(3, Math.floor(cols / 4)), y: Math.floor(rows / 2) }],
-    dir: 'right', nextDir: 'right',
+    dir: 'right', nextDir: 'right', dirQueue: [],   // dirQueue:人手快速连拐的转向缓冲(最多 2)
     targetLen: 3,
     revealed: new Uint8Array(cols * rows), revealedCount: 0, milestones: 0,
     apple: null, extraApples: [], special: null, meteor: null,
@@ -58,10 +58,17 @@ function revealCell(s, x, y) {
 
 function spawnApple(s) { s.apple = randomFreeCell(s); }
 
+// 转向缓冲:按「队尾方向」校验(不是当前 dir),让「上→左」这种快速连拐两拐都生效。
+// 队列最多缓冲 2 个待执行转向;step 每 tick 消费一个。反向/重复/非法一律不入队。
 function setDir(s, dir) {
   if (!SNAKE_DIRS[dir]) return;
-  if (s.snake.length > 1 && dir === OPP[s.dir]) return;
-  s.nextDir = dir;
+  if (!s.dirQueue) s.dirQueue = [];
+  const ref = s.dirQueue.length ? s.dirQueue[s.dirQueue.length - 1] : s.dir;
+  if (dir === ref) return;                                   // 与队尾同向,无需入队
+  if (s.snake.length > 1 && dir === OPP[ref]) return;        // 相对队尾反向 = 会自吃,拒
+  if (s.dirQueue.length >= 2) return;                        // 缓冲已满
+  s.dirQueue.push(dir);
+  s.nextDir = s.dirQueue[0];                                 // 兼容:nextDir 始终=队首待执行方向
 }
 
 // 身体命中判定(尾巴让位;不含墙、不含 ghost——供 isLethalCell 与 ghostPass 统计复用)
@@ -93,6 +100,8 @@ function step(s, o = {}) {
   if (s.special && now >= s.special.expiresAt) s.special = null;   // 限时消失
   // 光环:到期时蛇头若仍与身体重叠,天然安全——碰撞只判「新格」,重叠本身不判死
   const ghost = !!o.ghost || now < fx.ghostUntil;
+  // 消费一个缓冲转向(队首)→ 本 tick 应用;队列空则沿用上一 nextDir
+  if (s.dirQueue && s.dirQueue.length) s.nextDir = s.dirQueue.shift();
   s.dir = s.nextDir;
   let d = SNAKE_DIRS[s.dir];
   const head = s.snake[0];
@@ -106,6 +115,7 @@ function step(s, o = {}) {
         fx.shield--; s.shieldJustUsed = true;
         s.events.push({ t: 'shield' });
         s.dir = s.nextDir = alt; d = ad;
+        if (s.dirQueue) s.dirQueue.length = 0;   // 护盾强制转向后,缓冲的转向已失效,清空
         nx = head.x + ad.x; ny = head.y + ad.y;
         break;
       }
@@ -350,6 +360,7 @@ function respawn(s) {
   }
   s.snake = [best]; s.targetLen = newLen;
   s.dir = s.nextDir = (best.x < s.cols / 2 ? 'right' : 'left');
+  s.dirQueue = [];   // 重生清空转向缓冲
   s.dead = false;
   revealCell(s, best.x, best.y);
 }

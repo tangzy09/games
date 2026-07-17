@@ -85,8 +85,9 @@ let fxPrev = 0;
 const fxNow = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 function cellCenter(cx, cy) { return [Layout.bx + (cx + 0.5) * Layout.cell, Layout.by + (cy + 0.5) * Layout.cell]; }
 
-// 在格子迸发 n 个粒子(吃果/连击/接流星)
+// 在格子迸发 n 个粒子(吃果/连击/接流星);减弱动态时跳过
 function fxBurst(cx, cy, color, n = 8, spread = 1) {
+  if (G.reduceMotion) return;
   const [px, py] = cellCenter(cx, cy), now = fxNow();
   for (let i = 0; i < n; i++) {
     const a = (Math.PI * 2 * i) / n + Math.random() * 0.6, sp = (0.4 + Math.random() * 0.9) * spread;
@@ -99,14 +100,14 @@ function fxPop(cx, cy, text, color) {
   const [px, py] = cellCenter(cx, cy);
   FX.pops.push({ x: px, y: py - Layout.cell * 0.3, text, color, born: fxNow(), life: 900 });
 }
-function fxShake(mag, ms = 260) { FX.shakeMag = Math.max(FX.shakeMag, mag); FX.shakeUntil = Math.max(FX.shakeUntil, fxNow() + ms); }
+function fxShake(mag, ms = 260) { if (G.reduceMotion) return; FX.shakeMag = Math.max(FX.shakeMag, mag); FX.shakeUntil = Math.max(FX.shakeUntil, fxNow() + ms); }
 function fxCelebrate() { FX.celebrateStart = fxNow(); }   // 过关完成:流光+星光+回弹
 function fxCelebrating() { return FX.celebrateStart && fxNow() - FX.celebrateStart < 1500; }
 
 // 棋盘变换:庆祝回弹缩放 + 震屏偏移(围绕棋盘中心)
 function fxBoardTransform() {
   let sc = 1, dx = 0, dy = 0;
-  if (FX.celebrateStart) {
+  if (FX.celebrateStart && !G.reduceMotion) {
     const t = (fxNow() - FX.celebrateStart) / 1500;
     if (t < 1) { const p = Math.sin(Math.min(1, t / 0.4) * Math.PI); sc = 1 + 0.06 * p; }
   }
@@ -132,8 +133,8 @@ function fxDrawCelebrate() {
     ctx.fillStyle = g; ctx.fillRect(bx, by, bsize, bsize);
   }
   ctx.restore();
-  // 一次性中心星光爆发(仅在 t 很小时补种)
-  if (t < 0.06 && FX.parts.every(p => p.kind !== 'cele')) {
+  // 一次性中心星光爆发(仅在 t 很小时补种;减弱动态跳过,保留柔和流光)
+  if (t < 0.06 && !G.reduceMotion && FX.parts.every(p => p.kind !== 'cele')) {
     const [ccx, ccy] = [bx + bsize / 2, by + bsize / 2], now = fxNow();
     for (let i = 0; i < 22; i++) {
       const a = Math.random() * Math.PI * 2, sp2 = 1 + Math.random() * 2.2;

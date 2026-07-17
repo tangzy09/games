@@ -200,3 +200,22 @@ console.log('OK test-core(ghost)');
   assert(!isNaN(g.score) && g.stats.steps > 0, '复活后可继续 step');
 }
 console.log('OK test-core(revive)');
+
+// --- 转向缓冲:快速「右→上→左」两拐都生效(不丢第二拐、不自吃) ---
+{
+  const g = Core.createGame({ seed: 1 });
+  Core.step(g);                       // 向右走一格,蛇变长
+  const h = { ...g.snake[0] };
+  Core.setDir(g, 'up');               // 队首
+  Core.setDir(g, 'left');             // 队尾(相对'up'合法,旧实现会因 'left'===OPP['right'] 丢掉)
+  assert.strictEqual(g.dirQueue.length, 2, '两拐都入队');
+  Core.step(g);                       // 应用第一拐:上
+  assert.strictEqual(g.dir, 'up', '第一拐=上');
+  assert.strictEqual(g.snake[0].y, h.y - 1, '头向上移');
+  Core.step(g);                       // 应用第二拐:左
+  assert.strictEqual(g.dir, 'left', '第二拐=左(没被丢)');
+  // 反向仍被拒:当前向左,立刻按右应无效
+  Core.setDir(g, 'right');
+  assert.strictEqual(g.dirQueue.length, 0, '相对队尾反向被拒,不入队');
+}
+console.log('OK test-core(turn-buffer)');

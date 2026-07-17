@@ -26,7 +26,10 @@
     "title": "Home",
     "tag": "Reveal the hidden angel, one cell at a time",
     "play": "Play",
-    "resume": "Resume"
+    "resume": "Resume",
+    "collected": "{n}/{total} angels collected",
+    "nextSkin": "Next skin: {name}",
+    "motion": "Reduce motion"
   },
   "howto": {
     "title": "How to Play",

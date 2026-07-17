@@ -4,7 +4,7 @@
 const PRNG_S_ = (typeof module !== 'undefined' && module.exports)
   ? require('../../../engine/prng.js') : PRNG;
 
-const SAVE_V = 3;   // v2: daily(每日天使);v3: gallery.stars(每关星级)
+const SAVE_V = 4;   // v2: daily;v3: gallery.stars;v4: 当局快照加 dirQueue(转向缓冲)
 
 function defaults() {
   return {
@@ -82,6 +82,7 @@ function restoreRun(snap) {
   st.revealed = new Uint8Array(st.revealed);
   st.rand = PRNG_S_.create(snap.seed2 || 1);
   if (st.lastEatMs == null) st.lastEatMs = -Infinity;   // JSON 把 -Infinity 变 null,回填防连击断档
+  if (!Array.isArray(st.dirQueue)) st.dirQueue = [];    // 旧快照无 dirQueue,补默认(否则 step shift 崩)
   return { state: st, imgPos: snap.imgPos, gameMs: snap.gameMs };
 }
 

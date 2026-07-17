@@ -301,6 +301,38 @@ function renderSkinsBody() {
 // PLAYING 时打开会先暂停(与成就/图鉴一致);Play/继续按钮收起浮层。
 const HERO_ANGEL = '0bep0x.webp';   // 主界面主视觉(= App 图标同一张,品牌一致)
 function hideHome() { const h = document.getElementById('home'); if (h) h.classList.add('hidden'); }
+// 减弱动态:未显式设置则跟随系统 prefers-reduced-motion;用户可在主界面切换(显式存档覆盖)
+function computeReduceMotion() {
+  const pref = G.save && G.save.settings ? G.save.settings.reduceMotion : null;
+  if (pref != null) return !!pref;
+  try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; }
+}
+function toggleMotion() {
+  const next = !computeReduceMotion();
+  G.save.settings.reduceMotion = next; G.reduceMotion = next; persist();
+}
+// 下一个待解锁皮肤 + 进度(null=全解锁)
+function nextSkinHint() {
+  for (const k of Themes.THEME_ORDER) {
+    if (Themes.themeUnlocked(k, G.save)) continue;
+    const u = Themes.THEMES[k].unlock;
+    const cur = u.stat.split('.').reduce((o, kk) => (o || {})[kk], G.save.stats) || 0;
+    return { name: T('skins.' + k), cur: Math.min(cur, u.n), need: u.n, bySet: u.stat === 'setsDone' };
+  }
+  return null;
+}
+// 主界面收集进度块:X/500 天使 + 进度条 + 下一皮肤里程碑
+function homeProgressHTML() {
+  const total = (G.imgList && G.imgList.length) || 500;
+  const got = G.save.gallery.unlocked.length;
+  const skin = nextSkinHint();
+  const pct = Math.max(2, (got / total) * 100);
+  return `<div class="home-prog">
+    <div class="hp-top"><span>🖼️ ${T('home.collected', { n: got, total })}</span></div>
+    <div class="hp-bar"><i style="width:${pct.toFixed(1)}%"></i></div>
+    ${skin ? `<div class="hp-skin">🎨 ${T('home.nextSkin', { name: skin.name })} · ${skin.bySet ? T('skins.needSet') : skin.cur + '/' + skin.need}</div>` : ''}
+  </div>`;
+}
 function openHome() {
   const home = document.getElementById('home');
   if (!home) return;
@@ -310,6 +342,7 @@ function openHome() {
     `<img class="home-hero" src="assets/angels/${HERO_ANGEL}" alt="">
      <div class="home-title">Angel Snake</div>
      <div class="home-tag">${T('home.tag')}</div>
+     ${homeProgressHTML()}
      <button class="home-play" id="home-play" type="button">${resuming ? T('home.resume') : T('home.play')}</button>
      <button class="home-daily${dailyClaimable() ? ' ready' : ''}" id="home-daily" type="button">
        🎁 ${dailyClaimable() ? T('daily.claim') : T('daily.streak', { n: (G.save.daily && G.save.daily.giftStreak) || 0 })}</button>
@@ -319,7 +352,10 @@ function openHome() {
        <button class="home-btn" id="home-skin" type="button"><span class="ico">🎨</span>${T('menu.skins')}</button>
        <button class="home-btn" id="home-howto" type="button"><span class="ico">❓</span>${T('howto.title')}</button>
      </div>
-     <div class="home-foot"><button id="home-sfx" type="button">${Sfx.on ? '🔊' : '🔇'}</button></div>`;
+     <div class="home-foot">
+       <button id="home-sfx" type="button">${Sfx.on ? '🔊' : '🔇'}</button>
+       <button id="home-motion" type="button" title="${T('home.motion')}">${G.reduceMotion ? '🍃' : '✨'}</button>
+     </div>`;
   home.classList.remove('hidden');
   const $ = id => document.getElementById(id);
   $('home-play').onclick = () => { hideHome(); if (resuming) dispatch('RESUME'); };
@@ -329,6 +365,7 @@ function openHome() {
   $('home-skin').onclick = () => openSkins();
   $('home-howto').onclick = () => openHowTo();
   $('home-sfx').onclick = () => { $('home-sfx').textContent = Sfx.toggle() ? '🔊' : '🔇'; };
+  $('home-motion').onclick = () => { toggleMotion(); $('home-motion').textContent = G.reduceMotion ? '🍃' : '✨'; };
 }
 
 // ——玩法说明——(图文行,复用 #panel)
@@ -467,7 +504,8 @@ function tick(nowMs, interval) {
   const before = { score: run.score, revealed: run.revealedCount };
   // 救场期间 AI 代驾,但不是 AI 局:全分、不碰 tracker.aiRun;交还瞬间不改方向(AI 最后设的 dir 自然延续)
   const rescue = nowMs < G.rescueUntil;
-  if (G.ai || rescue) Core.setDir(run, AI.nextMove(run, G.cyc, G.aiMem));
+  // AI 代驾:先清人手残留的转向缓冲,再下 AI 指令(AI 的方向必须权威、当 tick 生效)
+  if (G.ai || rescue) { run.dirQueue.length = 0; Core.setDir(run, AI.nextMove(run, G.cyc, G.aiMem)); }
   Core.step(run, { nowMs, scoreScale: (G.ai ? 0.5 : 1) * (G.bonusLevel ? 2 : 1) });   // 奖励关 2×
   syncRevealDiff();
   // 事件驱动:音效与成就统一消费 run.events(取代散落 flag 判定)
@@ -531,6 +569,7 @@ async function boot() {
     restoreAudioPrefs();
     G.saveKey = CFG.key('save');
     G.save = Storage.load(Platform.storage, G.saveKey);
+    G.reduceMotion = computeReduceMotion();   // 减弱动态:显式设置优先,否则跟随系统
     applyTheme(G.save.settings.theme);   // 主题不合法自动回 cloud
     Portal.boot();
     await Ads.init();

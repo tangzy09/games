@@ -26,7 +26,10 @@
     "title": "主界面",
     "tag": "一格一格，揭开藏在下面的天使",
     "play": "开始游戏",
-    "resume": "继续游戏"
+    "resume": "继续游戏",
+    "collected": "已收集 {n}/{total} 位天使",
+    "nextSkin": "下一皮肤：{name}",
+    "motion": "减弱动态效果"
   },
   "howto": {
     "title": "玩法说明",
