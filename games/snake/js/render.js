@@ -78,6 +78,96 @@ function punchCell(x, y) {
 }
 function revealAllMask() { maskLayer.getContext('2d').clearRect(0, 0, layerPx, layerPx); }
 
+// ============ 爽感 FX(纯前端,墙钟计时;不进 core、不进存档) ============
+// 粒子 / 分数飘字 / 震屏 / 过关完成庆祝。RAF 每帧 renderAll 都会驱动(含 LEVEL_DONE)。
+const FX = { parts: [], pops: [], shakeMag: 0, shakeUntil: 0, celebrateStart: 0 };
+let fxPrev = 0;
+const fxNow = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+function cellCenter(cx, cy) { return [Layout.bx + (cx + 0.5) * Layout.cell, Layout.by + (cy + 0.5) * Layout.cell]; }
+
+// 在格子迸发 n 个粒子(吃果/连击/接流星)
+function fxBurst(cx, cy, color, n = 8, spread = 1) {
+  const [px, py] = cellCenter(cx, cy), now = fxNow();
+  for (let i = 0; i < n; i++) {
+    const a = (Math.PI * 2 * i) / n + Math.random() * 0.6, sp = (0.4 + Math.random() * 0.9) * spread;
+    FX.parts.push({ x: px, y: py, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 0.3,
+      r: Layout.cell * (0.06 + Math.random() * 0.07), color, born: now, life: 520 + Math.random() * 260 });
+  }
+}
+// 分数飘字(向上飘 + 淡出)
+function fxPop(cx, cy, text, color) {
+  const [px, py] = cellCenter(cx, cy);
+  FX.pops.push({ x: px, y: py - Layout.cell * 0.3, text, color, born: fxNow(), life: 900 });
+}
+function fxShake(mag, ms = 260) { FX.shakeMag = Math.max(FX.shakeMag, mag); FX.shakeUntil = Math.max(FX.shakeUntil, fxNow() + ms); }
+function fxCelebrate() { FX.celebrateStart = fxNow(); }   // 过关完成:流光+星光+回弹
+function fxCelebrating() { return FX.celebrateStart && fxNow() - FX.celebrateStart < 1500; }
+
+// 棋盘变换:庆祝回弹缩放 + 震屏偏移(围绕棋盘中心)
+function fxBoardTransform() {
+  let sc = 1, dx = 0, dy = 0;
+  if (FX.celebrateStart) {
+    const t = (fxNow() - FX.celebrateStart) / 1500;
+    if (t < 1) { const p = Math.sin(Math.min(1, t / 0.4) * Math.PI); sc = 1 + 0.06 * p; }
+  }
+  if (fxNow() < FX.shakeUntil) {
+    const k = FX.shakeMag * (FX.shakeUntil - fxNow()) / 260;
+    dx = (Math.random() * 2 - 1) * k; dy = (Math.random() * 2 - 1) * k;
+  }
+  return [dx, dy, sc];
+}
+// 庆祝流光:一道斜向亮带扫过成图 + 中心星光爆发(在棋盘裁剪内画)
+function fxDrawCelebrate() {
+  if (!FX.celebrateStart) return;
+  const { bx, by, bsize } = Layout, t = (fxNow() - FX.celebrateStart) / 1500;
+  if (t >= 1) { FX.celebrateStart = 0; return; }
+  ctx.save();
+  rrPath(ctx, bx, by, bsize, bsize, 14); ctx.clip();
+  // 斜向流光(0~0.7 扫过)
+  const sp = t / 0.7;
+  if (sp < 1) {
+    const bandW = bsize * 0.4, cxp = bx - bandW + (bsize + bandW * 2) * sp;
+    const g = ctx.createLinearGradient(cxp - bandW, by, cxp + bandW, by + bsize);
+    g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.5, 'rgba(255,255,255,0.55)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g; ctx.fillRect(bx, by, bsize, bsize);
+  }
+  ctx.restore();
+  // 一次性中心星光爆发(仅在 t 很小时补种)
+  if (t < 0.06 && FX.parts.every(p => p.kind !== 'cele')) {
+    const [ccx, ccy] = [bx + bsize / 2, by + bsize / 2], now = fxNow();
+    for (let i = 0; i < 22; i++) {
+      const a = Math.random() * Math.PI * 2, sp2 = 1 + Math.random() * 2.2;
+      FX.parts.push({ kind: 'cele', x: ccx, y: ccy, vx: Math.cos(a) * sp2, vy: Math.sin(a) * sp2,
+        r: Layout.cell * (0.08 + Math.random() * 0.1), color: PAL.glow || '#fff59d', born: now, life: 900 + Math.random() * 500 });
+    }
+  }
+}
+// 更新+画所有粒子(棋盘变换内)
+function fxDrawParticles() {
+  const now = fxNow(), dt = Math.min(48, now - (fxPrev || now)); fxPrev = now;
+  for (let i = FX.parts.length - 1; i >= 0; i--) {
+    const p = FX.parts[i], age = now - p.born;
+    if (age > p.life) { FX.parts.splice(i, 1); continue; }
+    p.x += p.vx * dt * 0.06; p.y += p.vy * dt * 0.06; p.vy += dt * 0.006;   // 轻重力
+    ctx.globalAlpha = Math.max(0, 1 - age / p.life);
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (1 - 0.3 * age / p.life), 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+// 画分数飘字(棋盘变换外,不随缩放抖)
+function fxDrawPops() {
+  const now = fxNow();
+  for (let i = FX.pops.length - 1; i >= 0; i--) {
+    const p = FX.pops[i], age = now - p.born;
+    if (age > p.life) { FX.pops.splice(i, 1); continue; }
+    const k = age / p.life;
+    ctx.globalAlpha = k < 0.15 ? k / 0.15 : Math.max(0, 1 - (k - 0.15) / 0.85);
+    txt(p.text, p.x, p.y - k * Layout.cell * 1.6, p.color, `bold ${Math.round(Layout.cell * 0.5)}px sans-serif`);
+  }
+  ctx.globalAlpha = 1;
+}
+
 function renderAll() {
   if (!G || !G.run || !ctx) return;
   clearHits();
@@ -94,7 +184,9 @@ function renderAll() {
                 G.revivesThisLevel < 2 ? { label: T('ads.revive'), action: 'REVIVE' } : null);
   } else if (G.phase === 'LEVEL_DONE') {
     if (G.imgFull) drawImgFull();
-    else drawOverlay(T('snake.levelDone', { n: G.run.level - 1 }), T('snake.scoreVal', { n: G.run.score }), T('snake.next'), 'NEXT', true,
+    // 先放完成庆祝(~0.8s 流光星光),再滑入结算浮层
+    else if (!FX.celebrateStart || fxNow() - FX.celebrateStart > 800)
+      drawOverlay(T('snake.levelDone', { n: G.run.level - 1 }), T('snake.scoreVal', { n: G.run.score }), T('snake.next'), 'NEXT', true,
                      { label: T('share.btn'), action: 'SHARE' });
   }
 }
@@ -130,6 +222,11 @@ function drawHud(safeTop) {
 function drawBoardArea() {
   const { bx, by, bsize, cell } = Layout;
   fillRR(bx - 4, by - 4, bsize + 8, bsize + 8, 18, PAL.card);
+  // 震屏 + 过关回弹:整个棋盘(含蛇/粒子)围绕中心做变换
+  const [sdx, sdy, sc] = fxBoardTransform();
+  const cxp = bx + bsize / 2, cyp = by + bsize / 2;
+  ctx.save();
+  ctx.translate(cxp + sdx, cyp + sdy); ctx.scale(sc, sc); ctx.translate(-cxp, -cyp);
   if (bgLayer) ctx.drawImage(bgLayer, bx, by, bsize, bsize);
   if (maskLayer) ctx.drawImage(maskLayer, bx, by, bsize, bsize);
   const left = G.run.cols * G.run.rows - G.run.revealedCount;
@@ -148,6 +245,10 @@ function drawBoardArea() {
   drawSpecial();
   drawMeteor();
   drawSnake();
+  fxDrawCelebrate();     // 过关流光+星光(裁剪在棋盘内)
+  fxDrawParticles();     // 吃果/连击迸发的粒子(随棋盘变换)
+  ctx.restore();
+  fxDrawPops();          // 分数飘字(不随缩放)
 }
 
 function drawApple(a) {

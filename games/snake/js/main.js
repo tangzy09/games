@@ -389,11 +389,19 @@ function tick(nowMs, interval) {
   const revealDelta = run.levelJustDone
     ? run.cols * run.rows - before.revealed + run.revealedCount
     : run.revealedCount - before.revealed;
-  if (ev.some(e => e.t === 'apple')) Sfx.play('eat');
-  if (ev.some(e => e.t === 'special')) Sfx.play('special');
-  if (ev.some(e => e.t === 'shield')) { Sfx.play('shield'); Haptics.light(); }
+  // 爽感 FX:事件都发生在蛇头,粒子/飘字落头格(render 层函数,墙钟计时)
+  const h = run.snake[0];
+  if (ev.some(e => e.t === 'apple')) {
+    Sfx.play('eat');
+    fxBurst(h.x, h.y, PAL.apple, 7);
+    if (scoreDelta > 0) fxPop(h.x, h.y, '+' + scoreDelta, PAL.accent);
+    if (run.combo >= 2) fxPop(h.x, h.y - 0.5, '×' + run.combo, PAL.accent2);   // 连击飘字
+  }
+  if (ev.some(e => e.t === 'special')) { Sfx.play('special'); fxBurst(h.x, h.y, PAL.glow, 12, 1.4); fxShake(3); Haptics.light(); }
+  if (ev.some(e => e.t === 'shield')) { Sfx.play('shield'); Haptics.light(); fxBurst(h.x, h.y, '#ff8fab', 12, 1.3); fxShake(5); }
+  if (ev.some(e => e.t === 'meteorCatch')) { fxBurst(h.x, h.y, PAL.glow, 16, 1.6); fxShake(6); Haptics.light(); }
   const milestonePlayed = ev.some(e => e.t === 'milestone') && !run.levelJustDone;
-  if (milestonePlayed) Sfx.play('milestone');
+  if (milestonePlayed) { Sfx.play('milestone'); fxShake(4); Haptics.light(); }
   const aiRun = G.ai || !!(G.tracker && G.tracker.aiRun);   // 粘性:本关开过 AI 即整关按 AI 局算
   G.tracker.scoreGained += scoreDelta;   // onStep 不处理 scoreGained(签名无 ctx),接线方负责
   Ach.onStep(G.tracker, run, ev, nowMs);
@@ -412,7 +420,8 @@ function tick(nowMs, interval) {
   newly = newly.concat(Ach.checkCum(G.save).unlocked);
   if (newly.length) { showAchToasts(newly); if (!milestonePlayed) Sfx.play('milestone'); }   // 本 tick 播过就不双播
   if (run.levelJustDone) {
-    Sfx.play('level'); G.phase = 'LEVEL_DONE'; revealAllMask();
+    Sfx.play('level'); Haptics.medium(); fxShake(6); fxCelebrate();   // 完成庆祝:流光+星光+回弹
+    G.phase = 'LEVEL_DONE'; revealAllMask();
     G.save.run = null; persist(); return;
   }
   if (run.dead) { Sfx.play('death'); Haptics.medium(); G.phase = 'DEAD'; persist(); }
