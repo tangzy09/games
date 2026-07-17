@@ -98,3 +98,38 @@ body { background: #fdf3f7; }
 .howto-row .ico { font-size: 24px; flex: none; width: 30px; text-align: center; }
 .howto-row .tx { font: 500 14px/1.45 sans-serif; color: #7a5c72; }
 .howto-row .tx b { color: #d6336c; }
+
+/* 每日礼物按钮(主界面) */
+#home .home-daily { border: 0; border-radius: 999px; padding: 11px 30px; margin-top: 2px;
+  font: 800 15px sans-serif; color: #a85d7a; background: #fff;
+  box-shadow: 0 4px 14px rgba(183,142,180,.28); }
+#home .home-daily.ready { color: #fff; background: linear-gradient(#ffd36e, #ffb347);
+  box-shadow: 0 6px 18px rgba(255,167,71,.5); animation: dailyPulse 1.4s ease-in-out infinite; }
+@keyframes dailyPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+
+/* 每日礼物弹窗(复用 #lightbox 容器) */
+.daily-card { background: #fff; border-radius: 24px; padding: 22px; width: min(84vw, 360px);
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  box-shadow: 0 16px 48px rgba(0,0,0,.28); animation: giftIn .4s cubic-bezier(.2,1.4,.4,1); }
+@keyframes giftIn { from { transform: scale(.7); opacity: 0; } }
+.daily-card .daily-h { font: 900 22px sans-serif; color: #d6336c; }
+.daily-card img { width: 78%; aspect-ratio: 1; border-radius: 18px; object-fit: cover;
+  box-shadow: 0 8px 22px rgba(214,51,108,.3); }
+.daily-card .daily-streak { font: 700 16px sans-serif; color: #a85d7a; }
+.daily-card #daily-ok { border: 0; border-radius: 999px; padding: 12px 44px;
+  font: 800 16px sans-serif; color: #fff; background: linear-gradient(#f489b6, #e3629d); }
+
+/* 图鉴 lightbox 双按钮 */
+.lb-actions { display: flex; gap: 12px; }
+#lightbox .lb-actions button { border: 0; border-radius: 14px; padding: 12px 24px;
+  font: 700 15px sans-serif; color: #fff; background: #e79cc2; }
+#lightbox .lb-actions #lb-wall { background: #b39ddb; }
+
+/* 集齐主题集横幅 */
+.set-banner { background: linear-gradient(#ffd36e, #ff9ec4); color: #fff;
+  border-radius: 18px; padding: 16px 28px; font: 900 20px sans-serif;
+  display: flex; align-items: center; gap: 12px; box-shadow: 0 10px 30px rgba(214,51,108,.4);
+  animation: setPop .5s cubic-bezier(.2,1.5,.4,1); pointer-events: none; }
+.set-banner.out { opacity: 0; transition: opacity .5s; }
+.set-banner .sb-emo { font-size: 28px; }
+@keyframes setPop { from { transform: scale(.6) translateY(-10px); opacity: 0; } }

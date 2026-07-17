@@ -13,10 +13,19 @@ function memBackend() {
 {
   const be = memBackend();
   const s = Storage.load(be, 'snake_save');
-  assert.strictEqual(s.v, 1);
+  assert.strictEqual(s.v, Storage.SAVE_V);
   assert.deepStrictEqual(s.ach.unlocked, []);
   assert.strictEqual(s.stats.apples, 0);
   assert.strictEqual(s.run, null);
+  assert.strictEqual(s.daily.giftStreak, 0, 'daily 默认');
+}
+// --- 加 daily 后:旧档(无 daily)load 不崩、补默认 ---
+{
+  const be = memBackend();
+  be.set('k', JSON.stringify({ v: 1, gallery: { unlocked: ['a.webp'] } }));
+  const s = Storage.load(be, 'k');
+  assert.strictEqual(s.daily.lastGiftDay, '', '旧档补 daily 默认');
+  assert.deepStrictEqual(s.gallery.unlocked, ['a.webp'], '旧档 gallery 保留');
 }
 // --- 写读闭环 ---
 {
@@ -33,10 +42,10 @@ function memBackend() {
   const be = memBackend();
   be.set('k', '{broken json');
   const s = Storage.load(be, 'k');
-  assert.strictEqual(s.v, 1, '坏档回默认');
+  assert.strictEqual(s.v, Storage.SAVE_V, '坏档回默认');
   be.set('k', JSON.stringify({ v: 0, stats: { apples: 7 } }));
   const s2 = Storage.load(be, 'k');
-  assert.strictEqual(s2.v, 1, '旧版本升到当前');
+  assert.strictEqual(s2.v, Storage.SAVE_V, '旧版本升到当前');
   assert.strictEqual(s2.stats.apples, 7, '已有字段保留');
   assert(Array.isArray(s2.ach.unlocked), '缺失字段补默认');
 }

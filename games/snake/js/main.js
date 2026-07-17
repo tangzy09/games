@@ -209,9 +209,13 @@ function renderGalSet(i) {
 function openLightbox(file) {
   const lb = document.getElementById('lightbox');
   lb.innerHTML = `<img src="assets/angels/${file}" alt="">
-    <button id="lb-replay" type="button">${T('gal.replay')}</button>`;
+    <div class="lb-actions">
+      <button id="lb-wall" type="button">${T('gal.wallpaper')}</button>
+      <button id="lb-replay" type="button">${T('gal.replay')}</button>
+    </div>`;
   lb.classList.remove('hidden');
   lb.onclick = e => { if (e.target === lb || e.target.tagName === 'IMG') lb.classList.add('hidden'); };
+  document.getElementById('lb-wall').onclick = () => Gallery.saveWallpaper(file, PAL);
   document.getElementById('lb-replay').onclick = () => {
     lb.classList.add('hidden');
     document.getElementById('panel').classList.add('hidden');
@@ -300,6 +304,8 @@ function openHome() {
      <div class="home-title">Angel Snake</div>
      <div class="home-tag">${T('home.tag')}</div>
      <button class="home-play" id="home-play" type="button">${resuming ? T('home.resume') : T('home.play')}</button>
+     <button class="home-daily${dailyClaimable() ? ' ready' : ''}" id="home-daily" type="button">
+       🎁 ${dailyClaimable() ? T('daily.claim') : T('daily.streak', { n: (G.save.daily && G.save.daily.giftStreak) || 0 })}</button>
      <div class="home-menu">
        <button class="home-btn" id="home-ach" type="button"><span class="ico">🏅</span>${T('menu.achievements')}</button>
        <button class="home-btn" id="home-gal" type="button"><span class="ico">🖼️</span>${T('menu.gallery')}</button>
@@ -310,6 +316,7 @@ function openHome() {
   home.classList.remove('hidden');
   const $ = id => document.getElementById(id);
   $('home-play').onclick = () => { hideHome(); if (resuming) dispatch('RESUME'); };
+  $('home-daily').onclick = () => claimDaily();
   $('home-ach').onclick = () => openAchievements();      // 面板 DOM 在 #home 之后,自动叠其上;关闭回到主界面
   $('home-gal').onclick = () => openGallery();
   $('home-skin').onclick = () => openSkins();
@@ -332,6 +339,69 @@ function openHowTo() {
   };
   panel.classList.remove('hidden');
   if (G.phase === 'PLAYING') dispatch('PAUSE');
+}
+
+// ——每日天使礼物——(每天领一张未解锁的天使直接进图鉴 + 连续天数;Date 在 UI 层允许)
+function ymd(ms) { const d = new Date(ms); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function dailyClaimable() { return !!(G.save && G.save.daily && G.save.daily.lastGiftDay !== ymd(Date.now())); }
+// 按日期稳定选一张未解锁天使(同一天多次点给同一张,防刷)
+function dailyPickAngel() {
+  const got = new Set(G.save.gallery.unlocked);
+  const locked = (G.imgList || []).filter(f => !got.has(f));
+  if (!locked.length) return null;
+  const seed = [...ymd(Date.now())].reduce((h, c) => ((h * 31 + c.charCodeAt(0)) >>> 0), 7);
+  return locked[seed % locked.length];
+}
+function claimDaily() {
+  if (!dailyClaimable()) { openHome(); return; }
+  const d = G.save.daily, today = ymd(Date.now()), yst = ymd(Date.now() - 86400000);
+  d.giftStreak = (d.lastGiftDay === yst) ? d.giftStreak + 1 : 1;
+  d.lastGiftDay = today;
+  const angel = dailyPickAngel();
+  let newly = [];
+  if (angel) {
+    const setsBefore = G.save.stats.setsDone;
+    Gallery.recordUnlock(G.save, angel);
+    Gallery.updateSetsDone(G.save, G.manifest);
+    G.save.stats.distinctImgs = G.save.gallery.unlocked.length;
+    newly = Ach.checkCum(G.save).unlocked;
+    if (G.save.stats.setsDone > setsBefore) setTimeout(showSetComplete, 400);   // 每日礼物也可能集齐
+  }
+  persist();
+  Sfx.play('special'); Haptics.light();
+  if (newly.length) showAchToasts(newly);
+  showDailyGift(angel, d.giftStreak);
+}
+function showDailyGift(file, streak) {
+  const lb = document.getElementById('lightbox');
+  if (!lb) return;
+  const img = file ? `<img src="assets/angels/${file}" alt="">` : '';
+  lb.innerHTML = `<div class="daily-card">
+      <div class="daily-h">🎁 ${file ? T('daily.newAngel') : T('daily.allCollected')}</div>
+      ${img}
+      <div class="daily-streak">🔥 ${T('daily.streak', { n: streak })}</div>
+      <button id="daily-ok" type="button">${T('daily.ok')}</button>
+    </div>`;
+  lb.classList.remove('hidden');
+  lb.onclick = e => { if (e.target === lb) lb.classList.add('hidden'); };
+  const ok = document.getElementById('daily-ok');
+  if (ok) ok.onclick = () => {
+    lb.classList.add('hidden');
+    const home = document.getElementById('home');
+    if (home && !home.classList.contains('hidden')) openHome();   // 刷新主界面的礼物按钮状态
+  };
+}
+
+// 集齐一个 20 张主题集:居中大横幅庆祝(比成就 toast 更隆重)
+function showSetComplete() {
+  const host = document.getElementById('toasts');
+  if (!host) return;
+  Sfx.play('level'); Haptics.medium();
+  const el = document.createElement('div');
+  el.className = 'set-banner';
+  el.innerHTML = `<span class="sb-emo">🎉</span><span>${T('set.complete')}</span>`;
+  host.appendChild(el);
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 500); }, 2800);
 }
 
 // 解锁 toast:一次最多叠 3 条,2.6s 后淡出
@@ -411,8 +481,10 @@ function tick(nowMs, interval) {
     // 皮肤通关计数 + 图鉴解锁/集齐检测(sk_*/set_* 成就)——放 checkCum 之前当场触发
     const th = G.save.settings.theme || 'cloud';
     G.save.stats.skinClears[th] = (G.save.stats.skinClears[th] || 0) + 1;
+    const setsBefore = G.save.stats.setsDone;
     Gallery.recordUnlock(G.save, G.imgList[G.imgPos % G.imgList.length]);
     Gallery.updateSetsDone(G.save, G.manifest);
+    if (G.save.stats.setsDone > setsBefore) showSetComplete();   // 新集齐 → 隆重庆祝
     G.save.stats.distinctImgs = G.save.gallery.unlocked.length;   // img 族数「不同图」,重温不虚增
     const r1 = Ach.onLevelClear(G.tracker, G.save, nowMs, { aiRun });
     newly = r1.unlocked;

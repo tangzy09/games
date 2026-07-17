@@ -37,6 +37,14 @@
     "ai": "Stuck? Turn on <b>AI Play</b> 🤖 and let it play for you.",
     "avoid": "Just don't hit the <b>walls</b> or your own <b>tail</b>."
   },
+  "daily": {
+    "claim": "Daily gift",
+    "streak": "{n}-day streak 🔥",
+    "newAngel": "New angel unlocked!",
+    "allCollected": "All angels collected!",
+    "ok": "Lovely!"
+  },
+  "set": { "complete": "Set complete!" },
   "share": { "btn": "Share 📤" },
   "skins": {
     "title": "Skins",
@@ -51,6 +59,7 @@
     "title": "Gallery",
     "back": "← Back",
     "replay": "Replay",
+    "wallpaper": "Wallpaper 📱",
     "lockedTip": "Locked",
     "progress": "{cur}/{max}",
     "set1": "Starry", "set2": "Kittens", "set3": "Seasons", "set4": "Desserts", "set5": "Garden",

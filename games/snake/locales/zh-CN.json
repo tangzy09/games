@@ -37,6 +37,14 @@
     "ai": "卡住了？开<b>AI 代打</b>🤖 让它替你玩。",
     "avoid": "别撞<b>墙</b>，也别咬到自己的<b>身体</b>。"
   },
+  "daily": {
+    "claim": "每日礼物",
+    "streak": "连续 {n} 天 🔥",
+    "newAngel": "解锁新天使！",
+    "allCollected": "天使已全部收齐！",
+    "ok": "好耶！"
+  },
+  "set": { "complete": "主题集集齐！" },
   "share": { "btn": "分享 📤" },
   "skins": {
     "title": "皮肤",
@@ -51,6 +59,7 @@
     "title": "图鉴",
     "back": "← 返回",
     "replay": "重温",
+    "wallpaper": "存为壁纸 📱",
     "lockedTip": "未解锁",
     "progress": "{cur}/{max}",
     "set1": "星空集", "set2": "猫咪集", "set3": "四季集", "set4": "甜点集", "set5": "花园集",

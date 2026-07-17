@@ -34,5 +34,42 @@ async function shareCard(img, score, pal, texts) {
   return 'downloaded';
 }
 
-const Gallery = { recordUnlock, setProgress, updateSetsDone, shareCard };
+// 存为手机壁纸:1080×1920 竖版,粉彩渐变底 + 居中天使(圆角)+ 柔光。Web Share 优先,降级下载。
+async function saveWallpaper(file, pal) {
+  const img = await new Promise((res, rej) => {
+    const im = new Image(); im.onload = () => res(im); im.onerror = rej;
+    im.src = 'assets/angels/' + file;
+  }).catch(() => null);
+  const W = 1080, H = 1920;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d');
+  const g = x.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, pal.cloud || '#f3e0ef'); g.addColorStop(1, pal.bg || '#fdf3f7');
+  x.fillStyle = g; x.fillRect(0, 0, W, H);
+  const s = 900, sx = (W - s) / 2, sy = (H - s) / 2 - 60;
+  // 柔光
+  const glow = x.createRadialGradient(W / 2, sy + s / 2, s * 0.2, W / 2, sy + s / 2, s * 0.8);
+  glow.addColorStop(0, (pal.glow || '#fff59d') + '88'); glow.addColorStop(1, 'rgba(255,255,255,0)');
+  x.fillStyle = glow; x.fillRect(0, sy - 60, W, s + 200);
+  if (img) {
+    const r = 56;
+    x.save();
+    x.beginPath();
+    x.moveTo(sx + r, sy); x.arcTo(sx + s, sy, sx + s, sy + s, r); x.arcTo(sx + s, sy + s, sx, sy + s, r);
+    x.arcTo(sx, sy + s, sx, sy, r); x.arcTo(sx, sy, sx + s, sy, r); x.closePath(); x.clip();
+    x.drawImage(img, sx, sy, s, s);
+    x.restore();
+  }
+  const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+  const f = new File([blob], 'angel-wallpaper.png', { type: 'image/png' });
+  if (navigator.share && navigator.canShare && navigator.canShare({ files: [f] })) {
+    try { await navigator.share({ files: [f] }); return 'shared'; } catch (e) {}
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'angel-wallpaper.png';
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  return 'downloaded';
+}
+
+const Gallery = { recordUnlock, setProgress, updateSetsDone, shareCard, saveWallpaper };
 if (typeof module !== 'undefined' && module.exports) module.exports = Gallery;
