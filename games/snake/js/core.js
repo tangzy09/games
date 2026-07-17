@@ -347,6 +347,7 @@ function die(s) {
 function revive(s) {
   s.dead = false;
   s.combo = s.comboBeforeDeath || 0;
+  s.dirQueue = [];   // 清死前排队的转向,避免复活后立刻执行不符预期的转向(与 respawn 对齐)
 }
 
 function respawn(s) {

@@ -204,7 +204,7 @@ function renderGalSet(i) {
   body.innerHTML = `<div class="gal-set" id="gal-back">${T('gal.back')}</div>
     <div class="gal-grid">` + set.images.map(f => {
       const un = got.has(f);
-      const st = stars[f] || 0;
+      const st = Math.max(0, Math.min(3, stars[f] || 0));   // 夹到 0-3,防篡改存档 repeat(负数) 崩溃
       const starRow = un ? `<span class="gal-stars">${'★'.repeat(st)}${'☆'.repeat(3 - st)}</span>` : '';
       return `<div class="gal-cell"><img loading="lazy" src="assets/angels/${f}"${un ? ` data-f="${f}"` : ' class="locked"'} alt="">${starRow}</div>`;
     }).join('') + `</div>`;
@@ -398,8 +398,12 @@ function dailyPickAngel() {
 }
 function claimDaily() {
   if (!dailyClaimable()) { openHome(); return; }
-  const d = G.save.daily, today = ymd(Date.now()), yst = ymd(Date.now() - 86400000);
-  d.giftStreak = (d.lastGiftDay === yst) ? d.giftStreak + 1 : 1;
+  const d = G.save.daily, today = ymd(Date.now());
+  // 相邻天 streak+1,断档回 1。用 Math.round 算日差:夏令时切换日是 23/25h,严格减 86400000ms
+  // 会误判(与 achievements.onLevelClear 的 streak 处理对齐)。
+  const prevMs = d.lastGiftDay ? new Date(d.lastGiftDay).getTime() : null;
+  const adjacent = prevMs != null && Math.round((new Date(today).getTime() - prevMs) / 86400000) === 1;
+  d.giftStreak = adjacent ? d.giftStreak + 1 : 1;
   d.lastGiftDay = today;
   const angel = dailyPickAngel();
   let newly = [];

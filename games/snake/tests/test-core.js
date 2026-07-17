@@ -219,3 +219,16 @@ console.log('OK test-core(revive)');
   assert.strictEqual(g.dirQueue.length, 0, '相对队尾反向被拒,不入队');
 }
 console.log('OK test-core(turn-buffer)');
+
+// --- revive 清空转向缓冲(与 respawn 对齐,防复活后执行死前排队的转向) ---
+{
+  const g = Core.createGame({ seed: 5 });
+  Core.step(g);
+  Core.setDir(g, 'up'); Core.setDir(g, 'left');
+  assert(g.dirQueue.length > 0, 'sanity: 有排队转向');
+  g.dead = true;
+  Core.revive(g);
+  assert.strictEqual(g.dirQueue.length, 0, 'revive 后 dirQueue 清空');
+  assert(!g.dead, 'revive 后可继续');
+}
+console.log('OK test-core(revive-queue)');
