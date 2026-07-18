@@ -356,6 +356,7 @@ function openHome() {
        <button id="home-lang" class="wide" type="button" title="${T('lang.toggle')}">🌐 ${I18N.NATIVE[I18N.lang] || I18N.lang}</button>
        <button id="home-sfx" type="button">${Sfx.on ? '🔊' : '🔇'}</button>
        <button id="home-motion" type="button" title="${T('home.motion')}">${G.reduceMotion ? '🍃' : '✨'}</button>
+       <button id="home-fb" type="button" title="Feedback">💬</button>
      </div>`;
   home.classList.remove('hidden');
   const $ = id => document.getElementById(id);
@@ -367,6 +368,7 @@ function openHome() {
   $('home-howto').onclick = () => openHowTo();
   $('home-sfx').onclick = () => { $('home-sfx').textContent = Sfx.toggle() ? '🔊' : '🔇'; };
   $('home-motion').onclick = () => { toggleMotion(); $('home-motion').textContent = G.reduceMotion ? '🍃' : '✨'; };
+  $('home-fb').onclick = () => { if (typeof Feedback !== 'undefined') Feedback.openForm(); };   // 意见反馈
   // 语言:主界面浮层盖住了顶栏的引擎语言下拉,这里补一个。10 语循环按钮太烂 → 弹菜单直选。
   $('home-lang').onclick = () => openLangMenu();
 }
@@ -598,6 +600,7 @@ async function boot() {
     G.save = Storage.load(Platform.storage, G.saveKey);
     G.reduceMotion = computeReduceMotion();   // 减弱动态:显式设置优先,否则跟随系统
     if (typeof preloadItems === 'function') preloadItems();   // 预载道具 sprite,防首次出现时 emoji 闪一下
+    if (typeof Feedback !== 'undefined') Feedback.flushQueue();   // 补发离线的反馈队列
     applyTheme(G.save.settings.theme);   // 主题不合法自动回 cloud
     Portal.boot();
     await Ads.init();

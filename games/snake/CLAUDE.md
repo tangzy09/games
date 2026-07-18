@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**Angel Snake / Snake Angel** —— 揭图收集贪吃蛇。走过的格子揭开底下的天使图,揭满换下一张,集 500 张。含 13 果子 / 120 成就 / 4 皮肤 / AI 代打 / 广告 / 每日天使 / 每关星级 / 奖励关 / 爽感 FX / 本机 Flux 道具美术。root `CLAUDE.md`(monorepo 引擎契约、部署铁律、git 纪律、iOS 流水线)先读,本文件只讲 snake 专属架构。
+**Angel Snake / Snake Angel** —— 揭图收集贪吃蛇。走过的格子揭开底下的天使图,揭满换下一张,集 500 张。含 13 果子 / 120 成就 / 4 皮肤 / AI 救场(看广告 30s) / 广告 / 每日天使 / 每关星级 / 奖励关 / 爽感 FX / 本机 Flux 道具美术 / **10 语 UI** / **意见反馈**。root `CLAUDE.md`(monorepo 引擎契约、部署铁律、git 纪律、iOS 流水线)先读,本文件只讲 snake 专属架构。
 
 ## 命令
 
@@ -11,7 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 for f in games/snake/tests/test-*.js; do node "$f" || break; done
 node games/snake/tests/test-ai.js        # 含 10 万步零死亡+必通关机器验证(0.5s)
 # E2E(先起 http):python -m http.server 8123 (仓库根) → 开 http://localhost:8123/games/snake/
-node games/snake/tests/e2e-p1.js         # playwright 无头:AI 整关通关+成就+存档+皮肤+广告全流程
+node games/snake/tests/e2e-p1.js         # playwright 无头:救场 AI 整关通关+成就+存档+皮肤+广告全流程
 node tools/check-locales.js games/snake/locales   # 0 fail
 # 素材/音效/图标重生成(改了才跑,产物入库):
 node games/snake/tools/pick-images.js --count 500 --seed 7   # 从 language-study 抽 500 图+分 25 集 manifest
@@ -37,9 +37,12 @@ node games/snake/tools/gen-items.cjs     # Flux schnell 生成 13 道具 → C:\
 3. **AI「保证通关」是硬承诺,test-ai 是它的守卫**:`ai.js` = 哈密顿闭合回路(必扫全盘)+ 安全捷径(前向距离不变式)+ 停滞保护(退回纯回路)+ BFS 追尾兜底。**改 core 的碰撞/移动/targetLen 或 ai 任何一行,必跑 test-ai**(5+3 种子 + 10 万步零死亡)。安全不变式:`snake.length ≤ targetLen`(targetLen 在 gainApple 封顶 `cols*rows-8`,防蛇填满棋盘必死)。
 4. **转向缓冲 `s.dirQueue`**(core.js):人手快速连拐缓冲≤2 个转向,`setDir` 按**队尾方向**校验反向(不是当前 `dir`,否则「上→左」的左会被误判自吃丢掉),`step` 每 tick 消费队首。`respawn`/`revive`/护盾强制转向都要**清空 dirQueue**;AI 代驾前 `run.dirQueue.length=0` 保证 AI 方向权威、当 tick 生效(main tick)。改了照样跑 test-ai。当局快照带 dirQueue,`restoreRun` 对旧档补 `[]`。
 
-## AI 代打的反刷规则(设计 §4,散落在 main/achievements)
+## AI 救场(已去掉「AI 代打」整关自动模式)
 
-开过 AI 的关整关按 AI 局算(`tracker.aiRun` 粘性,防临关秒切):得分减半 / 不判单局成就 / 不刷历史纪录(maxCombo/maxLen) / aiClears 单独计;但图鉴、计数类累计成就照常。「AI 救场 10s」(看广告)**不算 AI 局**——全分、只临时接管方向。
+- **「AI 代打」已移除**(2026-07):去了 AI_TOGGLE、`G.ai`、反刷降级逻辑(`aiRun` 恒 `false`)、开关按钮。**但 `ai.js`(哈密顿闭合回路)保留**——救场仍用,`test-ai` 仍是它的守卫,改 core 碰撞/移动照跑。
+- **AI 救场 30s**(看广告激励):`G.rescueUntil = nowMs + 30000`,tick 里 `if (rescue)` 让 `AI.nextMove` 代驾(先清 `dirQueue` 保方向权威)。救场按钮显示 `🤖 Ns` 倒计时。**算全分人工局**(不降级,正常解锁单局成就/纪录)。
+- **到期即停下**:`G.rescueWasActive` 标记;`nowMs >= rescueUntil` 那 tick → `phase='PAUSED'` 停在原地,玩家**滑动(→RESUME)才继续**。`enterReady` 重置 `rescueUntil`(不跨关)。
+- **E2E 通关靠救场**:去掉 AI_TOGGLE 后,`e2e-p1.js` 用「`rescueUntil=1e15` 让救场 AI 代驾到通关」验证全流程(不改机制、只借同一 AI 路径)。
 
 ## 存档(storage.js)—— 两个真实踩过的坑
 
@@ -61,12 +64,14 @@ node games/snake/tools/gen-items.cjs     # Flux schnell 生成 13 道具 → C:\
 - **爽感 FX**(render.js `FX`/`fx*`,纯前端墙钟,不进 core/存档):吃果/连击/护盾/接流星 → 粒子迸发 + `+分`/`×连击` 飘字 + 震屏;过关 `fxCelebrate` = 流光扫过成图 + 星光 + 棋盘回弹(`fxBoardTransform` 围绕棋盘中心 scale+shake,结算浮层延迟 0.8s)。main tick 按 `run.events` 在蛇头坐标触发。
 - **道具 sprite**(`itemSprite`/`preloadItems`,render.js):苹果+12 特殊果+流星的 emoji 换成本机 **Flux schnell** 生成的可爱贴纸(`assets/items/*.png`,256² 透明),sprite 优先、未加载回退 emoji/圆(零破坏)。管线 `tools/gen-items.cjs`(ComfyUI)+`cut-items.py`(transparent_background 抠图),改风格才重跑。
 - **每日天使**(`claimDaily`,main.js):每天领一张未解锁天使进图鉴(按日期稳定选、防刷)+ 连续天数 `daily.giftStreak`;主界面 🎁 可领时金色脉动。streak 相邻天判定用 `Math.round(日差)`(夏令时安全,同 achievements)。
-- **每关星级**(`gallery.stars{文件名:1-3}`,开放 map):★1 通关+★2 无死亡+★3 速通(<2min)或高连击(≥10),AI 局只给 1★(激励手动重玩)。结算浮层星级药丸(`drawOverlay` 的 `stars` 参)+ 图鉴缩略图下显星(渲染前 `st` 夹 0-3 防崩)。
+- **每关星级**(`gallery.stars{文件名:1-3}`,开放 map):★1 通关+★2 无死亡+★3 速通(<2min)或高连击(≥10)。结算浮层星级药丸(`drawOverlay` 的 `stars` 参)+ 图鉴缩略图下显星(渲染前 `st` 夹 0-3 防崩)。(注:去 AI 代打后 `aiRun` 恒 false,救场清关也算全星,原「AI 局只给 1★」已作废。)
 - **奖励关**(`G.bonusLevel`):`imgPos%10===9` 的关 2× 分(`scoreScale` 乘 2)+ 金色 HUD + 开局横幅。**不改盘面尺寸 → AI 保证不受影响**。
 - **收集进度里程碑**(`homeProgressHTML`):主界面显 `X/500` + 下一皮肤还差多少(`nextSkinHint` 读 themes unlock)。
 - **壁纸导出**(`Gallery.saveWallpaper`):图鉴 lightbox 一键存 1080×1920 竖版天使壁纸(粉彩渐变+柔光,Web Share 优先降级下载)。
 - **无障碍减弱动态**(`computeReduceMotion`/`G.reduceMotion`):跟随系统 `prefers-reduced-motion`,主界面 ✨/🍃 可覆盖;`fxBurst`/`fxShake`/庆祝缩放/星光按它门控(飘字/流光保留)。持久化坑见存档节。
 - **集齐庆祝**(`showSetComplete`)、奖励关横幅(`showBonusBanner`):`#toasts` 里的临时大横幅。
+- **10 语 UI**(`GAME_CONFIG.languages`=引擎十语默认集 zh-CN/en/es/hi/bn/pt-BR/ru/ja/pa/de):加语言=加 `locales/<code>.json`,零改逻辑。主界面 🌐 弹语言菜单(`openLangMenu`,10 语循环按钮太烂);顶栏引擎语言下拉被 `#home` 盖住,故主界面自带一个。App Store 语言栏(`CFBundleLocalizations`)由 codemagic **从 `GAME_CONFIG.languages` 动态注入**(自动映射 zh-Hans/pt-BR),不虚报。
+- **意见反馈**(`js/feedback-client.js`,drop-in):`FB_CONFIG.app="angel-snake"` → 共享 hub `feedback.ai-speeds.com/api/feedback`(EC2 systemd `feedback-hub`,面板 `/admin`,**后端零改**)。表单已粉彩重样式 + 接 snake 的 `T()`/`I18N.lang`(内置中英随语言切,其余回退英文)。主界面 💬 入口,boot `Feedback.flushQueue()` 补发离线队列;诊断静默附版本/平台/语言/`__lastError`。改后端要单独 `systemctl restart feedback-hub`(见 app-ratings-feedback skill)。
 
 ## 项目状态(上架)
 
@@ -74,4 +79,5 @@ node games/snake/tools/gen-items.cjs     # Flux schnell 生成 13 道具 → C:\
 - **ASC 有 1.0.1 草稿待出包送审**:39 语言商店页(en-US+zh-Hans 之外 37 语已灌,待 build)+ 本轮全部玩法/美术改良。**出包+提交要用户批准**(root CLAUDE.md 铁律)。ASO 39 语文档 `C:\tmp\snake\aso-39-keywords.md`。
 - AdMob(iOS):App ID `ca-app-pub-2141208066469648~2322595323`,激励 `/4457804077`、插屏 `/5188431812`(在 `index.html` GAME_CONFIG.adUnits + `codemagic.yaml` GAD_APP_ID)。**app-ads.txt 已在 `snake.ai-speeds.com` 根**(全 5 游戏同一份,见 root/admob skill)。
 - 网页版 + 隐私页:`https://snake.ai-speeds.com/`(EC2)。tag 里程碑:`snake-p1-playable` → `p2a-fruits` → `p2b-achievements` → `p2c-gallery` → `p3a-ads`。
-- 未做(候选):P3b 游戏门户铺量、Android 打包、BGM、i18n 补满界面 10 语(现 en+zh-CN)。
+- **界面已 10 语**(zh-CN/en/es/hi/bn/pt-BR/ru/ja/pa/de);**意见反馈已接生产 hub**。
+- 未做(候选):P3b 游戏门户铺量、Android 打包、BGM、评分弹窗(见 app-ratings-feedback skill,建议先攒反馈再上)。
