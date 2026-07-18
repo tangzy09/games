@@ -20,13 +20,18 @@ function assertTrue(condition, msg) {
 }
 
 // 导入要测试的模块
-let generate, DIFFICULTIES, MINE_FLAG;
+let generate, DIFFICULTIES, MINE_FLAG, reveal, flag, STATE_REVEALED, STATE_FLAGGED, GAME_STATES;
 
 try {
   const mod = require('../core.js');
   generate = mod.generate;
   DIFFICULTIES = mod.DIFFICULTIES;
   MINE_FLAG = mod.MINE_FLAG;
+  reveal = mod.reveal;
+  flag = mod.flag;
+  STATE_REVEALED = mod.STATE_REVEALED;
+  STATE_FLAGGED = mod.STATE_FLAGGED;
+  GAME_STATES = mod.GAME_STATES;
 } catch (e) {
   console.error('Failed to load core.js:', e.message);
   process.exit(1);
@@ -118,6 +123,110 @@ function test_expert_difficulty() {
   assertEqual(mineCount, 99, 'expert mine count must be exactly 99');
 }
 
+// 测试 7: 点到雷会失败
+function test_reveal_mine_loses() {
+  const board = generate('beginner', 12345);
+
+  // 找一个雷
+  let mineRow = 0, mineCol = 0, found = false;
+  for (let r = 0; r < board.rows; r++) {
+    for (let c = 0; c < board.cols; c++) {
+      if ((board.data[r * board.cols + c] & 0x0F) === MINE_FLAG) {
+        mineRow = r;
+        mineCol = c;
+        found = true;
+        break;
+      }
+    }
+    if (found) break;
+  }
+
+  assertTrue(found, 'should find a mine on board');
+
+  const result = reveal(board, mineRow, mineCol);
+  assertEqual(result.state, GAME_STATES.LOST, 'clicking mine should lose');
+  assertTrue(result.board.data[mineRow * board.cols + mineCol] & STATE_REVEALED,
+    'mine cell should be revealed');
+}
+
+// 测试 8: 打开空白区会递归扩展
+function test_reveal_empty_cell_cascades() {
+  const board = generate('beginner', 12345);
+
+  // 找一个数字为 0 的格子（空白区）
+  let emptyRow = 0, emptyCol = 0, found = false;
+  for (let r = 0; r < board.rows; r++) {
+    for (let c = 0; c < board.cols; c++) {
+      const idx = r * board.cols + c;
+      if ((board.data[idx] & 0x0F) !== MINE_FLAG && (board.data[idx] & 0x0F) === 0) {
+        emptyRow = r;
+        emptyCol = c;
+        found = true;
+        break;
+      }
+    }
+    if (found) break;
+  }
+
+  assertTrue(found, 'should find an empty cell on board');
+
+  const result = reveal(board, emptyRow, emptyCol);
+
+  // 验证被打开的格子数 > 1（递归效果）
+  let revealedCount = 0;
+  for (let i = 0; i < result.board.data.length; i++) {
+    if (result.board.data[i] & STATE_REVEALED) revealedCount++;
+  }
+
+  assertGreater(revealedCount, 1, 'clicking empty cell should cascade and reveal multiple cells');
+}
+
+// 测试 9: 标记格子
+function test_flag_cell() {
+  const board = generate('beginner', 12345);
+  const result = flag(board, 0, 0);
+
+  const idx = 0;
+  assertTrue(result.data[idx] & STATE_FLAGGED, 'cell should be flagged');
+  assertTrue(!(result.data[idx] & STATE_REVEALED), 'flagged cell should not be revealed');
+}
+
+// 测试 10: 再次标记时解标
+function test_unflag_cell() {
+  const board = generate('beginner', 12345);
+  let result = flag(board, 0, 0);
+  assertTrue(result.data[0] & STATE_FLAGGED, 'first flag should set flag');
+
+  result = flag(result, 0, 0);
+  assertTrue(!(result.data[0] & STATE_FLAGGED), 'second flag should unset flag');
+}
+
+// 测试 11: 通关条件 - 打开所有非雷格
+function test_win_condition() {
+  const board = generate('beginner', 99999);
+
+  // 打开所有非雷格
+  let currentBoard = board;
+  for (let r = 0; r < board.rows; r++) {
+    for (let c = 0; c < board.cols; c++) {
+      const idx = r * board.cols + c;
+      if ((currentBoard.data[idx] & 0x0F) !== MINE_FLAG &&
+          !(currentBoard.data[idx] & STATE_REVEALED)) {
+        const result = reveal(currentBoard, r, c);
+        if (result.state === GAME_STATES.LOST) {
+          // 不小心点到雷了，跳过本盘
+          return;
+        }
+        currentBoard = result.board;
+        if (result.state === GAME_STATES.WON) {
+          assertEqual(result.state, GAME_STATES.WON, 'should win when all non-mine cells opened');
+          return;
+        }
+      }
+    }
+  }
+}
+
 // 运行所有测试
 console.log('Running tests...');
 try {
@@ -139,7 +248,22 @@ try {
   test_expert_difficulty();
   console.log('✓ test_expert_difficulty');
 
-  console.log('\n✅ All 6 tests passed!');
+  test_reveal_mine_loses();
+  console.log('✓ test_reveal_mine_loses');
+
+  test_reveal_empty_cell_cascades();
+  console.log('✓ test_reveal_empty_cell_cascades');
+
+  test_flag_cell();
+  console.log('✓ test_flag_cell');
+
+  test_unflag_cell();
+  console.log('✓ test_unflag_cell');
+
+  test_win_condition();
+  console.log('✓ test_win_condition');
+
+  console.log('\n✅ All 11 tests passed!');
   process.exit(0);
 } catch (e) {
   console.error('\n❌ Test failed:');
