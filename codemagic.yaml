@@ -73,12 +73,19 @@ definitions:
         app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
         keychain add-certificates
         xcode-project use-profiles
-    - name: 递增构建号
+    - name: 版本号(marketing 从各游戏 package.json + 递增构建号)
       script: |
         set -e
+        # ⚠ marketing 版本(CFBundleShortVersionString)必须 == ASC 目标版本号,否则 build 挂不上那个版本。
+        # Capacitor 生成的工程该值恒 $(MARKETING_VERSION)=1.0 → 更新版必须显式设。用 plutil 直接写字面量
+        # (比 agvtool new-marketing-version 在 Cap 工程上可靠),从**各游戏自己的 package.json.version** 读
+        # (各游戏自控:上更新版就 bump 它到 1.0.1/1.1.0…;必须与 ASC 目标版本号一字不差)。
+        MKT=$(node -p "require('./$GAME_DIR/package.json').version")
         cd $GAME_DIR/ios/App
+        plutil -replace CFBundleShortVersionString -string "$MKT" App/Info.plist
         LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APP_ID" 2>/dev/null || echo 0)
         agvtool new-version -all $(($LATEST + 1))
+        echo "MARKETING_VERSION=$MKT  BUILD=$(($LATEST + 1))"
     - name: 打 IPA
       script: |
         set -e

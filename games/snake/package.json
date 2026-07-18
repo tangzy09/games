@@ -1,6 +1,6 @@
 {
   "name": "angel-snake",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Angel Snake — cute angel-gallery snake (iOS via Capacitor; web build assembled into www/).",
   "scripts": {
