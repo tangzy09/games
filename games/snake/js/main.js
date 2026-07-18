@@ -4,12 +4,11 @@
 var G = {
   phase: 'LOADING',        // LOADING | READY | PLAYING | PAUSED | DEAD | LEVEL_DONE
   run: null, cyc: null, aiMem: null,
-  ai: false,
   img: null, imgList: [], imgPos: 0,
   imgFull: false,          // LEVEL_DONE 时点图全屏欣赏中
   save: null, tracker: null, saveKey: null,   // P2b:存档 + 单局成就 tracker
   revivesThisLevel: 0,                        // P3a:复活广告位,每局(每张图)限 2 次
-  rescueUntil: 0,                             // P3a:AI 救场 10s(游戏时钟),期间 AI 代驾但仍算人工局
+  rescueUntil: 0, rescueWasActive: false,     // AI 救场 30s(游戏时钟)代驾;结束即停下等玩家滑动继续
 
   seed: (Date.now() % 2147483647),
 };
@@ -20,12 +19,6 @@ function dispatch(action) {
     case 'START':  if (G.phase === 'READY') { hideHome(); G.phase = 'PLAYING'; loopState.last = 0; } break;
     case 'PAUSE':  if (G.phase === 'PLAYING') G.phase = 'PAUSED'; break;
     case 'RESUME': if (G.phase === 'PAUSED') { hideHome(); G.phase = 'PLAYING'; loopState.last = 0; } break;
-    case 'AI_TOGGLE':
-      G.ai = !G.ai; G.aiMem = AI.createMem();
-      // AI 局标记粘性:本关一旦开过 AI,单局成就/纪录整关不判(设计 §4,防「AI 打完人工收尾」刷成就)
-      if (G.ai && G.tracker) G.tracker.aiRun = true;
-      persist();
-      break;
     case 'RESPAWN': {
       const rb = G.run.revealedCount;          // 重生落点揭格发生在 tick 外,单独入账
       Core.respawn(G.run);
@@ -51,11 +44,12 @@ function dispatch(action) {
       }
       break;
     case 'RESCUE':
-      // AI 救场 10s:看广告换短时代驾;不是 AI 局(全分、不碰 tracker.aiRun)
-      if (G.phase === 'PLAYING' && !G.ai && !(G.nowMs < G.rescueUntil)) {
+      // AI 救场 30s:看广告换短时代驾(全分,不算刷成就);到期即停下等玩家滑动继续。
+      if (G.phase === 'PLAYING' && !(G.nowMs < G.rescueUntil)) {
         Ads.showRewarded().then(ok => {
           if (ok && G.phase === 'PLAYING') {
-            G.rescueUntil = G.nowMs + 10000;
+            G.rescueUntil = (G.nowMs || 0) + 30000;
+            G.rescueWasActive = true;
             G.aiMem = AI.createMem();
             renderAll();
           }
@@ -68,7 +62,7 @@ function dispatch(action) {
       if (G.phase === 'LEVEL_DONE') {
         G.imgFull = false; G.phase = 'LOADING';
         G.save.stats.levelsSinceAd = (G.save.stats.levelsSinceAd || 0) + 1;
-        const wantAd = !G.ai && G.save.stats.levelsSinceAd >= 2;   // 每 2 关一插屏;AI 代打不弹(设计 §10)
+        const wantAd = G.save.stats.levelsSinceAd >= 2;   // 每 2 关一插屏
         (wantAd ? Ads.showInterstitial().then(() => { G.save.stats.levelsSinceAd = 0; persist(); })
                 : Promise.resolve()).finally(() => nextLevel());
       }
@@ -113,19 +107,19 @@ function enterReady(resumed) {
   G.revivesThisLevel = 0;
   loopState.last = 0;
   G.lastClearStars = 0;
+  G.rescueUntil = 0; G.rescueWasActive = false;   // 救场不跨关
   // 奖励关:每 10 张图一关(imgPos 末位=9),2× 分数。不改盘面尺寸 → AI 保证不受影响。
   G.bonusLevel = !!(G.imgList && G.imgList.length && (G.imgPos % 10 === 9));
   if (G.save) {
     if (!resumed) G.save.stats.levelsStarted++;
-    G.tracker = Ach.newTracker(loopState.gameMs || 0, G.ai);
+    G.tracker = Ach.newTracker(loopState.gameMs || 0, false);
     persist();
   }
   if (G.bonusLevel && !resumed) showBonusBanner();
-  if (G.ai) dispatch('START');
 }
 
 // 存档落盘:PLAYING/READY 时附带当局快照(续玩);不要每 tick 调——
-// 调用点:enterReady/死亡/过关/AI_TOGGLE/RESPAWN/切后台(visibilitychange hidden)。
+// 调用点:enterReady/死亡/过关/RESPAWN/切后台(visibilitychange hidden)。
 function persist() {
   if (!G.save || !G.saveKey) return;
   if (G.phase === 'PLAYING' || G.phase === 'READY')
@@ -396,7 +390,7 @@ function openHowTo() {
   document.getElementById('panel-title').textContent = T('howto.title');
   document.getElementById('panel-tabs').innerHTML = '';
   const rows = [['👼', 'reveal'], ['🍎', 'apple'], ['✨', 'fruit'],
-                ['🖼️', 'collect'], ['🤖', 'ai'], ['💥', 'avoid']];
+                ['🖼️', 'collect'], ['💥', 'avoid']];   // 去掉 AI 代打说明(功能已移除)
   // 特殊果说明:用道具 sprite 当图标(= 游戏里实际长相)+ 效果一句话
   const fruitOrder = ['heart', 'halo', 'cloud', 'scissors', 'magnet', 'meteor', 'feather', 'trail', 'gold', 'twin', 'demon', 'gift'];
   document.getElementById('panel-body').innerHTML =
@@ -531,12 +525,15 @@ function frame(ts) {
 function tick(nowMs, interval) {
   G.nowMs = nowMs;
   const run = G.run;
+  // 救场刚到期 → 停下(PAUSED),等玩家滑动才继续。本 tick 不推进,蛇停在原地。
+  if (G.rescueWasActive && nowMs >= G.rescueUntil) {
+    G.rescueWasActive = false; G.phase = 'PAUSED'; return;
+  }
   const before = { score: run.score, revealed: run.revealedCount };
-  // 救场期间 AI 代驾,但不是 AI 局:全分、不碰 tracker.aiRun;交还瞬间不改方向(AI 最后设的 dir 自然延续)
+  // 救场期间 AI 代驾(全分,不算刷成就);先清人手残留转向缓冲,再下 AI 指令(方向权威、当 tick 生效)
   const rescue = nowMs < G.rescueUntil;
-  // AI 代驾:先清人手残留的转向缓冲,再下 AI 指令(AI 的方向必须权威、当 tick 生效)
-  if (G.ai || rescue) { run.dirQueue.length = 0; Core.setDir(run, AI.nextMove(run, G.cyc, G.aiMem)); }
-  Core.step(run, { nowMs, scoreScale: (G.ai ? 0.5 : 1) * (G.bonusLevel ? 2 : 1) });   // 奖励关 2×
+  if (rescue) { G.rescueWasActive = true; run.dirQueue.length = 0; Core.setDir(run, AI.nextMove(run, G.cyc, G.aiMem)); }
+  Core.step(run, { nowMs, scoreScale: G.bonusLevel ? 2 : 1 });   // 奖励关 2×
   syncRevealDiff();
   // 事件驱动:音效与成就统一消费 run.events(取代散落 flag 判定)
   const ev = run.events || [];
@@ -559,7 +556,7 @@ function tick(nowMs, interval) {
   if (ev.some(e => e.t === 'meteorCatch')) { fxBurst(h.x, h.y, PAL.glow, 16, 1.6); fxShake(6); Haptics.light(); }
   const milestonePlayed = ev.some(e => e.t === 'milestone') && !run.levelJustDone;
   if (milestonePlayed) { Sfx.play('milestone'); fxShake(4); Haptics.light(); }
-  const aiRun = G.ai || !!(G.tracker && G.tracker.aiRun);   // 粘性:本关开过 AI 即整关按 AI 局算
+  const aiRun = false;   // 已去掉 AI 代打;救场是全分人工局,一律不按 AI 局降级
   G.tracker.scoreGained += scoreDelta;   // onStep 不处理 scoreGained(签名无 ctx),接线方负责
   Ach.onStep(G.tracker, run, ev, nowMs);
   Ach.accumulate(G.save, run, ev, { aiRun, scoreDelta, revealDelta, dtMs: interval });
@@ -647,7 +644,7 @@ async function boot() {
         if (panel && !panel.classList.contains('hidden')) return;
         if (G.phase === 'READY') dispatch('START');
         else if (G.phase === 'PAUSED') dispatch('RESUME');
-        if (!G.ai && G.phase === 'PLAYING') Core.setDir(G.run, d);
+        if (G.phase === 'PLAYING') Core.setDir(G.run, d);
       },
       canSwipe: () => G.phase === 'PLAYING' || G.phase === 'READY' || G.phase === 'PAUSED',
     });

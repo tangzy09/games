@@ -10,7 +10,7 @@ const IS_TOUCH = typeof navigator !== 'undefined' && (navigator.maxTouchPoints >
 let PAL = THEMES.cloud.pal;
 function applyThemePal(key) { PAL = (THEMES[key] || THEMES.cloud).pal; }
 
-const Layout = { bx:0, by:0, bsize:0, cell:0, btnAI:null, btnRescue:null, btnPause:null };
+const Layout = { bx:0, by:0, bsize:0, cell:0, btnRescue:null, btnPause:null };
 let bgLayer = null, maskLayer = null, layerPx = 0;
 
 function layoutBoard() {
@@ -21,9 +21,7 @@ function layoutBoard() {
   Layout.bx = Math.floor((SW - size) / 2);
   Layout.by = safeTop + hudH;
   const byy = Layout.by + size + 14;
-  const half = (size - 10) / 2;                                  // AI 开关 | AI 救场 两键半宽
-  Layout.btnAI     = { x: Layout.bx, y: byy, w: half, h: 52 };
-  Layout.btnRescue = { x: Layout.bx + half + 10, y: byy, w: half, h: 52 };
+  Layout.btnRescue = { x: Layout.bx, y: byy, w: size, h: 52 };   // AI 救场:整宽(已去掉 AI 代打)
   Layout.btnPause  = { x: Layout.bx + size - 40, y: safeTop + 8, w: 40, h: 36 };
 }
 
@@ -379,19 +377,17 @@ function drawSnake() {
 }
 
 function drawButtons() {
-  const a = Layout.btnAI;
-  fillRR(a.x, a.y, a.w, a.h, 14, G.ai ? PAL.btnOn : PAL.accent);
-  txt(`${T('snake.ai')} · ${G.ai ? T('snake.on') : T('snake.off')}`, a.x + a.w / 2, a.y + a.h / 2, '#fff', 'bold 14px sans-serif');
-  addHit(a.x, a.y, a.w, a.h, 'AI_TOGGLE', {});
-  // AI 救场 10s(rewarded):AI 模式开启或救场进行中时画灰不可点(不加 hit)
+  // AI 救场 30s(rewarded):进行中画灰 + 显示倒计时,不可再点(不加 hit)
   const r = Layout.btnRescue;
   const rescueActive = (G.nowMs || 0) < G.rescueUntil;
-  const disabled = G.ai || rescueActive;
-  ctx.globalAlpha = disabled ? 0.45 : 1;
-  fillRR(r.x, r.y, r.w, r.h, 14, PAL.bar);
-  txt(T('ads.rescue'), r.x + r.w / 2, r.y + r.h / 2, PAL.text, 'bold 14px sans-serif');
+  ctx.globalAlpha = rescueActive ? 0.5 : 1;
+  fillRR(r.x, r.y, r.w, r.h, 14, rescueActive ? PAL.accent : PAL.bar);
+  const label = rescueActive
+    ? '🤖 ' + Math.ceil((G.rescueUntil - (G.nowMs || 0)) / 1000) + 's'   // 代驾中:倒计时
+    : T('ads.rescue');
+  txt(label, r.x + r.w / 2, r.y + r.h / 2, rescueActive ? '#fff' : PAL.text, 'bold 15px sans-serif');
   ctx.globalAlpha = 1;
-  if (!disabled) addHit(r.x, r.y, r.w, r.h, 'RESCUE', {});
+  if (!rescueActive) addHit(r.x, r.y, r.w, r.h, 'RESCUE', {});
 }
 
 // 非模态提示条(READY 用):不遮盘面、无按钮,任何方向输入即开始

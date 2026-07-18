@@ -1,6 +1,14 @@
 {
-  "lang": { "name": "Español", "toggle": "Idioma" },
-  "ads": { "simWatch": "[Simulación de anuncio] ¿Ver un anuncio con recompensa?", "simInterstitial": "[Simulación de anuncio] Anuncio intersticial", "revive": "📺 Revivir (anuncio)", "rescue": "📺 IA 10s" },
+  "lang": {
+    "name": "Español",
+    "toggle": "Idioma"
+  },
+  "ads": {
+    "simWatch": "[Simulación de anuncio] ¿Ver un anuncio con recompensa?",
+    "simInterstitial": "[Simulación de anuncio] Anuncio intersticial",
+    "revive": "📺 Revivir (anuncio)",
+    "rescue": "📺 IA 30s"
+  },
   "snake": {
     "score": "Puntos",
     "hintStartTouch": "Desliza para empezar",
@@ -21,7 +29,11 @@
     "on": "SÍ",
     "off": "NO"
   },
-  "menu": { "achievements": "Logros", "gallery": "Galería", "skins": "Aspectos" },
+  "menu": {
+    "achievements": "Logros",
+    "gallery": "Galería",
+    "skins": "Aspectos"
+  },
   "home": {
     "title": "Inicio",
     "tag": "Revela el ángel oculto, celda a celda",
@@ -62,9 +74,15 @@
     "allCollected": "¡Todos los ángeles reunidos!",
     "ok": "¡Precioso!"
   },
-  "set": { "complete": "¡Colección completa!" },
-  "bonus": { "banner": "Nivel extra · ¡puntos dobles!" },
-  "share": { "btn": "Compartir 📤" },
+  "set": {
+    "complete": "¡Colección completa!"
+  },
+  "bonus": {
+    "banner": "Nivel extra · ¡puntos dobles!"
+  },
+  "share": {
+    "btn": "Compartir 📤"
+  },
   "skins": {
     "title": "Aspectos",
     "cloud": "Nube Pastel",
@@ -81,11 +99,31 @@
     "wallpaper": "Fondo 📱",
     "lockedTip": "Bloqueado",
     "progress": "{cur}/{max}",
-    "set1": "Estrellas", "set2": "Gatitos", "set3": "Estaciones", "set4": "Postres", "set5": "Jardín",
-    "set6": "Océano", "set7": "Música", "set8": "Viajes", "set9": "Comidas", "set10": "Escuela",
-    "set11": "Fiestas", "set12": "Bosque", "set13": "Días de lluvia", "set14": "Nieve de invierno", "set15": "Verano",
-    "set16": "Mariposas", "set17": "Deseos", "set18": "Té con amigos", "set19": "Nubes", "set20": "Luz de luna",
-    "set21": "Gemas", "set22": "Cuentos de hadas", "set23": "Banda de ángeles", "set24": "Sueños", "set25": "Luz sagrada"
+    "set1": "Estrellas",
+    "set2": "Gatitos",
+    "set3": "Estaciones",
+    "set4": "Postres",
+    "set5": "Jardín",
+    "set6": "Océano",
+    "set7": "Música",
+    "set8": "Viajes",
+    "set9": "Comidas",
+    "set10": "Escuela",
+    "set11": "Fiestas",
+    "set12": "Bosque",
+    "set13": "Días de lluvia",
+    "set14": "Nieve de invierno",
+    "set15": "Verano",
+    "set16": "Mariposas",
+    "set17": "Deseos",
+    "set18": "Té con amigos",
+    "set19": "Nubes",
+    "set20": "Luz de luna",
+    "set21": "Gemas",
+    "set22": "Cuentos de hadas",
+    "set23": "Banda de ángeles",
+    "set24": "Sueños",
+    "set25": "Luz sagrada"
   },
   "achui": {
     "title": "Logros",

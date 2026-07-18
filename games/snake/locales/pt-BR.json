@@ -1,6 +1,14 @@
 {
-  "lang": { "name": "Português", "toggle": "Idioma" },
-  "ads": { "simWatch": "[Simulação de anúncio] Assistir a um anúncio premiado?", "simInterstitial": "[Simulação de anúncio] Anúncio intersticial", "revive": "📺 Reviver (anúncio)", "rescue": "📺 IA 10s" },
+  "lang": {
+    "name": "Português",
+    "toggle": "Idioma"
+  },
+  "ads": {
+    "simWatch": "[Simulação de anúncio] Assistir a um anúncio premiado?",
+    "simInterstitial": "[Simulação de anúncio] Anúncio intersticial",
+    "revive": "📺 Reviver (anúncio)",
+    "rescue": "📺 IA 30s"
+  },
   "snake": {
     "score": "Pontos",
     "hintStartTouch": "Deslize para começar",
@@ -21,7 +29,11 @@
     "on": "LIGADO",
     "off": "DESLIGADO"
   },
-  "menu": { "achievements": "Conquistas", "gallery": "Galeria", "skins": "Skins" },
+  "menu": {
+    "achievements": "Conquistas",
+    "gallery": "Galeria",
+    "skins": "Skins"
+  },
   "home": {
     "title": "Início",
     "tag": "Revele o anjo escondido, uma casinha por vez",
@@ -62,9 +74,15 @@
     "allCollected": "Todos os anjos coletados!",
     "ok": "Que lindo!"
   },
-  "set": { "complete": "Coleção completa!" },
-  "bonus": { "banner": "Fase bônus · pontos em dobro!" },
-  "share": { "btn": "Compartilhar 📤" },
+  "set": {
+    "complete": "Coleção completa!"
+  },
+  "bonus": {
+    "banner": "Fase bônus · pontos em dobro!"
+  },
+  "share": {
+    "btn": "Compartilhar 📤"
+  },
   "skins": {
     "title": "Skins",
     "cloud": "Nuvem Pastel",
@@ -81,11 +99,31 @@
     "wallpaper": "Papel de parede 📱",
     "lockedTip": "Bloqueado",
     "progress": "{cur}/{max}",
-    "set1": "Estrelas", "set2": "Gatinhos", "set3": "Estações", "set4": "Sobremesas", "set5": "Jardim",
-    "set6": "Oceano", "set7": "Música", "set8": "Viagem", "set9": "Comidas", "set10": "Escola",
-    "set11": "Festas", "set12": "Floresta", "set13": "Dias de Chuva", "set14": "Neve de Inverno", "set15": "Verão",
-    "set16": "Borboletas", "set17": "Desejos", "set18": "Chá da Tarde", "set19": "Nuvens", "set20": "Luar",
-    "set21": "Gemas", "set22": "Contos de Fadas", "set23": "Banda dos Anjos", "set24": "Sonhos", "set25": "Luz Sagrada"
+    "set1": "Estrelas",
+    "set2": "Gatinhos",
+    "set3": "Estações",
+    "set4": "Sobremesas",
+    "set5": "Jardim",
+    "set6": "Oceano",
+    "set7": "Música",
+    "set8": "Viagem",
+    "set9": "Comidas",
+    "set10": "Escola",
+    "set11": "Festas",
+    "set12": "Floresta",
+    "set13": "Dias de Chuva",
+    "set14": "Neve de Inverno",
+    "set15": "Verão",
+    "set16": "Borboletas",
+    "set17": "Desejos",
+    "set18": "Chá da Tarde",
+    "set19": "Nuvens",
+    "set20": "Luar",
+    "set21": "Gemas",
+    "set22": "Contos de Fadas",
+    "set23": "Banda dos Anjos",
+    "set24": "Sonhos",
+    "set25": "Luz Sagrada"
   },
   "achui": {
     "title": "Conquistas",

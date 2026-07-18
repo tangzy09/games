@@ -1,6 +1,14 @@
 {
-  "lang": { "name": "Deutsch", "toggle": "Sprache" },
-  "ads": { "simWatch": "[Werbe-Simulation] Belohnungsvideo ansehen?", "simInterstitial": "[Werbe-Simulation] Interstitial-Werbung", "revive": "📺 Wiederbeleben (Werbung)", "rescue": "📺 KI 10s" },
+  "lang": {
+    "name": "Deutsch",
+    "toggle": "Sprache"
+  },
+  "ads": {
+    "simWatch": "[Werbe-Simulation] Belohnungsvideo ansehen?",
+    "simInterstitial": "[Werbe-Simulation] Interstitial-Werbung",
+    "revive": "📺 Wiederbeleben (Werbung)",
+    "rescue": "📺 KI 30s"
+  },
   "snake": {
     "score": "Punkte",
     "hintStartTouch": "Wischen zum Starten",
@@ -21,7 +29,11 @@
     "on": "AN",
     "off": "AUS"
   },
-  "menu": { "achievements": "Erfolge", "gallery": "Galerie", "skins": "Skins" },
+  "menu": {
+    "achievements": "Erfolge",
+    "gallery": "Galerie",
+    "skins": "Skins"
+  },
   "home": {
     "title": "Startseite",
     "tag": "Enthülle den verborgenen Engel, Feld für Feld",
@@ -62,9 +74,15 @@
     "allCollected": "Alle Engel gesammelt!",
     "ok": "Wunderbar!"
   },
-  "set": { "complete": "Set komplett!" },
-  "bonus": { "banner": "Bonuslevel · doppelte Punkte!" },
-  "share": { "btn": "Teilen 📤" },
+  "set": {
+    "complete": "Set komplett!"
+  },
+  "bonus": {
+    "banner": "Bonuslevel · doppelte Punkte!"
+  },
+  "share": {
+    "btn": "Teilen 📤"
+  },
   "skins": {
     "title": "Skins",
     "cloud": "Wolkenpastell",
@@ -81,11 +99,31 @@
     "wallpaper": "Hintergrund 📱",
     "lockedTip": "Gesperrt",
     "progress": "{cur}/{max}",
-    "set1": "Sternenklar", "set2": "Kätzchen", "set3": "Jahreszeiten", "set4": "Süßes", "set5": "Garten",
-    "set6": "Ozean", "set7": "Musik", "set8": "Reisen", "set9": "Speisen", "set10": "Schule",
-    "set11": "Feste", "set12": "Wald", "set13": "Regentage", "set14": "Winterschnee", "set15": "Sommer",
-    "set16": "Schmetterlinge", "set17": "Wünsche", "set18": "Teegesellschaft", "set19": "Wolken", "set20": "Mondlicht",
-    "set21": "Edelsteine", "set22": "Märchen", "set23": "Engelsband", "set24": "Träume", "set25": "Heiliges Licht"
+    "set1": "Sternenklar",
+    "set2": "Kätzchen",
+    "set3": "Jahreszeiten",
+    "set4": "Süßes",
+    "set5": "Garten",
+    "set6": "Ozean",
+    "set7": "Musik",
+    "set8": "Reisen",
+    "set9": "Speisen",
+    "set10": "Schule",
+    "set11": "Feste",
+    "set12": "Wald",
+    "set13": "Regentage",
+    "set14": "Winterschnee",
+    "set15": "Sommer",
+    "set16": "Schmetterlinge",
+    "set17": "Wünsche",
+    "set18": "Teegesellschaft",
+    "set19": "Wolken",
+    "set20": "Mondlicht",
+    "set21": "Edelsteine",
+    "set22": "Märchen",
+    "set23": "Engelsband",
+    "set24": "Träume",
+    "set25": "Heiliges Licht"
   },
   "achui": {
     "title": "Erfolge",

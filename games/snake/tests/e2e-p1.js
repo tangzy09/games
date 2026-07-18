@@ -1,4 +1,4 @@
-// games/snake/tests/e2e-p1.js — P1 无头 E2E:AI 代打整关通关验证
+// games/snake/tests/e2e-p1.js — P1 无头 E2E:救场 AI 整关通关 + 全流程验证
 // 用法:先起静态服务(仓库根)`python -m http.server 8123`,再跑
 //   node games/snake/tests/e2e-p1.js [baseUrl] [screenshotDir]
 // 默认 baseUrl=http://localhost:8123 screenshotDir=C:\tmp\snake
@@ -81,34 +81,28 @@ async function main() {
   const revLen = await page.evaluate(() => window.G.run.snake.length);
   assert(revLen >= lenAtDeath, `revive keeps snake length, not halved (${lenAtDeath} -> ${revLen})`);
 
-  // turn on AI to autoplay; respawn first if we died from no input
-  const phaseBeforeAi = await page.evaluate(() => window.G.phase);
-  if (phaseBeforeAi === 'DEAD') {
-    await page.evaluate(() => dispatch('RESPAWN'));
-  }
-  await page.evaluate(() => dispatch('AI_TOGGLE'));
-  const aiOn = await page.evaluate(() => window.G.ai);
-  assert(aiOn === true, 'AI_TOGGLE turned AI on');
-
+  // 已去掉「AI 代打」;用「救场 AI 一直代驾」通关(救场借用同一 AI 哈密顿路径)。
+  // rescueUntil 设极大值 → nowMs 永远够不到 → 救场不到期、不触发停下,AI 代驾到通关。
+  await page.evaluate(() => {
+    if (window.G.phase === 'DEAD') dispatch('RESPAWN');
+    if (window.G.phase === 'READY') dispatch('START');
+    window.G.rescueUntil = 1e15;
+  });
   const deathsAtAiStart = await page.evaluate(() => window.G.run.deaths);
   log(`deaths at AI start: ${deathsAtAiStart}`);
 
   const t0 = Date.now();
   let reachedLevelDone = false;
-  let deathsDuring = deathsAtAiStart;
   const timeoutMs = 240000;
   while (Date.now() - t0 < timeoutMs) {
     await page.waitForTimeout(1000);
-    const st = await page.evaluate(() => ({ phase: window.G.phase, deaths: window.G.run.deaths }));
-    deathsDuring = st.deaths;
-    if (st.phase === 'LEVEL_DONE') { reachedLevelDone = true; break; }
-    if (st.deaths !== deathsAtAiStart)
-      assert(false, `no deaths while AI autoplaying (was ${deathsAtAiStart}, now ${st.deaths})`);
+    const st = await page.evaluate(() => window.G.phase);
+    if (st === 'LEVEL_DONE') { reachedLevelDone = true; break; }
+    if (st === 'DEAD') await page.evaluate(() => { dispatch('RESPAWN'); window.G.rescueUntil = 1e15; });
   }
   const elapsedSec = ((Date.now() - t0) / 1000).toFixed(1);
-  assert(reachedLevelDone, `AI reached LEVEL_DONE within ${timeoutMs / 1000}s (took ${elapsedSec}s)`);
-  assert(deathsDuring === deathsAtAiStart, `deaths unchanged across AI clear run (${deathsAtAiStart} -> ${deathsDuring})`);
-  log(`AI cleared level in ${elapsedSec}s, deaths stayed at ${deathsDuring}`);
+  assert(reachedLevelDone, `rescue-AI reached LEVEL_DONE within ${timeoutMs / 1000}s (took ${elapsedSec}s)`);
+  log(`rescue-AI cleared level in ${elapsedSec}s`);
 
   // 果子系统集成:AI 通关一整关,特殊果必然刷过、且 AI 吃到过
   const fruitsProbe = await page.evaluate(() => ({
@@ -127,23 +121,24 @@ async function main() {
   assert(await page.evaluate(() => window.G.imgFull) === false, 'IMG_CLOSE restores overlay');
 
   await page.evaluate(() => dispatch('NEXT'));
-  // NEXT 先过 LOADING(防连点守卫)→ READY → AI 开着会自动 START 回 PLAYING——轮询等待
+  // NEXT 先过 LOADING(防连点守卫)→ READY(不再自动开跑)→ 到 READY 后手动 START
   let afterNext = null;
   for (let i = 0; i < 20; i++) {
     await page.waitForTimeout(250);
     afterNext = await page.evaluate(() => ({ phase: window.G.phase, level: window.G.run.level }));
+    if (afterNext.phase === 'READY') { await page.evaluate(() => dispatch('START')); afterNext.phase = 'PLAYING'; break; }
     if (afterNext.phase === 'PLAYING') break;
   }
-  assert(afterNext.phase === 'PLAYING', `phase back to PLAYING after NEXT (got ${afterNext.phase})`);
+  assert(afterNext.phase === 'PLAYING', `phase back to PLAYING after NEXT+START (got ${afterNext.phase})`);
   assert(afterNext.level === 2, `G.run.level === 2 after first NEXT (got ${afterNext.level})`);
 
-  // 成就:AI 通关也解锁图鉴类累计成就(img_1),但单局成就为零
+  // 成就:通关解锁图鉴类累计成就(img_1)+ 单局成就(已去掉 AI 代打反刷,救场算全分人工局)
   const achProbe = await page.evaluate(() => ({
     unlocked: window.G.save.ach.unlocked.slice(),
     runAchs: window.G.save.ach.unlocked.filter(id => id.startsWith('r_')).length,
   }));
   assert(achProbe.unlocked.includes('img_1'), `img_1 unlocked after first clear (got ${achProbe.unlocked.join(',')})`);
-  assert(achProbe.runAchs === 0, `AI run unlocks no per-level achievements (got ${achProbe.runAchs})`);
+  assert(achProbe.runAchs >= 1, `clear unlocks per-level achievements (got ${achProbe.runAchs})`);
   // 存档续玩:reload 后 stats 保留
   const applesBefore = await page.evaluate(() => window.G.save.stats.apples);
   await page.reload({ waitUntil: 'load' });
@@ -189,7 +184,7 @@ async function main() {
       : 'missing');
   assert(shareRes === 'downloaded', `shareCard falls back to download in headless (got ${shareRes})`);
 
-  // —— AI 救场 10s:reload 后 AI=off、tracker.aiRun=false 的人工局(P3a)——
+  // —— AI 救场 30s:tracker.aiRun=false 的全分人工局(救场借 AI 路径,不降级)——
   let rescueOk = false;
   for (let attempt = 0; attempt < 5 && !rescueOk; attempt++) {
     const ph = await page.evaluate(() => window.G.phase);
@@ -205,33 +200,36 @@ async function main() {
   await page.waitForTimeout(3000);
   const rescueProbe = await page.evaluate(() => ({
     pos: JSON.stringify(window.G.run.snake[0]) + '/' + window.G.run.revealedCount,
-    phase: window.G.phase, ai: window.G.ai, aiRun: window.G.tracker.aiRun,
+    phase: window.G.phase, aiRun: window.G.tracker.aiRun,
   }));
   assert(rescueProbe.pos !== posBefore && rescueProbe.phase === 'PLAYING',
     `snake alive & moving under rescue AI (${posBefore} -> ${rescueProbe.pos})`);
-  assert(rescueProbe.ai === false && rescueProbe.aiRun === false,
-    'rescue is NOT an AI run (G.ai=false, tracker.aiRun=false)');
+  assert(rescueProbe.aiRun === false, 'rescue is NOT an AI run (tracker.aiRun=false, 全分)');
 
-  // —— 插屏每 2 关:AI 清完第 2 关 → 关 AI → NEXT 触发插屏,计数归 0(P3a)——
-  await page.evaluate(() => { if (!window.G.ai) dispatch('AI_TOGGLE'); });   // AI 接管清完本关
+  // —— 插屏每 2 关:救场 AI 清完第 2 关 → 人工 NEXT 触发插屏,计数归 0 ——
+  await page.evaluate(() => {
+    if (window.G.phase === 'PAUSED') dispatch('RESUME');
+    if (window.G.phase === 'DEAD') dispatch('RESPAWN');
+    if (window.G.phase === 'READY') dispatch('START');
+    window.G.rescueUntil = 1e15;   // 救场 AI 代驾清完本关
+  });
   let done2 = false;
   const t2 = Date.now();
   while (Date.now() - t2 < 300000) {
     await page.waitForTimeout(1000);
     const st2 = await page.evaluate(() => window.G.phase);
     if (st2 === 'LEVEL_DONE') { done2 = true; break; }
-    // 救场到期→AI 接管间隙若恰逢死亡,复活它继续(AI 从死亡态不会自己爬起来)
-    if (st2 === 'DEAD') await page.evaluate(() => dispatch('RESPAWN'));
-    else if (st2 === 'READY') await page.evaluate(() => dispatch('START'));
+    if (st2 === 'DEAD') await page.evaluate(() => { dispatch('RESPAWN'); window.G.rescueUntil = 1e15; });
+    else if (st2 === 'READY' || st2 === 'PAUSED') await page.evaluate(() => { dispatch(window.G.phase === 'PAUSED' ? 'RESUME' : 'START'); window.G.rescueUntil = 1e15; });
   }
   if (!done2) {
-    const diag = await page.evaluate(() => ({ phase: window.G.phase, revealed: window.G.run.revealedCount, deaths: window.G.run.deaths, ai: window.G.ai }));
+    const diag = await page.evaluate(() => ({ phase: window.G.phase, revealed: window.G.run.revealedCount, deaths: window.G.run.deaths }));
     log('level-2 wait diag: ' + JSON.stringify(diag));
   }
-  assert(done2, 'AI cleared level 2 within 300s');
+  assert(done2, 'rescue-AI cleared level 2 within 300s');
   const sinceBefore = await page.evaluate(() => window.G.save.stats.levelsSinceAd);
   assert(sinceBefore === 1, `levelsSinceAd === 1 before second NEXT (got ${sinceBefore})`);
-  await page.evaluate(() => { dispatch('AI_TOGGLE'); dispatch('NEXT'); });   // 关 AI → 人工 NEXT → 插屏
+  await page.evaluate(() => dispatch('NEXT'));   // 人工 NEXT → 触发插屏
   await page.waitForTimeout(1500);
   const sinceAfter = await page.evaluate(() => window.G.save.stats.levelsSinceAd);
   assert(sinceAfter === 0, `interstitial shown and levelsSinceAd reset to 0 (got ${sinceAfter})`);

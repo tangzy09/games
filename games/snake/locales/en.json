@@ -1,6 +1,14 @@
 {
-  "lang": { "name": "English", "toggle": "Language" },
-  "ads": { "simWatch": "[Ad simulation] Watch a rewarded ad?", "simInterstitial": "[Ad simulation] Interstitial ad", "revive": "📺 Revive (ad)", "rescue": "📺 AI 10s" },
+  "lang": {
+    "name": "English",
+    "toggle": "Language"
+  },
+  "ads": {
+    "simWatch": "[Ad simulation] Watch a rewarded ad?",
+    "simInterstitial": "[Ad simulation] Interstitial ad",
+    "revive": "📺 Revive (ad)",
+    "rescue": "📺 AI 30s"
+  },
   "snake": {
     "score": "Score",
     "hintStartTouch": "Swipe to start",
@@ -21,7 +29,11 @@
     "on": "ON",
     "off": "OFF"
   },
-  "menu": { "achievements": "Achievements", "gallery": "Gallery", "skins": "Skins" },
+  "menu": {
+    "achievements": "Achievements",
+    "gallery": "Gallery",
+    "skins": "Skins"
+  },
   "home": {
     "title": "Home",
     "tag": "Reveal the hidden angel, one cell at a time",
@@ -62,9 +74,15 @@
     "allCollected": "All angels collected!",
     "ok": "Lovely!"
   },
-  "set": { "complete": "Set complete!" },
-  "bonus": { "banner": "Bonus level · double score!" },
-  "share": { "btn": "Share 📤" },
+  "set": {
+    "complete": "Set complete!"
+  },
+  "bonus": {
+    "banner": "Bonus level · double score!"
+  },
+  "share": {
+    "btn": "Share 📤"
+  },
   "skins": {
     "title": "Skins",
     "cloud": "Cloud Pastel",
@@ -81,11 +99,31 @@
     "wallpaper": "Wallpaper 📱",
     "lockedTip": "Locked",
     "progress": "{cur}/{max}",
-    "set1": "Starry", "set2": "Kittens", "set3": "Seasons", "set4": "Desserts", "set5": "Garden",
-    "set6": "Ocean", "set7": "Music", "set8": "Travel", "set9": "Foods", "set10": "School",
-    "set11": "Festivals", "set12": "Forest", "set13": "Rainy Days", "set14": "Winter Snow", "set15": "Summer",
-    "set16": "Butterflies", "set17": "Wishes", "set18": "Tea Party", "set19": "Clouds", "set20": "Moonlight",
-    "set21": "Gems", "set22": "Fairy Tales", "set23": "Angel Band", "set24": "Dreams", "set25": "Holy Light"
+    "set1": "Starry",
+    "set2": "Kittens",
+    "set3": "Seasons",
+    "set4": "Desserts",
+    "set5": "Garden",
+    "set6": "Ocean",
+    "set7": "Music",
+    "set8": "Travel",
+    "set9": "Foods",
+    "set10": "School",
+    "set11": "Festivals",
+    "set12": "Forest",
+    "set13": "Rainy Days",
+    "set14": "Winter Snow",
+    "set15": "Summer",
+    "set16": "Butterflies",
+    "set17": "Wishes",
+    "set18": "Tea Party",
+    "set19": "Clouds",
+    "set20": "Moonlight",
+    "set21": "Gems",
+    "set22": "Fairy Tales",
+    "set23": "Angel Band",
+    "set24": "Dreams",
+    "set25": "Holy Light"
   },
   "achui": {
     "title": "Achievements",
