@@ -166,3 +166,11 @@ body { background: #fdf3f7; }
 .howto-fruit img { width: 40px; height: 40px; flex: none; object-fit: contain; }
 .howto-fruit .tx { font: 500 13px/1.4 sans-serif; color: #7a5c72; }
 .howto-fruit .tx b { color: #d6336c; }
+
+/* 语言选择菜单(主界面 🌐 弹出,复用 #lightbox 容器) */
+.lang-card { background: #fff; border-radius: 20px; padding: 12px; width: min(80vw, 300px);
+  max-height: 76vh; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;
+  box-shadow: 0 16px 48px rgba(0,0,0,.28); }
+.lang-opt { border: 0; border-radius: 12px; padding: 13px 16px; text-align: center;
+  font: 700 16px sans-serif; color: #7a5c72; background: #f6d5e5; }
+.lang-opt.on { background: #e79cc2; color: #fff; }

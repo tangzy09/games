@@ -373,11 +373,21 @@ function openHome() {
   $('home-howto').onclick = () => openHowTo();
   $('home-sfx').onclick = () => { $('home-sfx').textContent = Sfx.toggle() ? '🔊' : '🔇'; };
   $('home-motion').onclick = () => { toggleMotion(); $('home-motion').textContent = G.reduceMotion ? '🍃' : '✨'; };
-  // 语言:主界面浮层盖住了顶栏的引擎语言下拉,这里补一个——循环切到下一个支持语言,切完重渲主界面
-  $('home-lang').onclick = () => {
-    const langs = I18N.SUPPORTED, i = langs.indexOf(I18N.lang);
-    I18N.setLang(langs[(i + 1) % langs.length]).then(() => openHome());
-  };
+  // 语言:主界面浮层盖住了顶栏的引擎语言下拉,这里补一个。10 语循环按钮太烂 → 弹菜单直选。
+  $('home-lang').onclick = () => openLangMenu();
+}
+// 语言选择菜单(每项显示该语言 native 名;点选即切并重渲主界面)
+function openLangMenu() {
+  const lb = document.getElementById('lightbox');
+  if (!lb) return;
+  lb.innerHTML = `<div class="lang-card">` + I18N.SUPPORTED.map(l =>
+    `<button class="lang-opt${l === I18N.lang ? ' on' : ''}" data-l="${l}" type="button">${I18N.NATIVE[l] || l}</button>`).join('') + `</div>`;
+  lb.classList.remove('hidden');
+  lb.onclick = e => { if (e.target === lb) lb.classList.add('hidden'); };
+  lb.querySelectorAll('.lang-opt').forEach(b => b.onclick = () => {
+    lb.classList.add('hidden');
+    I18N.setLang(b.dataset.l).then(() => openHome());   // 切完重渲主界面(新语言)
+  });
 }
 
 // ——玩法说明——(图文行,复用 #panel)

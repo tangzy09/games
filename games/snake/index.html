@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
 <title>Angel Snake</title>
-<link rel="stylesheet" href="../../engine/engine.css?v=10">
-<link rel="stylesheet" href="css/game.css?v=10">
+<link rel="stylesheet" href="../../engine/engine.css?v=11">
+<link rel="stylesheet" href="css/game.css?v=11">
 </head>
 <body>
 <canvas id="game-canvas"></canvas>
@@ -24,7 +24,8 @@
 <script>
   window.GAME_CONFIG = {
     id: 'snake',
-    languages: ['en', 'zh-CN'],   // P3 扩到 10 语
+    // 10 大语言(按母语人数,引擎默认集)。加语言=加 locales/<code>.json,零改逻辑。
+    languages: ['zh-CN', 'en', 'es', 'hi', 'bn', 'pt-BR', 'ru', 'ja', 'pa', 'de'],
     // Angel Snake 专属 AdMob 广告位(iOS;Android 上架时再补)——绝不复用他游戏 ID。
     // 引擎按「该平台有真值即关测试模式」自动切换;web 端不走这里(confirm 模拟)。
     adUnits: {
@@ -38,24 +39,24 @@
     },
   };
 </script>
-<script src="../../engine/config.js?v=10"></script>
-<script src="../../engine/platform.js?v=10"></script>
-<script src="../../engine/i18n.js?v=10"></script>
-<script src="../../engine/portal.js?v=10"></script>
-<script src="../../engine/ads.js?v=10"></script>
-<script src="../../engine/audio.js?v=10"></script>
-<script src="../../engine/canvas.js?v=10"></script>
-<script src="../../engine/input.js?v=10"></script>
-<script src="../../engine/controls.js?v=10"></script>
-<script src="../../engine/prng.js?v=10"></script>
-<script src="js/fruits.js?v=10"></script>
-<script src="js/core.js?v=10"></script>
-<script src="js/ai.js?v=10"></script>
-<script src="js/storage.js?v=10"></script>
-<script src="js/achievements.js?v=10"></script>
-<script src="js/themes.js?v=10"></script>
-<script src="js/gallery.js?v=10"></script>
-<script src="js/render.js?v=10"></script>
-<script src="js/main.js?v=10"></script>
+<script src="../../engine/config.js?v=11"></script>
+<script src="../../engine/platform.js?v=11"></script>
+<script src="../../engine/i18n.js?v=11"></script>
+<script src="../../engine/portal.js?v=11"></script>
+<script src="../../engine/ads.js?v=11"></script>
+<script src="../../engine/audio.js?v=11"></script>
+<script src="../../engine/canvas.js?v=11"></script>
+<script src="../../engine/input.js?v=11"></script>
+<script src="../../engine/controls.js?v=11"></script>
+<script src="../../engine/prng.js?v=11"></script>
+<script src="js/fruits.js?v=11"></script>
+<script src="js/core.js?v=11"></script>
+<script src="js/ai.js?v=11"></script>
+<script src="js/storage.js?v=11"></script>
+<script src="js/achievements.js?v=11"></script>
+<script src="js/themes.js?v=11"></script>
+<script src="js/gallery.js?v=11"></script>
+<script src="js/render.js?v=11"></script>
+<script src="js/main.js?v=11"></script>
 </body>
 </html>
