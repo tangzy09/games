@@ -38,7 +38,22 @@
     "fruit": "Grab <b>special fruits</b> for shields 💖, halos 😇 and other power-ups.",
     "collect": "Uncover the whole picture to clear the level and add it to your <b>Gallery</b> — collect all 500!",
     "ai": "Stuck? Turn on <b>AI Play</b> 🤖 and let it play for you.",
-    "avoid": "Just don't hit the <b>walls</b> or your own <b>tail</b>."
+    "avoid": "Just don't hit the <b>walls</b> or your own <b>tail</b>.",
+    "fruitsTitle": "Special fruits"
+  },
+  "fruitd": {
+    "heart": "<b>Shield</b> — survives one crash",
+    "halo": "<b>Halo</b> — pass through yourself for a bit",
+    "cloud": "<b>Slow cloud</b> — slows you down for a while",
+    "scissors": "<b>Angel scissors</b> — trims your tail shorter",
+    "magnet": "<b>Magnet</b> — fruits drift toward your head",
+    "meteor": "<b>Meteor</b> — streaks across, revealing a trail",
+    "feather": "<b>Rainbow feather</b> — reveals a 3×3 patch",
+    "trail": "<b>Holy trail</b> — leaves a wide reveal path as you move",
+    "gold": "<b>Golden apple</b> — big score + combo boost",
+    "twin": "<b>Twin star</b> — spawns two extra apples",
+    "demon": "<b>Imp</b> — speeds up and doubles your score",
+    "gift": "<b>Gift box</b> — a random surprise effect"
   },
   "daily": {
     "claim": "Daily gift",

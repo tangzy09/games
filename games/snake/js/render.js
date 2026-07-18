@@ -413,6 +413,10 @@ function drawOverlay(title, sub, btnLabel, action, showImg, extra, stars) {
   const ch = (showImg ? cw + 150 : 190) + (extra ? 58 : 0);
   const cx = (SW - cw) / 2, cy = (SH - ch) / 2;
   fillRR(cx, cy, cw, ch, 22, PAL.card);
+  // 返回主界面角标(暂停/死亡/过关任意浮层都能退回主菜单)
+  fillRR(cx + 10, cy + 10, 40, 40, 12, PAL.bar);
+  txt('🏠', cx + 30, cy + 31, PAL.text, '20px sans-serif');
+  addHit(cx + 10, cy + 10, 40, 40, 'HOME', {});
   txt(title, cx + cw / 2, cy + 34, PAL.text, 'bold 20px sans-serif');
   let by = cy + 64;
   if (showImg && G.img) {

@@ -83,6 +83,7 @@ function dispatch(action) {
       break;
     case 'IMG_FULL':  if (G.phase === 'LEVEL_DONE') G.imgFull = true; break;
     case 'IMG_CLOSE': G.imgFull = false; break;
+    case 'HOME': openHome(); break;   // 浮层角标返回主界面(主按钮按状态智能续继)
     default: break;
   }
   renderAll();
@@ -337,13 +338,18 @@ function openHome() {
   const home = document.getElementById('home');
   if (!home) return;
   if (G.phase === 'PLAYING') dispatch('PAUSE');       // 打开即暂停
-  const resuming = G.phase === 'PAUSED';
+  // 主按钮按当前状态智能续继(从任意状态回主界面再点都对):
+  // 暂停→继续 / 死亡→重新出发 / 过关→下一张 / 待机→只收起(滑动开始)
+  let playLabel = T('home.play'), playAct = null;
+  if (G.phase === 'PAUSED') { playLabel = T('home.resume'); playAct = 'RESUME'; }
+  else if (G.phase === 'DEAD') { playLabel = T('snake.respawn'); playAct = 'RESPAWN'; }
+  else if (G.phase === 'LEVEL_DONE') { playLabel = T('snake.next'); playAct = 'NEXT'; }
   home.innerHTML =
     `<img class="home-hero" src="assets/angels/${HERO_ANGEL}" alt="">
      <div class="home-title">Angel Snake</div>
      <div class="home-tag">${T('home.tag')}</div>
      ${homeProgressHTML()}
-     <button class="home-play" id="home-play" type="button">${resuming ? T('home.resume') : T('home.play')}</button>
+     <button class="home-play" id="home-play" type="button">${playLabel}</button>
      <button class="home-daily${dailyClaimable() ? ' ready' : ''}" id="home-daily" type="button">
        🎁 ${dailyClaimable() ? T('daily.claim') : T('daily.streak', { n: (G.save.daily && G.save.daily.giftStreak) || 0 })}</button>
      <div class="home-menu">
@@ -353,12 +359,13 @@ function openHome() {
        <button class="home-btn" id="home-howto" type="button"><span class="ico">❓</span>${T('howto.title')}</button>
      </div>
      <div class="home-foot">
+       <button id="home-lang" class="wide" type="button" title="${T('lang.toggle')}">🌐 ${I18N.NATIVE[I18N.lang] || I18N.lang}</button>
        <button id="home-sfx" type="button">${Sfx.on ? '🔊' : '🔇'}</button>
        <button id="home-motion" type="button" title="${T('home.motion')}">${G.reduceMotion ? '🍃' : '✨'}</button>
      </div>`;
   home.classList.remove('hidden');
   const $ = id => document.getElementById(id);
-  $('home-play').onclick = () => { hideHome(); if (resuming) dispatch('RESUME'); };
+  $('home-play').onclick = () => { hideHome(); if (playAct) dispatch(playAct); };
   $('home-daily').onclick = () => claimDaily();
   $('home-ach').onclick = () => openAchievements();      // 面板 DOM 在 #home 之后,自动叠其上;关闭回到主界面
   $('home-gal').onclick = () => openGallery();
@@ -366,6 +373,11 @@ function openHome() {
   $('home-howto').onclick = () => openHowTo();
   $('home-sfx').onclick = () => { $('home-sfx').textContent = Sfx.toggle() ? '🔊' : '🔇'; };
   $('home-motion').onclick = () => { toggleMotion(); $('home-motion').textContent = G.reduceMotion ? '🍃' : '✨'; };
+  // 语言:主界面浮层盖住了顶栏的引擎语言下拉,这里补一个——循环切到下一个支持语言,切完重渲主界面
+  $('home-lang').onclick = () => {
+    const langs = I18N.SUPPORTED, i = langs.indexOf(I18N.lang);
+    I18N.setLang(langs[(i + 1) % langs.length]).then(() => openHome());
+  };
 }
 
 // ——玩法说明——(图文行,复用 #panel)
@@ -375,8 +387,12 @@ function openHowTo() {
   document.getElementById('panel-tabs').innerHTML = '';
   const rows = [['👼', 'reveal'], ['🍎', 'apple'], ['✨', 'fruit'],
                 ['🖼️', 'collect'], ['🤖', 'ai'], ['💥', 'avoid']];
-  document.getElementById('panel-body').innerHTML = rows.map(
-    ([ic, k]) => `<div class="howto-row"><span class="ico">${ic}</span><span class="tx">${T('howto.' + k)}</span></div>`).join('');
+  // 特殊果说明:用道具 sprite 当图标(= 游戏里实际长相)+ 效果一句话
+  const fruitOrder = ['heart', 'halo', 'cloud', 'scissors', 'magnet', 'meteor', 'feather', 'trail', 'gold', 'twin', 'demon', 'gift'];
+  document.getElementById('panel-body').innerHTML =
+    rows.map(([ic, k]) => `<div class="howto-row"><span class="ico">${ic}</span><span class="tx">${T('howto.' + k)}</span></div>`).join('')
+    + `<div class="howto-sub">✨ ${T('howto.fruitsTitle')}</div>`
+    + fruitOrder.map(k => `<div class="howto-fruit"><img src="assets/items/${k}.png" alt=""><span class="tx">${T('fruitd.' + k)}</span></div>`).join('');
   document.getElementById('panel-close').onclick = () => {
     panel.classList.add('hidden');
     if (G.phase === 'PAUSED') renderAll();

@@ -154,3 +154,15 @@ body { background: #fdf3f7; }
 #home .hp-bar i { display: block; height: 100%; border-radius: 6px;
   background: linear-gradient(90deg, #f489b6, #e3629d); transition: width .4s; }
 #home .hp-skin { font: 600 12px sans-serif; color: #a85d7a; opacity: .85; }
+
+/* 主界面语言按钮(有文字,需自适应宽度) */
+#home .home-foot #home-lang.wide { width: auto; min-width: 42px; padding: 0 14px;
+  font: 700 13px sans-serif; display: inline-flex; align-items: center; gap: 4px; }
+
+/* 说明面板:特殊果小节 */
+.howto-sub { font: 800 15px sans-serif; color: #d6336c; margin: 14px 4px 6px; }
+.howto-fruit { display: flex; align-items: center; gap: 12px; padding: 7px 4px;
+  border-bottom: 1px solid #f6d5e5; }
+.howto-fruit img { width: 40px; height: 40px; flex: none; object-fit: contain; }
+.howto-fruit .tx { font: 500 13px/1.4 sans-serif; color: #7a5c72; }
+.howto-fruit .tx b { color: #d6336c; }
