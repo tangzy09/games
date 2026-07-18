@@ -76,7 +76,8 @@ node games/snake/tools/gen-items.cjs     # Flux schnell 生成 13 道具 → C:\
 ## 项目状态(上架)
 
 - **已上线 App Store**(`READY_FOR_SALE`)。ASC App「Snake Angel: Retro Arcade」Apple ID `6789757716`,bundle `com.aispeeds.angelsnake`。
-- **ASC 有 1.0.1 草稿待出包送审**:39 语言商店页(en-US+zh-Hans 之外 37 语已灌,待 build)+ 本轮全部玩法/美术改良。**出包+提交要用户批准**(root CLAUDE.md 铁律)。ASO 39 语文档 `C:\tmp\snake\aso-39-keywords.md`。
+- **1.0.1 已提交审核**(`WAITING_FOR_REVIEW`,2026-07-18):build#2(marketing 1.0.1)+ 39 语言商店页 + 10 语 UI(CFBundleLocalizations 自动注入)+ 本轮全部玩法/美术/反馈改良。releaseType=AFTER_APPROVAL(过审自动上架)。ASO 39 语文档 `C:\tmp\snake\aso-39-keywords.md`。
+  - **⚠ 出更新版必踩(已在共享 codemagic 修好)**:Capacitor 工程 marketing 版本恒 1.0,`agvtool new-version` 只动 build 号 → 更新版 build **挂不上** ASC 目标版本。修法:codemagic 版本步 `plutil -replace CFBundleShortVersionString = 各游戏 package.json.version`。**上更新版先 bump 该游戏 package.json 到目标版本号**(与 ASC 版本一字不差),否则挂不上。
 - AdMob(iOS):App ID `ca-app-pub-2141208066469648~2322595323`,激励 `/4457804077`、插屏 `/5188431812`(在 `index.html` GAME_CONFIG.adUnits + `codemagic.yaml` GAD_APP_ID)。**app-ads.txt 已在 `snake.ai-speeds.com` 根**(全 5 游戏同一份,见 root/admob skill)。
 - 网页版 + 隐私页:`https://snake.ai-speeds.com/`(EC2)。tag 里程碑:`snake-p1-playable` → `p2a-fruits` → `p2b-achievements` → `p2c-gallery` → `p3a-ads`。
 - **界面已 10 语**(zh-CN/en/es/hi/bn/pt-BR/ru/ja/pa/de);**意见反馈已接生产 hub**。
