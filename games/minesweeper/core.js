@@ -26,6 +26,15 @@ function generate(difficulty, seed) {
 
   const { cols, rows, mines } = cfg;
   const size = cols * rows;
+
+  // 防守检查：雷数不能超过盘面大小
+  if (mines >= size) {
+    throw new Error(`mines (${mines}) must be less than board size (${size})`);
+  }
+
+  // Uint8Array 数据格式：
+  // 低 4 bit (0x0F)：单元格内容（0-8 数字或 15 = 雷）
+  // 高 4 bit (0xF0)：状态标志，当前未用，预留给 reveal/flag 标志
   const data = new Uint8Array(size);
 
   // Step 1: 随机放置雷

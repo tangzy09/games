@@ -92,6 +92,32 @@ function test_all_difficulties() {
   }
 }
 
+// 测试 5: 异常处理 - 无效难度
+function test_invalid_difficulty() {
+  try {
+    generate('impossible', 12345);
+    throw new Error('Should have thrown an error');
+  } catch (e) {
+    assertTrue(e.message.includes('unknown difficulty'), 'invalid difficulty should throw');
+  }
+}
+
+// 测试 6: 最大难度 expert 的完整验证
+function test_expert_difficulty() {
+  const board = generate('expert', 54321);
+  const cfg = DIFFICULTIES.expert;
+
+  assertEqual(board.cols, 16, 'expert cols');
+  assertEqual(board.rows, 30, 'expert rows');
+  assertEqual(board.mines, 99, 'expert mines');
+
+  let mineCount = 0;
+  for (let i = 0; i < board.data.length; i++) {
+    if ((board.data[i] & 0x0F) === MINE_FLAG) mineCount++;
+  }
+  assertEqual(mineCount, 99, 'expert mine count must be exactly 99');
+}
+
 // 运行所有测试
 console.log('Running tests...');
 try {
@@ -107,7 +133,13 @@ try {
   test_all_difficulties();
   console.log('✓ test_all_difficulties');
 
-  console.log('\nAll tests passed! ✅');
+  test_invalid_difficulty();
+  console.log('✓ test_invalid_difficulty');
+
+  test_expert_difficulty();
+  console.log('✓ test_expert_difficulty');
+
+  console.log('\n✅ All 6 tests passed!');
   process.exit(0);
 } catch (e) {
   console.error('\n❌ Test failed:');
