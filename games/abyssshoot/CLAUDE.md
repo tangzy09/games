@@ -4,15 +4,17 @@
 
 **规格与计划是权威**：`DESIGN.md`（玩法规则，改核心前必查）、`docs/2026-07-10-p1-core-plan.md`（P1 逐任务 TDD 记录 + 蒙特卡洛调平衡结果）。
 
-## 当前状态（2026-07-12）
+## 当前状态（2026-07-22）
 
-**已提交 App Store 审核（`WAITING_FOR_REVIEW`）。** 线上 web：<https://fishshoot.ai-speeds.com>
+**v1.0 被 Apple 4.3(a) Design-Spam 拒审（2026-07-20），整改中。** 线上 web：<https://fishshoot.ai-speeds.com>
 
+- **拒审整改（2026-07-22，方法论见 `~/.claude/skills/avoiding-clone-spam-rejection`）**：改名「**Fish Cannon: Deep Sea Merge**」/「深海鱼炮：合成小鱼消除」；盘面/图鉴/HUD 数字全部换成 `Tiles.tierDisp`（Lv.1–Lv.17，内部数值与合并逻辑零改动）；index/privacy/capacitor/截图脚本全面去 "2048"/"Abyss"/「数字」措辞；**门禁 `tests/test-noclone.js` 挂在 `test:abyss` 里守着，勿删**。
+- **整改待办**：图标重生成（旧图标印 2/8/128 数字 = 克隆制服）→ 截图重拍（`01-codex` 第一张）→ ASC 元数据 PATCH → Resolution Center 回信 → ⛔ 出包重提交（须用户批准）。清单见 `docs/aso-appstore.md`。
 - **玩法**：五条核心规则（全部经玩家实战校正）+ 动画 + 9 音效 + 17 条深海鱼 + 🐟 鱼图鉴 + 存档续玩 + 最高分 + 🔨🔀↩ 三道具 + 金币经济 + 激励广告（复活/换金币/插屏）。
-- **iOS**：Bundle ID `com.aispeeds.fishshooter`；ASC「**2048 Shooter: Fish Merge**」Apple ID `6790052330`；AdMob App `ca-app-pub-2141208066469648~1063418775`（激励 `/5808478997`、插屏 `/7442527234`，**本游戏专属，绝不复用他游戏的**）。
-- **商店页**：en-US + zh-Hans 两套文案（`docs/store-copy.md` 是准确的实际值）+ 20 张截图（en/zh × iPhone 6.7" + iPad 12.9"）+ 免费 + 分级 4+ + 分类 GAMES/PUZZLE+CASUAL。三份问卷的答案见 `docs/asc-questionnaires.md`（通用答案已收编进全局 skill `appstore-listing/questionnaire-answers.md`）。
-- **⚠ 内部代号仍是 abyssshoot / Abyss Shooter，但面向用户的一切都不含 "Abyss"** —— 因为本账号已有上架的「2048 Abyss」，同名会撞 Apple 4.3(a)。原因与命名方案见 `docs/aso-appstore.md`，**别"优化"回去**。
-- **还没做**：等审核结果；过审后第一个更新版本补 T1+T2 全语言商店本地化（首版只做中英是有意的）；每日盘、成就、皮肤、Android。
+- **iOS**：Bundle ID `com.aispeeds.fishshooter`；ASC Apple ID `6790052330`；AdMob App `ca-app-pub-2141208066469648~1063418775`（激励 `/5808478997`、插屏 `/7442527234`，**本游戏专属，绝不复用他游戏的**）。
+- **商店页**：en-US + zh-Hans 两套文案（`docs/store-copy.md` 是准确的目标值）+ 截图（en/zh × iPhone 6.7" + iPad 12.9"）+ 免费 + 分级 9+ + 分类 GAMES/PUZZLE+CASUAL。三份问卷的答案见 `docs/asc-questionnaires.md`。
+- **⚠ 内部代号仍是 abyssshoot / Abyss Shooter，但面向用户的一切不含 "Abyss" 也不含 "2048"**——前者撞本账号已上架的「2048 Abyss」，后者是 4.3(a) 实拒教训。**别"优化"回去**。
+- **还没做**：过审后第一个更新版本补 T1+T2 全语言商店本地化（首版只做中英是有意的）；每日盘、成就、皮肤、Android。
 
 ## 验证（改 core/tiles/storage/codex/tools 后必跑）
 

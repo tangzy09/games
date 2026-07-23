@@ -1,79 +1,60 @@
-# App Store 上架资料（2048 Shooter: Fish Merge）
+# App Store 上架资料（Fish Cannon: Deep Sea Merge）
 
-> 建 ASC App 记录时照抄本文件。**内部代号仍叫 abyssshoot / Abyss Shooter**（目录、代码、文档），
-> 但**面向用户的一切都不含 "Abyss"** —— 原因见下方「⚠ 4.3 拒审风险」。
+> **内部代号仍叫 abyssshoot / Abyss Shooter**（目录、代码、文档），但**面向用户的一切不含 "Abyss"、不含 "2048"**——原因见下方拒审史。
 
-## 命名（已定，勿擅改）
+## 拒审史（本文件为什么长这样）
+
+- **v1.0 以「2048 Shooter: Fish Merge」送审 → 2026-07-20 被 4.3(a) Design-Spam 拒**（Submission `07dd567b-e50d-4a83-8705-2de122c53e8a`）。
+  当时 keywords 和审核备注是干净的，但**标题以 2048 开头 + 图标印数字方块 + 盘面印 2/4/…/2048** 就足够被判克隆。
+  完整方法论见 `~/.claude/skills/avoiding-clone-spam-rejection`；防回归门禁在 `tests/test-noclone.js`（挂在 `npm run test:abyss` 里）。
+- 更早（建记录阶段）已规避过一次：本账号已有上架的《2048 Abyss》（`com.aispeeds.abyss2048`，Apple ID `6788542655`），
+  所以 Bundle ID / 品牌从一开始就不含 "Abyss"。**这条切割继续保持。**
+
+## 命名（2026-07-22 整改后，勿回退）
 
 | 字段 | 值 | 说明 |
 |---|---|---|
-| **App Store 名** | `2048 Shooter: Fish Merge` | 24 / 30 字符 |
-| **副标题** | `Number blast: collect sea life` | 30 / 30 字符 |
-| **主屏图标名**（`capacitor.config.appName`） | `2048 Fish` | 9 字符，不会被截断 |
-| **Bundle ID** | `com.aispeeds.fishshooter` | |
-| **AdMob / ASC 数字 ID** | 见 `codemagic.yaml` 的 `GAD_APP_ID` / `APP_STORE_APP_ID` | 建完回填 |
+| **App Store 名** | `Fish Cannon: Deep Sea Merge` | 27 / 30 字符 |
+| **副标题** | `Blast & collect ocean life` | 26 / 30 字符 |
+| **中文名** | `深海鱼炮：合成小鱼消除` | effLen 22 / 30 |
+| **中文副标题** | `弹射连锁进化·海洋生物图鉴` | effLen ≈26 / 30 |
+| **主屏图标名**（`capacitor.config.appName`） | `Fish Cannon` | 11 字符 |
+| **Bundle ID** | `com.aispeeds.fishshooter` | 不变（本就不含 2048/abyss） |
+| **Apple ID** | `6790052330` | ASC 记录不变，改名走元数据 PATCH |
 
-## ⚠ 4.3 拒审风险（这是命名如此的**唯一原因**，别"优化"回去）
+## ASO 逻辑
 
-本账号**已有一个上架的海洋主题 2048**：**`2048 Abyss`**（`com.aispeeds.abyss2048`，Apple ID `6788542655`）。
-
-原本给本游戏配的是 `Abyss Shooter` / `com.aispeeds.abyssshooter` —— 同账号、同 "Abyss" 品牌、同海洋主题、同沾 2048、Bundle ID 只差一个词。**这正好长成 Apple 4.3(a) 最典型的拒审形态**（「同一个 app 的多个 Bundle ID / 重复应用」），审核员会认为是同一游戏的两个版本。
-
-**已做的切割**（务必保持）：
-- Bundle ID 改成 `com.aispeeds.fishshooter`（**不含 abyss**）
-- 商店名/主屏名**不含 Abyss**，改以「射击 + 鱼」立品牌
-- 图标已完全不同（本作是数字鱼砖 + 带尾焰的弹药，一眼是射击）
-- 视觉反差大：`2048 Abyss` 是浅蓝底 `#dff1ff`，本作是近黑深渊 `#04121f`
-- **机制本就不同**：那个是滑动合并的网格 2048，本作是**列式射击 + 连通块指数合并 + 鱼图鉴**
-
-## ASO 逻辑（为什么是这个名字）
-
-**单打「2048」没戏**——上万个 2048 克隆在抢这个大词。**能赢的是长尾**。
-`2048 Shooter: Fish Merge` 一口气吃下四个长尾：
+**单打大词没戏，能赢的是长尾**。`Fish Cannon: Deep Sea Merge` 一口气吃下：
 
 | 长尾搜索 | 命中 |
 |---|---|
-| `2048 shooter` | ✅ **精准、竞争小、意图强**（这是本作的品类原名） |
-| `2048 fish` | ✅ |
 | `fish merge` | ✅ |
-| `merge shooter` | ✅ |
+| `fish cannon` | ✅（品类里几乎无人占） |
+| `deep sea merge` / `sea merge` | ✅ |
+| `merge cannon` | ✅ |
 
-副标题 `Number blast: collect sea life` 再补 5 个名字里没有的词：**number / blast / collect / sea / life**。
+副标题再补 4 个名字里没有的词：**blast / collect / ocean / life**。
 
-## 关键词字段（100 字符上限，逗号分隔、**逗号后不留空格**）
+## 关键词字段（100 上限，逗号分隔、逗号后不留空格）
 
-⚠ **不要重复名字与副标题里已有的词**（Apple 已经索引了它们，重复是浪费额度）。
-已覆盖：`2048, shooter, fish, merge, number, blast, collect, sea, life`
+⚠ **不要重复名字与副标题里已有的词**（Apple 三处索引取并集，重复是浪费额度）。
+已覆盖：`fish, cannon, deep, sea, merge, blast, collect, ocean, life`
 
 ```
-ball,puzzle,block,ocean,aquarium,brain,casual,drop,cannon,evolve,marine,offline,arcade,tile,shark
+ball,puzzle,block,aquarium,brain,casual,drop,evolve,marine,offline,arcade,tile,shark,shooter,chain
 ```
-（97 / 100 字符）
+（98 / 100 字符。`shooter` 是品类词，放 keywords 安全；放标题才是克隆信号。）
 
-## 建 ASC App 记录（唯一手工步）
+中文关键词见 `store-copy.md`（中文区独立选词）。
 
-appstoreconnect.apple.com → Apps → **+** → 新建 App：
-- 平台：iOS
-- **名称**：`2048 Shooter: Fish Merge`
-- 主要语言：English (U.S.)
-- **Bundle ID**：`com.aispeeds.fishshooter`（需先在开发者门户注册）
-- SKU：`fishshooter`
+## 整改后的提交清单（按序）
 
-建完在「App 信息」页记下**数字 Apple ID** → 回填 `codemagic.yaml` 的 `APP_STORE_APP_ID`。
-
-## 分级 / 隐私（提交审核前要填）
-
-- **年龄分级**：9+（含**广告**；无暴力/成人内容）
-- **隐私政策 URL**：`https://fishshoot.ai-speeds.com/privacy.html` ⚠ **还没做，提交前必须补**
-- **隐私标签**：会通过 AdMob 收集「标识符（IDFA）」用于第三方广告 → 数据类型勾 *Identifiers*，用途 *Third-Party Advertising*
-- **广告**：ASC 的「App 含广告」勾选 = 是
-
-## 上架前必做清单
-
-- [ ] AdMob 建 app + 激励视频 + 插页式广告位 → 三个 ID 回填 `index.html` 的 `GAME_CONFIG.adUnits` 与 `codemagic.yaml` 的 `GAD_APP_ID`
-      ⚠ **绝不复用 minesweeper / snake / 2048 Abyss 的广告位 ID**（AdMob 会判作弊封号）
-- [ ] 开发者门户注册 Bundle ID `com.aispeeds.fishshooter`
-- [ ] ASC 建 App 记录 → 回填 `APP_STORE_APP_ID`
-- [ ] **写隐私政策页** `privacy.html`（抄 snake 的，改产品名与广告说明）
-- [ ] 商店截图（`appstore-listing` skill 有 Playwright 造景脚本）
-- [ ] Codemagic 触发 `abyss-ios-testflight` 构建
+- [x] 代码侧去指纹：盘面/图鉴/HUD 全走 `Tiles.tierDisp`（Lv.1–Lv.17），游戏内标题改 Fish Cannon/深海鱼炮
+- [x] `privacy.html` / `index.html` / `capacitor.config.json` 改名
+- [x] 商店文案全套重写（`store-copy.md`）
+- [ ] **图标重生成**（旧图标印着 2/8/128 数字方块 = 克隆制服；新图标：鱼 + 炮/水泡，**零数字**）→ `generating-app-icons` skill
+- [ ] 截图重拍重排（`01-codex` 第一张；`capture-shots.cjs` → `compose-shots.py`）
+- [ ] ASC 元数据 PATCH（en-US + zh-Hans 名称/副标题/关键词/描述/宣传文本；REJECTED 状态可直接 PATCH）
+- [ ] 截图上传替换
+- [ ] Resolution Center 回信（认表面误导 + 列改动清单 + 给 30 秒看到差异化的路径）
+- [ ] ⛔ 新构建 + 重新提交审核 —— **必须先经用户批准**

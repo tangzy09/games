@@ -92,7 +92,7 @@ function drawTileAt(px, py, cell, v, scale = 1, alpha = 1) {
   ctx.globalAlpha = alpha;
   fillRR(cx - size / 2, cy - size / 2, size, size, Math.round(size * 0.18), color);
 
-  const label = Tiles.fmt(v);
+  const label = Tiles.tierDisp(v);
   const fishId = Tiles.fishOf(v);
   const fa = fishArt();
   const im = (fishId && fa) ? fa.get(fishId) : null;
@@ -344,7 +344,7 @@ function renderAll() {
   txtL(`${T('abyss.score')} ${s.score}`, PAD, L.hudY + L.hudH / 2 - 8, PAL.text, 'bold 18px sans-serif');
   const bestScore = G.save ? G.save.best.score : 0;
   txtL(`${T('abyss.best')} ${bestScore}`, PAD, L.hudY + L.hudH / 2 + 12, '#6f9ab5', '12px sans-serif');
-  txtR(`${T('abyss.deepestShort')} ${s.maxTile ? Tiles.fmt(s.maxTile) : '—'}`,
+  txtR(`${T('abyss.deepestShort')} ${s.maxTile ? Tiles.tierDisp(s.maxTile) : '—'}`,
        SW - PAD, L.hudY + L.hudH / 2 - 8, PAL.text, '14px sans-serif');
   const coins = G.save ? G.save.coins : 0;
   txtR(`🪙 ${T('tools.coins')} ${coins}`, SW - PAD, L.hudY + L.hudH / 2 + 12, '#fcd34d', '12px sans-serif');
@@ -458,7 +458,7 @@ function renderAll() {
     drawDim(PAL.dim);
     txt(T('abyss.gameOver'), SW / 2, SH * 0.36, '#f87171', 'bold 28px sans-serif');
     txt(T('abyss.finalScore', { n: s.score }), SW / 2, SH * 0.44, PAL.text, 'bold 20px sans-serif');
-    txt(T('abyss.deepest', { v: Tiles.fmt(s.maxTile || 0) }), SW / 2, SH * 0.50, '#8ab6cd', '14px sans-serif');
+    txt(T('abyss.deepest', { v: s.maxTile ? Tiles.tierDisp(s.maxTile) : '—' }), SW / 2, SH * 0.50, '#8ab6cd', '14px sans-serif');
     if (G.newRecord)
       txt(T('abyss.newRecord'), SW / 2, SH * 0.545, '#fcd34d', 'bold 15px sans-serif');
     // 复活按钮画在「再次下潜」之上、更醒目(金色更大);没有复活次数时不占位,下潜按钮回落原位。

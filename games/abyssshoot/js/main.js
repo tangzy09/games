@@ -51,7 +51,7 @@ function openCodex() {
     <div class="cx-item${e.seen ? '' : ' locked'}">
       <img src="assets/fish/${e.fish}.webp" alt="" loading="lazy">
       <div class="cx-name">${e.seen ? T('fish.' + e.fish) : T('codex.locked')}</div>
-      <div class="cx-val">${e.seen ? Tiles.fmt(e.v) : '—'}</div>
+      <div class="cx-val">${e.seen ? Tiles.tierDisp(e.v) : '—'}</div>
       <div class="cx-count">${e.seen ? T('codex.seenCount', { n: e.count }) : ''}</div>
     </div>`).join('');
   document.getElementById('panel-close').onclick = () => panel.classList.add('hidden');

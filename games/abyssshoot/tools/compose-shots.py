@@ -23,16 +23,16 @@ FONT = r'C:\Windows\Fonts\msyhbd.ttc'
 
 CAPS = {
     'en': {
-        '01-gameplay': ('Shoot fish up.', 'Same numbers merge.'),
-        '02-chain':    ('Chain reactions.', 'Bigger clusters, bigger fish.'),
-        '03-codex':    ('Collect 17 sea creatures.', 'From clownfish to oarfish.'),
+        '02-gameplay': ('Shoot fish up.', 'Same fish merge and evolve.'),
+        '03-chain':    ('Chain reactions.', 'Bigger clusters, bigger fish.'),
+        '01-codex':    ('Collect 17 sea creatures.', 'From clownfish to oarfish.'),
         '04-tools':    ('Smash. Swap. Undo.', 'Save a board gone wrong.'),
         '05-deep':     ('Merge into the deep.', 'Sharks, whales, legends.'),
     },
     'zh': {
-        '01-gameplay': ('把鱼射上去', '同数合并，越合越大'),
-        '02-chain':    ('连锁爆发', '团越大，鱼越大'),
-        '03-codex':    ('收集 17 种深海生物', '从小丑鱼到皇带鱼'),
+        '02-gameplay': ('把鱼射上去', '同种合并，越合越大'),
+        '03-chain':    ('连锁爆发', '团越大，鱼越大'),
+        '01-codex':    ('收集 17 种深海生物', '从小丑鱼到皇带鱼'),
         '04-tools':    ('锤子 · 换列 · 撤销', '绝境也能翻盘'),
         '05-deep':     ('一路合进深渊', '鲨鱼、巨鲸、传说'),
     },

@@ -47,7 +47,7 @@ function serve() {
 // 盘面刻意摆得「好看且可信」:有大鱼、有层次、不空不满。
 const SCENES = [
   {
-    id: '01-gameplay',
+    id: '02-gameplay',
     setup: () => {
       dispatch('START', {}); G.noAnim = true;
       G.s.board = [
@@ -64,7 +64,7 @@ const SCENES = [
     },
   },
   {
-    id: '02-chain',
+    id: '03-chain',
     setup: () => {
       // ⚠ 不要试图定格在合并动画中途:easeOut 很凶(p=0.58 时缓动已走 93%),画面等于结果态;
       //   再往前定格又会出现半透明飞行残影,看着像渲染 bug。
@@ -85,7 +85,7 @@ const SCENES = [
     },
   },
   {
-    id: '03-codex',
+    id: '01-codex',
     setup: () => {
       dispatch('START', {}); G.noAnim = true;
       // 解锁前 11 档(留 6 档灰剪影吊胃口 —— 收集感的关键)

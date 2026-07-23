@@ -37,7 +37,13 @@ function fmt(v) {
   if (v >= 2 ** 20) return (v / 2 ** 20) + 'M';
   return String(v);
 }
+// 面向玩家的唯一数值显示。2 的幂(2/4/8/…/2048)是 2048 系克隆的视觉指纹,
+// Apple 4.3(a) 按它认克隆(2026-07-20 实拒)——玩家可见处一律走 tierDisp,禁用 fmt/原始值。
+function tierDisp(v) {
+  const t = tierOf(v);
+  return t < 0 ? 'Lv.?' : 'Lv.' + (t + 1);
+}
 
 // 双导出:node 走 module.exports;浏览器靠顶层 const Tiles 当全局(同一词法环境后续脚本可见,同 snake/fruits)
-const Tiles = { TILES, MAX_TILE_VALUE, tierOf, fishOf, fmt };
+const Tiles = { TILES, MAX_TILE_VALUE, tierOf, fishOf, fmt, tierDisp };
 if (typeof module !== 'undefined' && module.exports) module.exports = Tiles;

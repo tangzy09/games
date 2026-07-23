@@ -23,6 +23,12 @@ assert.strictEqual(Tiles.fmt(8192), '8192');
 assert.strictEqual(Tiles.fmt(1048576), '1M');
 assert.strictEqual(Tiles.fmt(2097152), '2M');
 
+// tierDisp: 玩家可见的唯一数值显示(Lv.N)——2 的幂是 4.3(a) 克隆指纹,不许露给玩家
+assert.strictEqual(Tiles.tierDisp(2), 'Lv.1');
+assert.strictEqual(Tiles.tierDisp(2048), 'Lv.11');
+assert.strictEqual(Tiles.tierDisp(131072), 'Lv.17');
+assert.strictEqual(Tiles.tierDisp(3), 'Lv.?', '非梯值不回落到原始数字');
+
 // MAX_TILE_VALUE = 最高档值
 assert.strictEqual(Tiles.MAX_TILE_VALUE, Tiles.TILES[Tiles.TILES.length - 1].v);
 
