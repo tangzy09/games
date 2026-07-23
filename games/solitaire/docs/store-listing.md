@@ -167,10 +167,23 @@ FAIR BY DESIGN
 
 1. **公平页**（落差表 + 「45% 其实还有解」）— 标题：`We publish the number no one else will`
 2. Klondike 牌桌 + 「✓ 有解 · 困难」角标 — `Every deal verified before you see it`
-3. **「这局还有解吗？」→「本局仍然存在解法」** — `A real solver. On your device. Free, forever.`
+3. **「这局还有解吗？」→「本局仍然存在解法」** — `A real solver. On your device.`（⚠ 别写 Free —— 2.3.7）
 4. FreeCell（微软局号）— `FreeCell with the original Microsoft deal numbers`
 5. 统计页（零撤销·零提示胜率）— `The win rate that actually means something`
 6. 收藏页（牌背/桌布）— `Collect card backs and tables`
+
+## ⛔ 2.3.7 实锤被拒（2026-07-22）：预览/截图里的「free」= 价格引用
+
+1.0 首审被拒，条款 **2.3.7 Accurate Metadata**：「app previews include references to the price…
+references to **free** or discounted services are considered a price reference」。
+**踩雷点全在素材里，不在文字字段**（name/subtitle/keywords 本来就没放价格词）：
+- 预览视频结尾卡 "are free. Forever." + 字幕 "we never charge you to find out"；
+- 游戏内公平页/收藏页的 "free here, forever" 被截图拍进去（截图也是元数据）。
+
+**修法（2026-07-22 已做）**：游戏内 `fairLostSub`/`freeForever`/`introB3` 与视频文案全部改成
+「never locked away / unlimited, always / 不设门槛」类措辞，重出截图+视频重传。
+⚠ **description 里说 free 是明确允许的**（Apple 拒审信原话：价格信息放描述）——描述不用动。
+⚠ 以后给本作写任何**素材上的字**（截图标语/视频字幕/结尾卡），先 grep 一遍 free/免费/无广告。
 
 ## ⚠ 4.3(a) spam 风险评估（中等偏高）—— 以及三道防线
 

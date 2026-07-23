@@ -77,7 +77,7 @@
 <div id="end">
   <h1>Solitaire</h1>
   <h2>Klondike &amp; FreeCell</h2>
-  <p>Undo, hints and the solver<br>are free. Forever.</p>
+  <p>Undo, hints and the solver —<br>always on your side.</p>
 </div>
 
 <script>
@@ -180,7 +180,7 @@ const T = [
     A('G.phase="PLAY"; const s=G.s; for(let r=0;r<13;r++)for(let f=0;f<4;f++)s.foundations[f].push(r*4+f); s.won=true; onWin(); renderAll();');
   }],
   [21.6, () => showCap('{g:45%} of the deals you lose are still winnable.') ],
-  [23.8, () => showCap('You just didn\'t find it. So we never charge you to find out.') ],
+  [23.8, () => showCap('You just didn\'t find it — and you {g:deserve to know} that.') ],
   [26.4, () => { showCap(''); endCard.style.display = 'block'; } ],
   [29.2, () => { window.__done = true; } ],
 ];
