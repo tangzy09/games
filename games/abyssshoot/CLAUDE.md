@@ -9,7 +9,7 @@
 **v1.0 被 Apple 4.3(a) Design-Spam 拒审（2026-07-20），整改中。** 线上 web：<https://fishshoot.ai-speeds.com>
 
 - **拒审整改（2026-07-22，方法论见 `~/.claude/skills/avoiding-clone-spam-rejection`）**：改名「**Fish Cannon: Deep Sea Merge**」/「深海鱼炮：合成小鱼消除」；盘面/图鉴/HUD 数字全部换成 `Tiles.tierDisp`（Lv.1–Lv.17，内部数值与合并逻辑零改动）；index/privacy/capacitor/截图脚本全面去 "2048"/"Abyss"/「数字」措辞；**门禁 `tests/test-noclone.js` 挂在 `test:abyss` 里守着，勿删**。
-- **整改待办**：图标重生成（旧图标印 2/8/128 数字 = 克隆制服）→ 截图重拍（`01-codex` 第一张）→ ASC 元数据 PATCH → Resolution Center 回信 → ⛔ 出包重提交（须用户批准）。清单见 `docs/aso-appstore.md`。
+- **整改待办**：~~图标重生成~~ ~~截图重拍~~（均已完成 2026-07-22）→ ASC 元数据 PATCH + 传图 → web 部署 → Resolution Center 回信 → ⛔ 出包重提交（须用户批准）。清单见 `docs/aso-appstore.md`。
 - **玩法**：五条核心规则（全部经玩家实战校正）+ 动画 + 9 音效 + 17 条深海鱼 + 🐟 鱼图鉴 + 存档续玩 + 最高分 + 🔨🔀↩ 三道具 + 金币经济 + 激励广告（复活/换金币/插屏）。
 - **iOS**：Bundle ID `com.aispeeds.fishshooter`；ASC Apple ID `6790052330`；AdMob App `ca-app-pub-2141208066469648~1063418775`（激励 `/5808478997`、插屏 `/7442527234`，**本游戏专属，绝不复用他游戏的**）。
 - **商店页**：en-US + zh-Hans 两套文案（`docs/store-copy.md` 是准确的目标值）+ 截图（en/zh × iPhone 6.7" + iPad 12.9"）+ 免费 + 分级 9+ + 分类 GAMES/PUZZLE+CASUAL。三份问卷的答案见 `docs/asc-questionnaires.md`。
