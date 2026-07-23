@@ -54,7 +54,8 @@ ball,puzzle,block,aquarium,brain,casual,drop,evolve,marine,offline,arcade,tile,s
 - [x] 商店文案全套重写（`store-copy.md`）
 - [x] **图标重生成**（2026-07-22 Gemini 三轮出图：炮→小丑鱼→双鱼合鲨，零数字；主图存 `C:\tmp\abyssshoot\icon-master.png`，squircle 60px 蒙版验过无白角）
 - [x] 截图重拍重排（`01-codex` 第一张；20 张已在 `C:\tmp\abyssshoot\shots-final\`）
-- [ ] ASC 元数据 PATCH（en-US + zh-Hans 名称/副标题/关键词/描述/宣传文本；REJECTED 状态可直接 PATCH）
-- [ ] 截图上传替换
-- [ ] Resolution Center 回信（认表面误导 + 列改动清单 + 给 30 秒看到差异化的路径）
-- [ ] ⛔ 新构建 + 重新提交审核 —— **必须先经用户批准**
+- [x] ASC 元数据 PATCH（en-US + zh-Hans 全套，2026-07-22 全 200 + 回读验证；新名未撞唯一性）
+- [x] 截图上传替换（4 套 × 5 张 COMPLETE；⚠ 传前注意清掉 `C:\tmp` 里旧命名的陈图，实踩混传过一次）
+- [x] Resolution Center 回信（`C:\tmp\abyssshoot\resolution-reply.txt`，用户 2026-07-22 已发）
+- [x] build 2 出包挂版（图标从构建产物 iconAssetToken 下载回来肉眼验证过是新图）
+- [x] 重新提交审核（用户批准后 2026-07-22 提交，submission `ee0ca222-a840-477d-9638-b82e46d43e25` → `WAITING_FOR_REVIEW`）
