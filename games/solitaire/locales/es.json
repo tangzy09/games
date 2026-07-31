@@ -159,6 +159,26 @@
     "gallery": "Galería de ángeles",
     "galleryProgress": "{n} / {m} conseguidos",
     "galleryHint": "Cada victoria desbloquea 1; las diarias, 3.",
-    "galleryAd": "Ver un anuncio · +3 ángeles"
+    "galleryAd": "Ver un anuncio · +3 ángeles",
+    "setDone": "¡Serie {k} completa! +{c} monedas",
+    "gallerySet": "Serie {k}",
+    "saveWall": "Guardar fondo",
+    "makeup": "Recupera el día de ayer",
+    "enterSeed": "Número de partida",
+    "enterSeedAsk": "Introduce un número de partida (FreeCell: 1-32000)",
+    "help": "Cómo jugar",
+    "help1": "Klondike: construye las cuatro bases del As al Rey por palo. En el tablero apila en orden descendente alternando colores; solo un Rey puede ocupar una columna vacía.",
+    "help2": "Robar 1 / Robar 3 define cuántas cartas salen del mazo: robar 1 es mucho más benévolo. Se fija al empezar la partida.",
+    "help3": "FreeCell: las 52 cartas están boca arriba. Cada celda libre guarda una carta. Puedes mover (celdas libres + 1) × 2^(columnas vacías) cartas a la vez; la insignia muestra el límite.",
+    "help4": "¿Atascado? Toca «¿Aún se puede ganar?»: un solucionador real comprueba tu posición exacta y responde con honestidad.",
+    "help5": "Deshacer, pistas y reiniciar son siempre gratis. Doble toque envía la carta a un buen destino; mantén pulsado Deshacer para retroceder rápido.",
+    "demo3": "Ver 3 jugadas",
+    "ach_angels50": "Reúne 50 ángeles",
+    "ach_angels150": "Reúne 150 ángeles",
+    "ach_angels300": "Reúne 300 ángeles",
+    "ach_angels500": "Reúne los 500 ángeles",
+    "ach_streak7d": "Juega la diaria 7 días seguidos",
+    "ach_streak30d": "Juega la diaria 30 días seguidos",
+    "ach_gold1": "Gana una medalla de oro mensual"
   }
 }

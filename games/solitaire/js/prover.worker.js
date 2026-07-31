@@ -33,11 +33,15 @@ const PROBE = 60000;            // 二分探测预算（要跑 log2(n) 次，单
  *   ⇒ 两套枚举**只在出口处映射一次**（win → solvable），中间一律用 Solver 的原生枚举。
  */
 function probe(seed, drawCount, moves, n, maxNodes, mode) {
+  const r = probeFull(seed, drawCount, moves, n, maxNodes, mode);
+  return r.result;
+}
+function probeFull(seed, drawCount, moves, n, maxNodes, mode) {
   const s = Core.replay(seed, drawCount, moves.slice(0, n), mode);
-  if (!s) return 'unknown';
-  if (s.won) return 'win';
+  if (!s) return { result: 'unknown', moves: [] };
+  if (s.won) return { result: 'win', moves: [] };
   // FreeCell 走 best-first、Klondike 走 DFS —— solve() 内部按 mode 分派
-  return Solver.solve(s, { maxNodes, bfNodes: Math.min(maxNodes, 120000) }).result;
+  return Solver.solve(s, { maxNodes, bfNodes: Math.min(maxNodes, 120000) });
 }
 
 self.onmessage = (e) => {
@@ -45,11 +49,17 @@ self.onmessage = (e) => {
   const t0 = Date.now();
 
   // ① 当前局面还有解吗？（大预算）
-  const now = probe(seed, drawCount, moves, moves.length, BUDGET, mode);
+  const full = probeFull(seed, drawCount, moves, moves.length, BUDGET, mode);
+  const now = full.result;
 
   if (now === 'win' || now === 'unknown') {
     // ⭐ 唯一的枚举映射点：Solver 的 'win' → UI 的 'solvable'
-    return self.postMessage({ result: now === 'win' ? 'solvable' : 'unknown', ms: Date.now() - t0 });
+    // solMoves：解法的头几步（「演 3 步」用）—— 只带一小段，别把几百步序列拷来拷去
+    return self.postMessage({
+      result: now === 'win' ? 'solvable' : 'unknown',
+      solMoves: now === 'win' ? (full.moves || []).slice(0, 12) : null,
+      ms: Date.now() - t0,
+    });
   }
 
   // ② 已证明当前是死局 ⇒ 二分找「最后一个还有解的步数」。

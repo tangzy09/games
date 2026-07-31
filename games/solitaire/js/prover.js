@@ -9,7 +9,7 @@
 
   let worker = null;
   // idle | proving | done
-  const st = { phase: 'idle', result: null, deadFrom: null, ms: 0, t0: 0 };
+  const st = { phase: 'idle', result: null, deadFrom: null, solMoves: null, ms: 0, t0: 0 };
 
   function ensure() {
     if (worker) return worker;
@@ -19,6 +19,7 @@
         st.phase = 'done';
         st.result = e.data.result;
         st.deadFrom = e.data.deadFrom != null ? e.data.deadFrom : null;
+        st.solMoves = e.data.solMoves || null;   // 「演 3 步」的弹药（解法头几步）
         st.ms = e.data.ms;
         if (root.Snd) root.Snd.verdict(st.result === 'solvable');
         if (root.renderAll) root.renderAll();
@@ -39,7 +40,7 @@
   }
 
   function reset() {
-    st.phase = 'idle'; st.result = null; st.deadFrom = null; st.ms = 0;
+    st.phase = 'idle'; st.result = null; st.deadFrom = null; st.solMoves = null; st.ms = 0;
   }
 
   /**

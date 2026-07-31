@@ -30,6 +30,7 @@ const G = window.G = {
   galPage: 0,              // 图鉴当前页
   galView: null,           // 图鉴大图查看中的索引（null=网格）
   shopTab: 'back',         // 收藏页当前签（back|table|fx —— 牌背 19 款后单页放不下了）
+  achPage: 0,              // 成就页当前页（18 项后单页放不下）
   // ⚠ 双口径（DESIGN §4.5）：无限撤销会把总胜率架空 ⇒ 不分开记，统计就是假的
   stats: { played: 0, won: 0, cleanWon: 0, streak: 0, bestStreak: 0 },
   dailyDone: '',           // 今天的每日挑战完成了没（YYYYMMDD）
@@ -236,10 +237,8 @@ function onWin() {
   if (s.mode === 'freecell') G.stats.fcWon = (G.stats.fcWon || 0) + 1;
   G.lastWinCoins = Money.earnWin(clean);         // 金币（只能换外观，换不到任何优势）
   G.winDoubled = false;
-  // 👼 天使图鉴：赢一局 +1，每日挑战赢局再 +2（501 张的长线收集）
-  const gain = 1 + (G.dailySeed === s.seed ? 2 : 0);
-  G.lastAngelGain = Math.min(gain, Math.max(0, Angels.total() - G.angels));
-  G.angels = Math.min(Angels.total() || 500, G.angels + gain);
+  // 👼 天使图鉴：赢一局 +1，每日挑战赢局再 +2（500 张的长线收集；集组奖励见 gainAngels）
+  G.lastAngelGain = gainAngels(1 + (G.dailySeed === s.seed ? 2 : 0));
   if (G.dailySeed === s.seed) {
     G.dailyDone = todayId();
     G.stats.dailyWon = (G.stats.dailyWon || 0) + 1;
@@ -419,11 +418,72 @@ function dispatch(action, data) {
     case 'GAL_AD': {
       Ads.showRewarded().then(got => {
         if (got) {
-          G.angels = Math.min(Angels.total() || 500, G.angels + 3);
+          gainAngels(3);
           saveOpts();
+          checkAchievements();
         }
         renderAll();
       });
+      break;
+    }
+    // 👼 大图存壁纸（snake 同款体验：Web Share 优先降级下载）
+    case 'GAL_WALL': {
+      if (G.galView != null && G.galView < G.angels) {
+        Angels.saveWallpaper(Angels.fileAt(G.galView)).catch(() => {});
+      }
+      break;
+    }
+    // 🔥 补签：昨天没来、连续天数正要断 ⇒ 看广告补上（打卡记录不是玩法优势，不踩红线）
+    case 'MAKEUP': {
+      if (!canMakeup()) break;
+      Ads.showRewarded().then(got => {
+        if (got) {
+          G.dailyHist[dayKeyAgo(1)] = 1;
+          saveOpts();
+          checkAchievements();
+          G.toast = { msg: '🔥 ' + T('sol.dailyStreak', { n: dailyStreakDays() }), until: Date.now() + 2200 };
+          setTimeout(renderAll, 2300);
+        }
+        renderAll();
+      });
+      break;
+    }
+    // #️⃣ 局号直输（FreeCell 有 30 年的局号文化；Klondike 用自家 seed）——与分享链接闭环
+    case 'ENTER_SEED': {
+      const fc = s.mode === 'freecell';
+      const v = parseInt(window.prompt(T('sol.enterSeedAsk')) || '', 10);
+      if (!isFinite(v) || v < 1 || (fc && v > 32000) || v > 4294967295) break;
+      G.s = Core.newGame(fc ? v : (v >>> 0), s.drawCount, s.mode);
+      G.dailySeed = null;
+      G.drag = G.sel = G.hintMove = null;
+      G.tAcc = 0; G.tLast = Date.now();
+      Prover.reset(); FX.reset(); clearRun();
+      G.phase = 'PLAY';
+      break;
+    }
+    case 'HELP': G.phase = 'HELP'; break;
+    case 'ACH_PG': G.achPage = Math.max(0, data && data.p != null ? data.p : 0); break;
+    // ▶ 演 3 步：prover 证明有解后，把解法的头 3 步慢速演给玩家看（强提示——演完整解=看戏）
+    case 'DEMO3': {
+      const mv = (Prover.st.solMoves || []).slice(0, 3);
+      if (!mv.length) break;
+      G.s.usedHint = true;                       // 演示 = 提示，零提示口径要留痕
+      G.s.usedSolver = true;
+      mv.forEach((m, i) => {
+        const before = snapshot(G.s);
+        if (!Core.apply(G.s, m)) return;
+        const orig = FX.slide;
+        FX.slide = (ids, x0, y0, x1, y1) => orig(ids, x0, y0, x1, y1, i * 0.4);
+        moveAnim(m, before);
+        FX.slide = orig;
+      });
+      tick(); Prover.reset(); saveRun();
+      if (G.s.won) onWin();
+      break;
+    }
+    // 🖼 赢局战绩图卡分享（支持 File share 时出图，否则降级为链接分享）
+    case 'SHARE_CARD': {
+      shareWinCard().catch(() => {});
       break;
     }
     case 'SHOP': G.phase = 'SHOP'; break;
@@ -469,6 +529,7 @@ function dispatch(action, data) {
         G.dailyHist = G.dailyHist || {};
         G.dailyHist[todayId()] = Math.max(G.dailyHist[todayId()] || 0, 1);
         saveOpts();
+        checkAchievements();                     // 连续天数成就在打卡时就可能达成
         // ⭐ 盲打 AI 打同一局（确定性、不透视、几十毫秒）——赢局结算时对比战绩。
         //   它就是公平页基线里那个 AI（js/ai-blind.js 与 sim-blind.js 同一份），不可作弊。
         G.dailyAI = null;
@@ -693,6 +754,14 @@ const ACHS = [
   { id: 'daily7',   coins: 60,  ok: () => (G.stats.dailyWon || 0) >= 7 },
   { id: 'collect6', coins: 50,
     ok: () => Money.state.ownedBacks.length + Money.state.ownedTables.length + Money.state.ownedFx.length >= 6 },
+  // 👼 天使图鉴系列（长线目标）+ 🔥 连续天数系列 + 🥇 奖牌
+  { id: 'angels50',  coins: 40,  ok: () => G.angels >= 50 },
+  { id: 'angels150', coins: 60,  ok: () => G.angels >= 150 },
+  { id: 'angels300', coins: 80,  ok: () => G.angels >= 300 },
+  { id: 'angels500', coins: 150, ok: () => G.angels >= 500 },
+  { id: 'streak7d',  coins: 50,  ok: () => dailyStreakDays() >= 7 },
+  { id: 'streak30d', coins: 120, ok: () => dailyStreakDays() >= 30 },
+  { id: 'gold1',     coins: 100, ok: () => Object.values(G.badges || {}).indexOf('gold') >= 0 },
 ];
 function checkAchievements() {
   G.ach = G.ach || {};
@@ -704,6 +773,37 @@ function checkAchievements() {
     setTimeout(renderAll, 2500);
   }
   saveOpts();
+}
+
+/**
+ * 👼 加天使 + 集组奖励：每 25 张一集，跨过整集边界发金币 ——
+ * 收集动机从「攒到 500」变成「差 7 张集齐这一集」（目标感密度完全不同）。
+ * 返回实际新增张数。
+ */
+function gainAngels(n) {
+  const total = Angels.total() || 500;
+  const before = G.angels;
+  G.angels = Math.min(total, G.angels + n);
+  const SET = 25, BONUS = 50;
+  for (let k = Math.floor(before / SET) + 1; k * SET <= G.angels; k++) {
+    Money.state.coins += BONUS;
+    G.toast = { msg: '🎉 ' + T('sol.setDone', { k, c: BONUS }), until: Date.now() + 2600 };
+    setTimeout(renderAll, 2700);
+  }
+  Money.save();
+  return G.angels - before;
+}
+
+/** 昨天/前天的日期 key（补签判定用）*/
+function dayKeyAgo(days) {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return '' + d.getFullYear() + (d.getMonth() + 1) + d.getDate();
+}
+/** 能补签吗：昨天没来 + 前天来过（连续天数正要断）*/
+function canMakeup() {
+  const h = G.dailyHist || {};
+  return !h[dayKeyAgo(1)] && !!h[dayKeyAgo(2)];
 }
 
 /** 每日挑战连续天数：打卡即续（不要求赢 —— 回访动机要可控）。今天还没来则从昨天起算（未断）*/
@@ -729,6 +829,53 @@ function settleMonthBadges() {
   for (let d = 1; d <= dim; d++) if ((G.dailyHist || {})[ym + d] >= 2) won++;
   G.badges[ym] = won >= dim ? 'gold' : won >= 20 ? 'silver' : won >= 10 ? 'bronze' : 'none';
   saveOpts();
+}
+
+/**
+ * 🖼 赢局战绩图卡：offscreen 1080×1350 合成 → Web Share(File)。
+ * 不支持文件分享的环境（桌面浏览器等）降级为原来的链接分享（SHARE）。
+ */
+async function shareWinCard() {
+  const s = G.s;
+  const fmt = ms => {
+    const t = Math.max(0, Math.round(ms / 1000));
+    return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
+  };
+  const tag = (s.mode === 'freecell' ? 'fc' : 'd' + s.drawCount) + '-' + s.seed;
+  const base = location.protocol.indexOf('http') === 0
+    ? location.origin + location.pathname : 'https://cards.ai-speeds.com/';
+  const W = 1080, H = 1350;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d');
+  const g = x.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#0f6b3f'); g.addColorStop(1, '#0a3b24');
+  x.fillStyle = g; x.fillRect(0, 0, W, H);
+  x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.fillStyle = 'rgba(255,255,255,0.10)'; x.font = '150px serif';
+  x.fillText('♠', 110, 150); x.fillText('♥', W - 110, 150);
+  x.fillText('♣', 110, H - 150); x.fillText('♦', W - 110, H - 150);
+  x.fillStyle = '#fff'; x.font = 'bold 96px sans-serif';
+  x.fillText(T('sol.youWin'), W / 2, 320);
+  x.fillStyle = '#ffd84d'; x.font = 'bold 62px sans-serif';
+  x.fillText(T('sol.deal', { n: s.seed }), W / 2, 480);
+  x.fillStyle = '#eafff2'; x.font = '50px sans-serif';
+  x.fillText(T('sol.timeMoves', { t: fmt(G.tAcc), m: s.moves.length }), W / 2, 590);
+  const clean = !s.usedUndo && !s.usedHint;
+  if (clean) { x.fillStyle = '#7ef2a0'; x.font = 'bold 44px sans-serif'; x.fillText(T('sol.cleanWin'), W / 2, 690); }
+  if (G.dailySeed === s.seed && G.dailyAI && G.dailyAI.seed === s.seed && !G.dailyAI.won) {
+    x.fillStyle = '#ffd84d'; x.font = '40px sans-serif';
+    x.fillText(T('sol.dailyAiLost'), W / 2, 780);
+  }
+  x.fillStyle = '#fff'; x.font = 'bold 46px sans-serif';
+  x.fillText(T('sol.shareText', { n: s.seed }), W / 2, 1020);
+  x.fillStyle = 'rgba(255,255,255,0.85)'; x.font = '40px sans-serif';
+  x.fillText(base + '#' + tag, W / 2, 1110);
+  const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+  const f = new File([blob], 'fair-deal-win.png', { type: 'image/png' });
+  if (navigator.share && navigator.canShare && navigator.canShare({ files: [f] })) {
+    try { await navigator.share({ files: [f], text: base + '#' + tag }); return; } catch (e) {}
+  }
+  dispatch('SHARE');                             // 降级：链接分享（剪贴板 + toast）
 }
 
 /** 解析分享链接（#d1-N / #d3-N / #fc-N）。命中就消费掉 hash，返回 {mode, draw, seed} */
@@ -800,6 +947,19 @@ async function boot() {
   });
   // 点一下跳过瀑布
   document.getElementById(CFG.canvasId).addEventListener('pointerdown', () => { if (FX.busy()) FX.skip(); });
+
+  // 长按撤销 = 连续撤（65+ 友好；抬手时引擎 tap 还会再撤一步——无害，也是撤销）
+  const cv = document.getElementById(CFG.canvasId);
+  let lpT = null, lpI = null;
+  const lpStop = () => { clearTimeout(lpT); clearInterval(lpI); lpT = lpI = null; };
+  cv.addEventListener('pointerdown', e => {
+    const r = cv.getBoundingClientRect();
+    const h = hitTest(e.clientX - r.left, e.clientY - r.top);
+    if (h && h.action === 'UNDO') {
+      lpT = setTimeout(() => { lpI = setInterval(() => dispatch('UNDO'), 150); }, 450);
+    }
+  });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => cv.addEventListener(ev, lpStop));
 
   // 分享链接贴进**已开着的**标签页 = 同文档导航,不会重新 boot ⇒ 靠 hashchange 接住
   window.addEventListener('hashchange', () => {

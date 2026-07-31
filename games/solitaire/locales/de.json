@@ -159,6 +159,26 @@
     "gallery": "Engel-Galerie",
     "galleryProgress": "{n} / {m} gesammelt",
     "galleryHint": "Jeder Sieg schaltet 1 frei — Tagessiege 3.",
-    "galleryAd": "Werbung ansehen · +3 Engel"
+    "galleryAd": "Werbung ansehen · +3 Engel",
+    "setDone": "Set {k} komplett! +{c} Münzen",
+    "gallerySet": "Set {k}",
+    "saveWall": "Als Hintergrund speichern",
+    "makeup": "Gestern nachholen",
+    "enterSeed": "Partienummer",
+    "enterSeedAsk": "Partienummer eingeben (FreeCell: 1-32000)",
+    "help": "Spielregeln",
+    "help1": "Klondike: baue die vier Grundstapel je Farbe vom Ass bis zum König auf. Auf dem Tableau absteigend mit wechselnden Farben stapeln; leere Spalten nur mit einem König füllen.",
+    "help2": "1 ziehen / 3 ziehen bestimmt, wie viele Karten vom Stapel kommen — 1 ziehen ist deutlich gnädiger. Wird beim Austeilen festgelegt.",
+    "help3": "FreeCell: alle 52 Karten liegen offen. Jede freie Zelle fasst eine Karte. Du kannst (freie Zellen + 1) × 2^(leere Spalten) Karten auf einmal bewegen — das Abzeichen zeigt das Limit.",
+    "help4": "Festgefahren? Tippe auf «Noch zu gewinnen?» — ein echter Solver prüft deine exakte Position und antwortet ehrlich.",
+    "help5": "Zurücknehmen, Tipps und Neustart sind immer gratis. Doppeltipp schickt die Karte an einen guten Platz; halte Zurück gedrückt für schnelles Zurückspulen.",
+    "demo3": "3 Züge zeigen",
+    "ach_angels50": "Sammle 50 Engel",
+    "ach_angels150": "Sammle 150 Engel",
+    "ach_angels300": "Sammle 300 Engel",
+    "ach_angels500": "Sammle alle 500 Engel",
+    "ach_streak7d": "Spiele die Tagespartie 7 Tage in Folge",
+    "ach_streak30d": "Spiele die Tagespartie 30 Tage in Folge",
+    "ach_gold1": "Hole eine goldene Monatsmedaille"
   }
 }

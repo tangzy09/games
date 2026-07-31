@@ -28,6 +28,7 @@
     "test:sol:improve": "node games/solitaire/tests/e2e-improve.cjs",
     "test:sol:exp": "node games/solitaire/tests/e2e-exp.cjs",
     "test:sol:meta": "node games/solitaire/tests/e2e-meta.cjs",
-    "test:sol:angels": "node games/solitaire/tests/e2e-angels.cjs"
+    "test:sol:angels": "node games/solitaire/tests/e2e-angels.cjs",
+    "test:sol:exp2": "node games/solitaire/tests/e2e-exp2.cjs"
   }
 }

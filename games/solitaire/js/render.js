@@ -174,6 +174,14 @@
       y += hh + 8;
     });
 
+    // 🔥 补签：昨天没来、连续天数正要断 ⇒ 看广告补上（条件出现，平时不占位）
+    if (canMakeup() && !Money.noAds) {
+      fillRR(cx - w / 2, y, w, 38, 10, 'rgba(255,216,77,0.22)');
+      txt('▶ 🔥 ' + T('sol.makeup'), cx, y + 19, '#ffd84d', 'bold 12px sans-serif');
+      addHit(cx - w / 2, y, w, 38, 'MAKEUP', {});
+      y += 46;
+    }
+
     // ── 每日挑战日历（本月）：连胜可视化，明天再来的钩子 ──
     const hist = root.G.dailyHist || {};
     const now = new Date();
@@ -369,11 +377,18 @@
     txt(wrapLines(T('sol.galleryHint'), w, 1)[0], cx, y + 8, 'rgba(255,255,255,0.55)', '10px sans-serif');
     y += 24;
 
-    // 网格 4 × 6 = 24/页
-    const COLS = 4, ROWS = GameGlobal.SH >= 760 ? 6 : 5, PER = COLS * ROWS;
+    // 网格 5 × 5 = 25/页 = **一集**（页即集：集组奖励与翻页天然对齐）
+    const COLS = 5, ROWS = 5, PER = COLS * ROWS;
     const pages = Math.max(1, Math.ceil((total || 1) / PER));
     const pg = Math.min(G.galPage, pages - 1);
     const cell = Math.floor((w - (COLS - 1) * 6) / COLS);
+    // 当前集进度（集齐的页亮金 ✓）
+    const setStart = pg * PER, setEnd = Math.min(total, setStart + PER);
+    const setGot = Math.max(0, Math.min(G.angels, setEnd) - setStart);
+    const setFull = setEnd > setStart && setGot === setEnd - setStart;
+    txt(T('sol.gallerySet', { k: pg + 1 }) + '  ' + setGot + '/' + (setEnd - setStart) + (setFull ? ' ✓' : ''),
+        cx, y + 2, setFull ? '#ffd84d' : PAL.sub, 'bold 11px sans-serif');
+    y += 16;
     for (let k = 0; k < PER; k++) {
       const i = pg * PER + k;
       if (i >= total) break;
@@ -438,6 +453,11 @@
       }
       txt((G.galView + 1) + ' / ' + total, cx, iy + size + 26, '#fff', 'bold 13px sans-serif');
       addHit(0, 0, GameGlobal.SW, SH, 'GAL_CLOSE', {});
+      // 存壁纸（⚠ 必须注册在 GAL_CLOSE 之后 —— hitTest 后注册优先）
+      const wy2 = iy + size + 44;
+      fillRR(cx - 100, wy2, 200, 40, 12, 'rgba(255,216,77,0.24)');
+      txt('💾 ' + T('sol.saveWall'), cx, wy2 + 20, '#ffd84d', 'bold 13px sans-serif');
+      addHit(cx - 100, wy2, 200, 40, 'GAL_WALL', {});
     }
     drawToast();
   }
@@ -449,7 +469,11 @@
     let y = GameGlobal.safeTop + 58;
     const got = root.G.ach || {};
     const rowH = GameGlobal.SH >= 760 ? 34 : 28;
-    ACHS.forEach(function (a) {
+    // 18 项单页放不下 ⇒ 12/页 + 翻页
+    const PER = 12;
+    const pages = Math.ceil(ACHS.length / PER);
+    const pg = Math.min(root.G.achPage || 0, pages - 1);
+    ACHS.slice(pg * PER, (pg + 1) * PER).forEach(function (a) {
       const done = !!got[a.id];
       fillRR(cx - w / 2, y, w, rowH, 8, done ? 'rgba(126,242,160,0.16)' : 'rgba(0,0,0,0.24)');
       ctx.font = '12px sans-serif';
@@ -460,6 +484,33 @@
            done ? '#7ef2a0' : '#ffd84d', 'bold 12px sans-serif');
       y += rowH + 6;
     });
+    y += 4;
+    txt((pg + 1) + ' / ' + pages, cx, y + 14, PAL.sub, '12px sans-serif');
+    if (pg > 0) {
+      fillRR(cx - w / 2, y, 60, 28, 8, 'rgba(255,255,255,0.16)');
+      txt('‹', cx - w / 2 + 30, y + 14, '#fff', 'bold 15px sans-serif');
+      addHit(cx - w / 2, y, 60, 28, 'ACH_PG', { p: pg - 1 });
+    }
+    if (pg < pages - 1) {
+      fillRR(cx + w / 2 - 60, y, 60, 28, 8, 'rgba(255,255,255,0.16)');
+      txt('›', cx + w / 2 - 30, y + 14, '#fff', 'bold 15px sans-serif');
+      addHit(cx + w / 2 - 60, y, 60, 28, 'ACH_PG', { p: pg + 1 });
+    }
+  }
+
+  /** ❓ 怎么玩：Klondike / draw 模式 / FreeCell supermove / 证明器 / 免费三件套 */
+  function renderHelp() {
+    const L = page(T('sol.help'));
+    const cx = L.cx, w = Math.min(L.playW - 40, 400);
+    let y = GameGlobal.safeTop + 56;
+    for (let i = 1; i <= 5; i++) {
+      ctx.font = '12px sans-serif';
+      const lines = wrapLines(T('sol.help' + i), w - 24, 6);
+      const h = lines.length * 16 + 16;
+      fillRR(cx - w / 2, y, w, h, 10, 'rgba(0,0,0,0.24)');
+      lines.forEach((ln, j) => txtL(ln, cx - w / 2 + 12, y + 14 + j * 16, PAL.sub, '12px sans-serif'));
+      y += h + 8;
+    }
   }
 
   // 牌背预览（离屏缓存；⚠ 用完要把当前牌背还原，否则会污染牌桌）
@@ -607,7 +658,17 @@
       });
       dLines.forEach((ln, i) =>
         txtL(ln, cx - w / 2 + 14, y + 42 + i * 13, 'rgba(255,255,255,0.55)', '10px sans-serif'));
+      y += dh + 10;
     }
+
+    // #️⃣ 局号直输 + ❓ 怎么玩（半宽双钮一行 —— 小屏也塞得下）
+    const half = Math.floor((w - 8) / 2);
+    fillRR(cx - w / 2, y, half, 40, 10, 'rgba(0,0,0,0.26)');
+    txt('#️⃣ ' + T('sol.enterSeed'), cx - w / 2 + half / 2, y + 20, '#fff', 'bold 12px sans-serif');
+    addHit(cx - w / 2, y, half, 40, 'ENTER_SEED', {});
+    fillRR(cx - w / 2 + half + 8, y, half, 40, 10, 'rgba(0,0,0,0.26)');
+    txt('❓ ' + T('sol.help'), cx - w / 2 + half + 8 + half / 2, y + 20, '#fff', 'bold 12px sans-serif');
+    addHit(cx - w / 2 + half + 8, y, half, 40, 'HELP', {});
   }
 
   function renderAll() {
@@ -618,6 +679,7 @@
     if (ph === 'MENU') return renderMenu();
     if (ph === 'STATS') return renderStats();
     if (ph === 'ACH') return renderAch();
+    if (ph === 'HELP') return renderHelp();
     if (ph === 'GALLERY') return renderGallery();
     if (ph === 'SHOP') return renderShop();
     clearHits();
@@ -798,8 +860,16 @@
         txt(T('sol.proveUndo', { n: P.deadFrom }), bx + 56, L.proveY + L.proveH / 2, '#fff', '10px sans-serif');
         addHit(bx, L.proveY + 6, 112, L.proveH - 12, 'UNDO_TO', { n: P.deadFrom });
       }
-      addHit(L.playX + 8, L.proveY, L.playW - 16 - (P.result === 'dead' && P.deadFrom != null ? 124 : 0),
-             L.proveH, 'PROVE', {});
+      // ⭐ 有解 + 解法在手 ⇒ 「演 3 步」（强提示——只演头 3 步，演完整解=把游戏变成看戏）
+      const canDemo = P.result === 'solvable' && P.solMoves && P.solMoves.length > 0;
+      if (canDemo) {
+        const bx = L.playX + L.playW - 8 - 104;
+        fillRR(bx, L.proveY + 6, 96, L.proveH - 12, 8, 'rgba(126,242,160,0.25)');
+        txt('▶ ' + T('sol.demo3'), bx + 48, L.proveY + L.proveH / 2, '#7ef2a0', 'bold 11px sans-serif');
+        addHit(bx, L.proveY + 6, 96, L.proveH - 12, 'DEMO3', {});
+      }
+      const rsv = (P.result === 'dead' && P.deadFrom != null) ? 124 : (canDemo ? 108 : 0);
+      addHit(L.playX + 8, L.proveY, L.playW - 16 - rsv, L.proveH, 'PROVE', {});
     } else if (Core.canAutoFinish(s)) {
       // ⭐ 稳赢收尾：全明牌 + 牌堆空 ⇒ 剩下的整理不用手磨,solver 播完直接接瀑布
       fillRR(L.playX + 8, L.proveY, L.playW - 16, L.proveH, 10, 'rgba(126,242,160,0.25)');
@@ -864,10 +934,10 @@
       txt(T('sol.newGame'), L.cx, wy + 24, '#fff', 'bold 16px sans-serif');
       addHit(L.cx - 90, wy, 180, 48, 'NEW', {});
       wy += 56;
-      // 挑战朋友：把刚赢的这局甩出去（同 seed 同规则,对面输了没得赖）
+      // 挑战朋友：战绩图卡（支持文件分享时出图，桌面等环境自动降级为链接分享）
       fillRR(L.cx - 90, wy, 180, 40, 12, 'rgba(255,255,255,0.18)');
       txt('📣 ' + T('sol.challenge'), L.cx, wy + 20, '#fff', '13px sans-serif');
-      addHit(L.cx - 90, wy, 180, 40, 'SHARE', {});
+      addHit(L.cx - 90, wy, 180, 40, 'SHARE_CARD', {});
       wy += 48;
       // ⭐ 「金币 ×2」：转化最高的激励位（刚赢、瀑布刚放完）。纯增益；买了去广告的不打扰。
       if (!Money.noAds && G.lastWinCoins > 0 && !G.winDoubled) {

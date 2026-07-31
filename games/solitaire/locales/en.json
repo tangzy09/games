@@ -159,6 +159,26 @@
     "gallery": "Angel Gallery",
     "galleryProgress": "{n} / {m} collected",
     "galleryHint": "Every win unlocks 1 — daily-deal wins unlock 3.",
-    "galleryAd": "Watch an ad · +3 angels"
+    "galleryAd": "Watch an ad · +3 angels",
+    "setDone": "Set {k} complete! +{c} coins",
+    "gallerySet": "Set {k}",
+    "saveWall": "Save wallpaper",
+    "makeup": "Restore yesterday's check-in",
+    "enterSeed": "Deal number",
+    "enterSeedAsk": "Enter a deal number (FreeCell: 1-32000)",
+    "help": "How to play",
+    "help1": "Klondike: build the four foundations from Ace to King by suit. On the tableau, stack in descending order with alternating colors; only a King may fill an empty column.",
+    "help2": "Draw 1 / Draw 3 sets how many cards flip from the stock — Draw 1 is far more forgiving. It is fixed when the deal starts.",
+    "help3": "FreeCell: all 52 cards are face up. Each of the four free cells holds one card. You can move (free cells + 1) × 2^(empty columns) cards at once — the badge shows the current limit.",
+    "help4": "Stuck? Tap “Still winnable?” — a real solver checks your exact position and answers honestly: still winnable, no longer winnable, or “we couldn't work it out”.",
+    "help5": "Undo, hints and restart are always free. Double-tap a card to send it somewhere useful; long-press Undo to rewind quickly.",
+    "demo3": "Show 3 moves",
+    "ach_angels50": "Collect 50 angels",
+    "ach_angels150": "Collect 150 angels",
+    "ach_angels300": "Collect 300 angels",
+    "ach_angels500": "Collect all 500 angels",
+    "ach_streak7d": "Play the daily deal 7 days in a row",
+    "ach_streak30d": "Play the daily deal 30 days in a row",
+    "ach_gold1": "Earn a gold monthly medal"
   }
 }

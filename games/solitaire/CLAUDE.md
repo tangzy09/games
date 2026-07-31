@@ -57,6 +57,16 @@ E2E：`npm run test:sol:exp`。⚠ 撤销=按 seed 重放 ⇒ **手搓的 G.s �
 「playing card back」字样**——会把牌角点数一起画上（20 张全废过一轮）；
 要写「seamless repeating decorative pattern」+ 负面词点名 rank/suit/ace。
 
+**体验/留存二期（2026-07-31）**：图鉴改 **25 张/页 = 一集**（页即集），跨集发 +50 金币；
+大图「存壁纸」（`Angels.saveWallpaper`，snake 同款 1080×1920）；**补签**（昨天缺卡+前天有卡 ⇒
+菜单出「看广告补签」——打卡记录不是玩法优势，不踩红线）；成就扩到 18 项（12/页分页，
+天使 50/150/300/500 + 连续 7/30 天 + 首金）；**局号直输**（设置 #️⃣，`window.prompt`，
+FreeCell 1-32000 / Klondike 任意 seed，与分享链接闭环）；**长按撤销连撤**（450ms 起步 +150ms/步，
+⚠ E2E 里连点翻牌间隔必须 >130ms 滑牌动画否则被 FX.busy 吞）；**怎么玩页**（help1-5，含
+supermove 公式）；**赢局战绩图卡**（`shareWinCard` 1080×1350，canShare(files) 才出图，
+桌面自动降级链接分享）；**「演 3 步」**（prover 有解时演解法头 3 步——只演 3 步，演完整解=看戏；
+worker 回传 `solMoves` 头 12 步）。E2E：`npm run test:sol:exp2`。
+
 **高级桌布（2026-07-31，同管线）**：`assets/tables/{walnut,bamboo,velvet,marble}.jpg`
 （540×960，`Sprite.drawTable` 全屏 cover + 商店小图共用；bamboo 原图太亮，后处理压暗到 55%——
 **桌布必须偏暗**，否则白牌/白字浮不出来）。

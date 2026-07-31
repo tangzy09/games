@@ -159,6 +159,26 @@
     "gallery": "Galeria de anjos",
     "galleryProgress": "{n} / {m} coletados",
     "galleryHint": "Cada vitória desbloqueia 1 — as diárias, 3.",
-    "galleryAd": "Assistir a um anúncio · +3 anjos"
+    "galleryAd": "Assistir a um anúncio · +3 anjos",
+    "setDone": "Coleção {k} completa! +{c} moedas",
+    "gallerySet": "Coleção {k}",
+    "saveWall": "Salvar papel de parede",
+    "makeup": "Recupere o dia de ontem",
+    "enterSeed": "Número do jogo",
+    "enterSeedAsk": "Digite um número de jogo (FreeCell: 1-32000)",
+    "help": "Como jogar",
+    "help1": "Klondike: monte as quatro bases do Ás ao Rei por naipe. Na mesa, empilhe em ordem decrescente alternando cores; só um Rei pode ocupar coluna vazia.",
+    "help2": "Comprar 1 / Comprar 3 define quantas cartas saem do monte — comprar 1 é bem mais tolerante. Fica fixo ao começar o jogo.",
+    "help3": "FreeCell: as 52 cartas ficam viradas para cima. Cada célula livre guarda uma carta. Você move (células livres + 1) × 2^(colunas vazias) cartas por vez — o selo mostra o limite.",
+    "help4": "Travou? Toque em “Ainda dá para vencer?” — um solucionador real confere sua posição exata e responde com honestidade.",
+    "help5": "Desfazer, dicas e recomeçar são sempre grátis. Toque duplo envia a carta a um bom destino; segure Desfazer para voltar rápido.",
+    "demo3": "Ver 3 jogadas",
+    "ach_angels50": "Colete 50 anjos",
+    "ach_angels150": "Colete 150 anjos",
+    "ach_angels300": "Colete 300 anjos",
+    "ach_angels500": "Colete todos os 500 anjos",
+    "ach_streak7d": "Jogue o diário 7 dias seguidos",
+    "ach_streak30d": "Jogue o diário 30 dias seguidos",
+    "ach_gold1": "Ganhe uma medalha de ouro mensal"
   }
 }
