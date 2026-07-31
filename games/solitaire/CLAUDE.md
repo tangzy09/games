@@ -7,11 +7,11 @@ root `CLAUDE.md`（引擎契约、部署铁律、git 纪律、iOS 流水线）�
 
 ## 当前状态（2026-07-30）
 
-**已提交 App Store 审核**（2026-07-14）。商店名 **`Fair Deal: Patience & Cards`**
+**iOS 1.0 已上架**（2026-07-14 提交 → **2026-07-23 过审 READY_FOR_SALE**，itunes lookup 实证）。商店名 **`Fair Deal: Patience & Cards`**
 （中文「公平发牌：接龙与空当接龙」），Apple ID `6790861224`，Bundle `com.aispeeds.solitaireproven`。
 线上 <https://cards.ai-speeds.com>。
 
-**1.0.1 改良包已完成（2026-07-30，待审核通过后随下次出包上线）**：
+**1.0.1 改良包已完成（2026-07-30，web 已上线；iOS 待出新包——1.0 已过审，随时可出）**：
 双击自动落点 / seed 分享链接（`#d1-N`/`#d3-N`/`#fc-N`，boot + hashchange 双路径）/
 每日挑战盲打 AI 对比（`js/ai-blind.js`，与 sim-blind **同一份** AI —— 别改出两套）/
 难度旋钮（easy/hard 池分档）/ 舒适模式（四色+大字+900ms 点击窗）/
@@ -99,6 +99,7 @@ E2E：`npm run test:sol:exp4`。
 ⚠ 两个真坑：① onload 回调可能先于 `G.s` 就绪，必须守卫再 renderAll（全套 E2E 曾因此齐红）；
 ② Flux 画牌背会**漏画点数字符**（12 张里 3 张带 J/K/3♦），选图必须人（AI）眼过一遍。
 **待办（需新出包 + TestFlight 验证）**：求好评弹窗（in-app-review 插件）、每日挑战本地推送。
+⚠ **出更新版必踩**：Capacitor 工程 marketing 版本恒 1.0，**先把 games/solitaire/package.json 的 version bump 到目标版本号**（与 ASC 一字不差），否则 build 挂不上 ASC 版本（snake 实踩，codemagic 已修但仍要 bump）。
 （去广告 IAP **已决定不做**，见上。）
 
 ⚠ **商店名里没有 `solitaire`，但 keywords 里有** —— 这不矛盾：
