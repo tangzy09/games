@@ -74,6 +74,7 @@ async function clickAction(page, action) {
   await page.waitForTimeout(150);
   await page.evaluate(() => {
     for (let k = 0; k < 12; k++) {                    // 玩十几步
+      if (G.s.over) break;                            // 贪心放置可能把局玩死（随机种子彩票）
       const t = Core.tray(G.s);
       const slot = t.findIndex(Boolean);
       if (slot < 0) break;
@@ -81,6 +82,8 @@ async function clickAction(page, action) {
       if (!pl.length) break;
       onPlace(slot, pl[0][0], pl[0][1]);
     }
+    // 万一玩死了：后面测的是道具条（要活局才有），换一局新的再测
+    if (G.s.over) { dispatch('SKIP_OVERANIM'); dispatch('NEW_RUN'); }
   });
   ok(await page.evaluate(() => window.__ads.interstitial) === 0, '⛔ 局中零插屏（玩了十几步，一个都没出）');
   await page.screenshot({ path: path.join(SHOT_DIR, 'p4-01-items.png') });
@@ -131,8 +134,8 @@ async function clickAction(page, action) {
   await page.evaluate(() => {
     dispatch('PLAY_LEVEL', { id: 1 });
     const s = G.s;
+    // 盘面全满 ⇒ 任何块都放不下 ⇒ 必死（原来留 1 个空格，托盘随机摸到 1×1 就不死 —— 彩票测试）
     for (let i = 0; i < 64; i++) s.board[i] = 1;
-    s.board[0] = 0;
     s.over = Core.isOver(s);
     renderAll();
   });
@@ -171,6 +174,7 @@ async function clickAction(page, action) {
     G.s.over = true;
     G.runStartAt = Date.now() - 200 * 1000;             // 一局 200s（过「短局不出」门槛）
     consume([{ t: 'over' }]);                           // 走真实结算路径（coins/lastEarn/局数计账）
+    G.overAnim = null;                                  // 跳过死亡序列动画（这里测的是结算，不是动画）
     renderAll();
     return { gained: G.wallet.coins - before, lastEarn: G.lastEarn };
   });
@@ -208,6 +212,7 @@ async function clickAction(page, action) {
     G.s.score = 1200; G.s.over = true;
     G.runStartAt = Date.now() - 200 * 1000;
     consume([{ t: 'over' }]);
+    G.overAnim = null;                                  // 同上：跳过动画直达结算
     G.wallet.installAt = Date.now() - 2 * 86400e3;
     G.wallet.runsSinceAd = 3;
     G.wallet.lastAdAt = 0;

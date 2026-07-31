@@ -19,6 +19,12 @@ const G = window.G = {
   drag: null,
   fly: null,                     // 非法松手后正在飞回托盘的块
   cellColor: new Array(64).fill(null),   // 每格的颜色（纯装饰；消除不看颜色）
+  opts: null,                    // 设置：{ fx, preview }（boot 时载入）
+  overAnim: null,                // 死亡序列动画（回放最后几手 → 红色扫盘证明）；null = 不在播
+  recentPlaces: [],              // 最近 3 手的落子格（死亡回放用）
+  hint: null,                    // FTUE 指引（第 1-2 关首步：{slot,r,c,piece}）
+  achPage: 0,                    // 成就页当前页
+  animClock: 0,                  // 表现层脉冲时钟（心跳/指引/宽限警示共用）
 };
 
 // ── 存档 ──
@@ -28,6 +34,9 @@ const K_PROG = () => CFG.key('progress');
 const K_PROFILE = () => CFG.key('profile');
 const K_THEME = () => CFG.key('theme');
 const K_WALLET = () => CFG.key('wallet');
+const K_OPTS = () => CFG.key('opts');
+
+function saveOpts() { try { Platform.storage.set(K_OPTS(), JSON.stringify(G.opts)); } catch (e) {} }
 
 function saveRun() {
   try {
@@ -69,7 +78,45 @@ function resetRunUi() {
   G.newBestRun = false;         // 本局是否破了纪录（结算页用 —— 不能拿 score>best 现比：over 时 best 已被更新）
   G.bestToastShown = false;     // 破纪录的**瞬间**只庆祝一次
   G.runStartAt = Date.now();    // 局时长（无尽转场插屏的「短局不出」护栏用）
+  G.overAnim = null;
+  G.recentPlaces = [];
+  G.hint = null;
   FX.reset();
+}
+
+/**
+ * FTUE 指引（DESIGN §6.3 的最后一步）：前 2 关的第一步，算出「放哪里能消行」，
+ * 托盘目标块 + 落点脉冲高亮。数据早就证明 casual 玩家摸不到核心爽点（最长 streak 中位 = 2）——
+ * 预置盘面只是把饭做好，这里是把勺子递到手上。放对第一块后指引消失，绝不啰嗦。
+ */
+function computeHint() {
+  G.hint = null;
+  const s = G.s;
+  if (!s || s.mode !== 'level' || s.levelId > 2 || s.stats.turns > 0 || s.over) return;
+  const t = Core.tray(s);
+  for (let i = 0; i < 3; i++) {
+    const p = t[i];
+    if (!p) continue;
+    for (const [r, c] of Core.placements(s.board, p)) {
+      const test = s.board.slice();
+      for (const [dr, dc] of p.cells) test[Core.idx(r + dr, c + dc)] = 1;
+      const f = Core.findFullLines(test, s.stone);
+      if (f.rows.length + f.cols.length > 0) { G.hint = { slot: i, r, c, piece: p }; return; }
+    }
+  }
+}
+
+/** 菜单「无尽」按钮的状态：有没打完的局 ⇒ 返回它的分数（按钮变「继续」）；没有 ⇒ null */
+function resumableScore() {
+  const cur = G.s;
+  if (cur && cur.mode === 'endless' && !cur.daily && !cur.challenge && !cur.over && cur.stats.turns > 0) return cur.score;
+  try {
+    const raw = Platform.storage.get(K_RUN());
+    if (!raw) return null;
+    const d = JSON.parse(raw);
+    if (d.v !== Core.SAVE_VERSION || d.over) return null;
+    return d.score || 0;
+  } catch (e) { return null; }
 }
 
 // ── 新局 ──
@@ -100,6 +147,7 @@ function startLevel(id) {
     if (G.s.board[i] && !G.s.stone[i]) G.cellColor[i] = Render.COLORS[(i * 3) % Render.COLORS.length];
   }
   G.items = Shop.newRunItems();
+  computeHint();                 // 前 2 关首步指引（其余关卡内部直接 return）
   // ⚠ 别 clearRun()：K_RUN 存的是**无尽模式**的当前局。进一次关卡就把它抹了 = 玩家没打完的
   //    无尽局凭空消失（红队指出）。关卡局本来就不做续玩存档，跟 K_RUN 无关。
 }
@@ -127,6 +175,7 @@ function useItem(kind) {
     if (!okPay) return;
     if (kind === 'undo') { if (Core.undo(G.s)) { FX.reset(); Sound.pick(); } }
     else { if (Core.refreshHand(G.s)) { FX.reset(); Sound.pick(); } }
+    computeHint();               // 前 2 关：撤销回首步 / 换了一手 ⇒ 指引重算
     saveWallet();
     if (G.s.mode === 'endless') saveRun();
     renderAll();
@@ -183,6 +232,10 @@ function consume(events) {
       const piece = Pieces.byId(e.piece);
       const col = Render.colorOf(e.piece);
       for (const [dr, dc] of piece.cells) G.cellColor[Core.idx(e.r + dr, e.c + dc)] = col;
+      // 最近 3 手（死亡回放用）；放下第一块后 FTUE 指引退场
+      G.recentPlaces.push(piece.cells.map(([dr, dc]) => [e.r + dr, e.c + dc]));
+      if (G.recentPlaces.length > 3) G.recentPlaces.shift();
+      G.hint = null;
       Sound.place();
       Haptics.light();
 
@@ -214,6 +267,8 @@ function consume(events) {
         'bold ' + (e.kind === 'perfect' ? 40 : 30) + 'px sans-serif', 1.3);
       FX.shake(e.kind === 'perfect' ? 22 : 12);
       Sound.sweep(e.kind);
+      // 最爽的时刻要有触觉（DESIGN §8：PERFECT = 最高音效 + 长震动 —— 之前漏了）
+      if (Haptics.heavy) Haptics.heavy(); else Haptics.medium ? Haptics.medium() : Haptics.light();
 
     } else if (e.t === 'collect') {
       // 水晶飞向顶部目标条（贝塞尔感：用粒子近似）+ 叮
@@ -244,6 +299,7 @@ function consume(events) {
       FX.toast(T('blockblast.levelWin'), Lo.cx, Lo.boardY + Lo.boardW / 2, '#7ef2a0', 'bold 30px sans-serif', 1.3);
       FX.shake(16);
       Sound.sweep('perfect');
+      if (Haptics.heavy) Haptics.heavy();
 
     } else if (e.t === 'unwinnable') {
       // 软锁死兜底：这是**我们的**错，不是玩家的 ⇒ 免费重开，绝不推广告
@@ -252,6 +308,13 @@ function consume(events) {
 
     } else if (e.t === 'over') {
       Sound.over();
+      // 死亡序列（DESIGN §2「失败必须可归因」）：先回放最后几手，再逐块红色扫盘
+      // 演示「剩余的每一块确实都放不下」。结算浮层等它播完才出现（点一下可跳过）。
+      const remN = Core.remaining(s).length;
+      if (remN > 0) {
+        const prologue = Math.min(G.recentPlaces.length, 3) * 0.3;
+        G.overAnim = { t: 0, prologue, per: 0.55, n: remN, total: prologue + remN * 0.55 + 0.2 };
+      }
       // ⚠ 只有**无尽模式**的结束才动最高分和 K_RUN：
       //    关卡失败也会走 'over'，若不门控，关卡的分数会污染无尽的最高分、还会抹掉无尽存档。
       if (s.mode === 'endless') {
@@ -283,6 +346,7 @@ function consume(events) {
     FX.toast(T('blockblast.newBest'), Render.L.cx, Render.L.boardY - 24, '#7ef2a0', 'bold 22px sans-serif', 1.4);
     FX.burst(Render.L.cx, Render.L.boardY - 24, '#7ef2a0', 14);
     Sound.sweep('sweep');
+    Haptics.medium ? Haptics.medium() : Haptics.light();
   }
 
   // ⚠ K_RUN 只存**纯无尽**局：每日/挑战若也写进去，恢复时 daily/challenge 标志会丢，
@@ -318,7 +382,47 @@ function dispatch(action, data) {
       newRun();
       break;
     }
-    case 'PLAY_ENDLESS': newRun(); break;
+    case 'PLAY_ENDLESS': {
+      // ⚠ 有没打完的局 ⇒ 这个按钮是「继续」，不是重开 —— 原来一点就 newRun()，
+      //    把玩家没打完的局静默毁掉（菜单上明确的「新开一局」才走 NEW_RUN）。
+      const cur = G.s;
+      if (cur && cur.mode === 'endless' && !cur.daily && !cur.challenge && !cur.over && cur.stats.turns > 0) {
+        G.phase = 'PLAYING';
+        break;
+      }
+      const saved = loadRun();
+      if (saved) {
+        G.s = saved;                       // loadRun 已恢复 cellColor
+        G.drag = null; G.fly = null;
+        G.phase = 'PLAYING';
+        G.lastEarn = null; G.newBestRun = false; G.bestToastShown = false;
+        G.overAnim = null; G.recentPlaces = []; G.hint = null;
+        G.runStartAt = Date.now();
+        G.items = Shop.newRunItems();
+        FX.reset();
+        break;
+      }
+      newRun();
+      break;
+    }
+    case 'NEW_RUN': newRun(); break;
+    case 'SKIP_OVERANIM': G.overAnim = null; break;
+    case 'PAGE_SET': G.phase = 'SET'; break;
+    case 'ACH_PAGE': {
+      const pages = Math.max(1, Math.ceil(Achievements.total() / 20));
+      G.achPage = Math.max(0, Math.min(pages - 1, G.achPage + data.d));
+      break;
+    }
+    case 'TOGGLE_PREVIEW':
+      G.opts.preview = !G.opts.preview;
+      saveOpts();
+      break;
+    case 'TOGGLE_FX':
+      G.opts.fx = !G.opts.fx;
+      FX.enabled = G.opts.fx;
+      if (!G.opts.fx) FX.reset();
+      saveOpts();
+      break;
     case 'PLAY_LEVEL': startLevel(data.id); break;
     case 'RETRY_LEVEL': startLevel(G.s.levelId); break;          // ⚠ 免费重来：零广告、零插屏
     case 'NEXT_LEVEL': {
@@ -328,7 +432,7 @@ function dispatch(action, data) {
     }
     case 'MENU': G.phase = 'MENU'; break;
     case 'PLAY_DAILY': startDaily(); break;
-    case 'PAGE_ACH': G.phase = 'ACH'; break;
+    case 'PAGE_ACH': G.phase = 'ACH'; G.achPage = 0; break;
     case 'PAGE_SKIN': G.phase = 'SKIN'; break;
     case 'PAGE_FAIR': G.phase = 'FAIR'; break;
     case 'EQUIP': {
@@ -404,12 +508,28 @@ function onPlace(slot, r, c) {
   renderAll();
 }
 
-// ── 主循环：只在「有动画 / 正在拖拽」时逐帧重画，静止时不烧电 ──
+// ── 主循环：只在「有动画 / 正在拖拽 / 有脉冲状态」时逐帧重画，静止时不烧电 ──
+/** 需要持续重画的脉冲状态：死亡序列 / FTUE 指引 / streak 宽限警示 / 濒死心跳。
+ *  都是短时状态（几秒到几十秒），不构成常驻耗电。*/
+function pulseActive() {
+  if (G.overAnim) return true;
+  const s = G.s;
+  if (G.phase !== 'PLAYING' || !s || s.over) return false;
+  if (G.hint) return true;
+  if (s.dryTurns === 1 && s.streak >= 2) return true;                       // 宽限中：COMBO 标签闪
+  if (s.mode === 'endless' && Core.fillCount(s.board) >= 48) return true;   // fill≥75%：心跳
+  return false;
+}
 let last = 0;
 function loop(ts) {
   const dt = last ? Math.min((ts - last) / 1000, 0.05) : 0;
   last = ts;
-  if (FX.busy() || Drag.busy(G)) {
+  G.animClock = (G.animClock + dt) % 3600;
+  if (G.overAnim) {
+    G.overAnim.t += dt;
+    if (G.overAnim.t >= G.overAnim.total) { G.overAnim = null; renderAll(); }   // 播完补一帧：结算浮层登场
+  }
+  if (FX.busy() || Drag.busy(G) || pulseActive()) {
     FX.update(dt);
     Drag.tick(G, dt);          // 拾起放大 / 回弹
     renderAll();
@@ -418,7 +538,7 @@ function loop(ts) {
 }
 
 async function boot() {
-  await Platform.hydrate([CFG.key('lang'), CFG.key('sfx'), K_BEST(), K_RUN(), K_PROG(), K_PROFILE(), K_THEME(), K_WALLET()]);
+  await Platform.hydrate([CFG.key('lang'), CFG.key('sfx'), K_BEST(), K_RUN(), K_PROG(), K_PROFILE(), K_THEME(), K_WALLET(), K_OPTS()]);
   restoreAudioPrefs();
   Portal.boot();
   await Ads.init();
@@ -439,6 +559,10 @@ async function boot() {
     G.wallet = Object.assign(Shop.emptyWallet(), raw || {});
   } catch (e) { G.wallet = Shop.emptyWallet(); }
   if (!G.wallet.installAt) { G.wallet.installAt = Date.now(); saveWallet(); }   // 首日免打扰的时钟从这里起跳
+  try {
+    G.opts = Object.assign({ fx: true, preview: true }, JSON.parse(Platform.storage.get(K_OPTS()) || 'null') || {});
+  } catch (e) { G.opts = { fx: true, preview: true }; }
+  FX.enabled = !!G.opts.fx;
   G.items = Shop.newRunItems();
   const savedTheme = Platform.storage.get(K_THEME()) || 'candy';
   const stars0 = Object.values(G.progress).reduce((a, v) => a + v, 0);

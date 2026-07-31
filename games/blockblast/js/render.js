@@ -219,22 +219,36 @@
         cx - 77, by + 33, PAL.sub, '10px sans-serif');
     addHit(cx - 150, by, 145, 46, 'PLAY_DAILY', {});
 
-    fillRR(cx + 5, by, 145, 46, 12, '#f59e0b');
-    txt(T('blockblast.endless'), cx + 77, by + 18, '#fff', 'bold 15px sans-serif');
-    txt(T('blockblast.best') + ' ' + G.best, cx + 77, by + 34, PAL.sub, '10px sans-serif');
-    addHit(cx + 5, by, 145, 46, 'PLAY_ENDLESS', {});
+    // 无尽：有没打完的局 ⇒ 主按钮变「继续」（带当前分数），旁边小按钮才是重开 ——
+    // 原来一点就 newRun()，静默毁掉玩家没打完的局。
+    const rs = resumableScore();
+    if (rs !== null) {
+      fillRR(cx + 5, by, 107, 46, 12, '#f59e0b');
+      txt('▶ ' + T('blockblast.continueRun'), cx + 58, by + 18, '#fff', 'bold 12px sans-serif');
+      txt(String(rs), cx + 58, by + 34, PAL.sub, '10px sans-serif');
+      addHit(cx + 5, by, 107, 46, 'PLAY_ENDLESS', {});
+      fillRR(cx + 116, by, 34, 46, 12, 'rgba(255,255,255,0.18)');
+      txt('↻', cx + 133, by + 23, '#fff', 'bold 16px sans-serif');
+      addHit(cx + 116, by, 34, 46, 'NEW_RUN', {});
+    } else {
+      fillRR(cx + 5, by, 145, 46, 12, '#f59e0b');
+      txt(T('blockblast.endless'), cx + 77, by + 18, '#fff', 'bold 15px sans-serif');
+      txt(T('blockblast.best') + ' ' + G.best, cx + 77, by + 34, PAL.sub, '10px sans-serif');
+      addHit(cx + 5, by, 145, 46, 'PLAY_ENDLESS', {});
+    }
 
-    // 成就 / 皮肤 / 公平
-    const by2 = by + 56, bw = 95;
+    // 成就 / 皮肤 / 公平 / 设置
+    const by2 = by + 56, bw = Math.min(84, (L.playW - 58) / 4);
     const tabs = [
       ['\u{1F3C6} ' + T('blockblast.achievements'), 'PAGE_ACH'],
       ['\u{1F3A8} ' + T('blockblast.skins'), 'PAGE_SKIN'],
       ['\u2696 ' + T('blockblast.fair'), 'PAGE_FAIR'],
+      ['⚙ ' + T('blockblast.settings'), 'PAGE_SET'],
     ];
     tabs.forEach(([label, act], i) => {
-      const x = cx - (bw * 3 + 16) / 2 + i * (bw + 8);
+      const x = cx - (bw * tabs.length + 8 * (tabs.length - 1)) / 2 + i * (bw + 8);
       fillRR(x, by2, bw, 36, 10, 'rgba(255,255,255,0.16)');
-      txt(label, x + bw / 2, by2 + 18, '#fff', '11px sans-serif');
+      txt(label, x + bw / 2, by2 + 18, '#fff', '10px sans-serif');
       addHit(x, by2, bw, 36, act, {});
     });
     const totalStars = Object.values(G.progress).reduce((a, v) => a + v, 0);
@@ -259,17 +273,35 @@
     txt(T('blockblast.achProgress', { a: G.profile.unlocked.length, b: Achievements.total() }),
         cx, GameGlobal.safeTop + 54, PAL.sub, '13px sans-serif');
 
+    // 分页（每页 20 条 = 2 列 × 10 行，任何屏都放得下）——
+    // 原来「放不下就不画」，矮屏后半成就永远看不见：看不见的成就 = 不存在的留存钩子。
     const got = new Set(G.profile.unlocked);
+    const PER = 20, all = Achievements.ACHIEVEMENTS;
+    const pages = Math.max(1, Math.ceil(all.length / PER));
+    const page = Math.max(0, Math.min(pages - 1, G.achPage || 0));
     const cols = 2, cw = (L.playW - 24) / cols, ch = 34;
-    Achievements.ACHIEVEMENTS.forEach((a, i) => {
+    all.slice(page * PER, page * PER + PER).forEach((a, i) => {
       const r = Math.floor(i / cols), c = i % cols;
       const x = L.playX + 12 + c * cw, y = GameGlobal.safeTop + 76 + r * ch;
-      if (y > SH - 80) return;                       // 放不下就不画（P3 先不做滚动视图）
       const on = got.has(a.id);
       fillRR(x + 2, y, cw - 6, ch - 4, 7, on ? 'rgba(255,255,255,0.20)' : 'rgba(0,0,0,0.18)');
       txtL((on ? '\u2605 ' : '\u00b7 ') + T('blockblast.ach.' + a.id), x + 10, y + (ch - 4) / 2,
            on ? PAL.accent : 'rgba(255,255,255,0.45)', '11px sans-serif');
     });
+    if (pages > 1) {
+      const py = GameGlobal.safeTop + 76 + 10 * ch + 10;
+      txt(`${page + 1} / ${pages}`, cx, py + 16, PAL.sub, '12px sans-serif');
+      if (page > 0) {
+        fillRR(cx - 110, py, 44, 32, 10, 'rgba(255,255,255,0.16)');
+        txt('‹', cx - 88, py + 16, '#fff', 'bold 16px sans-serif');
+        addHit(cx - 110, py, 44, 32, 'ACH_PAGE', { d: -1 });
+      }
+      if (page < pages - 1) {
+        fillRR(cx + 66, py, 44, 32, 10, 'rgba(255,255,255,0.16)');
+        txt('›', cx + 88, py + 16, '#fff', 'bold 16px sans-serif');
+        addHit(cx + 66, py, 44, 32, 'ACH_PAGE', { d: 1 });
+      }
+    }
     backButton();
   }
 
@@ -393,6 +425,36 @@
     backButton();
   }
 
+  /** 设置页：下一手预览（关掉 = 硬核模式）/ 粒子特效（低端机、减弱动态）。
+   *  声音开关在引擎的悬浮控件里（同一开关不另起一套）。*/
+  function renderSettings() {
+    clearHits(); layout();
+    const { SW, SH } = GameGlobal, G = root.G, cx = L.cx;
+    const grad = ctx.createLinearGradient(0, 0, SW, SH);
+    grad.addColorStop(0, PAL.bg1); grad.addColorStop(1, PAL.bg2);
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, SW, SH);
+    txt(T('blockblast.settings'), cx, GameGlobal.safeTop + 30, '#fff', 'bold 22px sans-serif');
+
+    const rows = [
+      { act: 'TOGGLE_PREVIEW', on: G.opts.preview, label: T('blockblast.optPreview'), sub: T('blockblast.optPreviewSub') },
+      { act: 'TOGGLE_FX', on: G.opts.fx, label: T('blockblast.optFx'), sub: T('blockblast.optFxSub') },
+    ];
+    rows.forEach((r, i) => {
+      const y = GameGlobal.safeTop + 76 + i * 84;
+      fillRR(L.playX + 14, y, L.playW - 28, 72, 12, 'rgba(0,0,0,0.20)');
+      txtL(r.label, L.playX + 28, y + 24, '#fff', 'bold 14px sans-serif');
+      txtL(r.sub, L.playX + 28, y + 48, PAL.sub, '11px sans-serif');
+      // 开关胶囊
+      const tx = L.playX + L.playW - 92, ty = y + 20;
+      fillRR(tx, ty, 64, 30, 15, r.on ? '#22c55e' : 'rgba(255,255,255,0.18)');
+      fillRR(r.on ? tx + 36 : tx + 4, ty + 4, 24, 22, 11, '#fff');
+      txt(r.on ? T('blockblast.on') : T('blockblast.off'), r.on ? tx + 17 : tx + 46, ty + 15,
+          r.on ? '#fff' : PAL.sub, 'bold 9px sans-serif');
+      addHit(L.playX + 14, y, L.playW - 28, 72, r.act, {});
+    });
+    backButton();
+  }
+
   /** 结算页的金币行：+n，未翻倍时旁边给「看广告×2」按钮（拒绝 ⇒ 什么也不发生，红线 2）。
    *  去广告玩家在 main 里已直接拿到双倍 ⇒ 这里只会走「已翻倍」分支，绝不会向付费玩家要广告。*/
   function earnRow(G, y) {
@@ -423,6 +485,7 @@
     if (G0.phase === 'SKIN') return renderSkins();
     if (G0.phase === 'FAIR') return renderFair();
     if (G0.phase === 'SHOP') return renderShop();
+    if (G0.phase === 'SET') return renderSettings();
     clearHits();
     layout();
     const { SW, SH } = GameGlobal;
@@ -455,8 +518,11 @@
       txtR(T('blockblast.moves', { n: s.stats.turns }) +
            (s.par ? '  ·  ' + T('blockblast.parHint', { n: s.par }) : ''),
            L.boardX + L.boardW, L.hudY, PAL.sub, '12px sans-serif');
+      // 目标条压到左 62%，右侧留给迷你「下一手」——关卡模式原来完全没有预览，
+      // 把「可见的公平」和规划能力都丢了（DESIGN §1 说预览**常驻**）。
       const kinds = Object.keys(s.goals);
-      const gw = L.boardW / kinds.length;
+      const showPv = !G.opts || G.opts.preview !== false;
+      const gw = (showPv ? L.boardW * 0.62 : L.boardW) / kinds.length;
       kinds.forEach((k, i) => {
         const gx = L.boardX + gw * i + gw / 2, gy = L.nextY + 2;
         const got = s.collected[k] || 0, need = s.goals[k];
@@ -465,17 +531,41 @@
         txtL(done ? '✔' : `${need - got}`, gx - 4, gy,
              done ? '#7ef2a0' : '#fff', 'bold 17px sans-serif');
       });
+      if (showPv) {
+        const nh = Core.nextHand(s);
+        const nSize = Math.max(4, Math.round(L.cell * 0.13));
+        let nx = L.boardX + L.boardW * 0.66;
+        txtL(T('blockblast.next'), nx, L.nextY - 16, PAL.sub, '9px sans-serif');
+        for (const p of nh) {
+          drawPieceAt(p, nx, L.nextY + 2 - (p.h * nSize) / 2, nSize, 0.5);
+          nx += p.wdt * nSize + 8;
+        }
+      }
     } else {
       txt(String(s.score), L.cx, L.hudY + 2, PAL.text, 'bold 32px sans-serif');
       txtL(T('blockblast.best') + ' ' + G.best, L.boardX, L.hudY + 28, PAL.sub, '12px sans-serif');
+      // 濒死心跳（DESIGN §8：fill≥75% 不给文字警告，只给生理紧张；越满跳越快）
+      const occ = Core.fillCount(s.board);
+      if (!s.over && occ >= 48) {
+        const k = 0.5 + 0.5 * Math.sin(G.animClock * (occ >= 56 ? 9 : 5.5));
+        ctx.globalAlpha = 0.45 + 0.55 * k;
+        txtR('♥', L.boardX + L.boardW, L.hudY + 4, '#fb7185', 'bold ' + Math.round(15 + 5 * k) + 'px sans-serif');
+        ctx.globalAlpha = 1;
+      }
       if (s.streak >= 2) {
         const m = Core.streakMult(s.streak);
-        txtR(T('blockblast.combo', { m: m.toFixed(1) }), L.boardX + L.boardW, L.hudY + 28, PAL.accent, 'bold 14px sans-serif');
+        // 宽限可视化：刚空放了一步 ⇒ 标签转橙闪烁——「再空一步连击就断」这份善意要看得见
+        const grace = s.dryTurns === 1;
+        const col = grace ? 'rgba(251,146,60,' + (0.5 + 0.5 * Math.sin(G.animClock * 8)).toFixed(2) + ')' : PAL.accent;
+        txtR(T('blockblast.combo', { m: m.toFixed(1) }) + (grace ? ' !' : ''),
+             L.boardX + L.boardW, L.hudY + 28, col, 'bold 14px sans-serif');
       }
     }
 
-    // ── 下一手预览（块流是预生成的 ⇒ 预览天然成立，绝不会被偷偷换掉）──
-    if (s.mode === 'level') { /* 关卡模式：这一行给目标条用了 */ } else {
+    // ── 下一手预览（块流是预生成的 ⇒ 预览天然成立，绝不会被偷偷换掉）。
+    //    设置里可关 = 硬核模式（DESIGN §1 承诺的开关，1.0.1 兑现）。──
+    const showPreview = !G.opts || G.opts.preview !== false;
+    if (s.mode === 'level') { /* 目标条占了这一行；关卡的迷你预览画在目标条右侧（见上）*/ } else if (showPreview) {
     const nh = Core.nextHand(s);
     const nSize = Math.max(5, Math.round(L.cell * 0.20));
     txtL(T('blockblast.next'), L.boardX, L.nextY, PAL.sub, '11px sans-serif');
@@ -489,11 +579,13 @@
     // ── 棋盘 ──
     fillRR(L.boardX - 6, L.boardY - 6, L.boardW + 12, L.boardW + 12, 14, PAL.boardBg);
 
-    // 拖拽中：算出幽灵位置 + 将被消掉的行列
-    let ghost = null, hintRows = [], hintCols = [];
+    // 拖拽中：算出幽灵位置 + 将被消掉的行列；非法落点走虚线描边（DESIGN §5 的色盲友好方案）
+    let ghost = null, badTarget = null, hintRows = [], hintCols = [];
     if (G.drag && G.drag.target) {
       const { r, c, piece } = G.drag.target;
-      if (Core.canPlace(s.board, piece, r, c)) {
+      if (!Core.canPlace(s.board, piece, r, c)) {
+        badTarget = { r, c, piece };
+      } else {
         ghost = { r, c, piece };
         // 预演一次：这一步会消掉哪些行列（消行预览是本作最重要的一个 UI）
         const test = s.board.slice();
@@ -538,6 +630,19 @@
         roundRect(x + 2, y + 2, L.cell - 4, L.cell - 4, L.cell * 0.16); ctx.fill();
       }
     }
+    // 非法落点：虚线描边（不用红/绿区分 —— 色盲友好，DESIGN §5；出界的格子不画）
+    if (badTarget) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 4]);
+      for (const [dr, dc] of badTarget.piece.cells) {
+        const rr = badTarget.r + dr, cc = badTarget.c + dc;
+        if (rr < 0 || cc < 0 || rr >= 8 || cc >= 8) continue;
+        const { x, y } = cellXY(rr, cc);
+        roundRect(x + 2, y + 2, L.cell - 4, L.cell - 4, L.cell * 0.16); ctx.stroke();
+      }
+      ctx.setLineDash([]);
+    }
 
     // ── 托盘（实际大小，见 computeTray）──
     const tray = Core.tray(s);
@@ -549,6 +654,25 @@
       const r = L.traySlots[i];
       const dead = !Core.canPlaceAnywhere(s.board, p);   // 放不下的块暗掉：失败要看得见原因
       drawPieceAt(p, r.x, r.y, r.size, dead ? 0.35 : 1);
+    }
+
+    // FTUE 指引（前 2 关首步）：托盘目标块 + 落点脉冲高亮——把勺子递到手上（DESIGN §6.3）
+    if (G.hint && !s.over && !G.drag) {
+      const h = G.hint;
+      const pulse = (0.4 + 0.6 * (0.5 + 0.5 * Math.sin(G.animClock * 4))).toFixed(2);
+      ctx.strokeStyle = 'rgba(126,242,160,' + pulse + ')';
+      const tr2 = L.traySlots && L.traySlots[h.slot];
+      if (tr2) {
+        ctx.lineWidth = 3;
+        roundRect(tr2.x - 6, tr2.y - 6, tr2.w + 12, tr2.h + 12, 10); ctx.stroke();
+      }
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 4]);
+      for (const [dr, dc] of h.piece.cells) {
+        const { x, y } = cellXY(h.r + dr, h.c + dc);
+        roundRect(x + 2, y + 2, L.cell - 4, L.cell - 4, L.cell * 0.16); ctx.stroke();
+      }
+      ctx.setLineDash([]);
     }
 
     // ── 拖拽中的块（浮在指尖上方，尺寸从托盘尺寸**平滑长到**棋盘格尺寸）──
@@ -594,6 +718,45 @@
 
     FX.draw(ctx);
     ctx.restore();
+
+    // ── 死亡序列（DESIGN §2「失败必须可归因」）：先回放最后几手，再逐块红色扫盘
+    //    证明「剩余的每一块确实都放不下」。播完才轮到结算浮层；点任意处跳过。──
+    if (s.over && G.overAnim && !s.won && !s.unwinnable) {
+      const a = G.overAnim;
+      drawDim('rgba(20,10,40,0.30)');
+      if (a.t < a.prologue) {
+        const seq = G.recentPlaces.slice(-3);
+        const i = Math.min(Math.floor(a.t / 0.3), seq.length - 1);
+        txt(T('blockblast.lastMoves'), L.cx, L.boardY - 16, PAL.accent, 'bold 13px sans-serif');
+        if (seq[i]) {
+          ctx.strokeStyle = PAL.accent; ctx.lineWidth = 3;
+          for (const [r, c] of seq[i]) {
+            const { x, y } = cellXY(r, c);
+            roundRect(x + 2, y + 2, L.cell - 4, L.cell - 4, L.cell * 0.16); ctx.stroke();
+          }
+        }
+      } else {
+        const ts = a.t - a.prologue;
+        const i = Math.min(Math.floor(ts / a.per), a.n - 1);
+        const k = Math.min((ts - i * a.per) / a.per, 1);
+        txt(T('blockblast.noFit'), L.cx, L.boardY - 16, '#fb7185', 'bold 13px sans-serif');
+        ctx.fillStyle = 'rgba(244,63,94,0.16)';                       // 红色扫描带扫过棋盘
+        ctx.fillRect(L.boardX + (L.boardW - 44) * k, L.boardY, 44, L.boardW);
+        const tray2 = Core.tray(s);                                    // 正被「审问」的那块红框脉冲
+        let seen = -1;
+        for (let j = 0; j < 3; j++) {
+          if (!tray2[j]) continue;
+          seen++;
+          if (seen !== i || !L.traySlots) continue;
+          const rct = L.traySlots[j];
+          ctx.strokeStyle = 'rgba(244,63,94,' + (0.55 + 0.45 * Math.sin(G.animClock * 10)).toFixed(2) + ')';
+          ctx.lineWidth = 3;
+          roundRect(rct.x - 6, rct.y - 6, rct.w + 12, rct.h + 12, 10); ctx.stroke();
+        }
+      }
+      addHit(0, 0, SW, SH, 'SKIP_OVERANIM', {});
+      return;
+    }
 
     // ── 关卡浮层：胜利（三星）/ 失败 / 不可胜 ──
     if (s.mode === 'level' && s.over) {

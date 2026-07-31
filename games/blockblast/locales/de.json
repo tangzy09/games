@@ -123,6 +123,16 @@
     "challenge": "Freund herausfordern",
     "challengeCopied": "Herausforderungs-Link kopiert!",
     "challengeRun": "Freundes-Duell — gleiche Teile für alle",
-    "shareText": "Ich habe {n} Punkte mit genau dieser Teile-Folge geholt. Gleicher Seed, gleiche Teile — schlag mich:"
+    "shareText": "Ich habe {n} Punkte mit genau dieser Teile-Folge geholt. Gleicher Seed, gleiche Teile — schlag mich:",
+    "continueRun": "Weiter",
+    "settings": "Optionen",
+    "optPreview": "Vorschau der nächsten Teile",
+    "optPreviewSub": "Aus = Hardcore-Modus",
+    "optFx": "Effekte & Partikel",
+    "optFxSub": "Ausschalten für weniger Bewegung und mehr Akku",
+    "lastMoves": "Deine letzten Züge",
+    "noFit": "Kein Teil passt mehr irgendwo hin",
+    "on": "AN",
+    "off": "AUS"
   }
 }

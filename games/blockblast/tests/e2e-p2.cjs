@@ -136,8 +136,8 @@ const ok = (c, m) => { if (!c) { console.error('✗ ' + m); process.exitCode = 1
   // ── 关卡失败：**零广告**（DESIGN §6.2 的红线）──
   const failUi = await page.evaluate(() => {
     const s = G.s;
-    for (let i = 0; i < 64; i++) s.board[i] = 1;        // 强行造死局
-    s.board[0] = 0;                                     // 只留一个孤格
+    for (let i = 0; i < 64; i++) s.board[i] = 1;        // 强行造死局：全满 ⇒ 任何块都放不下
+    // ⚠ 别留孤格：留 1 格时托盘随机摸到 1×1 就不死 —— 彩票测试（p4 真踩响过）
     s.over = Core.isOver(s);
     renderAll();
     return { over: s.over };

@@ -123,6 +123,16 @@
     "challenge": "友達に挑戦状",
     "challengeCopied": "挑戦リンクをコピーしました！",
     "challengeRun": "フレンドチャレンジ — 全員同じピース",
-    "shareText": "このピース列で {n} 点。同じシード・同じピースで勝負！"
+    "shareText": "このピース列で {n} 点。同じシード・同じピースで勝負！",
+    "continueRun": "つづける",
+    "settings": "設定",
+    "optPreview": "次のピースのプレビュー",
+    "optPreviewSub": "オフ = ハードコアモード",
+    "optFx": "エフェクトとパーティクル",
+    "optFxSub": "オフにすると動きを減らして省電力に",
+    "lastMoves": "あなたの最後の数手",
+    "noFit": "どのピースもどこにも置けません",
+    "on": "オン",
+    "off": "オフ"
   }
 }

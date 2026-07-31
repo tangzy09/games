@@ -40,7 +40,15 @@
 
     toast(text, x, y, color, font, scale) {
       if (!FX.enabled) return;
-      toasts.push({ text, x, y, color, font, age: 0, life: 0.9, scale: scale || 1 });
+      // 排队防重叠：赞美词/SWEEP/成就/NEW BEST 会挤在同一时刻弹向棋盘中心附近，
+      // 新 toast 与在场的太近就往下错一行（截图验收抓到过 "Heating Up" 压在标题底下）。
+      let yy = y;
+      for (let guard = 0; guard < 6; guard++) {
+        const clash = toasts.some(t => Math.abs(t.y - yy) < 30 && Math.abs(t.x - x) < 220);
+        if (!clash) break;
+        yy += 34;
+      }
+      toasts.push({ text, x, y: yy, color, font, age: 0, life: 0.9, scale: scale || 1 });
     },
 
     shake(mag) { if (FX.enabled) { shakeMag = Math.max(shakeMag, mag); shakeT = 0.28; } },

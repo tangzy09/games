@@ -123,6 +123,16 @@
     "challenge": "Reta a un amigo",
     "challengeCopied": "¡Enlace de reto copiado!",
     "challengeRun": "Reto de amigo: las mismas piezas para todos",
-    "shareText": "Hice {n} puntos con esta secuencia exacta de piezas. Misma semilla, mismas piezas. ¡Supérame!"
+    "shareText": "Hice {n} puntos con esta secuencia exacta de piezas. Misma semilla, mismas piezas. ¡Supérame!",
+    "continueRun": "Continuar",
+    "settings": "Ajustes",
+    "optPreview": "Vista previa de piezas",
+    "optPreviewSub": "Desactivar = modo experto",
+    "optFx": "Efectos y partículas",
+    "optFxSub": "Desactiva para reducir movimiento y ahorrar batería",
+    "lastMoves": "Tus últimas jugadas",
+    "noFit": "Ninguna pieza cabe en ningún sitio",
+    "on": "SÍ",
+    "off": "NO"
   }
 }

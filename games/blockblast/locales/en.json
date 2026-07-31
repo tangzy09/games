@@ -123,6 +123,16 @@
     "challenge": "Challenge a friend",
     "challengeCopied": "Challenge link copied!",
     "challengeRun": "Friend challenge — same pieces for everyone",
-    "shareText": "I scored {n} on this exact piece stream. Same seed, same pieces — beat me:"
+    "shareText": "I scored {n} on this exact piece stream. Same seed, same pieces — beat me:",
+    "continueRun": "Continue",
+    "settings": "Settings",
+    "optPreview": "Next-hand preview",
+    "optPreviewSub": "Turn off = hardcore mode",
+    "optFx": "Effects & particles",
+    "optFxSub": "Turn off to reduce motion & save battery",
+    "lastMoves": "Your final moves",
+    "noFit": "None of these fit anywhere",
+    "on": "ON",
+    "off": "OFF"
   }
 }

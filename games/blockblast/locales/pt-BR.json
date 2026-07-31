@@ -123,6 +123,16 @@
     "challenge": "Desafie um amigo",
     "challengeCopied": "Link do desafio copiado!",
     "challengeRun": "Desafio de amigo: as mesmas peças para todos",
-    "shareText": "Fiz {n} pontos nesta sequência exata de peças. Mesma semente, mesmas peças — me supere:"
+    "shareText": "Fiz {n} pontos nesta sequência exata de peças. Mesma semente, mesmas peças — me supere:",
+    "continueRun": "Continuar",
+    "settings": "Opções",
+    "optPreview": "Prévia das próximas peças",
+    "optPreviewSub": "Desligar = modo hardcore",
+    "optFx": "Efeitos e partículas",
+    "optFxSub": "Desligue para reduzir movimento e poupar bateria",
+    "lastMoves": "Suas últimas jogadas",
+    "noFit": "Nenhuma peça cabe em lugar algum",
+    "on": "SIM",
+    "off": "NÃO"
   }
 }

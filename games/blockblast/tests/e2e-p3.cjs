@@ -142,6 +142,33 @@ async function clickAction(page, action) {
   ok(!/blockblast\./.test(ach.sample), '成就名有 locale');
   await page.screenshot({ path: path.join(SHOT_DIR, 'p3-06-achievements.png') });
 
+  // ── 成就分页：34 条 = 2 页，翻页有界（原来「放不下就不画」，矮屏看不到后半）──
+  const pg = await page.evaluate(() => {
+    const r = [G.achPage];
+    dispatch('ACH_PAGE', { d: 1 }); r.push(G.achPage);
+    dispatch('ACH_PAGE', { d: 1 }); r.push(G.achPage);   // 只有 2 页 ⇒ 停在 1
+    dispatch('ACH_PAGE', { d: -1 }); r.push(G.achPage);
+    return r;
+  });
+  ok(pg.join(',') === '0,1,1,0', `成就分页翻页 + 边界钳制（${pg.join('→')}）`);
+
+  // ── 设置页：预览/粒子开关翻转并持久化 ──
+  await page.evaluate(() => { G.phase = 'MENU'; renderAll(); });
+  ok(await clickAction(page, 'PAGE_SET'), '菜单能进设置页');
+  await page.screenshot({ path: path.join(SHOT_DIR, 'p3-08-settings.png') });
+  const setOk = await page.evaluate(() => {
+    const p0 = G.opts.preview, f0 = G.opts.fx;
+    dispatch('TOGGLE_PREVIEW');
+    dispatch('TOGGLE_FX');
+    const stored = JSON.parse(Platform.storage.get(CFG.key('opts')));
+    const flipped = G.opts.preview === !p0 && G.opts.fx === !f0;
+    const persisted = stored.preview === G.opts.preview && stored.fx === G.opts.fx;
+    const fxSynced = FX.enabled === G.opts.fx;
+    dispatch('TOGGLE_PREVIEW'); dispatch('TOGGLE_FX');   // 复原，别污染后面的测试
+    return { flipped, persisted, fxSynced };
+  });
+  ok(setOk.flipped && setOk.persisted && setOk.fxSynced, '设置开关翻转 + 持久化 + FX.enabled 同步');
+
   // ── 中文 ──
   await page.evaluate(() => I18N.setLang('zh-CN'));
   await page.waitForTimeout(250);

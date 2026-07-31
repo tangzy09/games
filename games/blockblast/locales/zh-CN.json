@@ -123,6 +123,16 @@
     "challenge": "挑战好友",
     "challengeCopied": "挑战链接已复制！",
     "challengeRun": "好友挑战 — 所有人同一条块流",
-    "shareText": "我在这条块流上拿了 {n} 分。同一种子、同样的块 — 来超过我："
+    "shareText": "我在这条块流上拿了 {n} 分。同一种子、同样的块 — 来超过我：",
+    "continueRun": "继续",
+    "settings": "设置",
+    "optPreview": "下一手预览",
+    "optPreviewSub": "关掉 = 硬核模式",
+    "optFx": "特效与粒子",
+    "optFxSub": "关掉可减弱动态、省电",
+    "lastMoves": "你最后的几步",
+    "noFit": "剩下的每一块都放不下了",
+    "on": "开",
+    "off": "关"
   }
 }

@@ -148,6 +148,11 @@ const ok = (cond, msg) => { if (!cond) { console.error('✗ ' + msg); process.ex
   const overState = await page.evaluate(() => ({ over: G.s.over, score: G.s.score, turns: G.s.stats.turns }));
   ok(overState.over, `玩到 game over（${overState.turns} 次落子，${overState.score} 分）`);
   await page.waitForTimeout(400);
+  await page.screenshot({ path: path.join(SHOT_DIR, 'p1-04a-deathscan.png') });      // 死亡序列（回放/扫盘）进行中
+  // 死亡序列播完（或还在播就等）→ 结算浮层才有按钮
+  await page.waitForFunction(() => !window.G.overAnim, null, { timeout: 8000 });
+  await page.evaluate(() => renderAll());
+  await page.waitForTimeout(120);
   await page.screenshot({ path: path.join(SHOT_DIR, 'p1-04-gameover.png') });
 
   // 重开按钮（这个是 engine 的 hitTest 路径，验证拖拽层没把它抢掉）。
@@ -165,6 +170,25 @@ const ok = (cond, msg) => { if (!cond) { console.error('✗ ' + msg); process.ex
   await page.waitForTimeout(150);
   const restarted = await page.evaluate(() => ({ over: G.s.over, score: G.s.score, fill: Core.fillCount(G.s.board) }));
   ok(!restarted.over && restarted.score === 0 && restarted.fill === 0, '重开 → 新的一局（engine tap 仍然工作）');
+
+  // ── 「继续而非重开」：局中回菜单 → 无尽按钮 = 继续同一局（原来一点就静默毁档）──
+  await playOneMove();                                   // 落一子（turns>0 才算「进行中」）
+  const cont = await page.evaluate(() => {
+    const score0 = G.s.score, turns0 = G.s.stats.turns;
+    dispatch('MENU');
+    const resumable = resumableScore();
+    // 菜单上必须同时有「继续」和「新开一局」两个入口
+    const { SW, SH } = GameGlobal, found = [];
+    for (let y = 0; y < SH; y += 5) for (let x = 0; x < SW; x += 5) {
+      const h = hitTest(x, y);
+      if (h && !found.includes(h.action)) found.push(h.action);
+    }
+    dispatch('PLAY_ENDLESS');
+    return { resumable, hasNew: found.includes('NEW_RUN'), hasCont: found.includes('PLAY_ENDLESS'),
+             sameRun: G.s.stats.turns === turns0 && G.s.score === score0, phase: G.phase };
+  });
+  ok(cont.resumable !== null && cont.hasNew && cont.hasCont, '菜单同时给「继续」与「新开一局」入口');
+  ok(cont.sameRun && cont.phase === 'PLAYING', '点「继续」回到同一局（分数/步数原封不动）');
 
   // ── 中英切换（P1 就双语，且零硬编码文案）──
   await page.evaluate(() => I18N.setLang('zh-CN'));
