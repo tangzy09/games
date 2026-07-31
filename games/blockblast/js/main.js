@@ -220,6 +220,7 @@ function settleRun() {
     const d = new Date(Math.floor(id / 10000), Math.floor(id / 100) % 100 - 1, id % 100);
     const r = Daily.settleDaily(G.profile, d, s.score, s.backfill);
     if (r.first) { Shop.earnDaily(G.wallet); saveWallet(); }
+    GC.submit('daily', s.score);               // Game Center 每日榜（原生；BEST_SCORE 重复提交无害）
     fresh.push(...Achievements.check(G.profile));
   }
   announce(fresh);
@@ -348,6 +349,7 @@ function consume(events) {
         if (pure) {
           Shop.noteEndlessRun(G.wallet);               // 转场插屏的「每 3 局」计数
           G.lastRunMs = Date.now() - (G.runStartAt || Date.now());
+          GC.submit('endless', s.score);               // Game Center 无尽榜
         }
         saveWallet();
       } else {
@@ -532,10 +534,31 @@ function dispatch(action, data) {
       });
       return;
     case 'BUY_NOADS':
-      // TODO(P4b): 接真 IAP（RevenueCat）。web 上先本地开启，便于验证「买了之后功能不变少」。
-      G.wallet.noAds = true;
-      saveWallet();
-      break;
+      // 真 IAP（RevenueCat）：原生走 App Store 购买；web/未配 key 回退本地开关（web 无支付渠道）。
+      // 取消/失败 ⇒ 什么也不发生（绝不惩罚）。
+      IAP.buy().then(res => {
+        if (res.ok) {
+          G.wallet.noAds = true;
+          saveWallet();
+          FX.toast(T('blockblast.adsRemoved'), Render.L.cx, GameGlobal.SH * 0.4, '#7ef2a0', 'bold 18px sans-serif', 1.3);
+        }
+        renderAll();
+      });
+      return;
+    case 'RESTORE_IAP':
+      // 恢复购买（苹果对非消耗型的硬性要求）
+      IAP.restore().then(res => {
+        if (res.ok) {
+          G.wallet.noAds = true;
+          saveWallet();
+          FX.toast(T('blockblast.adsRemoved'), Render.L.cx, GameGlobal.SH * 0.4, '#7ef2a0', 'bold 18px sans-serif', 1.3);
+        }
+        renderAll();
+      });
+      return;
+    case 'SHOW_GC':
+      GC.show(data && data.board);
+      return;
     default: break;
   }
   renderAll();
@@ -581,6 +604,12 @@ async function boot() {
   restoreAudioPrefs();
   Portal.boot();
   await Ads.init();
+  // IAP + Game Center：原生才生效，web 全部静默 no-op。都不 await —— 不阻塞首屏。
+  IAP.init(window.GAME_CONFIG.rc && window.GAME_CONFIG.rc.ios).then(ok => {
+    // 换机/重装：静默恢复已购（App Store 账号是真值源，本地钱包只是缓存）
+    if (ok) IAP.isPro().then(pro => { if (pro && G.wallet && !G.wallet.noAds) { G.wallet.noAds = true; saveWallet(); renderAll(); } });
+  });
+  GC.signIn();
   I18N.onChange(() => { Controls.render(); renderAll(); });
   await I18N.setLang(I18N.detect());
   initCanvas();

@@ -75,6 +75,20 @@ AdMob 官方披露口径：勾 **Device ID**（Identifiers）、**Advertising Da
 - **T1+T2 全语言商店页**（代码里十语 UI 已有，缺的只是商店页文案）。每多一种语言 = 那个国家 App Store 里一份独立的 100 字关键词索引位 = 最大的免费自然流量。
 - `CFBundleLocalizations`：商品页「语言」栏只读**二进制**里的这个 key，不看商店页本地化。Capacitor 用 JS 切语言、包里没有 `.lproj` → 苹果默认只写「英语」。下次出包时在 CI 里 `plutil -replace CFBundleLocalizations` 补上真实十语。
 
+## 1.0.1 iOS 侧资产（2026-07-31 已程序化建好，全部幂等可重跑）
+
+| 资产 | 值 | 状态 |
+|---|---|---|
+| IAP（非消耗型 $2.99） | productId `cubeblast_noads`，ASC id `6796603142`，en+zh 本地化、baseTerritory=USA 定价、175 区 availability、审核截图 | **READY_TO_SUBMIT**（⚠ 首个非消耗型必须随版：出包后用 `reviewSubmissionItems` 带 `inAppPurchaseVersion` 与 1.0.1 同车） |
+| Game Center | bundleId 已加 GAME_CENTER 能力；榜 `cubeblast.endless.best` / `cubeblast.daily.best`（BEST_SCORE/DESC/INTEGER，en+zh 名） | 已建；CI 用 `tools/ios-extra.sh` 注入 entitlement（⚠ 首次出包盯一下这步的 `恰好 2 处` 校验） |
+| 代码 | `js/iap.js`（RevenueCat，web 回退本地开关）+ `js/gc.js`（登录/提交/展示全静默兜底）+ 商店页 Restore 按钮 + 设置页排行榜入口 | 已接线，E2E 全绿 |
+| CFBundleLocalizations | codemagic 共享模板已从 `GAME_CONFIG.languages` 动态注入（十语） | 无需操作 |
+
+**⚠ 出包前唯一的手工步（RevenueCat dashboard，约 5 分钟——skill 铁律：app config 只能 dashboard 建）**：
+1. dashboard 新建 project「cubeblast」→ **New app configuration** → App Store，bundle `com.aispeeds.cubeblast`，上传 In-App Purchase Key（`Documents/credentials/SubscriptionKey_4N977536WH.p8` + 其 Key ID + Issuer `f723569b-…`）；
+2. 之后全 API：建 entitlement `noads` → 建 product `cubeblast_noads`(type one_time) → attach 到 entitlement 和 default offering 的 `$rc_lifetime` 包 → `GET .../public_api_keys` 取 `appl_` key 填 `index.html` 的 `GAME_CONFIG.rc.ios`（⚠ 别手抄，坑⑦b）。
+   没配 RC 也能出包：`rc.ios` 为空 ⇒ IAP 不初始化、购买走 web 回退（= 1.0 行为），但那样收入漏洞仍在，**强烈建议配完再出**。
+
 ## 1.0.1 出包素材（2026-07-30 改良已上线 web，见 DESIGN §9.1；⚠ 出包/提交前必经批准）
 
 **What's New（en-US 草稿）**：

@@ -162,6 +162,8 @@
       "orange": "Heavy and warm. Often found near the board edges.",
       "green": "Native to the Emerald Grove. Some arrive riding on pieces.",
       "violet": "Rides only on travelling pieces — plan its landing before you drop it."
-    }
+    },
+    "restore": "Restore Purchases",
+    "leaderboards": "Leaderboards"
   }
 }

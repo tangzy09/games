@@ -162,6 +162,8 @@
       "orange": "Schwer und warm. Oft am Spielfeldrand zu finden.",
       "green": "Heimisch im Smaragdhain. Manche kommen auf Teilen angereist.",
       "violet": "Reist nur auf Teilen — plane die Landung, bevor du loslässt."
-    }
+    },
+    "restore": "Käufe wiederherstellen",
+    "leaderboards": "Bestenlisten"
   }
 }

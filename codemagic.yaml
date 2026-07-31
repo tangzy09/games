@@ -30,6 +30,8 @@ definitions:
         npx cap sync ios
         # @capacitor-community/admob v6 用旧 UMP API,UMP 3.x 全重命名 → pin 回 2.3.x(与 2048 同修法)
         perl -i -pe "s/(target 'App' do)/\$1\n  pod 'GoogleUserMessagingPlatform', '~> 2.3'/" ios/App/Podfile
+        # 游戏专属 iOS 附加配置(可选钩子):有 tools/ios-extra.sh 就跑(如 blockblast 的 Game Center entitlement)
+        if [ -f tools/ios-extra.sh ]; then bash tools/ios-extra.sh; fi
         grep -n GoogleUserMessagingPlatform ios/App/Podfile || true
         cd ios/App && rm -f Podfile.lock && pod install && cd ../..
     - name: 图标 + 启动屏(源图在 resources/)

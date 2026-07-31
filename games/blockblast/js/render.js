@@ -463,6 +463,14 @@
       .forEach((ln, i) => txt(ln, cx, y2 + 42 + i * 13, 'rgba(255,255,255,0.85)', '10px sans-serif'));
     if (!bought) addHit(L.playX + 20, y2, L.playW - 40, 78, 'BUY_NOADS', {});
 
+    // 恢复购买：苹果对非消耗型的硬性要求（只在原生壳里显示，web 没有可恢复的东西）
+    if (IAP.native) {
+      const y3 = y2 + 92;
+      fillRR(L.playX + 20, y3, L.playW - 40, 40, 10, 'rgba(255,255,255,0.14)');
+      txt(T('blockblast.restore'), cx, y3 + 20, PAL.sub, '12px sans-serif');
+      addHit(L.playX + 20, y3, L.playW - 40, 40, 'RESTORE_IAP', {});
+    }
+
     backButton();
   }
 
@@ -563,6 +571,13 @@
           r.on ? '#fff' : PAL.sub, 'bold 9px sans-serif');
       addHit(L.playX + 14, y, L.playW - 28, 72, r.act, {});
     });
+    // Game Center 排行榜入口（只在原生壳显示）
+    if (GC.available) {
+      const y = GameGlobal.safeTop + 76 + rows.length * 84;
+      fillRR(L.playX + 14, y, L.playW - 28, 52, 12, 'rgba(0,0,0,0.20)');
+      txtL('\u{1F3C5} ' + T('blockblast.leaderboards'), L.playX + 28, y + 26, '#fff', 'bold 14px sans-serif');
+      addHit(L.playX + 14, y, L.playW - 28, 52, 'SHOW_GC', { board: 'endless' });
+    }
     backButton();
   }
 

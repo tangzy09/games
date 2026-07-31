@@ -162,6 +162,8 @@
       "orange": "Pesada y cálida. Suele estar cerca de los bordes.",
       "green": "Nativa del Bosque Esmeralda. Algunas llegan montadas en piezas.",
       "violet": "Solo viaja sobre piezas: planifica su aterrizaje."
-    }
+    },
+    "restore": "Restaurar compras",
+    "leaderboards": "Clasificaciones"
   }
 }
