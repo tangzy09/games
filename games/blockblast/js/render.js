@@ -153,6 +153,20 @@
     green:  { fill: '#86efac', edge: '#15803d', emoji: '🟢' },   // 第三章「翡翠矿脉」
     violet: { fill: '#c4b5fd', edge: '#6d28d9', emoji: '🟣' },
   };
+  // ── 生成美术（本机 Flux 出图 + InSPyReNet 抠图，comfyui-flux-local skill 管线）──
+  //    engine makeArt 缺图自动回退 ⇒ 零改码换图：图没加载完/被删都退回矢量/emoji。
+  const ART = makeArt('art', ['cry_blue', 'cry_pink', 'cry_orange', 'cry_green', 'cry_violet',
+                              'ch_candy', 'ch_ocean', 'ch_forest', 'chest']);
+  ART.load();
+  const CH_ART = { 1: 'ch_candy', 2: 'ch_ocean', 3: 'ch_forest' };
+
+  /** 画水晶：有生成图用图（目标条/图鉴等大尺寸处），没有回退矢量 drawCrystal */
+  function drawCrystalArt(x, y, size, kind) {
+    const im = ART.get('cry_' + kind);
+    if (im) ctx.drawImage(im, x, y, size, size);
+    else drawCrystal(x, y, size, kind);
+  }
+
   function drawCrystal(x, y, size, kind) {
     const cr = CRYSTAL[kind] || CRYSTAL.blue;
     const cx = x + size / 2, cy = y + size / 2, r = size * 0.26;
@@ -237,10 +251,11 @@
     const claimable = Shop.canClaimChest(G.wallet, G.progress, ch);
     let doneN = 0; for (let id = ch.from; id <= ch.to; id++) if (G.progress[id] > 0) doneN++;
     fillRR(cx - 120, cy, 240, 30, 10, claimable ? '#f59e0b' : 'rgba(0,0,0,0.20)');
-    txt('🎁 ' + (claimed ? T('blockblast.chestDone')
+    drawArtIcon(ART, 'chest', '🎁', cx - 102, cy + 15, 26, '#fff', '14px sans-serif');   // 生成美术宝箱，缺图回退 emoji
+    txt((claimed ? T('blockblast.chestDone')
                 : claimable ? T('blockblast.chestClaim', { n: ch.chest })
                 : T('blockblast.chest') + ' · ' + doneN + '/10'),
-        cx, cy + 15, claimed ? '#7ef2a0' : claimable ? '#fff' : PAL.sub, 'bold 12px sans-serif');
+        cx + 10, cy + 15, claimed ? '#7ef2a0' : claimable ? '#fff' : PAL.sub, 'bold 12px sans-serif');
     if (claimable) addHit(cx - 120, cy, 240, 30, 'CHEST', { id: ch.id });
 
     const by = cy + 44;
@@ -578,7 +593,7 @@
       const n = got[k] || 0, seen = n > 0;
       fillRR(L.playX + 14, y, L.playW - 28, 78, 12, 'rgba(0,0,0,0.20)');
       ctx.globalAlpha = seen ? 1 : 0.25;
-      drawCrystal(L.playX + 24, y + 19, 40, k);
+      drawCrystalArt(L.playX + 24, y + 17, 44, k);
       ctx.globalAlpha = 1;
       txtL(seen ? T('blockblast.dex.' + k) : '???', L.playX + 76, y + 24,
            seen ? '#fff' : 'rgba(255,255,255,0.4)', 'bold 14px sans-serif');
@@ -880,8 +895,14 @@
     addHit(L.boardX + 72, L.hudY - 34, 58, 24, 'MENU', {});
 
     if (s.mode === 'level') {
-      // 目标条：每种水晶的「已收集 / 需要」；达成打勾
-      txtL(T('blockblast.level', { n: s.levelId }), L.boardX, L.hudY, PAL.sub, '13px sans-serif');
+      // 目标条：每种水晶的「已收集 / 需要」；达成打勾。章节徽章画在关卡标签左侧（主题演进）
+      const chIm = ART.get(CH_ART[Levels.chapterOf(s.levelId).id]);
+      if (chIm) {
+        ctx.drawImage(chIm, L.boardX, L.hudY - 13, 24, 24);
+        txtL(T('blockblast.level', { n: s.levelId }), L.boardX + 30, L.hudY, PAL.sub, '13px sans-serif');
+      } else {
+        txtL(T('blockblast.level', { n: s.levelId }), L.boardX, L.hudY, PAL.sub, '13px sans-serif');
+      }
       txtR(T('blockblast.moves', { n: s.stats.turns }) +
            (s.par ? '  ·  ' + T('blockblast.parHint', { n: s.par }) : ''),
            L.boardX + L.boardW, L.hudY, PAL.sub, '12px sans-serif');
@@ -893,7 +914,7 @@
       kinds.forEach((k, i) => {
         const gx = L.boardX + gw * i + gw / 2, gy = L.nextY + 2;
         const got = s.collected[k] || 0, need = s.goals[k];
-        drawCrystal(gx - 26 - L.cell * 0.5, gy - L.cell * 0.5, L.cell, k);
+        drawCrystalArt(gx - 26 - L.cell * 0.5, gy - L.cell * 0.5, L.cell, k);   // 目标条用生成图（大尺寸质感好）
         const done = got >= need;
         txtL(done ? '✔' : `${need - got}`, gx - 4, gy,
              done ? '#7ef2a0' : '#fff', 'bold 17px sans-serif');
