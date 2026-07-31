@@ -183,6 +183,20 @@
     "rankTitle": "इस बाज़ी की रैंकिंग",
     "rankYou": "आप",
     "jokerAd": "अटक गए? विज्ञापन देखें — जोकर पाएँ",
-    "jokerReady": "जोकर तैयार — 🃏 दबाकर ज़रूरी पत्ता बुलाएँ"
+    "jokerReady": "जोकर तैयार — 🃏 दबाकर ज़रूरी पत्ता बुलाएँ",
+    "stage": "चरण",
+    "nextStage": "आगे — चरण {n} ×{m}",
+    "runTotal": "इस दौर का योग: {n}",
+    "tournament": "दैनिक टूर्नामेंट",
+    "jokerTitle": "कोई चाल उपलब्ध नहीं",
+    "keepLooking": "और खोजें",
+    "setAva": "अवतार बनाएँ",
+    "lvl": "स्तर {n}",
+    "titleNovice": "नौसिखिया",
+    "titleAmateur": "शौक़ीन",
+    "titleSkilled": "कुशल",
+    "titleExpert": "विशेषज्ञ",
+    "titleMaster": "उस्ताद",
+    "titleGrand": "महा-उस्ताद"
   }
 }

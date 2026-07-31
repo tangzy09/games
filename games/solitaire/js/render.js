@@ -136,15 +136,87 @@
     return L;
   }
 
-  /** 菜单：每日 / 统计 / 收藏 / 公平 / 去广告 */
+  /** 菜单：档案头 / 每日锦标赛 / 每日 / 图鉴 / 统计 / 成就 / 收藏 / 公平 / 设置 */
   function renderMenu() {
     const L = page(T('sol.menu'));
     const { SH } = GameGlobal;
     const cx = L.cx, w = Math.min(L.playW - 40, 380);
-    let y = GameGlobal.safeTop + 62;
+    const tall0 = GameGlobal.SH >= 760;
+    let y = GameGlobal.safeTop + 56;
 
-    txt(T('sol.coins', { n: Money.coins }), cx, y, '#ffd84d', 'bold 15px sans-serif');
-    y += 26;
+    // 模式切换 chip（标题旁 —— 工具条腾位后 MODE 落这里）
+    const G0 = root.G;
+    const fcNow = G0.s && G0.s.mode === 'freecell';
+    fillRR(cx + w / 2 - 78, GameGlobal.safeTop + 14, 78, 26, 9, 'rgba(0,0,0,0.28)');
+    txt(fcNow ? '♠ ' + T('sol.klondike') : '⬛ ' + T('sol.freecell'),
+        cx + w / 2 - 39, GameGlobal.safeTop + 27, '#fff', 'bold 10px sans-serif');
+    addHit(cx + w / 2 - 78, GameGlobal.safeTop + 14, 78, 26, 'MODE', {});
+
+    // 👤 档案头:头像(图鉴天使/⭐) + 称号 Lvl + XP 条 + 金币（照竞品顶栏）
+    const lvl = levelOf(G0.xp || 0);
+    const prevNeed = lvl > 1 ? xpNeed(lvl - 1) : 0;
+    const prog = Math.max(0, Math.min(1, ((G0.xp || 0) - prevNeed) / (xpNeed(lvl) - prevNeed)));
+    const hh0 = tall0 ? 56 : 40;
+    fillRR(cx - w / 2, y, w, hh0, 12, 'rgba(0,0,0,0.28)');
+    const av = G0.avatarFile ? Angels.img(G0.avatarFile) : null;
+    const as0 = hh0 - 12;
+    if (av) {
+      ctx.save();
+      ctx.beginPath(); ctx.arc(cx - w / 2 + 8 + as0 / 2, y + hh0 / 2, as0 / 2, 0, 7); ctx.clip();
+      const sc = Math.max(as0 / av.width, as0 / av.height);
+      ctx.drawImage(av, cx - w / 2 + 8 + (as0 - av.width * sc) / 2, y + 6 + (as0 - av.height * sc) / 2,
+                    av.width * sc, av.height * sc);
+      ctx.restore();
+    } else {
+      txt('⭐', cx - w / 2 + 8 + as0 / 2, y + hh0 / 2, '#ffd84d', (as0 - 8) + 'px sans-serif');
+    }
+    txtL(T('sol.' + levelTitleKey(lvl)) + '  ' + T('sol.lvl', { n: lvl }),
+         cx - w / 2 + as0 + 18, y + (tall0 ? 18 : 14), '#fff', 'bold 13px sans-serif');
+    if (tall0) {
+      fillRR(cx - w / 2 + as0 + 18, y + 30, w - as0 - 120, 8, 4, 'rgba(255,255,255,0.15)');
+      fillRR(cx - w / 2 + as0 + 18, y + 30, Math.max(4, (w - as0 - 120) * prog), 8, 4, '#ffd84d');
+      txtL(((G0.xp || 0) - prevNeed) + '/' + (xpNeed(lvl) - prevNeed),
+           cx - w / 2 + as0 + 18, y + 47, 'rgba(255,255,255,0.5)', '9px sans-serif');
+    }
+    txtR(T('sol.coins', { n: Money.coins }), cx + w / 2 - 12, y + hh0 / 2, '#ffd84d', 'bold 12px sans-serif');
+    y += hh0 + 8;
+
+    // 🏆 每日锦标赛卡（零后端:100 名确定性对手,爬榜 = 当日再来一局的钩子）
+    const tr = tourRank();
+    const end0 = new Date(); end0.setHours(24, 0, 0, 0);
+    const leftMs = Math.max(0, end0 - Date.now());
+    const hhF = n => String(n).padStart(2, '0');
+    const cd = hhF(Math.floor(leftMs / 3600000)) + ':' + hhF(Math.floor(leftMs / 60000) % 60) + ':' + hhF(Math.floor(leftMs / 1000) % 60);
+    if (tall0) {
+      const th = 108;
+      fillRR(cx - w / 2, y, w, th, 12, 'rgba(0,0,0,0.30)');
+      txtL('🏆 ' + T('sol.tournament'), cx - w / 2 + 12, y + 16, '#ffd84d', 'bold 12px sans-serif');
+      txtR('⏳ ' + cd, cx + w / 2 - 12, y + 16, PAL.sub, 'bold 11px sans-serif');
+      // 三张迷你卡:你的名次 + 上下邻居
+      const cardW3 = Math.floor((w - 40) / 3);
+      const trio = [
+        tr.rank > 1 ? { r: tr.rank - 1, e: tr.field[tr.rank - 2] } : null,
+        { r: tr.rank, e: { name: T('sol.rankYou'), ava: G0.avatarFile ? '⭐' : '⭐', score: G0.dayScore || 0 }, you: 1 },
+        tr.rank <= tr.field.length ? { r: tr.rank + 1, e: tr.field[tr.rank - 1] } : null,
+      ];
+      trio.forEach((t3, i) => {
+        if (!t3) return;
+        const x3 = cx - w / 2 + 12 + i * (cardW3 + 8);
+        fillRR(x3, y + 28, cardW3, 70, 10, t3.you ? 'rgba(126,242,160,0.22)' : 'rgba(255,255,255,0.10)');
+        txt(t3.e.ava, x3 + cardW3 / 2, y + 44, '#fff', '17px sans-serif');
+        txt('#' + t3.r, x3 + cardW3 / 2, y + 62, t3.you ? '#7ef2a0' : '#fff', 'bold 12px sans-serif');
+        txt(t3.e.name + ' · ' + t3.e.score, x3 + cardW3 / 2, y + 78,
+            t3.you ? '#7ef2a0' : PAL.sub, '8px sans-serif');
+      });
+      addHit(cx - w / 2, y, w, th, 'DAILY', {});
+      y += th + 8;
+    } else {
+      fillRR(cx - w / 2, y, w, 34, 10, 'rgba(0,0,0,0.30)');
+      txtL('🏆 #' + tr.rank + ' · ' + (G0.dayScore || 0), cx - w / 2 + 12, y + 17, '#ffd84d', 'bold 11px sans-serif');
+      txtR('⏳ ' + cd, cx + w / 2 - 12, y + 17, PAL.sub, '10px sans-serif');
+      addHit(cx - w / 2, y, w, 34, 'DAILY', {});
+      y += 40;
+    }
 
     // 每日挑战：完成过今天的就亮 ✓；连续 ≥2 天挂 🔥（打卡即续 —— 回访钩子）
     const d0 = new Date();
@@ -182,7 +254,7 @@
       y += 46;
     }
 
-    // ── 每日挑战日历（本月）：连胜可视化，明天再来的钩子 ──
+    // ── 每日挑战日历（本月）：连胜可视化，明天再来的钩子（SE 压缩成单行,空间让给锦标赛卡）──
     const hist = root.G.dailyHist || {};
     const now = new Date();
     const dim = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
@@ -192,19 +264,21 @@
     y += 4;
     txtL(T('sol.dailyMonth', { n: done }), cx - w / 2, y + 6, PAL.sub, '11px sans-serif');
     y += 16;
-    const cs = GameGlobal.SH >= 760 ? 16 : 10;               // 小屏缩格子，别把下面按钮挤出屏
-    for (let d = 1; d <= dim; d++) {
-      const gx = cx - w / 2 + ((d - 1) % 7) * (cs + 6);
-      const gy = y + Math.floor((d - 1) / 7) * (cs + 5);
-      // 2=赢了(绿) 1=来打过(黄,连续天数认它) 0=没来
-      fillRR(gx, gy, cs, cs, 4, hist[dayKey(d)] >= 2 ? 'rgba(126,242,160,0.75)'
-                              : hist[dayKey(d)] ? 'rgba(255,216,77,0.45)' : 'rgba(0,0,0,0.25)');
-      if (d === now.getDate()) {
-        ctx.strokeStyle = '#ffd84d'; ctx.lineWidth = 2;
-        Sprite.rr(ctx, gx, gy, cs, cs, 4); ctx.stroke();
+    if (tall0) {
+      const cs = 16;
+      for (let d = 1; d <= dim; d++) {
+        const gx = cx - w / 2 + ((d - 1) % 7) * (cs + 6);
+        const gy = y + Math.floor((d - 1) / 7) * (cs + 5);
+        // 2=赢了(绿) 1=来打过(黄,连续天数认它) 0=没来
+        fillRR(gx, gy, cs, cs, 4, hist[dayKey(d)] >= 2 ? 'rgba(126,242,160,0.75)'
+                                : hist[dayKey(d)] ? 'rgba(255,216,77,0.45)' : 'rgba(0,0,0,0.25)');
+        if (d === now.getDate()) {
+          ctx.strokeStyle = '#ffd84d'; ctx.lineWidth = 2;
+          Sprite.rr(ctx, gx, gy, cs, cs, 4); ctx.stroke();
+        }
       }
+      y += Math.ceil(dim / 7) * (cs + 5) + 10;
     }
-    y += Math.ceil(dim / 7) * (cs + 5) + 10;
 
     // ⛔ 去广告 IAP **不做**（2026-07-31 拍板）：菜单里永远没有内购入口。
     //    （激励视频保留 —— 它不是 IAP，只换外观。）
@@ -453,11 +527,14 @@
       }
       txt((G.galView + 1) + ' / ' + total, cx, iy + size + 26, '#fff', 'bold 13px sans-serif');
       addHit(0, 0, GameGlobal.SW, SH, 'GAL_CLOSE', {});
-      // 存壁纸（⚠ 必须注册在 GAL_CLOSE 之后 —— hitTest 后注册优先）
+      // 存壁纸 + 设为头像（⚠ 必须注册在 GAL_CLOSE 之后 —— hitTest 后注册优先）
       const wy2 = iy + size + 44;
-      fillRR(cx - 100, wy2, 200, 40, 12, 'rgba(255,216,77,0.24)');
-      txt('💾 ' + T('sol.saveWall'), cx, wy2 + 20, '#ffd84d', 'bold 13px sans-serif');
-      addHit(cx - 100, wy2, 200, 40, 'GAL_WALL', {});
+      fillRR(cx - 150, wy2, 140, 40, 12, 'rgba(255,216,77,0.24)');
+      txt('💾 ' + T('sol.saveWall'), cx - 80, wy2 + 20, '#ffd84d', 'bold 12px sans-serif');
+      addHit(cx - 150, wy2, 140, 40, 'GAL_WALL', {});
+      fillRR(cx + 10, wy2, 140, 40, 12, 'rgba(126,242,160,0.24)');
+      txt('👤 ' + T('sol.setAva'), cx + 80, wy2 + 20, '#7ef2a0', 'bold 12px sans-serif');
+      addHit(cx + 10, wy2, 140, 40, 'SET_AVA', {});
     }
     drawToast();
   }
@@ -705,7 +782,10 @@
       }
     } else if (s.stock.length) {
       ctx.drawImage(Sprite.back(), L.stockX, L.topY, L.cardW, L.cardH);
-      txt(String(s.stock.length), L.stockX + L.cardW / 2, L.topY + L.cardH + 10, PAL.sub, '11px sans-serif');
+      // 数量角标压在牌角（照竞品）
+      const bw3 = Math.max(20, String(s.stock.length).length * 8 + 8);
+      fillRR(L.stockX + L.cardW - bw3 + 3, L.topY + L.cardH - 17, bw3, 16, 6, 'rgba(0,0,0,0.65)');
+      txt(String(s.stock.length), L.stockX + L.cardW - bw3 / 2 + 3, L.topY + L.cardH - 9, '#fff', 'bold 10px sans-serif');
     } else {
       drawSlot(L.stockX, L.topY, L.cardW, L.cardH, s.waste.length ? '↻' : '');
     }
@@ -733,8 +813,18 @@
       const ftop = f.length ? f[f.length - 1] : null;
       if (ftop != null && !FX.isFlying(ftop)) ctx.drawImage(Sprite.face(ftop), x, L.topY, L.cardW, L.cardH);
       else if (ftop != null && f.length > 1) ctx.drawImage(Sprite.face(f[f.length - 2]), x, L.topY, L.cardW, L.cardH);
-      else if (ftop == null) drawSlot(x, L.topY, L.cardW, L.cardH, Sprite.SUIT_SYM[fi]);
-      else drawSlot(x, L.topY, L.cardW, L.cardH, Sprite.SUIT_SYM[fi]);
+      else {
+        // 暗位「A♠」占位（照竞品:半透明卡面,一眼读懂目标）
+        fillRR(x + 0.5, L.topY + 0.5, L.cardW - 1, L.cardH - 1, Math.max(3, L.cardW * 0.09),
+               'rgba(255,255,255,0.08)');
+        drawSlot(x, L.topY, L.cardW, L.cardH);
+        ctx.globalAlpha = 0.28;
+        txt('A', x + L.cardW * 0.26, L.topY + L.cardH * 0.16, '#fff',
+            'bold ' + Math.round(L.cardW * 0.34) + 'px sans-serif');
+        txt(Sprite.SUIT_SYM[fi], x + L.cardW * 0.62, L.topY + L.cardH * 0.6, '#fff',
+            Math.round(L.cardW * 0.5) + 'px sans-serif');
+        ctx.globalAlpha = 1;
+      }
       addHit(x, L.topY, L.cardW, L.cardH, 'FOUND', { fi });
     }
 
@@ -809,30 +899,36 @@
     // ── 纸牌瀑布（合成持久拖尾层）──
     FX.draw(ctx);
 
-    // ── HUD ──
-    txtL(T('sol.score') + ' ' + s.score, L.playX + 8, L.hudY + L.hudH / 2, PAL.sub, '12px sans-serif');
-    // ⭐ 「✓ 有解」角标 —— 点它进公平页（措辞死线：只说「存在解法」，绝不说「你一定能赢」）
-    // ⚠ 可解性角标**只对 Klondike 有意义**：FreeCell 本来就 ~100% 可解，标了等于没标。
-    //   FreeCell 显示的是**难度**（solver 求解节点数），那才是它真正的信息。
+    // ── HUD 行1（2026-07-31 布局改版,参照头部竞品）:‹菜单 ⚙ 🎨 + 居中分数胶囊
+    //   （⚠ 右上留白给引擎 DOM 语言控件 —— 老坑:那里的东西点不动）──
+    const r1y = L.hudY;
+    const iconBtn = (x, label, act) => {
+      fillRR(x, r1y, 34, 28, 9, 'rgba(0,0,0,0.25)');
+      txt(label, x + 17, r1y + 14, '#fff', '15px sans-serif');
+      addHit(x, r1y, 34, 28, act, {});
+    };
+    iconBtn(L.playX + 8, '‹', 'MENU');
+    iconBtn(L.playX + 46, '⚙', 'SET');
+    iconBtn(L.playX + 84, '🎨', 'SHOP');
     const verified = !fc && Pool.isVerified(s.drawCount, s.seed);
-    const diff = fc ? null : Pool.difficultyOf(s.drawCount, s.seed);
-    // FreeCell 角标带 supermove 容量（(空格+1)×2^空列 —— 行家都在心算这个数）
-    const badge = fc ? T('sol.freecell') + ' · ' + T('sol.maxMove', { n: RulesF.maxMove(s, false) })
-                : (verified ? T('sol.verified') : T('sol.unverified'))
-                  + (diff ? ' · ' + T('sol.' + diff) : '');
-    // ⚠ 角标必须**左对齐**排在分数右边，绝不能贴右上角 —— 那里被 DOM 控制栏（语言按钮）压着，点不动。
-    const bw2 = Math.max(96, badge.length * 7 + 16);
-    const bx2 = L.playX + 8 + 78;
-    fillRR(bx2, L.hudY, bw2, L.hudH, 6,
-           verified ? 'rgba(126,242,160,0.22)' : 'rgba(0,0,0,0.22)');
-    txt(badge, bx2 + bw2 / 2, L.hudY + L.hudH / 2,
-        verified ? '#7ef2a0' : PAL.sub, 'bold 10px sans-serif');
-    addHit(bx2, L.hudY, bw2, L.hudH, 'FAIR', {});
-    // 「☰ #N」= 菜单入口（工具条 5 个按钮已满，菜单挂这里）
-    const mw = 92;
-    fillRR(L.playX + L.playW - 8 - mw, L.hudY, mw, L.hudH, 6, 'rgba(0,0,0,0.22)');
-    txt('☰ #' + s.seed, L.playX + L.playW - 8 - mw / 2, L.hudY + L.hudH / 2, PAL.sub, '10px sans-serif');
-    addHit(L.playX + L.playW - 8 - mw, L.hudY, mw, L.hudH, 'MENU', {});
+    // 分数胶囊 = 本轮连关累计(含当前关进行分×倍率);点开公平页（✓=已验证可解,措辞死线不变）
+    const shown = (G.runScore || 0) + Math.round(s.score * Math.min(G.stage || 1, 5));
+    const pillW = 150;
+    fillRR(L.cx - pillW / 2, r1y, pillW, 28, 14, 'rgba(0,0,0,0.32)');
+    txt('🏆 ' + shown + (verified ? ' ✓' : ''), L.cx, r1y + 14,
+        verified ? '#ffd84d' : '#fff', 'bold 15px sans-serif');
+    addHit(L.cx - pillW / 2, r1y, pillW, 28, 'FAIR', {});
+
+    // ── HUD 行2:Stage ×M | #局号(FC 带 supermove 容量) | 步数 · 用时 ──
+    const r2y = L.hud2Y + L.hud2H / 2;
+    const mult = Math.min(G.stage || 1, 5);
+    txtL(T('sol.stage') + ' ' + (G.stage || 1) + (mult > 1 ? ' ×' + mult : ''),
+         L.playX + 8, r2y, PAL.sub, 'bold 11px sans-serif');
+    const badge2 = fc ? T('sol.freecell') + ' ≤' + RulesF.maxMove(s, false) : '#' + s.seed;
+    txt(badge2, L.cx, r2y, PAL.sub, '11px sans-serif');
+    const liveMs = G.tAcc + (G.tLast && !s.won ? Math.min(Date.now() - G.tLast, 30000) : 0);
+    txtR(s.moves.length + ' · ' + fmtTime(liveMs),
+         L.playX + L.playW - 8, r2y, PAL.sub, 'bold 11px sans-serif');
 
     // ══ ⭐ 「这局还有解吗？」条 —— 本作唯一没有竞品有的按钮，也是 4.3(a) 的正面回答 ══
     //    它永远免费、永远不看广告：这是产品的灵魂，不是道具（变现红线 §7.4）。
@@ -870,12 +966,6 @@
       }
       const rsv = (P.result === 'dead' && P.deadFrom != null) ? 124 : (canDemo ? 108 : 0);
       addHit(L.playX + 8, L.proveY, L.playW - 16 - rsv, L.proveH, 'PROVE', {});
-    } else if (!fc && G.jokerOffer > Date.now() && G.jokers < 1 && !Money.noAds) {
-      // 🃏 真卡死（提示翻穿一圈也没步 / prover 判死局）⇒ 救场入口。
-      //   ⚠ 红线口径:救场与 snake 的「AI 救场看广告」同类;提示/撤销/证明本身永远免费。
-      fillRR(L.playX + 8, L.proveY, L.playW - 16, L.proveH, 10, 'rgba(255,216,77,0.22)');
-      txt('🃏 ' + T('sol.jokerAd'), L.cx, L.proveY + L.proveH / 2, '#ffd84d', 'bold 13px sans-serif');
-      addHit(L.playX + 8, L.proveY, L.playW - 16, L.proveH, 'JOKER_AD', {});
     } else if (Core.canAutoFinish(s)) {
       // ⭐ 稳赢收尾：全明牌 + 牌堆空 ⇒ 剩下的整理不用手磨,solver 播完直接接瀑布
       fillRR(L.playX + 8, L.proveY, L.playW - 16, L.proveH, 10, 'rgba(126,242,160,0.25)');
@@ -895,21 +985,25 @@
       addHit(jx, jy, 52, 42, 'JOKER_USE', {});
     }
 
-    // ── 底部工具条（撤销 / 提示 / 自动收牌 / 新局）—— 全部免费，永远不看广告（DESIGN §7.4）──
+    // ── 底部大圆钮（照竞品排版;⛔ 撤销/提示**永远免费无限**,绝不学它的限量道具）──
+    //   MODE(切玩法)移到菜单标题旁的 chip —— 工具条只留高频四件
     const tools = [
-      ['↩ ' + T('sol.undo'), 'UNDO', s.moves.length > 0],
-      ['💡 ' + T('sol.hint'), 'HINT', true],
-      ['⤴ ' + T('sol.auto'), 'AUTO', true],
-      ['🔄 ' + T('sol.newGame'), 'NEW', true],
-      // 切模式 = 换一局（模式是开局前属性，局中不可改）
-      [fc ? '♠ ' + T('sol.klondike') : '⬛ ' + T('sol.freecell'), 'MODE', true],
+      ['↺', T('sol.undo'), 'UNDO', s.moves.length > 0],
+      ['💡', T('sol.hint'), 'HINT', true],
+      ['⤴', T('sol.auto'), 'AUTO', true],
+      ['🔄', T('sol.newGame'), 'NEW', true],
     ];
-    const bw = Math.floor((L.playW - 16 - (tools.length - 1) * 6) / tools.length);
-    tools.forEach(([label, act, on], i) => {
-      const x = L.playX + 8 + i * (bw + 6);
-      fillRR(x, L.barY, bw, L.barH, 10, on ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.18)');
-      txt(label, x + bw / 2, L.barY + L.barH / 2, on ? '#fff' : 'rgba(255,255,255,0.35)', '10px sans-serif');
-      if (on) addHit(x, L.barY, bw, L.barH, act, {});
+    const RB = 24;
+    const gapB = (L.playW - 32 - tools.length * RB * 2) / (tools.length - 1);
+    tools.forEach(([ic, label, act, on], i) => {
+      const cxB = L.playX + 16 + RB + i * (RB * 2 + gapB);
+      const cyB = L.barY + RB + 2;
+      ctx.beginPath(); ctx.arc(cxB, cyB, RB, 0, 7);
+      ctx.fillStyle = on ? 'rgba(0,0,0,0.32)' : 'rgba(0,0,0,0.14)'; ctx.fill();
+      txt(ic, cxB, cyB, on ? '#fff' : 'rgba(255,255,255,0.35)', '19px sans-serif');
+      txt(wrapLines(label, RB * 2 + gapB - 6, 1)[0], cxB, L.barY + RB * 2 + 12,
+          on ? PAL.sub : 'rgba(255,255,255,0.3)', '9px sans-serif');
+      if (on) addHit(cxB - RB, cyB - RB, RB * 2, RB * 2, act, {});
     });
 
     // 横幅**预留区**（真广告由 Ads 层贴上；这里只占位，绝不盖住牌）
@@ -923,7 +1017,10 @@
       drawDim('rgba(0,40,20,0.72)');
       let wy = SH * 0.28;
       txt(T('sol.youWin'), L.cx, wy, '#fff', 'bold 30px sans-serif'); wy += 46;
-      txt(T('sol.finalScore', { n: s.score }), L.cx, wy, '#ffd84d', 'bold 22px sans-serif'); wy += 26;
+      const multW = Math.min(G.stage || 1, 5);
+      txt(T('sol.finalScore', { n: G.lastStageScore || s.score }) + (multW > 1 ? '  ×' + multW : ''),
+          L.cx, wy, '#ffd84d', 'bold 22px sans-serif'); wy += 20;
+      txt(T('sol.runTotal', { n: G.runScore || 0 }), L.cx, wy, PAL.sub, '11px sans-serif'); wy += 20;
       txt(T('sol.timeMoves', { t: fmtTime(root.G.tAcc), m: s.moves.length }),
           L.cx, wy, PAL.sub, '11px sans-serif'); wy += 22;
       const clean = !s.usedUndo && !s.usedHint && !s.usedJoker;
@@ -957,10 +1054,16 @@
         wy += als.length * 16 + 6;
       }
       wy += 6;
-      fillRR(L.cx - 90, wy, 180, 48, 12, '#22c55e');
-      txt(T('sol.newGame'), L.cx, wy + 24, '#fff', 'bold 16px sans-serif');
-      addHit(L.cx - 90, wy, 180, 48, 'NEW', {});
-      wy += 56;
+      // ⭐ 主按钮 = 下一关(倍率递增,「再来一关」);次按钮 = 重开一轮
+      fillRR(L.cx - 100, wy, 200, 48, 12, '#22c55e');
+      txt('▶ ' + T('sol.nextStage', { n: (G.stage || 1) + 1, m: Math.min((G.stage || 1) + 1, 5) }),
+          L.cx, wy + 24, '#fff', 'bold 15px sans-serif');
+      addHit(L.cx - 100, wy, 200, 48, 'NEXT_STAGE', {});
+      wy += 54;
+      fillRR(L.cx - 90, wy, 180, 34, 10, 'rgba(255,255,255,0.16)');
+      txt('🔄 ' + T('sol.newGame'), L.cx, wy + 17, '#fff', '12px sans-serif');
+      addHit(L.cx - 90, wy, 180, 34, 'NEW', {});
+      wy += 40;
       // 挑战朋友：战绩图卡（支持文件分享时出图，桌面等环境自动降级为链接分享）
       fillRR(L.cx - 90, wy, 180, 40, 12, 'rgba(255,255,255,0.18)');
       txt('📣 ' + T('sol.challenge'), L.cx, wy + 20, '#fff', '13px sans-serif');
@@ -972,6 +1075,24 @@
         txt('▶ ' + T('sol.adX2') + ' (+' + G.lastWinCoins + ')', L.cx, wy + 20, '#ffd84d', 'bold 13px sans-serif');
         addHit(L.cx - 90, wy, 180, 40, 'WIN_X2', {});
       }
+    }
+
+    // 🃏 卡死弹窗（照竞品:居中大卡;真卡死才出,可关掉继续自己找;诚实答案与撤销永远免费在旁）
+    if (!fc && G.jokerOffer > Date.now() && G.jokers < 1 && !Money.noAds && !s.won) {
+      drawDim('rgba(0,0,0,0.62)');
+      const pw = Math.min(320, L.playW - 40), ph = 250;
+      const px = L.cx - pw / 2, py = SH * 0.30;
+      fillRR(px, py, pw, ph, 18, '#fdfdfb');
+      txt('🃏', L.cx, py + 52, '#000', '58px sans-serif');
+      txt(T('sol.jokerTitle'), L.cx, py + 106, '#1a1a2e', 'bold 17px sans-serif');
+      ctx.font = '11px sans-serif';
+      wrapLines(T('sol.hintNone'), pw - 40, 2).forEach((ln, i) =>
+        txt(ln, L.cx, py + 128 + i * 14, 'rgba(0,0,0,0.55)', '11px sans-serif'));
+      fillRR(px + 24, py + 162, pw - 48, 44, 12, '#22c55e');
+      txt('▶ ' + T('sol.jokerAd'), L.cx, py + 184, '#fff', 'bold 13px sans-serif');
+      addHit(px + 24, py + 162, pw - 48, 44, 'JOKER_AD', {});
+      txt(T('sol.keepLooking'), L.cx, py + 226, '#16a34a', 'bold 13px sans-serif');
+      addHit(px + 24, py + 212, pw - 48, 30, 'JOKER_DISMISS', {});
     }
     drawToast();
   }

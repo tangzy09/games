@@ -183,6 +183,20 @@
     "rankTitle": "この一局のランキング",
     "rankYou": "あなた",
     "jokerAd": "行き詰まった？広告を見てジョーカーを入手",
-    "jokerReady": "ジョーカー準備完了——🃏 をタップして必要なカードを召喚"
+    "jokerReady": "ジョーカー準備完了——🃏 をタップして必要なカードを召喚",
+    "stage": "ステージ",
+    "nextStage": "次へ — ステージ{n} ×{m}",
+    "runTotal": "今回の合計：{n}",
+    "tournament": "デイリートーナメント",
+    "jokerTitle": "打てる手がありません",
+    "keepLooking": "もう少し探す",
+    "setAva": "アバターに設定",
+    "lvl": "Lv.{n}",
+    "titleNovice": "ビギナー",
+    "titleAmateur": "アマチュア",
+    "titleSkilled": "上級",
+    "titleExpert": "エキスパート",
+    "titleMaster": "マスター",
+    "titleGrand": "グランドマスター"
   }
 }

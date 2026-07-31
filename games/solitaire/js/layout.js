@@ -43,9 +43,14 @@
     const gameH = isTablet ? Math.min(availH, Math.round(playW * 1.35)) : availH;
     const gameTop = isTablet ? safeTop + Math.round((availH - gameH) / 2) : safeTop;
 
+    // HUD 两行（2026-07-31 布局改版,参照头部竞品）:
+    //   行1 = ‹菜单 | ⚙ | 🎨 | 居中分数胶囊(右侧留白给引擎语言控件)
+    //   行2 = Stage ×M | Moves | Time 三栏
     const hudY = gameTop + 6;
-    const hudH = 20;
-    const top = hudY + hudH + 8;
+    const hudH = 30;
+    const hud2Y = hudY + hudH + 2;
+    const hud2H = 16;
+    const top = hud2Y + hud2H + 8;
     const gameBottom = gameTop + gameH;
 
     Object.assign(L, {
@@ -53,7 +58,7 @@
       gap, cardW, cardH, bannerH,
       cols,
       colX: i => playX + gap + i * (cardW + gap),         // 第 i 列的 x
-      hudY, hudH,
+      hudY, hudH, hud2Y, hud2H,
       // 顶排（Klondike）：stock + waste（左）| foundations ×4（右）
       topY: top,
       stockX: playX + gap,
@@ -66,13 +71,13 @@
       // 堆叠 offset：明牌/暗牌**不同**（暗牌挤一点，省高度）
       upOff: Math.round(cardH * 0.28),
       downOff: Math.round(cardH * 0.10),
-      // 底部工具条（平板上跟着居中的游戏区走，不是贴着屏幕最底）
-      barH: 46,
-      barY: gameBottom - 46 - 8,
+      // 底部工具条：大圆按钮 + 标签（平板上跟着居中的游戏区走，不是贴着屏幕最底）
+      barH: 72,
+      barY: gameBottom - 72 - 6,
       bannerY: SH - bannerH,                 // 横幅永远贴屏幕底（原生横幅就在那儿）
       // ⭐ 「这局还有解吗？」条 —— 一等公民，占正经版面（在工具条正上方）
       proveH: 40,
-      proveY: gameBottom - 46 - 8 - 40 - 6,
+      proveY: gameBottom - 72 - 6 - 40 - 6,
     });
 
     // ⚠ 最长列压缩：Klondike 最长可能 6 暗 + 13 明 = 19 张。

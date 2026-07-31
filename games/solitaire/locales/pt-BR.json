@@ -183,6 +183,20 @@
     "rankTitle": "Ranking do jogo",
     "rankYou": "Você",
     "jokerAd": "Travou? Assista a um anúncio e ganhe um coringa",
-    "jokerReady": "Coringa pronto — toque em 🃏 para invocar a carta que falta"
+    "jokerReady": "Coringa pronto — toque em 🃏 para invocar a carta que falta",
+    "stage": "Fase",
+    "nextStage": "Próxima — Fase {n} ×{m}",
+    "runTotal": "Total da série: {n}",
+    "tournament": "Torneio diário",
+    "jokerTitle": "Sem jogadas disponíveis",
+    "keepLooking": "Continuar tentando",
+    "setAva": "Usar como avatar",
+    "lvl": "Nv. {n}",
+    "titleNovice": "Novato",
+    "titleAmateur": "Amador",
+    "titleSkilled": "Habilidoso",
+    "titleExpert": "Perito",
+    "titleMaster": "Mestre",
+    "titleGrand": "Grão-mestre"
   }
 }

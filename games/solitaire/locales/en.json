@@ -183,6 +183,20 @@
     "rankTitle": "Deal leaderboard",
     "rankYou": "You",
     "jokerAd": "Stuck? Watch an ad — get a Joker",
-    "jokerReady": "Joker ready — tap 🃏 to summon the card you need"
+    "jokerReady": "Joker ready — tap 🃏 to summon the card you need",
+    "stage": "Stage",
+    "nextStage": "Next — Stage {n} ×{m}",
+    "runTotal": "Run total: {n}",
+    "tournament": "Daily Tournament",
+    "jokerTitle": "No moves available",
+    "keepLooking": "Keep looking",
+    "setAva": "Set as avatar",
+    "lvl": "Lvl {n}",
+    "titleNovice": "Novice",
+    "titleAmateur": "Amateur",
+    "titleSkilled": "Skilled",
+    "titleExpert": "Expert",
+    "titleMaster": "Master",
+    "titleGrand": "Grandmaster"
   }
 }

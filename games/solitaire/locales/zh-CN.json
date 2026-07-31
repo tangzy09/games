@@ -183,6 +183,20 @@
     "rankTitle": "本局排名",
     "rankYou": "你",
     "jokerAd": "卡住了？看广告拿一张万能牌",
-    "jokerReady": "万能牌已就绪——点 🃏 召唤你最缺的那张牌"
+    "jokerReady": "万能牌已就绪——点 🃏 召唤你最缺的那张牌",
+    "stage": "关卡",
+    "nextStage": "下一关 · 第 {n} 关 ×{m}",
+    "runTotal": "本轮累计：{n}",
+    "tournament": "每日锦标赛",
+    "jokerTitle": "没有可走的步了",
+    "keepLooking": "再找找",
+    "setAva": "设为头像",
+    "lvl": "Lv.{n}",
+    "titleNovice": "新手",
+    "titleAmateur": "进阶",
+    "titleSkilled": "熟练",
+    "titleExpert": "高手",
+    "titleMaster": "大师",
+    "titleGrand": "宗师"
   }
 }

@@ -183,6 +183,20 @@
     "rankTitle": "এই খেলার র‍্যাঙ্কিং",
     "rankYou": "আপনি",
     "jokerAd": "আটকে গেছেন? বিজ্ঞাপন দেখে জোকার নিন",
-    "jokerReady": "জোকার প্রস্তুত — 🃏 চেপে দরকারি তাসটি আনুন"
+    "jokerReady": "জোকার প্রস্তুত — 🃏 চেপে দরকারি তাসটি আনুন",
+    "stage": "ধাপ",
+    "nextStage": "পরের — ধাপ {n} ×{m}",
+    "runTotal": "এই দফার মোট: {n}",
+    "tournament": "দৈনিক টুর্নামেন্ট",
+    "jokerTitle": "কোনো চাল নেই",
+    "keepLooking": "আরও খুঁজুন",
+    "setAva": "অবতার করুন",
+    "lvl": "স্তর {n}",
+    "titleNovice": "নবীন",
+    "titleAmateur": "শৌখিন",
+    "titleSkilled": "দক্ষ",
+    "titleExpert": "বিশেষজ্ঞ",
+    "titleMaster": "ওস্তাদ",
+    "titleGrand": "মহাগুরু"
   }
 }

@@ -43,7 +43,8 @@ async function clickAction(page, action, dataMatch) {
   await page.waitForTimeout(80);
 
   // ── 切到 FreeCell（真实点工具条按钮）──
-  ok(await clickAction(page,'MODE'), '「模式」按钮可点');
+  await clickAction(page,'MENU'); await page.waitForTimeout(150);   // MODE 已移入菜单 chip
+  ok(await clickAction(page,'MODE'), '「模式」按钮可点(菜单 chip)');
   await page.waitForTimeout(200);
   const st = await page.evaluate(() => ({ mode:G.s.mode, seed:G.s.seed, cols:G.s.tableau.length,
     free:G.s.free.length, down:G.s.tableau.reduce((n,c)=>n+(c.cards.length-c.up),0) }));
@@ -82,6 +83,7 @@ async function clickAction(page, action, dataMatch) {
   await page.screenshot({ path: path.join(SHOT,'p4-03-freecell-solvable.png') });
 
   // ── 切回 Klondike ──
+  await clickAction(page,'MENU'); await page.waitForTimeout(150);
   await clickAction(page,'MODE');
   await page.waitForTimeout(200);
   ok(await page.evaluate(() => G.s.mode==='klondike' && G.s.tableau.length===7), '切回 Klondike（7 列）');

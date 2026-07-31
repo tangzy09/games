@@ -183,6 +183,20 @@
     "rankTitle": "ਇਸ ਬਾਜ਼ੀ ਦੀ ਰੈਂਕਿੰਗ",
     "rankYou": "ਤੁਸੀਂ",
     "jokerAd": "ਫਸ ਗਏ? ਇਸ਼ਤਿਹਾਰ ਵੇਖੋ — ਜੋਕਰ ਲਓ",
-    "jokerReady": "ਜੋਕਰ ਤਿਆਰ — 🃏 ਦਬਾ ਕੇ ਲੋੜੀਂਦਾ ਪੱਤਾ ਬੁਲਾਓ"
+    "jokerReady": "ਜੋਕਰ ਤਿਆਰ — 🃏 ਦਬਾ ਕੇ ਲੋੜੀਂਦਾ ਪੱਤਾ ਬੁਲਾਓ",
+    "stage": "ਪੜਾਅ",
+    "nextStage": "ਅੱਗੇ — ਪੜਾਅ {n} ×{m}",
+    "runTotal": "ਇਸ ਦੌਰ ਦਾ ਕੁੱਲ: {n}",
+    "tournament": "ਰੋਜ਼ਾਨਾ ਟੂਰਨਾਮੈਂਟ",
+    "jokerTitle": "ਕੋਈ ਚਾਲ ਉਪਲਬਧ ਨਹੀਂ",
+    "keepLooking": "ਹੋਰ ਲੱਭੋ",
+    "setAva": "ਅਵਤਾਰ ਬਣਾਓ",
+    "lvl": "ਪੱਧਰ {n}",
+    "titleNovice": "ਨੌਸਿਖੀਆ",
+    "titleAmateur": "ਸ਼ੌਕੀਨ",
+    "titleSkilled": "ਨਿਪੁੰਨ",
+    "titleExpert": "ਮਾਹਿਰ",
+    "titleMaster": "ਉਸਤਾਦ",
+    "titleGrand": "ਮਹਾਂ-ਉਸਤਾਦ"
   }
 }

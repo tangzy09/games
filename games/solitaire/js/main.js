@@ -35,6 +35,13 @@ const G = window.G = {
   jokerOffer: 0,           // 「拿万能牌」入口的展示截止时间戳（卡死检测/死局判定时点亮）
   comboN: 0,               // 连击收牌计数（4s 窗口）
   comboAt: 0,
+  stage: 1,                // ⭐ 连关:第 N 关(倍率 = min(stage,5));NEW/DAILY 重置,NEXT_STAGE 递增
+  runScore: 0,             // 本轮连关累计分(结算分 = s.score × 倍率 逐关累加)
+  lastStageScore: 0,
+  dayScore: 0,             // 🏆 每日锦标赛当日累计分(确定性对手场,零后端)
+  dayId: '',
+  xp: 0,                   // 玩家经验(= 历史累计得分) → 等级/称号
+  avatarFile: null,        // 头像 = 图鉴里选中的天使(未选用 ⭐)
   // ⚠ 双口径（DESIGN §4.5）：无限撤销会把总胜率架空 ⇒ 不分开记，统计就是假的
   stats: { played: 0, won: 0, cleanWon: 0, streak: 0, bestStreak: 0 },
   dailyDone: '',           // 今天的每日挑战完成了没（YYYYMMDD）
@@ -84,6 +91,8 @@ const saveOpts = () => {
       fourColor: G.fourColor, bigText: G.bigText, comfort: G.comfort, reduceFx: G.reduceFx,
       difficulty: G.difficulty, dailyDone: G.dailyDone, dailyHist: G.dailyHist,
       badges: G.badges, ach: G.ach, angels: G.angels, seenIntro: G.seenIntro,
+      stage: G.stage, runScore: G.runScore, dayScore: G.dayScore, dayId: G.dayId,
+      xp: G.xp, avatarFile: G.avatarFile,
     }));
   } catch (e) {}
 };
@@ -294,6 +303,13 @@ function onWin() {
   clearRun();
 
   if (s.mode === 'freecell') G.stats.fcWon = (G.stats.fcWon || 0) + 1;
+  // ⭐ 连关结算:本关得分 × 倍率(min(stage,5)) 计入本轮/当日锦标赛/XP
+  const mult = Math.min(G.stage, 5);
+  G.lastStageScore = s.score * mult;
+  G.runScore += G.lastStageScore;
+  ensureDay();
+  G.dayScore += G.lastStageScore;
+  G.xp = (G.xp || 0) + G.lastStageScore;
   G.lastWinCoins = Money.earnWin(clean);         // 金币（只能换外观，换不到任何优势）
   G.winDoubled = false;
   // 👼 天使图鉴：赢一局 +1，每日挑战赢局再 +2（500 张的长线收集；集组奖励见 gainAngels）
@@ -490,10 +506,30 @@ function onDrop(drag, target, at) {
 function dispatch(action, data) {
   const s = G.s;
   switch (action) {
-    case 'NEW': newGame(); break;
+    case 'NEW': G.stage = 1; G.runScore = 0; newGame(); break;
+    // ⭐ 赢局后「下一关」:倍率递增的连关(分数滚雪球 —— 「再来一关」的钩子)
+    case 'NEXT_STAGE': {
+      if (!s.won) break;
+      G.stage = Math.min(G.stage + 1, 99);
+      newGame(s.drawCount, s.mode);
+      break;
+    }
+    case 'JOKER_DISMISS': G.jokerOffer = 0; break;
+    // 👤 把图鉴大图设为头像
+    case 'SET_AVA': {
+      if (G.galView != null && G.galView < G.angels) {
+        G.avatarFile = Angels.fileAt(G.galView);
+        saveOpts();
+        G.toast = { msg: '👤 ✓', until: Date.now() + 1400 };
+        setTimeout(renderAll, 1500);
+      }
+      break;
+    }
     case 'MODE': {                             // 切模式 = 换一局（模式是开局前属性）
       const next = s.mode === 'freecell' ? 'klondike' : 'freecell';
+      G.stage = 1; G.runScore = 0;             // 换玩法 = 新一轮连关
       newGame(undefined, next);
+      goPhase('PLAY');                         // 入口在菜单 chip,切完回牌桌
       break;
     }
     case 'FAIR': goPhase('FAIR'); break;
@@ -652,6 +688,7 @@ function dispatch(action, data) {
         G.drag = G.sel = G.hintMove = null;
         G.tAcc = 0; G.tLast = Date.now();
         G.jokers = 0; G.jokerOffer = 0; G.comboN = 0;
+        G.stage = 1; G.runScore = 0;
         Prover.reset(); FX.reset(); clearRun();
         goPhase('PLAY');
         dealAnim();
@@ -949,6 +986,45 @@ function canMakeup() {
   return !h[dayKeyAgo(1)] && !!h[dayKeyAgo(2)];
 }
 
+// ══ 🏆 每日锦标赛（零后端伪社交:100 名确定性对手,同一天全球同一场）══
+const TOUR_NAMES = ['Patricio','Alex','Isabel','Marco','Yuki','Nadia','Omar','Elena','Kai','Zoe',
+  'Ivan','Lucia','Noah','Aicha','Ravi','Mei','Jonas','Sofia','Tariq','Anya','Diego','Hana','Felix','Nora'];
+const TOUR_AVAS = ['🦊','🦝','🐱','🐨','🦁','🐼','🦉','🐸','🧑🏻','👩🏽','👨🏿','👩🏻','🧔🏽','👵🏼','👦🏾','👧🏻'];
+function tourField() {
+  const dayN = parseInt(todayId(), 10) >>> 0;
+  const out = [];
+  for (let i = 0; i < 100; i++) {
+    let a = (dayN ^ Math.imul(i + 7, 2654435761)) >>> 0;
+    a = Math.imul(a ^ (a >>> 15), 1 | a) >>> 0;
+    const noise = ((a >>> 8) % 1000) / 1000;
+    const base = Math.pow(1 - i / 110, 2.1) * 155000;
+    out.push({ name: TOUR_NAMES[a % TOUR_NAMES.length],
+               ava: TOUR_AVAS[(a >>> 5) % TOUR_AVAS.length],
+               score: Math.round(base * (0.9 + noise * 0.2)) + 500 });
+  }
+  out.sort((x, y) => y.score - x.score);
+  return out;
+}
+/** 你今天的名次（1 + 比你高分的对手数;打一关就往上爬,爬榜就是留存钩子） */
+function tourRank() {
+  const f = tourField();
+  let r = 1;
+  for (const e of f) if (e.score > (G.dayScore || 0)) r++;
+  return { rank: r, field: f };
+}
+/** 跨天回滚:锦标赛当日分清零 */
+function ensureDay() {
+  if (G.dayId !== todayId()) { G.dayId = todayId(); G.dayScore = 0; }
+}
+
+// ══ 玩家等级(XP = 历史累计得分)══
+const xpNeed = l => 150 * l * (l + 1);          // 升到 l+1 级所需累计 XP(Lvl1 → 300 起步)
+function levelOf(xp) { let l = 1; while (xp >= xpNeed(l) && l < 99) l++; return l; }
+function levelTitleKey(l) {
+  return l >= 20 ? 'titleGrand' : l >= 15 ? 'titleMaster' : l >= 10 ? 'titleExpert'
+       : l >= 6 ? 'titleSkilled' : l >= 3 ? 'titleAmateur' : 'titleNovice';
+}
+
 /** 每日挑战连续天数：打卡即续（不要求赢 —— 回访动机要可控）。今天还没来则从昨天起算（未断）*/
 function dailyStreakDays() {
   const hist = G.dailyHist || {};
@@ -1115,6 +1191,14 @@ async function boot() {
     G.phase = 'PLAY';
     renderAll();
   });
+  ensureDay();
+  // ⏱ 每秒重画一次(仅 PLAY/MENU):行2 的 Time 与锦标赛倒计时要活着走
+  setInterval(() => {
+    if ((G.phase === 'PLAY' && G.s && !G.s.won && !FX.busy()) || G.phase === 'MENU') {
+      ensureDay();
+      renderAll();
+    }
+  }, 1000);
   window.addEventListener('resize', () => { initCanvas(); FX.reset(); renderAll(); });
   Controls.render();
   renderAll();

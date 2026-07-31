@@ -183,6 +183,20 @@
     "rankTitle": "Partie-Rangliste",
     "rankYou": "Du",
     "jokerAd": "Festgefahren? Werbung ansehen — Joker holen",
-    "jokerReady": "Joker bereit — tippe 🃏, um die fehlende Karte zu holen"
+    "jokerReady": "Joker bereit — tippe 🃏, um die fehlende Karte zu holen",
+    "stage": "Stufe",
+    "nextStage": "Weiter — Stufe {n} ×{m}",
+    "runTotal": "Serie gesamt: {n}",
+    "tournament": "Tagesturnier",
+    "jokerTitle": "Keine Züge möglich",
+    "keepLooking": "Weitersuchen",
+    "setAva": "Als Avatar festlegen",
+    "lvl": "Lvl {n}",
+    "titleNovice": "Neuling",
+    "titleAmateur": "Amateur",
+    "titleSkilled": "Geübt",
+    "titleExpert": "Experte",
+    "titleMaster": "Meister",
+    "titleGrand": "Großmeister"
   }
 }

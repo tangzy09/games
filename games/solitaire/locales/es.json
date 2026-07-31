@@ -183,6 +183,20 @@
     "rankTitle": "Clasificación de la partida",
     "rankYou": "Tú",
     "jokerAd": "¿Atascado? Ve un anuncio y llévate un comodín",
-    "jokerReady": "Comodín listo: toca 🃏 para invocar la carta que necesitas"
+    "jokerReady": "Comodín listo: toca 🃏 para invocar la carta que necesitas",
+    "stage": "Fase",
+    "nextStage": "Siguiente — Fase {n} ×{m}",
+    "runTotal": "Total de la racha: {n}",
+    "tournament": "Torneo diario",
+    "jokerTitle": "No hay jugadas disponibles",
+    "keepLooking": "Seguir buscando",
+    "setAva": "Usar como avatar",
+    "lvl": "Nv. {n}",
+    "titleNovice": "Novato",
+    "titleAmateur": "Aficionado",
+    "titleSkilled": "Hábil",
+    "titleExpert": "Experto",
+    "titleMaster": "Maestro",
+    "titleGrand": "Gran maestro"
   }
 }
