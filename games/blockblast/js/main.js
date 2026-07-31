@@ -383,7 +383,7 @@ function consume(events) {
         Shop.notePlayed(G.wallet);                     // 每完成一盘都计数（无尽/每日/挑战）
         qdone.push(...Quests.bump(G.profile, qDay, 'games', 1));
         G.newAngels = Shop.earnAngels(G.wallet, 1 + (G.newBestRun ? 1 : 0));   // 每盘 +1，破纪录再 +1
-        if (G.newBestRun) Rate.maybeAsk(G);            // 破纪录也是幸福时刻
+        if (G.newBestRun && Rate.maybeAsk(G)) saveProfile();   // 破纪录也是幸福时刻；记账必须落盘（额度保守原则）
         if (pure) GC.submit('endless', s.score);       // Game Center 无尽榜
         saveWallet();
       } else {

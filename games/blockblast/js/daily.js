@@ -92,6 +92,12 @@
     wallet.coins -= cost;
     profile.dailyStreak = prevStreak + 1;
     profile.bestDailyStreak = Math.max(profile.bestDailyStreak || 0, profile.dailyStreak);
+    // ⚠ 恢复里程碑水位（断签时被清成 0）：不恢复的话「故意断签→补签→重拿 7 天档」
+    //   每轮净赚 20 币 + 5 天使（code review 抓到的经济漏洞）。补签接回的是**原来的**连续，
+    //   已领过的档位不该再发。
+    let mark = 0;
+    for (const m of STREAK_MILESTONES) if (profile.dailyStreak >= m.days) mark = m.days;
+    profile.streakRewardedAt = Math.max(profile.streakRewardedAt || 0, mark);
     return true;
   }
 

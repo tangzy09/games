@@ -1212,14 +1212,17 @@
       }
       txt(T('blockblast.seed', { s: s.seed }), cx, SH * 0.638, 'rgba(255,255,255,0.45)', '11px sans-serif');
       // 分享/补签按钮（按优先级）：断签补签 > 每日分享成绩 > 种子挑战
+      const canRepair = G.repairOffer && G.wallet.coins >= Daily.REPAIR_COST;
       const shareBtn = (s.daily && G.repairOffer)
-        ? { label: '\u{1F525} ' + T('blockblast.repair', { n: G.repairOffer.prev + 1 }), act: 'REPAIR_STREAK', bg: '#f59e0b' }
+        ? { label: '\u{1F525} ' + T('blockblast.repair', { n: G.repairOffer.prev + 1 }),
+            act: canRepair ? 'REPAIR_STREAK' : null,                  // 金币不够：按钮置灰不可点
+            bg: canRepair ? '#f59e0b' : 'rgba(0,0,0,0.25)' }
         : s.daily
         ? { label: '\u{1F4E4} ' + T('blockblast.shareScore'), act: 'SHARE_DAILY', bg: 'rgba(255,255,255,0.16)' }
         : { label: '\u{1F517} ' + T('blockblast.challenge'), act: 'SHARE_SEED', bg: 'rgba(255,255,255,0.16)' };
       fillRR(cx - 95, SH * 0.663, 190, 38, 12, shareBtn.bg);
-      txt(shareBtn.label, cx, SH * 0.663 + 19, '#fff', '13px sans-serif');
-      addHit(cx - 95, SH * 0.663, 190, 38, shareBtn.act, {});
+      txt(shareBtn.label, cx, SH * 0.663 + 19, shareBtn.act ? '#fff' : 'rgba(255,255,255,0.4)', '13px sans-serif');
+      if (shareBtn.act) addHit(cx - 95, SH * 0.663, 190, 38, shareBtn.act, {});
       fillRR(cx - 90, SH * 0.728, 180, 50, 14, '#22c55e');
       txt(T('blockblast.restart'), cx, SH * 0.728 + 25, '#fff', 'bold 17px sans-serif');
       addHit(cx - 90, SH * 0.728, 180, 50, 'RESTART', {});

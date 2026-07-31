@@ -133,6 +133,12 @@ const Daily = require('../js/daily.js');
   assert(Daily.repairStreak(p2, w, r.broken, Daily.REPAIR_COST), '金币够 → 补签成功');
   assert.strictEqual(p2.dailyStreak, 6, '接回 5+1=6 天');
   assert.strictEqual(w.coins, 50, '扣 100 币');
+  // ⛔ 经济漏洞回归（code review 抓到）：补签必须恢复里程碑水位——
+  //    否则「故意断签→补签→重拿已领档位」每轮净赚
+  assert.strictEqual(p2.streakRewardedAt, 3, '补签恢复里程碑水位到 ≤6 的最高档(3)');
+  assert(!Daily.streakReward(p2), '已领过的 3 天档不再发');
+  p2.dailyStreak = 7;
+  assert.strictEqual(Daily.streakReward(p2).days, 7, '但 7 天档照常能拿（水位只封已过的档）');
   assert(!Daily.repairStreak(p2, { coins: 10 }, 5, Daily.REPAIR_COST), '金币不够拒绝');
   // 漏 2 天不给机会
   const p3 = { dailyStreak: 5, lastDaily: Daily.dayNo(d) - 3, dailyBest: {} };
