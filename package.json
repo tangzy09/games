@@ -14,7 +14,7 @@
     "sim:block": "node games/blockblast/tools/sim.js",
     "verify:levels": "node games/blockblast/tools/verify-levels.js",
     "test:sol": "node games/solitaire/tests/test-klondike.js",
-    "test:c4": "node games/connect4/tests/test-bitboard.js",
+    "test:c4": "node games/connect4/tests/test-bitboard.js && node games/connect4/tests/test-rules.js",
     "test:sol:e2e": "node games/solitaire/tests/e2e-p1.cjs",
     "sim:sol": "node games/solitaire/tools/sim-blind.js",
     "test:sol:pool": "node games/solitaire/tools/test-prover.js",
