@@ -157,3 +157,64 @@ function seekPieceInTray(s, pieceId) {
   assert(Core.fillCount(s.board) > before, '无尽模式照常落子');
   console.log('test-levels: 无尽模式回归 OK');
 }
+
+// ════════ 拼块自带水晶（DESIGN §6 的另一半）：纯函数、确定性、收集、撤销 ════════
+{
+  const def = {
+    id: 991,
+    blocks: [[7, 1], [7, 2], [7, 3], [7, 4], [7, 5], [7, 6]],
+    crystals: [[7, 0, 'blue']],
+    pieceCrystals: { every: 3, kind: 'pink', goal: 2 },
+  };
+  assert.strictEqual(Levels.validate([def]).length, 0, '配置合法');
+
+  // 目标合并：盘面 blue 1 + 拼块 pink 2
+  const s = Core.newLevel(def, 777);
+  assert.strictEqual(s.goals.blue, 1);
+  assert.strictEqual(s.goals.pink, 2, '拼块水晶的目标并进 goals');
+
+  // 确定性 + 纯函数：同 (seed, idx) 永远同结果；改棋盘/分数不影响
+  const a1 = [], a2 = [];
+  for (let i = 0; i < 50; i++) a1.push(JSON.stringify(Core.pieceCrystalAt(s, i)));
+  s.score = 999999; s.board.fill(1);
+  for (let i = 0; i < 50; i++) a2.push(JSON.stringify(Core.pieceCrystalAt(s, i)));
+  assert.deepStrictEqual(a1, a2, '⛔ 驮不驮水晶不看棋盘/分数（公平承诺在这个机制上同样成立）');
+
+  // 出现率 ≈ 1/every（散列均匀性）
+  let hits = 0;
+  const s2 = Core.newLevel(def, 12345);
+  for (let i = 0; i < 3000; i++) if (Core.pieceCrystalAt(s2, i)) hits++;
+  assert(Math.abs(hits / 3000 - 1 / 3) < 0.05, `出现率 ${(hits / 3000).toFixed(3)} ≈ 1/3`);
+
+  // 无尽模式永远 null
+  const se = Core.newGame(777);
+  assert.strictEqual(Core.pieceCrystalAt(se, 0), null, '无尽模式没有拼块水晶');
+
+  // 落子：驮水晶的块放下 ⇒ 水晶出现在棋盘对应格；撤销 ⇒ 水晶消失；重放同块 ⇒ 同水晶
+  const s3 = Core.newLevel(def, 42);
+  let carrierIdx = -1;
+  for (let i = 0; i < 60; i++) if (Core.pieceCrystalAt(s3, i)) { carrierIdx = i; break; }
+  assert(carrierIdx >= 0, '60 块里总能找到一块驮水晶的');
+  // 快进块流到 carrier 所在的一手（refreshHand 快进 3 块）
+  while (s3.streamIndex + 3 <= carrierIdx) Core.refreshHand(s3);
+  const slot = carrierIdx - s3.streamIndex;
+  const pc = Core.pieceCrystalAt(s3, carrierIdx);
+  // 找个空位放（棋盘只有第 7 行有预置，放到 0 行起步的位置即可）
+  const piece = Core.tray(s3)[slot];
+  assert(piece, 'carrier 还在托盘里');
+  const pl = Core.placements(s3.board, piece).find(([r]) => r <= 3);
+  const crystalsBefore = s3.crystal.filter(Boolean).length;
+  Core.place(s3, slot, pl[0], pl[1]);
+  const at = Core.idx(pl[0] + pc.cell[0], pl[1] + pc.cell[1]);
+  assert.strictEqual(s3.crystal[at], 'pink', '水晶落在块内约定的那一格');
+  assert.strictEqual(s3.crystal.filter(Boolean).length, crystalsBefore + 1);
+  assert(Core.undo(s3), '能撤销');
+  assert.strictEqual(s3.crystal[at], null, '撤销把拼块水晶吐回去');
+  Core.place(s3, slot, pl[0], pl[1]);
+  assert.strictEqual(s3.crystal[at], 'pink', '重放同一块 ⇒ 同一颗水晶（streamIndex 回滚 = 免疫刷水晶）');
+
+  // 校验红线：pieceCrystals 关不许有 2 颗石块（会造出行列双封的死格）
+  const bad = Object.assign({}, def, { id: 992, stones: [[0, 0], [1, 1]] });
+  assert(Levels.validate([bad]).some(e => /死格|石块/.test(e)), '2 石块 + 拼块水晶 ⇒ 校验拦下');
+  console.log('test-levels: 拼块自带水晶（纯函数/确定性/落子/撤销/校验）OK');
+}

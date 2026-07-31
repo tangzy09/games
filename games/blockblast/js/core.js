@@ -107,6 +107,7 @@
       mode: 'endless',
       stone: null,                    // 不可消除的惰性格
       crystal: null,                  // 每格的水晶（null = 无）
+      pieceCrystals: null,            // 拼块自带水晶配置 { every, kind, goal }（无尽 = null）
       goals: null,                    // { blue: 7, pink: 3, ... } 需要收集的数量
       collected: null,                // 已收集
       par: 0,                         // 三星基准落子数（由 verify-levels 标定）
@@ -135,8 +136,30 @@
     // 目标 = 盘上该种水晶的总数（全部收集才算过关）—— 目标数与盘面**永远一致**，不可能凑不齐
     s.goals = {};
     (def.crystals || []).forEach(([, , kind]) => { s.goals[kind] = (s.goals[kind] || 0) + 1; });
+    // 拼块自带水晶（DESIGN §6 的另一半）：{ every, kind, goal } —— 平均每 every 块有一块驮着水晶，
+    // 需要收集 goal 颗。块流是无限的 ⇒ 目标永远够得着（不会像盘面水晶那样「数量封顶」）。
+    if (def.pieceCrystals) {
+      s.pieceCrystals = def.pieceCrystals;
+      s.goals[def.pieceCrystals.kind] = (s.goals[def.pieceCrystals.kind] || 0) + def.pieceCrystals.goal;
+    }
     Object.keys(s.goals).forEach(k => { s.collected[k] = 0; });
     return s;
+  }
+
+  /**
+   * 第 pieceIdx 块驮不驮水晶（拼块自带水晶）。⚠ 纯函数：只由 (seed, pieceIdx, 关卡配置) 决定，
+   * 不看棋盘/分数/进度 —— 公平承诺（§2 承诺 2）在这个机制上同样成立；撤销回滚 streamIndex 后
+   * 同一块再来，驮的还是同一颗水晶。返回 { cell: [dr,dc], kind } 或 null。
+   */
+  function pieceCrystalAt(s, pieceIdx) {
+    const cfg = s.pieceCrystals;
+    if (!cfg) return null;
+    let h = (s.seed ^ Math.imul(pieceIdx + 1, 2654435761)) >>> 0;   // splitmix 风格散列，均匀且便宜
+    h = Math.imul(h ^ (h >>> 15), 2246822519) >>> 0;
+    h ^= h >>> 13;
+    if (h % cfg.every !== 0) return null;
+    const piece = Dealer.stream(s.seed, pieceIdx);
+    return { cell: piece.cells[(h >>> 16) % piece.cells.length], kind: cfg.kind };
   }
 
   /** 目标是否全部达成 */
@@ -217,6 +240,9 @@
     const before = levelFill(s);                         // SWEEP 的奖励基数：落子前的已占格数（石块不算）
 
     for (const [dr, dc] of piece.cells) s.board[idx(r + dr, c + dc)] = 1;
+    // 拼块驮着的水晶落到棋盘上（之后和预置水晶完全同权：被消行/列清除时才收集）
+    const pc = s.mode === 'level' ? pieceCrystalAt(s, s.streamIndex + slot) : null;
+    if (pc) s.crystal[idx(r + pc.cell[0], c + pc.cell[1])] = pc.kind;
     s.placed[slot] = true;
     s.score += piece.size;
     s.stats.turns++;
@@ -326,6 +352,7 @@
     findFullLines, comboTier, streakMult, clearScore, sweepOf,
     newGame, tray, nextHand, remaining, isOver, place, undo, snapshot,
     newLevel, goalsMet, isUnwinnable, starsFor, levelFill, refreshHand,
+    pieceCrystalAt,
   };
   if (isNode) module.exports = API;
   else root.Core = API;

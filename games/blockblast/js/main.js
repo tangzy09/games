@@ -24,6 +24,7 @@ const G = window.G = {
   recentPlaces: [],              // 最近 3 手的落子格（死亡回放用）
   hint: null,                    // FTUE 指引（第 1-2 关首步：{slot,r,c,piece}）
   achPage: 0,                    // 成就页当前页
+  chapter: 0,                    // 关卡地图当前章节（0 = 自动定位到进度所在章）
   animClock: 0,                  // 表现层脉冲时钟（心跳/指引/宽限警示共用）
 };
 
@@ -148,6 +149,12 @@ function startLevel(id) {
   }
   G.items = Shop.newRunItems();
   computeHint();                 // 前 2 关首步指引（其余关卡内部直接 return）
+  // 拼块水晶章：开场提示一句（玩家第一次见「水晶长在托盘的块上」）
+  if (def.pieceCrystals) {
+    requestAnimationFrame(() => {
+      FX.toast(T('blockblast.pieceCryIntro'), Render.L.cx, Render.L.boardY - 24, '#86efac', 'bold 14px sans-serif', 1.5);
+    });
+  }
   // ⚠ 别 clearRun()：K_RUN 存的是**无尽模式**的当前局。进一次关卡就把它抹了 = 玩家没打完的
   //    无尽局凭空消失（红队指出）。关卡局本来就不做续玩存档，跟 K_RUN 无关。
 }
@@ -207,7 +214,11 @@ function settleRun() {
   const s = G.s;
   const fresh = Achievements.settle(G.profile, s);
   if (s.daily) {
-    const r = Daily.settleDaily(G.profile, new Date(), s.score);
+    // ⚠ 用**谜题自己的日期**结算（s.daily = YYYYMMDD），不是「现在」——
+    //    补玩过去 7 天的题时，用今天的日期会把成绩记到错误的天上。
+    const id = s.daily;
+    const d = new Date(Math.floor(id / 10000), Math.floor(id / 100) % 100 - 1, id % 100);
+    const r = Daily.settleDaily(G.profile, d, s.score, s.backfill);
     if (r.first) { Shop.earnDaily(G.wallet); saveWallet(); }
     fresh.push(...Achievements.check(G.profile));
   }
@@ -215,9 +226,10 @@ function settleRun() {
   saveProfile();
 }
 
-/** 开今天的每日谜题：同一天全球同一条块流 */
-function startDaily() {
-  G.s = Daily.newDaily(new Date());
+/** 开每日谜题：同一天全球同一条块流。backfill = 日历页补玩过去的题（只记成绩不计 streak）*/
+function startDaily(date, backfill) {
+  G.s = Daily.newDaily(date || new Date());
+  if (backfill) G.s.backfill = true;
   resetRunUi();
   G.items = Shop.newRunItems();
 }
@@ -271,8 +283,10 @@ function consume(events) {
       if (Haptics.heavy) Haptics.heavy(); else Haptics.medium ? Haptics.medium() : Haptics.light();
 
     } else if (e.t === 'collect') {
-      // 水晶飞向顶部目标条（贝塞尔感：用粒子近似）+ 叮
+      // 水晶飞向顶部目标条（贝塞尔感：用粒子近似）+ 叮；顺手记图鉴的累计收集数
+      G.profile.crystals = G.profile.crystals || {};
       for (const g of e.gained) {
+        G.profile.crystals[g.kind] = (G.profile.crystals[g.kind] || 0) + 1;
         const r = Math.floor(g.i / 8), c = g.i % 8;
         const { x, y } = Render.cellXY(r, c);
         FX.burst(x + Lo.cell / 2, y + Lo.cell / 2, '#67e8f9', 6);
@@ -287,6 +301,7 @@ function consume(events) {
       G.profile.stars = Object.values(G.progress).reduce((a, v) => a + v, 0);
       if (!s.usedUndo) G.profile.cleanWins += 1;
       announce(Achievements.check(G.profile));
+      saveProfile();                              // 图鉴的水晶累计也在 profile 里，赢了就落盘
       const won = Shop.earnLevel(G.wallet, e.stars);
       // 去广告玩家：原本要看广告才拿的翻倍**直接给**（红线：付费玩家不失去任何功能）
       if (G.wallet.noAds) { Shop.earnDouble(G.wallet, won); G.lastEarn = { n: won * 2, doubled: true }; }
@@ -335,6 +350,8 @@ function consume(events) {
           G.lastRunMs = Date.now() - (G.runStartAt || Date.now());
         }
         saveWallet();
+      } else {
+        saveProfile();                                 // 关卡失败也要把图鉴收集数落盘
       }
     }
   }
@@ -431,7 +448,29 @@ function dispatch(action, data) {
       break;
     }
     case 'MENU': G.phase = 'MENU'; break;
-    case 'PLAY_DAILY': startDaily(); break;
+    case 'PLAY_DAILY': startDaily(new Date(), false); break;
+    case 'PAGE_CAL': G.phase = 'CAL'; break;
+    case 'PLAY_DAILY_AT': {
+      // 日历补玩：只允许过去 7 天（含今天）。off = 距今天几天
+      const off = data.off | 0;
+      if (off < 0 || off > 6) break;
+      const d = new Date();
+      d.setDate(d.getDate() - off);
+      startDaily(d, off > 0);
+      break;
+    }
+    case 'CHAPTER': G.chapter = data.id; break;
+    case 'CHEST': {
+      const ch = Levels.CHAPTERS.find(x => x.id === data.id);
+      if (ch && Shop.claimChest(G.wallet, G.progress, ch)) {
+        saveWallet();
+        Sound.sweep('perfect');
+        FX.toast('\u{1F381} +' + ch.chest, Render.L.cx, GameGlobal.SH * 0.4, '#ffe08a', 'bold 26px sans-serif', 1.4);
+        if (Haptics.heavy) Haptics.heavy();
+      }
+      break;
+    }
+    case 'PAGE_DEX': G.phase = 'DEX'; break;
     case 'PAGE_ACH': G.phase = 'ACH'; G.achPage = 0; break;
     case 'PAGE_SKIN': G.phase = 'SKIN'; break;
     case 'PAGE_FAIR': G.phase = 'FAIR'; break;

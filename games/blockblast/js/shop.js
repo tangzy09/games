@@ -39,6 +39,7 @@
     lastAdAt: 0,               // 上一个插屏的时间戳（通关/无尽共用）
     installAt: 0,              // 首次启动时间（boot 时补齐；0 = 老钱包，不做首日判断）
     themes: [],                // 已购皮肤 id（金币皮肤 —— 金币的消耗出口）
+    chests: [],                // 已领的章末宝箱 id
   });
 
   /** 本局的道具状态（每局重置）*/
@@ -141,6 +142,20 @@
     wallet.lastAdAt = now == null ? Date.now() : now;
   }
 
+  /** 章末宝箱：该章每一关都拿到 ≥1 星才能领，一章一次 */
+  function canClaimChest(wallet, progress, ch) {
+    if (wallet.chests && wallet.chests.includes(ch.id)) return false;
+    for (let id = ch.from; id <= ch.to; id++) if (!(progress[id] > 0)) return false;
+    return true;
+  }
+  function claimChest(wallet, progress, ch) {
+    if (!canClaimChest(wallet, progress, ch)) return false;
+    if (!wallet.chests) wallet.chests = [];
+    wallet.chests.push(ch.id);
+    wallet.coins += ch.chest;
+    return true;
+  }
+
   /** 买金币皮肤（金币的消耗出口 —— 没有出口，「看广告领币」就是个死广告位）*/
   function buyTheme(wallet, theme) {
     if (!theme || !theme.coins) return false;
@@ -160,7 +175,7 @@
     endlessCoins, earnEndless, earnDouble,
     canShowInterstitial, noteWin,
     canShowEndlessInterstitial, noteEndlessRun, noteEndlessAdShown,
-    buyTheme,
+    buyTheme, canClaimChest, claimChest,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   else root.Shop = API;

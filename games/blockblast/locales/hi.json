@@ -76,7 +76,7 @@
       "line500": "Line Master",
       "lvl1": "First Level",
       "lvl10": "Ten Levels",
-      "lvl20": "All Levels",
+      "lvl20": "बीस स्तर",
       "lvl5": "Five Levels",
       "noUndo10": "Clean Hands",
       "perfect1": "Perfect Clear",
@@ -90,13 +90,17 @@
       "score6k": "6,000 Points",
       "star10": "10 Stars",
       "star30": "30 Stars",
-      "star60": "All Stars",
+      "star60": "साठ सितारे",
       "streak12": "Unstoppable",
       "streak3": "On a Roll",
       "streak5": "Heating Up",
       "streak7": "Max Multiplier",
       "sweep1": "First Sweep",
-      "sweep3": "Triple Sweeper"
+      "sweep3": "Triple Sweeper",
+      "lvl30": "सभी अध्याय",
+      "star90": "सारे सितारे",
+      "cry50": "मणि संग्रहकर्ता",
+      "cry200": "क्रिस्टल सम्राट"
     },
     "theme": {
       "candy": "कैंडी",
@@ -133,6 +137,31 @@
     "lastMoves": "आपकी आख़िरी चालें",
     "noFit": "कोई भी टुकड़ा कहीं फ़िट नहीं होता",
     "on": "चालू",
-    "off": "बंद"
+    "off": "बंद",
+    "chapter1": "कैंडी झरना",
+    "chapter2": "गहरा सागर",
+    "chapter3": "पन्ना वन",
+    "chest": "अध्याय संदूक",
+    "chestClaim": "पाएँ +{n}",
+    "chestDone": "ले लिया",
+    "codex": "संग्रह",
+    "dexTitle": "क्रिस्टल संग्रह",
+    "dexLocked": "एक इकट्ठा करें तो खुलेगा।",
+    "calHint": "पिछले 7 दिन खेले जा सकते हैं। पुराने दिन खेलने पर सिर्फ़ स्कोर गिनता है, स्ट्रीक नहीं।",
+    "pieceCryIntro": "नया: कुछ टुकड़े क्रिस्टल लेकर आते हैं!",
+    "dex": {
+      "blue": "जल मणि",
+      "pink": "गुलाबी गोला",
+      "orange": "अंबर टुकड़ा",
+      "green": "पन्ना",
+      "violet": "बैंगनी कोर"
+    },
+    "dexd": {
+      "blue": "कैंडी झरने की आम मणि। इसकी लाइन साफ़ करें।",
+      "pink": "पंक्ति और स्तंभ के मिलन पर बैठना पसंद है।",
+      "orange": "भारी और गर्म। अक्सर किनारों के पास मिलता है।",
+      "green": "पन्ना वन का मूल क्रिस्टल। कुछ टुकड़ों पर सवार होकर आते हैं।",
+      "violet": "सिर्फ़ टुकड़ों पर सफ़र करता है — गिराने से पहले सोचें।"
+    }
   }
 }

@@ -76,7 +76,7 @@
       "line500": "Line Master",
       "lvl1": "First Level",
       "lvl10": "Ten Levels",
-      "lvl20": "All Levels",
+      "lvl20": "ਵੀਹ ਪੱਧਰ",
       "lvl5": "Five Levels",
       "noUndo10": "Clean Hands",
       "perfect1": "Perfect Clear",
@@ -90,13 +90,17 @@
       "score6k": "6,000 Points",
       "star10": "10 Stars",
       "star30": "30 Stars",
-      "star60": "All Stars",
+      "star60": "ਸੱਠ ਤਾਰੇ",
       "streak12": "Unstoppable",
       "streak3": "On a Roll",
       "streak5": "Heating Up",
       "streak7": "Max Multiplier",
       "sweep1": "First Sweep",
-      "sweep3": "Triple Sweeper"
+      "sweep3": "Triple Sweeper",
+      "lvl30": "ਸਾਰੇ ਅਧਿਆਇ",
+      "star90": "ਸਾਰੇ ਤਾਰੇ",
+      "cry50": "ਮਣੀ ਸੰਗ੍ਰਹਿਕ",
+      "cry200": "ਕ੍ਰਿਸਟਲ ਬੈਰਨ"
     },
     "theme": {
       "candy": "ਕੈਂਡੀ",
@@ -133,6 +137,31 @@
     "lastMoves": "ਤੁਹਾਡੀਆਂ ਆਖਰੀ ਚਾਲਾਂ",
     "noFit": "ਕੋਈ ਵੀ ਟੁਕੜਾ ਕਿਤੇ ਫਿੱਟ ਨਹੀਂ ਹੁੰਦਾ",
     "on": "ਚਾਲੂ",
-    "off": "ਬੰਦ"
+    "off": "ਬੰਦ",
+    "chapter1": "ਕੈਂਡੀ ਝਰਨਾ",
+    "chapter2": "ਡੂੰਘਾ ਸਾਗਰ",
+    "chapter3": "ਪੰਨਾ ਜੰਗਲ",
+    "chest": "ਅਧਿਆਇ ਸੰਦੂਕ",
+    "chestClaim": "ਲਵੋ +{n}",
+    "chestDone": "ਲੈ ਲਿਆ",
+    "codex": "ਸੰਗ੍ਰਹਿ",
+    "dexTitle": "ਕ੍ਰਿਸਟਲ ਸੰਗ੍ਰਹਿ",
+    "dexLocked": "ਇੱਕ ਇਕੱਠਾ ਕਰੋ ਤਾਂ ਖੁੱਲ੍ਹੇਗਾ।",
+    "calHint": "ਪਿਛਲੇ 7 ਦਿਨ ਖੇਡੇ ਜਾ ਸਕਦੇ ਹਨ। ਪੁਰਾਣੇ ਦਿਨ ਖੇਡਣ ਨਾਲ ਸਿਰਫ਼ ਸਕੋਰ ਗਿਣਦਾ ਹੈ, ਸਟ੍ਰੀਕ ਨਹੀਂ।",
+    "pieceCryIntro": "ਨਵਾਂ: ਕੁਝ ਟੁਕੜੇ ਕ੍ਰਿਸਟਲ ਲੈ ਕੇ ਆਉਂਦੇ ਹਨ!",
+    "dex": {
+      "blue": "ਜਲ ਮਣੀ",
+      "pink": "ਗੁਲਾਬੀ ਗੋਲਾ",
+      "orange": "ਅੰਬਰ ਟੁਕੜਾ",
+      "green": "ਪੰਨਾ",
+      "violet": "ਜਾਮਨੀ ਕੋਰ"
+    },
+    "dexd": {
+      "blue": "ਕੈਂਡੀ ਝਰਨੇ ਦੀ ਆਮ ਮਣੀ। ਇਸਦੀ ਲਾਈਨ ਸਾਫ਼ ਕਰੋ।",
+      "pink": "ਕਤਾਰ ਅਤੇ ਕਾਲਮ ਦੇ ਮਿਲਣ ਵਾਲੀ ਥਾਂ ਪਸੰਦ ਹੈ।",
+      "orange": "ਭਾਰੀ ਅਤੇ ਗਰਮ। ਅਕਸਰ ਕਿਨਾਰਿਆਂ ਕੋਲ ਮਿਲਦਾ ਹੈ।",
+      "green": "ਪੰਨਾ ਜੰਗਲ ਦਾ ਮੂਲ ਕ੍ਰਿਸਟਲ। ਕੁਝ ਟੁਕੜਿਆਂ ਤੇ ਸਵਾਰ ਹੋ ਕੇ ਆਉਂਦੇ ਹਨ।",
+      "violet": "ਸਿਰਫ਼ ਟੁਕੜਿਆਂ ਨਾਲ ਸਫ਼ਰ ਕਰਦਾ ਹੈ — ਰੱਖਣ ਤੋਂ ਪਹਿਲਾਂ ਯੋਜਨਾ ਬਣਾਓ।"
+    }
   }
 }

@@ -76,7 +76,7 @@
       "line500": "Linienmeister",
       "lvl1": "Erstes Level",
       "lvl10": "Zehn Level",
-      "lvl20": "Alle Level",
+      "lvl20": "Zwanzig Level",
       "lvl5": "Fünf Level",
       "noUndo10": "Saubere Hände",
       "perfect1": "Perfektes Feld",
@@ -90,13 +90,17 @@
       "score6k": "6.000 Punkte",
       "star10": "10 Sterne",
       "star30": "30 Sterne",
-      "star60": "Alle Sterne",
+      "star60": "Sechzig Sterne",
       "streak12": "Unaufhaltsam",
       "streak3": "In Fahrt",
       "streak5": "Aufgewärmt",
       "streak7": "Max. Multiplikator",
       "sweep1": "Erster Sweep",
-      "sweep3": "Dreifach-Sweep"
+      "sweep3": "Dreifach-Sweep",
+      "lvl30": "Alle Kapitel",
+      "star90": "Alle Sterne",
+      "cry50": "Juwelensammler",
+      "cry200": "Kristallbaron"
     },
     "theme": {
       "candy": "Bonbon",
@@ -133,6 +137,31 @@
     "lastMoves": "Deine letzten Züge",
     "noFit": "Kein Teil passt mehr irgendwo hin",
     "on": "AN",
-    "off": "AUS"
+    "off": "AUS",
+    "chapter1": "Bonbon-Wasserfall",
+    "chapter2": "Meerestiefen",
+    "chapter3": "Smaragdhain",
+    "chest": "Kapiteltruhe",
+    "chestClaim": "Abholen +{n}",
+    "chestDone": "Abgeholt",
+    "codex": "Kodex",
+    "dexTitle": "Kristall-Kodex",
+    "dexLocked": "Sammle einen, um ihn freizuschalten.",
+    "calHint": "Die letzten 7 Tage sind spielbar. Nachgeholte Tage zählen nur die Punkte, nicht die Serie.",
+    "pieceCryIntro": "Neu: Manche Teile tragen Kristalle!",
+    "dex": {
+      "blue": "Aqua-Juwel",
+      "pink": "Rosenkugel",
+      "orange": "Bernsteinscherbe",
+      "green": "Smaragd",
+      "violet": "Violetter Kern"
+    },
+    "dexd": {
+      "blue": "Das Alltags-Juwel des Wasserfalls. Räume seine Linie ab.",
+      "pink": "Sitzt gern dort, wo sich Zeile und Spalte kreuzen.",
+      "orange": "Schwer und warm. Oft am Spielfeldrand zu finden.",
+      "green": "Heimisch im Smaragdhain. Manche kommen auf Teilen angereist.",
+      "violet": "Reist nur auf Teilen — plane die Landung, bevor du loslässt."
+    }
   }
 }

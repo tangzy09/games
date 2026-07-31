@@ -46,12 +46,16 @@ const ok = (c, m) => { if (!c) { console.error('✗ ' + m); process.exitCode = 1
 
   // ── 点第 1 关：**真实鼠标点击**（不能用 dispatch 绕过 —— 正是这个绕过让
   //    「菜单里每次点击都抛 TypeError」的 bug 藏了过去，E2E 还报「零 error」）──
+  // ⚠ 用 hitTest 扫出第 1 关格子的真实位置，别写死布局坐标 —— 菜单改版（章节页签）就位移了
   const btn1 = await page.evaluate(() => {
-    const L = Render.L;
-    const cols = 5, cell = Math.min(58, (L.playW - 40) / cols);
-    const gx0 = L.cx - (cols * cell) / 2, gy0 = GameGlobal.safeTop + 120;
-    return { x: gx0 + cell / 2, y: gy0 + cell / 2 };      // 第 1 关格子的中心
+    const { SW, SH } = GameGlobal;
+    for (let y = 0; y < SH; y += 4) for (let x = 0; x < SW; x += 4) {
+      const h = hitTest(x, y);
+      if (h && h.action === 'PLAY_LEVEL' && h.data && h.data.id === 1) return { x, y };
+    }
+    return null;
   });
+  if (!btn1) { console.error('✗ 菜单上找不到第 1 关'); process.exit(1); }
   await page.mouse.click(btn1.x, btn1.y);
   await page.waitForTimeout(200);
   ok(errors.length === 0, '菜单真实点击零 error（drag 层必须查 phase）' + (errors.length ? ': ' + errors[0] : ''));

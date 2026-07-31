@@ -155,6 +155,25 @@ const Core = require('../js/core.js');
   console.log('test-shop: 金币皮肤 OK');
 }
 
+// ════════ 章末宝箱：全章 ≥1 星才能领、一章一次 ════════
+{
+  const Levels = require('../js/levels.js');
+  const ch = Levels.CHAPTERS[0];
+  const w = Shop.emptyWallet();
+  const prog = {};
+  assert(!Shop.canClaimChest(w, prog, ch), '一关没打不能领');
+  for (let id = ch.from; id <= ch.to; id++) prog[id] = 1;
+  prog[ch.to] = 0;
+  assert(!Shop.canClaimChest(w, prog, ch), '差一关也不能领');
+  prog[ch.to] = 2;
+  assert(Shop.canClaimChest(w, prog, ch), '全章 ≥1 星 → 可领');
+  const before = w.coins;
+  assert(Shop.claimChest(w, prog, ch));
+  assert.strictEqual(w.coins, before + ch.chest, `宝箱 +${ch.chest}`);
+  assert(!Shop.claimChest(w, prog, ch), '不能重复领');
+  console.log('test-shop: 章末宝箱 OK');
+}
+
 // ════════ 换一手：块流是预生成的 ⇒ 换手只是跳过，**换不出更合意的块** ════════
 {
   const s = Core.newGame(2024);

@@ -76,7 +76,7 @@
       "line500": "Line Master",
       "lvl1": "First Level",
       "lvl10": "Ten Levels",
-      "lvl20": "All Levels",
+      "lvl20": "বিশ স্তর",
       "lvl5": "Five Levels",
       "noUndo10": "Clean Hands",
       "perfect1": "Perfect Clear",
@@ -90,13 +90,17 @@
       "score6k": "6,000 Points",
       "star10": "10 Stars",
       "star30": "30 Stars",
-      "star60": "All Stars",
+      "star60": "ষাট তারা",
       "streak12": "Unstoppable",
       "streak3": "On a Roll",
       "streak5": "Heating Up",
       "streak7": "Max Multiplier",
       "sweep1": "First Sweep",
-      "sweep3": "Triple Sweeper"
+      "sweep3": "Triple Sweeper",
+      "lvl30": "সব অধ্যায়",
+      "star90": "সব তারা",
+      "cry50": "মণি সংগ্রাহক",
+      "cry200": "ক্রিস্টাল ব্যারন"
     },
     "theme": {
       "candy": "ক্যান্ডি",
@@ -133,6 +137,31 @@
     "lastMoves": "আপনার শেষ চালগুলি",
     "noFit": "কোনো টুকরোই আর কোথাও বসে না",
     "on": "চালু",
-    "off": "বন্ধ"
+    "off": "বন্ধ",
+    "chapter1": "ক্যান্ডি জলপ্রপাত",
+    "chapter2": "গভীর সাগর",
+    "chapter3": "পান্না বন",
+    "chest": "অধ্যায়ের সিন্দুক",
+    "chestClaim": "নিন +{n}",
+    "chestDone": "নেওয়া হয়েছে",
+    "codex": "সংগ্রহ",
+    "dexTitle": "ক্রিস্টাল সংগ্রহ",
+    "dexLocked": "একটি সংগ্রহ করলে খুলবে।",
+    "calHint": "গত ৭ দিন খেলা যায়। পুরনো দিন খেললে শুধু স্কোর গণনা হয়, স্ট্রিক নয়।",
+    "pieceCryIntro": "নতুন: কিছু টুকরো ক্রিস্টাল বহন করে!",
+    "dex": {
+      "blue": "জলমণি",
+      "pink": "গোলাপি গোলক",
+      "orange": "অ্যাম্বার খণ্ড",
+      "green": "পান্না",
+      "violet": "বেগুনি কোর"
+    },
+    "dexd": {
+      "blue": "ক্যান্ডি জলপ্রপাতের সাধারণ মণি। এর লাইন সাফ করুন।",
+      "pink": "সারি ও কলামের সংযোগে বসতে ভালোবাসে।",
+      "orange": "ভারী ও উষ্ণ। প্রায়ই বোর্ডের ধারে থাকে।",
+      "green": "পান্না বনের নিজস্ব ক্রিস্টাল। কিছু টুকরোয় চড়ে আসে।",
+      "violet": "শুধু টুকরোর সাথে আসে — ফেলার আগে পরিকল্পনা করুন।"
+    }
   }
 }

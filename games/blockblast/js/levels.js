@@ -14,7 +14,7 @@
 (function (root) {
   'use strict';
 
-  const B = 'blue', P = 'pink', O = 'orange';
+  const B = 'blue', P = 'pink', O = 'orange', G = 'green', V = 'violet';
 
   // 数据由 tools/gen-levels.js 生成（参数化：水晶挂在几条线上 × 每条线留几个空格 × 石块数），
   // 再由 tools/verify-levels.js 验证通关率并标定 par。**不要手改这段，改配方然后重新生成。**
@@ -90,6 +90,47 @@
       stones: [[0,7]],
       blocks: [[4,1],[4,2],[7,1],[7,2],[7,3],[1,0],[1,6],[2,6],[3,6],[4,6]],
       crystals: [[4,0,B],[7,0,P],[0,0,O],[0,6,B]] },
+    { id: 21, par: 13, // 章三开篇：首次拼块水晶（温和引入）
+      blocks: [[6,2],[6,3],[6,4],[3,1],[3,2],[3,3],[3,4]],
+      crystals: [[6,0,G],[6,1,G],[3,0,P]],
+      pieceCrystals: { every: 3, kind: G, goal: 2 } },
+    { id: 22, par: 12,
+      stones: [[0,0]],
+      blocks: [[5,1],[5,2],[5,3],[1,2],[2,2],[3,2],[7,1],[7,2],[7,3],[7,4]],
+      crystals: [[5,0,B],[0,2,O],[7,0,G]] },
+    { id: 23, par: 18,
+      blocks: [[1,5],[2,5],[3,5],[2,1],[2,2]],
+      crystals: [[0,5,G],[2,0,B]],
+      pieceCrystals: { every: 3, kind: V, goal: 3 } },
+    { id: 24, par: 12, // 四条线
+      stones: [[0,7]],
+      blocks: [[6,1],[6,2],[6,3],[6,4],[1,1],[2,1],[3,1],[3,2],[3,3],[3,4],[1,6],[2,6],[3,6],[4,6]],
+      crystals: [[6,0,P],[0,1,G],[3,0,O],[0,6,B]] },
+    { id: 25, par: 15,
+      blocks: [[7,1],[7,2],[7,3],[7,4],[1,4],[2,4],[3,4],[1,1],[1,2],[1,3]],
+      crystals: [[7,0,G],[0,4,P],[1,0,V]],
+      pieceCrystals: { every: 3, kind: G, goal: 2 } },
+    { id: 26, par: 16,
+      stones: [[0,3]],
+      blocks: [[4,1],[4,2],[4,3],[1,0],[2,0],[6,1],[6,2],[6,3],[1,7],[2,7],[3,7],[4,7]],
+      crystals: [[4,0,B],[0,0,V],[6,0,G],[0,7,O]] },
+    { id: 27, par: 18,
+      blocks: [[5,1],[5,2],[5,3],[1,3],[2,3]],
+      crystals: [[5,0,V],[0,3,G]],
+      pieceCrystals: { every: 3, kind: V, goal: 3 } },
+    { id: 28, par: 16,
+      stones: [[7,7]],
+      blocks: [[2,1],[2,2],[2,3],[6,1],[6,2],[6,3],[6,4],[1,5],[2,5],[3,5],[1,1],[3,1]],
+      crystals: [[2,0,G],[6,0,B],[0,5,P],[0,1,O]] },
+    { id: 29, par: 16,
+      blocks: [[7,1],[7,2],[7,3],[7,4],[1,2],[2,2],[3,2],[4,1],[4,2],[4,3],[4,4]],
+      crystals: [[7,0,V],[0,2,B],[4,0,G]],
+      pieceCrystals: { every: 3, kind: G, goal: 2 } },
+    { id: 30, par: 21, // 章三收尾：三线 + 拼块水晶大考
+      stones: [[0,7]],
+      blocks: [[3,1],[3,2],[3,3],[6,1],[6,2],[6,3],[1,4],[2,4],[3,4]],
+      crystals: [[3,0,G],[6,0,V],[0,4,B]],
+      pieceCrystals: { every: 3, kind: V, goal: 3 } },
   ];
 
   /**
@@ -115,6 +156,16 @@
           errs.push(`L${lv.id}: 水晶(${r},${c},${kind}) 的行和列都含石块 ⇒ 永远收集不到（软锁死）`);
         }
         if (!kind) errs.push(`L${lv.id}: 水晶(${r},${c}) 缺 kind`);
+      }
+      // 拼块自带水晶（pieceCrystals）的约束：
+      //   ⛔ 石块最多 1 颗 —— 2 颗石块（不同行不同列）会造出「行列都被封」的死格，
+      //   驮水晶的块落上去 = 那颗水晶永远收不到 ⇒ 软锁死（运行时 isUnwinnable 兜底，但别赌）。
+      if (lv.pieceCrystals) {
+        const pcc = lv.pieceCrystals;
+        if (!(pcc.every >= 2)) errs.push(`L${lv.id}: pieceCrystals.every 必须 ≥2（every=1 就成了「每块都有」的白送）`);
+        if (!(pcc.goal >= 1)) errs.push(`L${lv.id}: pieceCrystals.goal 必须 ≥1`);
+        if (!pcc.kind) errs.push(`L${lv.id}: pieceCrystals 缺 kind`);
+        if (stones.length > 1) errs.push(`L${lv.id}: pieceCrystals 关最多 1 颗石块（否则驮水晶的块可能落进「行列双封」的死格）`);
       }
       // 同一格不能既是石块又是水晶
       const key = ([r, c]) => r * 8 + c;
@@ -146,7 +197,15 @@
   const byId = id => LEVELS.find(l => l.id === id);
   const count = () => LEVELS.length;
 
-  const API = { LEVELS, validate, byId, count, KINDS: [B, P, O] };
+  // ── 章节（主题演进 + 章末宝箱，DESIGN §11）──
+  const CHAPTERS = [
+    { id: 1, from: 1, to: 10, chest: 150, accent: '#f0abfc' },   // 糖果瀑布
+    { id: 2, from: 11, to: 20, chest: 200, accent: '#7dd3fc' },  // 深海
+    { id: 3, from: 21, to: 30, chest: 300, accent: '#86efac' },  // 翡翠林地（拼块水晶章）
+  ];
+  const chapterOf = levelId => CHAPTERS.find(ch => levelId >= ch.from && levelId <= ch.to) || CHAPTERS[0];
+
+  const API = { LEVELS, validate, byId, count, KINDS: [B, P, O, G, V], CHAPTERS, chapterOf };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   else root.Levels = API;
 })(typeof self !== 'undefined' ? self : this);

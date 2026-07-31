@@ -12,6 +12,9 @@
 (function (root) {
   'use strict';
 
+  /** 图鉴累计收集总数（profile.crystals = { kind: n }，老档可能没有这个字段）*/
+  const sumCrystals = p => Object.values(p.crystals || {}).reduce((a, v) => a + v, 0);
+
   // id 一旦发布就不能改（存档里存的是 id）
   const ACHIEVEMENTS = [
     // ── 累计：落子 ──
@@ -50,9 +53,13 @@
     { id: 'lvl5',       cat: 'cum', need: p => p.levelsWon >= 5 },
     { id: 'lvl10',      cat: 'cum', need: p => p.levelsWon >= 10 },
     { id: 'lvl20',      cat: 'cum', need: p => p.levelsWon >= 20 },
+    { id: 'lvl30',      cat: 'cum', need: p => p.levelsWon >= 30 },   // 三章全通
     { id: 'star10',     cat: 'cum', need: p => p.stars >= 10 },
     { id: 'star30',     cat: 'cum', need: p => p.stars >= 30 },
-    { id: 'star60',     cat: 'cum', need: p => p.stars >= 60 },   // 20 关全三星
+    { id: 'star60',     cat: 'cum', need: p => p.stars >= 60 },
+    { id: 'star90',     cat: 'cum', need: p => p.stars >= 90 },   // 30 关全三星
+    { id: 'cry50',      cat: 'cum', need: p => sumCrystals(p) >= 50 },    // 图鉴联动
+    { id: 'cry200',     cat: 'cum', need: p => sumCrystals(p) >= 200 },
     { id: 'noUndo10',   cat: 'cum', need: p => p.cleanWins >= 10 },  // 不用撤销通关
     // ── 每日谜题 ──
     { id: 'daily1',     cat: 'cum', need: p => p.dailyDays >= 1 },
@@ -64,6 +71,7 @@
     turns: 0, lines: 0, games: 0, perfects: 0,
     levelsWon: 0, stars: 0, cleanWins: 0,
     dailyDays: 0, dailyStreak: 0, lastDaily: 0,
+    crystals: {},                      // 图鉴：每种水晶的累计收集数
     unlocked: [],                      // 已解锁的成就 id
   });
 

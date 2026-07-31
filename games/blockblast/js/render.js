@@ -150,6 +150,8 @@
     blue:   { fill: '#67e8f9', edge: '#0891b2', emoji: '💎' },
     pink:   { fill: '#f0abfc', edge: '#a21caf', emoji: '🔮' },
     orange: { fill: '#fdba74', edge: '#c2410c', emoji: '🔶' },
+    green:  { fill: '#86efac', edge: '#15803d', emoji: '🟢' },   // 第三章「翡翠矿脉」
+    violet: { fill: '#c4b5fd', edge: '#6d28d9', emoji: '🟣' },
   };
   function drawCrystal(x, y, size, kind) {
     const cr = CRYSTAL[kind] || CRYSTAL.blue;
@@ -194,30 +196,66 @@
     txt(T('blockblast.title'), cx, GameGlobal.safeTop + 46, '#fff', 'bold 30px sans-serif');
     txtLWrap(T('blockblast.tagline'), cx - 150, GameGlobal.safeTop + 78, 300, PAL.sub, '12px sans-serif', 16);
 
-    // 关卡格子（已通关的显示星数；未解锁的锁住）
-    const cols = 5, cell = Math.min(58, (L.playW - 40) / cols);
-    const gx0 = cx - (cols * cell) / 2, gy0 = GameGlobal.safeTop + 120;
-    Levels.LEVELS.forEach((lv, i) => {
-      const r = Math.floor(i / cols), c = i % cols;
-      const x = gx0 + c * cell, y = gy0 + r * cell;
-      const stars = G.progress[lv.id] || 0;
-      const unlocked = lv.id === 1 || (G.progress[lv.id - 1] || 0) > 0;
-      fillRR(x + 3, y + 3, cell - 6, cell - 6, 10, unlocked ? (stars ? '#22c55e' : 'rgba(255,255,255,0.20)') : 'rgba(0,0,0,0.25)');
-      txt(unlocked ? String(lv.id) : '🔒', x + cell / 2, y + cell / 2 - 5, '#fff', 'bold 16px sans-serif');
-      if (stars) txt('★'.repeat(stars), x + cell / 2, y + cell - 14, '#ffe08a', '10px sans-serif');
-      if (unlocked) addHit(x + 3, y + 3, cell - 6, cell - 6, 'PLAY_LEVEL', { id: lv.id });
+    // ── 章节页签（3 章 × 10 关；主题演进：每章一个 accent 色）──
+    const chs = Levels.CHAPTERS;
+    if (!G.chapter) {
+      // 自动定位到「第一个还没打完的关」所在章；全通了就停在最后一章
+      const cur = Levels.LEVELS.find(lv => !(G.progress[lv.id] > 0) && (lv.id === 1 || (G.progress[lv.id - 1] || 0) > 0));
+      G.chapter = cur ? Levels.chapterOf(cur.id).id : chs[chs.length - 1].id;
+    }
+    const gy0 = GameGlobal.safeTop + 116;
+    const tabW = (Math.min(L.playW, 380) - 16) / chs.length;
+    const tabX0 = cx - (tabW * chs.length) / 2;
+    chs.forEach((c2, i) => {
+      const x = tabX0 + i * tabW, on = G.chapter === c2.id;
+      fillRR(x + 2, gy0, tabW - 4, 34, 10, on ? hexA(c2.accent, 0.30) : 'rgba(0,0,0,0.18)');
+      if (on) { ctx.strokeStyle = c2.accent; ctx.lineWidth = 2; roundRect(x + 2, gy0, tabW - 4, 34, 10); ctx.stroke(); }
+      txt(T('blockblast.chapter' + c2.id), x + tabW / 2, gy0 + 12, on ? '#fff' : PAL.sub, 'bold 11px sans-serif');
+      let st = 0; for (let id = c2.from; id <= c2.to; id++) st += G.progress[id] || 0;
+      txt('★ ' + st + '/30', x + tabW / 2, gy0 + 25, on ? c2.accent : 'rgba(255,255,255,0.4)', '9px sans-serif');
+      addHit(x + 2, gy0, tabW - 4, 34, 'CHAPTER', { id: c2.id });
     });
 
-    const by = gy0 + Math.ceil(Levels.count() / cols) * cell + 20;
+    // 当前章的 10 关（2 行 × 5）
+    const ch = chs.find(c2 => c2.id === G.chapter) || chs[0];
+    const cols = 5, cell = Math.min(58, (L.playW - 40) / cols);
+    const gx0 = cx - (cols * cell) / 2, gy1 = gy0 + 42;
+    for (let id = ch.from; id <= ch.to; id++) {
+      const i = id - ch.from, r = Math.floor(i / cols), c = i % cols;
+      const x = gx0 + c * cell, y = gy1 + r * cell;
+      const stars = G.progress[id] || 0;
+      const unlocked = id === 1 || (G.progress[id - 1] || 0) > 0;
+      fillRR(x + 3, y + 3, cell - 6, cell - 6, 10, unlocked ? (stars ? hexA(ch.accent, 0.50) : 'rgba(255,255,255,0.20)') : 'rgba(0,0,0,0.25)');
+      txt(unlocked ? String(id) : '🔒', x + cell / 2, y + cell / 2 - 5, '#fff', 'bold 16px sans-serif');
+      if (stars) txt('★'.repeat(stars), x + cell / 2, y + cell - 14, '#ffe08a', '10px sans-serif');
+      if (unlocked) addHit(x + 3, y + 3, cell - 6, cell - 6, 'PLAY_LEVEL', { id });
+    }
 
-    // 每日谜题（同一天全球同一条块流 —— 只有预生成块流才做得到）
+    // 章末宝箱：全章 10 关都 ≥1 星才能领（星星经济的章节兑现点）
+    const cy = gy1 + 2 * cell + 6;
+    const claimed = (G.wallet.chests || []).includes(ch.id);
+    const claimable = Shop.canClaimChest(G.wallet, G.progress, ch);
+    let doneN = 0; for (let id = ch.from; id <= ch.to; id++) if (G.progress[id] > 0) doneN++;
+    fillRR(cx - 120, cy, 240, 30, 10, claimable ? '#f59e0b' : 'rgba(0,0,0,0.20)');
+    txt('🎁 ' + (claimed ? T('blockblast.chestDone')
+                : claimable ? T('blockblast.chestClaim', { n: ch.chest })
+                : T('blockblast.chest') + ' · ' + doneN + '/10'),
+        cx, cy + 15, claimed ? '#7ef2a0' : claimable ? '#fff' : PAL.sub, 'bold 12px sans-serif');
+    if (claimable) addHit(cx - 120, cy, 240, 30, 'CHEST', { id: ch.id });
+
+    const by = cy + 44;
+
+    // 每日谜题（同一天全球同一条块流）：主按钮玩今天，旁边小按钮开日历（补玩过去 7 天）
     const doneToday = Daily.playedToday(G.profile, new Date());
-    fillRR(cx - 150, by, 145, 46, 12, doneToday ? 'rgba(255,255,255,0.18)' : '#22c55e');
-    txt('\u{1F4C5} ' + T('blockblast.daily'), cx - 77, by + 17, '#fff', 'bold 13px sans-serif');
+    fillRR(cx - 150, by, 107, 46, 12, doneToday ? 'rgba(255,255,255,0.18)' : '#22c55e');
+    txt('\u{1F4C5} ' + T('blockblast.daily'), cx - 96, by + 17, '#fff', 'bold 12px sans-serif');
     txt(doneToday ? T('blockblast.dailyDone')
                   : (G.profile.dailyStreak ? T('blockblast.dailyStreak', { n: G.profile.dailyStreak }) : ''),
-        cx - 77, by + 33, PAL.sub, '10px sans-serif');
-    addHit(cx - 150, by, 145, 46, 'PLAY_DAILY', {});
+        cx - 96, by + 33, PAL.sub, '9px sans-serif');
+    addHit(cx - 150, by, 107, 46, 'PLAY_DAILY', {});
+    fillRR(cx - 39, by, 34, 46, 12, 'rgba(255,255,255,0.18)');
+    txt('\u{1F5D3}', cx - 22, by + 23, '#fff', '15px sans-serif');
+    addHit(cx - 39, by, 34, 46, 'PAGE_CAL', {});
 
     // 无尽：有没打完的局 ⇒ 主按钮变「继续」（带当前分数），旁边小按钮才是重开 ——
     // 原来一点就 newRun()，静默毁掉玩家没打完的局。
@@ -256,10 +294,13 @@
         T('blockblast.achProgress', { a: G.profile.unlocked.length, b: Achievements.total() }),
         cx, by2 + 52, PAL.sub, '12px sans-serif');
 
-    // 金币 + 商店
-    fillRR(cx - 60, by2 + 64, 120, 32, 10, 'rgba(0,0,0,0.22)');
-    txt('\u{1FA99} ' + G.wallet.coins + '   \u002B', cx, by2 + 80, PAL.accent, 'bold 13px sans-serif');
-    addHit(cx - 60, by2 + 64, 120, 32, 'PAGE_SHOP', {});
+    // 金币/商店 + 图鉴
+    fillRR(cx - 124, by2 + 64, 120, 32, 10, 'rgba(0,0,0,0.22)');
+    txt('\u{1FA99} ' + G.wallet.coins + '   \u002B', cx - 64, by2 + 80, PAL.accent, 'bold 13px sans-serif');
+    addHit(cx - 124, by2 + 64, 120, 32, 'PAGE_SHOP', {});
+    fillRR(cx + 4, by2 + 64, 120, 32, 10, 'rgba(0,0,0,0.22)');
+    txt('\u{1F48E} ' + T('blockblast.codex'), cx + 64, by2 + 80, PAL.accent, 'bold 12px sans-serif');
+    addHit(cx + 4, by2 + 64, 120, 32, 'PAGE_DEX', {});
   }
 
   /** 成就页 */
@@ -425,6 +466,76 @@
     backButton();
   }
 
+  /** 每日日历：本月完成打勾；过去 7 天（含今天）可点进去补玩 —— 补玩只记成绩不计 streak */
+  function renderCal() {
+    clearHits(); layout();
+    const { SW, SH } = GameGlobal, G = root.G, cx = L.cx;
+    const grad = ctx.createLinearGradient(0, 0, SW, SH);
+    grad.addColorStop(0, PAL.bg1); grad.addColorStop(1, PAL.bg2);
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, SW, SH);
+    const now = new Date();
+    txt(T('blockblast.daily'), cx, GameGlobal.safeTop + 30, '#fff', 'bold 22px sans-serif');
+    txt(now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0'),
+        cx, GameGlobal.safeTop + 54, PAL.sub, '13px sans-serif');
+    if (G.profile.dailyStreak) {
+      txt('\u{1F525} ' + T('blockblast.dailyStreak', { n: G.profile.dailyStreak }),
+          cx, GameGlobal.safeTop + 74, PAL.accent, 'bold 12px sans-serif');
+    }
+
+    const first = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startDow = first.getDay();
+    const daysIn = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const cw = Math.min(46, (L.playW - 28) / 7);
+    const gx = cx - cw * 3.5, gy = GameGlobal.safeTop + 92;
+    const bests = G.profile.dailyBest || {};
+    for (let d = 1; d <= daysIn; d++) {
+      const slot = startDow + d - 1, r = Math.floor(slot / 7), c = slot % 7;
+      const x = gx + c * cw, y = gy + r * cw;
+      const dt = new Date(now.getFullYear(), now.getMonth(), d);
+      const off = Daily.dayNo(now) - Daily.dayNo(dt);
+      const playable = off >= 0 && off <= 6;                  // 未来的不能玩，太久远的也不开（防无限内容倒灌）
+      const done = !!bests[Daily.dayId(dt)];
+      fillRR(x + 2, y + 2, cw - 4, cw - 4, 8, done ? 'rgba(34,197,94,0.35)' : playable ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.15)');
+      if (off === 0) { ctx.strokeStyle = PAL.accent; ctx.lineWidth = 2; roundRect(x + 2, y + 2, cw - 4, cw - 4, 8); ctx.stroke(); }
+      txt(String(d), x + cw / 2, y + cw / 2 - (done ? 5 : 0),
+          playable || done ? '#fff' : 'rgba(255,255,255,0.35)', '12px sans-serif');
+      if (done) txt('✓', x + cw / 2, y + cw - 12, '#7ef2a0', 'bold 10px sans-serif');
+      if (playable) addHit(x + 2, y + 2, cw - 4, cw - 4, 'PLAY_DAILY_AT', { off });
+    }
+    const rows = Math.ceil((startDow + daysIn) / 7);
+    ctx.font = '11px sans-serif';
+    wrapLines(T('blockblast.calHint'), L.playW - 60, 3)
+      .forEach((ln, i) => txt(ln, cx, gy + rows * cw + 22 + i * 16, PAL.sub, '11px sans-serif'));
+    backButton();
+  }
+
+  /** 水晶图鉴：收集过才点亮（审核员 5 秒能看见的收集外壳，也是长线目标）*/
+  function renderDex() {
+    clearHits(); layout();
+    const { SW, SH } = GameGlobal, G = root.G, cx = L.cx;
+    const grad = ctx.createLinearGradient(0, 0, SW, SH);
+    grad.addColorStop(0, PAL.bg1); grad.addColorStop(1, PAL.bg2);
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, SW, SH);
+    txt(T('blockblast.dexTitle'), cx, GameGlobal.safeTop + 30, '#fff', 'bold 22px sans-serif');
+    const got = G.profile.crystals || {};
+    Levels.KINDS.forEach((k, i) => {
+      const y = GameGlobal.safeTop + 56 + i * 86;
+      const n = got[k] || 0, seen = n > 0;
+      fillRR(L.playX + 14, y, L.playW - 28, 78, 12, 'rgba(0,0,0,0.20)');
+      ctx.globalAlpha = seen ? 1 : 0.25;
+      drawCrystal(L.playX + 24, y + 19, 40, k);
+      ctx.globalAlpha = 1;
+      txtL(seen ? T('blockblast.dex.' + k) : '???', L.playX + 76, y + 24,
+           seen ? '#fff' : 'rgba(255,255,255,0.4)', 'bold 14px sans-serif');
+      if (seen) txtR('×' + n, L.playX + L.playW - 26, y + 24, PAL.accent, 'bold 13px sans-serif');
+      ctx.font = '11px sans-serif';
+      wrapLines(seen ? T('blockblast.dexd.' + k) : T('blockblast.dexLocked'), L.playW - 120, 2)
+        .forEach((ln, j) => txtL(ln, L.playX + 76, y + 46 + j * 15,
+                                 seen ? PAL.sub : 'rgba(255,255,255,0.3)', '11px sans-serif'));
+    });
+    backButton();
+  }
+
   /** 设置页：下一手预览（关掉 = 硬核模式）/ 粒子特效（低端机、减弱动态）。
    *  声音开关在引擎的悬浮控件里（同一开关不另起一套）。*/
   function renderSettings() {
@@ -486,6 +597,8 @@
     if (G0.phase === 'FAIR') return renderFair();
     if (G0.phase === 'SHOP') return renderShop();
     if (G0.phase === 'SET') return renderSettings();
+    if (G0.phase === 'CAL') return renderCal();
+    if (G0.phase === 'DEX') return renderDex();
     clearHits();
     layout();
     const { SW, SH } = GameGlobal;
@@ -578,6 +691,13 @@
 
     // ── 棋盘 ──
     fillRR(L.boardX - 6, L.boardY - 6, L.boardW + 12, L.boardW + 12, 14, PAL.boardBg);
+    if (s.mode === 'level') {
+      // 主题演进：棋盘描边用**章节色**（糖果粉 / 深海蓝 / 翡翠绿）
+      ctx.strokeStyle = hexA(Levels.chapterOf(s.levelId).accent, 0.7);
+      ctx.lineWidth = 3;
+      roundRect(L.boardX - 6, L.boardY - 6, L.boardW + 12, L.boardW + 12, 14);
+      ctx.stroke();
+    }
 
     // 拖拽中：算出幽灵位置 + 将被消掉的行列；非法落点走虚线描边（DESIGN §5 的色盲友好方案）
     let ghost = null, badTarget = null, hintRows = [], hintCols = [];
@@ -654,6 +774,11 @@
       const r = L.traySlots[i];
       const dead = !Core.canPlaceAnywhere(s.board, p);   // 放不下的块暗掉：失败要看得见原因
       drawPieceAt(p, r.x, r.y, r.size, dead ? 0.35 : 1);
+      // 拼块驮着的水晶：托盘里就要看见（玩家得为它规划落点）
+      if (s.mode === 'level') {
+        const pc = Core.pieceCrystalAt(s, s.streamIndex + i);
+        if (pc) drawCrystal(r.x + pc.cell[1] * r.size, r.y + pc.cell[0] * r.size, r.size, pc.kind);
+      }
     }
 
     // FTUE 指引（前 2 关首步）：托盘目标块 + 落点脉冲高亮——把勺子递到手上（DESIGN §6.3）
@@ -679,8 +804,13 @@
     if (G.drag) {
       const d = G.drag;
       const size = d.fromSize + (L.cell - d.fromSize) * Drag.ease(d.grow);
-      drawPieceAt(d.piece, d.px - d.anchorDC * size - size / 2,
-                  d.py - d.anchorDR * size - size / 2 - L.cell * Drag.LIFT, size, 0.95);
+      const bx = d.px - d.anchorDC * size - size / 2;
+      const by2 = d.py - d.anchorDR * size - size / 2 - L.cell * Drag.LIFT;
+      drawPieceAt(d.piece, bx, by2, size, badTarget ? 0.55 : 0.95);   // 非法落点：块变暗（§5）
+      if (s.mode === 'level') {
+        const pc = Core.pieceCrystalAt(s, s.streamIndex + d.slot);
+        if (pc) drawCrystal(bx + pc.cell[1] * size, by2 + pc.cell[0] * size, size, pc.kind);
+      }
     }
 
     // ── 回弹中的块（非法松手 → 飞回托盘并缩回原尺寸）──

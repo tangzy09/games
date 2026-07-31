@@ -76,7 +76,7 @@
       "line500": "Maestro de líneas",
       "lvl1": "Primer nivel",
       "lvl10": "Diez niveles",
-      "lvl20": "Todos los niveles",
+      "lvl20": "Veinte niveles",
       "lvl5": "Cinco niveles",
       "noUndo10": "Manos limpias",
       "perfect1": "Tablero perfecto",
@@ -90,13 +90,17 @@
       "score6k": "6.000 puntos",
       "star10": "10 estrellas",
       "star30": "30 estrellas",
-      "star60": "Todas las estrellas",
+      "star60": "Sesenta estrellas",
       "streak12": "Imparable",
       "streak3": "En racha",
       "streak5": "Calentando",
       "streak7": "Multiplicador máx.",
       "sweep1": "Primer barrido",
-      "sweep3": "Triple barrido"
+      "sweep3": "Triple barrido",
+      "lvl30": "Todos los capítulos",
+      "star90": "Todas las estrellas",
+      "cry50": "Acaparador de gemas",
+      "cry200": "Barón del cristal"
     },
     "theme": {
       "candy": "Caramelo",
@@ -133,6 +137,31 @@
     "lastMoves": "Tus últimas jugadas",
     "noFit": "Ninguna pieza cabe en ningún sitio",
     "on": "SÍ",
-    "off": "NO"
+    "off": "NO",
+    "chapter1": "Cascada de Caramelo",
+    "chapter2": "Profundidades",
+    "chapter3": "Bosque Esmeralda",
+    "chest": "Cofre del capítulo",
+    "chestClaim": "Reclamar +{n}",
+    "chestDone": "Reclamado",
+    "codex": "Códice",
+    "dexTitle": "Códice de cristales",
+    "dexLocked": "Recoge uno para revelarlo.",
+    "calHint": "Los últimos 7 días son jugables. Al recuperar días solo cuenta la puntuación, no la racha.",
+    "pieceCryIntro": "¡Novedad: algunas piezas llevan cristales!",
+    "dex": {
+      "blue": "Gema Aqua",
+      "pink": "Orbe Rosa",
+      "orange": "Esquirla de Ámbar",
+      "green": "Esmeralda",
+      "violet": "Núcleo Violeta"
+    },
+    "dexd": {
+      "blue": "La gema común de la Cascada. Limpia su línea para recogerla.",
+      "pink": "Le gusta sentarse donde se cruzan filas y columnas.",
+      "orange": "Pesada y cálida. Suele estar cerca de los bordes.",
+      "green": "Nativa del Bosque Esmeralda. Algunas llegan montadas en piezas.",
+      "violet": "Solo viaja sobre piezas: planifica su aterrizaje."
+    }
   }
 }

@@ -12,13 +12,15 @@
  */
 'use strict';
 
-const KIND = { B: 'blue', P: 'pink', O: 'orange' };
+const KIND = { B: 'blue', P: 'pink', O: 'orange', G: 'green', V: 'violet' };
 
 /**
  * line = [type, index, kindKey, gap, crystalCount]
  *   type: 'r' 行 | 'c' 列；index: 行号/列号；gap: 留给玩家填的空格数；crystalCount: 这条线上放几颗水晶
+ * pieceCry = [kindKey, every, goal] —— 拼块自带水晶（平均每 every 块驮一颗，收 goal 颗）
+ *   ⛔ 带 pieceCry 的关最多 1 颗石块（validate 会拦：2 石块会造出行列双封死格）
  */
-function build(id, lines, stones, note) {
+function build(id, lines, stones, note, pieceCry) {
   const board = new Map();          // "r,c" → 'block' | 'crystal:kind' | 'stone'
   const key = (r, c) => `${r},${c}`;
 
@@ -49,12 +51,18 @@ function build(id, lines, stones, note) {
     else if (v.startsWith('crystal')) crystals.push([r, c, v.split(':')[1]]);
   }
   const fmt = a => '[' + a.map(t => '[' + t.map(x => (typeof x === 'string' ? kindShort(x) : x)).join(',') + ']').join(',') + ']';
-  const kindShort = s => ({ blue: 'B', pink: 'P', orange: 'O' }[s] || s);
+  const kindShort = s => ({ blue: 'B', pink: 'P', orange: 'O', green: 'G', violet: 'V' }[s] || s);
 
   let out = `    { id: ${id},${note ? ` // ${note}` : ''}\n`;
   if (st.length) out += `      stones: ${fmt(st)},\n`;
   if (blocks.length) out += `      blocks: ${fmt(blocks)},\n`;
-  out += `      crystals: ${fmt(crystals)} },\n`;
+  if (pieceCry) {
+    const [kk, every, goal] = pieceCry;
+    out += `      crystals: ${fmt(crystals)},\n`;
+    out += `      pieceCrystals: { every: ${every}, kind: ${kindShort(KIND[kk])}, goal: ${goal} } },\n`;
+  } else {
+    out += `      crystals: ${fmt(crystals)} },\n`;
+  }
   return out;
 }
 
@@ -85,8 +93,23 @@ const SPECS = [
   [18, [['r', 2, 'B', 4, 1], ['r', 5, 'P', 4, 1], ['c', 3, 'O', 4, 1]], [[0, 0]], ''],
   [19, [['r', 6, 'B', 4, 1], ['r', 1, 'P', 3, 1], ['c', 2, 'O', 3, 1]], [[0, 0]], ''],   // 2 个石块封死 4 条线 = 太狠(77%)，减成 1 个、难度改由 gap 提供
   [20, [['r', 4, 'B', 5, 1], ['r', 7, 'P', 4, 1], ['c', 0, 'O', 4, 1], ['c', 6, 'B', 3, 1]], [[0, 7]], '收尾：四条线 + 最大空缺'],
+  // ── 第三章「翡翠林地」21-30：引入拼块自带水晶（green/violet）——
+  //    水晶不再只长在盘上，托盘的块也会驮着来，落点由玩家规划。
+  //    ⛔ 带 pieceCrystals 的关最多 1 颗石块（validate 拦）。
+  [21, [['r', 6, 'G', 3, 2], ['r', 3, 'P', 3, 1]], [], '章三开篇：首次拼块水晶（温和引入）', ['G', 3, 2]],
+  [22, [['r', 5, 'B', 4, 1], ['c', 2, 'O', 3, 1], ['r', 7, 'G', 3, 1]], [[0, 0]], ''],
+  [23, [['c', 5, 'G', 4, 1], ['r', 2, 'B', 4, 1]], [], '', ['V', 3, 3]],
+  // ⚠ 拼块水晶目标会把局拉长（AI 中位 11-17 步），死亡率随局长上升 ——
+  //   goal 2-3 就够「新机制」的感觉了；首版 goal 4-5 + gap 5 直接把 30 关打到 46%（verify 拦下）。
+  [24, [['r', 6, 'P', 3, 1], ['c', 1, 'G', 3, 1], ['r', 3, 'O', 3, 1], ['c', 6, 'B', 3, 1]], [[0, 7]], '四条线'],
+  [25, [['r', 7, 'G', 3, 1], ['c', 4, 'P', 3, 1], ['r', 1, 'V', 3, 1]], [], '', ['G', 3, 2]],
+  [26, [['r', 4, 'B', 4, 1], ['c', 0, 'V', 4, 1], ['r', 6, 'G', 4, 1], ['c', 7, 'O', 3, 1]], [[0, 3]], ''],
+  [27, [['r', 5, 'V', 4, 1], ['c', 3, 'G', 4, 1]], [], '', ['V', 3, 3]],
+  [28, [['r', 2, 'G', 4, 1], ['r', 6, 'B', 3, 1], ['c', 5, 'P', 4, 1], ['c', 1, 'O', 3, 1]], [[7, 7]], ''],
+  [29, [['r', 7, 'V', 3, 1], ['c', 2, 'B', 3, 1], ['r', 4, 'G', 3, 1]], [], '', ['G', 3, 2]],
+  [30, [['r', 3, 'G', 4, 1], ['r', 6, 'V', 4, 1], ['c', 4, 'B', 4, 1]], [[0, 7]], '章三收尾：三线 + 拼块水晶大考', ['V', 3, 3]],
 ];
 
 let out = '';
-for (const [id, lines, stones, note] of SPECS) out += build(id, lines, stones, note);
+for (const [id, lines, stones, note, pieceCry] of SPECS) out += build(id, lines, stones, note, pieceCry);
 console.log(out);

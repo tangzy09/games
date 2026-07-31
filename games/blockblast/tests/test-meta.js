@@ -66,6 +66,22 @@ const Daily = require('../js/daily.js');
   console.log(`test-meta: ${Themes.THEMES.length} 套皮肤，解锁门槛 OK`);
 }
 
+// ════════ 每日补玩（backfill）：只记成绩，绝不动 streak/天数/首次标记 ════════
+{
+  const Daily = require('../js/daily.js');
+  const p = { dailyStreak: 5, dailyDays: 9, lastDaily: Daily.dayNo(new Date(2026, 6, 30)), dailyBest: {} };
+  const past = new Date(2026, 6, 27);                       // 三天前的题
+  const r = Daily.settleDaily(p, past, 1234, true);
+  assert.strictEqual(r.first, false, '补玩永远不算「首次」（不发首次金币）');
+  assert.strictEqual(p.dailyStreak, 5, '⛔ 补玩不动连续天数');
+  assert.strictEqual(p.dailyDays, 9, '⛔ 补玩不动累计天数');
+  assert.strictEqual(p.lastDaily, Daily.dayNo(new Date(2026, 6, 30)), '⛔ 补玩不改「最后完成日」');
+  assert.strictEqual(p.dailyBest[20260727], 1234, '成绩记到**那道题的日期**上');
+  Daily.settleDaily(p, past, 900, true);
+  assert.strictEqual(p.dailyBest[20260727], 1234, '低分不覆盖');
+  console.log('test-meta: 每日补玩不污染 streak OK');
+}
+
 // ════════ 每日谜题：同一天全球同一条块流（只有预生成块流才做得到）════════
 {
   const d1 = new Date(2026, 6, 13, 8, 0, 0);

@@ -28,13 +28,21 @@
   }
 
   /**
-   * 结算今天的谜题：更新 profile 的连续天数与最好成绩。
-   * 返回 { first: 今天第一次完成?, streak: 连续天数 }
+   * 结算一道谜题：更新 profile 的连续天数与最好成绩。
+   * backfill = 补玩过去的题（日历页入口）：**只记成绩，不动 streak/天数/首次奖励** ——
+   * 否则补玩会把「连续天数」改写成过去的日期，真实的连续记录就被污染了。
+   * 返回 { first: 第一次完成?, streak: 连续天数, best }
    */
-  function settleDaily(profile, date, score) {
+  function settleDaily(profile, date, score, backfill) {
     const today = dayNo(date);
     const id = dayId(date);
     profile.dailyBest = profile.dailyBest || {};
+
+    if (backfill) {
+      const prev0 = profile.dailyBest[id] || 0;
+      if (score > prev0) profile.dailyBest[id] = score;
+      return { first: false, streak: profile.dailyStreak || 0, best: profile.dailyBest[id] };
+    }
 
     const first = profile.lastDaily !== today;
     if (first) {

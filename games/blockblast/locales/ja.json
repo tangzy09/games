@@ -76,7 +76,7 @@
       "line500": "Line Master",
       "lvl1": "First Level",
       "lvl10": "Ten Levels",
-      "lvl20": "All Levels",
+      "lvl20": "20レベル",
       "lvl5": "Five Levels",
       "noUndo10": "Clean Hands",
       "perfect1": "Perfect Clear",
@@ -90,13 +90,17 @@
       "score6k": "6,000 Points",
       "star10": "10 Stars",
       "star30": "30 Stars",
-      "star60": "All Stars",
+      "star60": "60スター",
       "streak12": "Unstoppable",
       "streak3": "On a Roll",
       "streak5": "Heating Up",
       "streak7": "Max Multiplier",
       "sweep1": "First Sweep",
-      "sweep3": "Triple Sweeper"
+      "sweep3": "Triple Sweeper",
+      "lvl30": "全チャプター制覇",
+      "star90": "全スター",
+      "cry50": "ジェムコレクター",
+      "cry200": "クリスタル男爵"
     },
     "theme": {
       "candy": "キャンディ",
@@ -133,6 +137,31 @@
     "lastMoves": "あなたの最後の数手",
     "noFit": "どのピースもどこにも置けません",
     "on": "オン",
-    "off": "オフ"
+    "off": "オフ",
+    "chapter1": "キャンディの滝",
+    "chapter2": "深海",
+    "chapter3": "エメラルドの森",
+    "chest": "チャプター宝箱",
+    "chestClaim": "受け取る +{n}",
+    "chestDone": "受取済み",
+    "codex": "図鑑",
+    "dexTitle": "クリスタル図鑑",
+    "dexLocked": "1つ集めると明らかになります。",
+    "calHint": "過去7日分はプレイできます。さかのぼりプレイはスコアのみ記録され、連続日数には数えません。",
+    "pieceCryIntro": "新要素：クリスタルを載せたピースが登場！",
+    "dex": {
+      "blue": "アクアジェム",
+      "pink": "ローズオーブ",
+      "orange": "アンバー片",
+      "green": "エメラルド",
+      "violet": "バイオレットコア"
+    },
+    "dexd": {
+      "blue": "キャンディの滝でよく見る宝石。ラインを消して回収。",
+      "pink": "行と列の交差点に座るのが好き。",
+      "orange": "ずっしり温かい。盤の端によく現れる。",
+      "green": "エメラルドの森の原生クリスタル。ピースに乗って来ることも。",
+      "violet": "ピースに乗ってのみ旅する——置く前に着地点を計画して。"
+    }
   }
 }

@@ -76,7 +76,7 @@
       "line500": "Line Master",
       "lvl1": "First Level",
       "lvl10": "Ten Levels",
-      "lvl20": "All Levels",
+      "lvl20": "Twenty Levels",
       "lvl5": "Five Levels",
       "noUndo10": "Clean Hands",
       "perfect1": "Perfect Clear",
@@ -90,13 +90,17 @@
       "score6k": "6,000 Points",
       "star10": "10 Stars",
       "star30": "30 Stars",
-      "star60": "All Stars",
+      "star60": "Sixty Stars",
       "streak12": "Unstoppable",
       "streak3": "On a Roll",
       "streak5": "Heating Up",
       "streak7": "Max Multiplier",
       "sweep1": "First Sweep",
-      "sweep3": "Triple Sweeper"
+      "sweep3": "Triple Sweeper",
+      "lvl30": "All Chapters",
+      "star90": "All Stars",
+      "cry50": "Gem Hoarder",
+      "cry200": "Crystal Baron"
     },
     "theme": {
       "candy": "Candy",
@@ -133,6 +137,31 @@
     "lastMoves": "Your final moves",
     "noFit": "None of these fit anywhere",
     "on": "ON",
-    "off": "OFF"
+    "off": "OFF",
+    "chapter1": "Candy Falls",
+    "chapter2": "Ocean Depths",
+    "chapter3": "Emerald Grove",
+    "chest": "Chapter chest",
+    "chestClaim": "Claim +{n}",
+    "chestDone": "Claimed",
+    "codex": "Codex",
+    "dexTitle": "Crystal Codex",
+    "dexLocked": "Collect one to reveal it.",
+    "calHint": "The past 7 days are playable. Catch-up runs count scores only — no streak credit.",
+    "pieceCryIntro": "New here: some pieces carry crystals!",
+    "dex": {
+      "blue": "Aqua Gem",
+      "pink": "Rose Orb",
+      "orange": "Amber Shard",
+      "green": "Emerald",
+      "violet": "Violet Core"
+    },
+    "dexd": {
+      "blue": "The everyday gem of the Candy Falls. Clear its line to collect it.",
+      "pink": "Loves to sit where rows and columns cross.",
+      "orange": "Heavy and warm. Often found near the board edges.",
+      "green": "Native to the Emerald Grove. Some arrive riding on pieces.",
+      "violet": "Rides only on travelling pieces — plan its landing before you drop it."
+    }
   }
 }
