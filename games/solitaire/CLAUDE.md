@@ -37,16 +37,17 @@ E2E：`npm run test:sol:exp`。⚠ 撤销=按 seed 重放 ⇒ **手搓的 G.s �
 （⚠ web 端模拟激励视频走 `window.confirm`——Playwright 必须 `page.on('dialog', accept)`）。
 ⛔ 插屏节奏**保持每 3 赢 1 个不动**：低胜率下≈每 10-20 局一个，是「广告克制」定位的弹药，
 别为了蚊子肉动它（红线测试在 e2e-p5p6）。
-**待办（需新出包 + TestFlight 验证）**：去广告 IAP 真接 StoreKit（3.1.2 四要素）、求好评弹窗（in-app-review 插件）。
+**待办（需新出包 + TestFlight 验证）**：求好评弹窗（in-app-review 插件）、每日挑战本地推送。
+（去广告 IAP **已决定不做**，见上。）
 
 ⚠ **商店名里没有 `solitaire`，但 keywords 里有** —— 这不矛盾：
 `solitaire` 是几百年的**公有品类**（和 sudoku/chess 一样），进 keywords **完全合规**；
 名字避开它纯粹是**品牌差异化**（`Solitaire: Klondike & FreeCell` 一眼就是量产克隆）。
 4.3(a) 禁的是**特定爆款**的名字（2048/Wordle/Flappy）—— 详见 `avoiding-clone-spam-rejection` skill。
 
-⛔ **首版没有去广告 IAP**：商店描述曾宣称有、代码里却是个 TODO（点一下直接生效、ASC 里也没建
-IAP 产品）⇒ **2.1(b) 必被拒**。已从 UI/代码/描述/审核备注四处清干净。
-上线后的更新版再真接 StoreKit（那时要做 3.1.2 的 paywall 四要素）。
+⛔ **去广告 IAP 不做了（2026-07-31 用户拍板，永久决定）**：首版曾因「宣称有内购却没接 StoreKit」
+差点踩 2.1(b)，已全部清干净；现决定**彻底不做**——收入就三条腿（横幅主力 + 克制插屏 + 激励视频）。
+`Money.noAds`/`buyNoAds` 保留为死开关（e2e-p5p6 的红线测试用它模拟），**别把入口/StoreKit 加回来**。
 
 ## 这个游戏的唯一卖点：**每一局都存在解法，而且我们证明给你看**
 

@@ -445,9 +445,9 @@ function dispatch(action, data) {
       break;
     }
 
-    // ⛔ 'NOADS' 入口**首版已移除**：宣称有内购却没接 StoreKit = 2.1(b) 必被拒
-    //    （审核员点了直接生效、且 ASC 里找不到 IAP 产品）。
-    //    Money.buyNoAds() 保留，等真接了 StoreKit 再把入口加回来 + 做 3.1.2 的 paywall 四要素。
+    // ⛔ 去广告 IAP **不做**（2026-07-31 拍板，永久决定）：收入就三条腿
+    //    （横幅主力 + 克制插屏 + 激励视频）。Money.buyNoAds() 只是死开关
+    //    （e2e-p5p6 红线测试用它模拟「买了去广告」），别把入口/StoreKit 加回来。
 
     // 激励视频 → 金币。⚠ **纯增益**：金币只能换外观，换不到提示/撤销（那是基本人权）
     case 'EARN_AD': {
