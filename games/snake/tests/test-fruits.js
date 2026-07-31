@@ -17,31 +17,27 @@ function eatN(g, n, startMs) {  // 连吃 n 个苹果:每次把苹果摆到头�
   return t;
 }
 
-// --- 特殊果刷新节奏:吃 4~6 个苹果后必刷,且场上至多 1 个 ---
+// --- 特殊果:**开局就有、永不过期、场上恒为 1 个**(2026-08-01 改;旧策略「4~6 苹果刷一个 + 8s 过期」已作废) ---
 {
   const g = Core.createGame({ seed: 1 });
-  assert.strictEqual(g.special, null, '开局无特殊果');
-  eatN(g, 6, 1000);
-  assert(g.special, '6 苹果内必刷特殊果');
+  assert(g.special, '开局就有特殊果');
   assert(Fruits.FRUITS[g.special.type], '类型合法');
-  assert(g.special.expiresAt > 0, '有过期时间');
   assert.strictEqual(g.stats.specialsSpawned, 1);
   const firstType = g.special.type;
-  // 走位调整(意图不变,时间可调):startMs 需落在首个特殊果 expiresAt(spawn+8000ms)之内,
-  // 否则它会在第二批次开局前先自然过期,导致合法地刷出第 2 个——那不是本用例要测的场景。
-  // seed=1 首个特殊果约在 t=4000 时刷出、expiresAt≈11500,故用 5000 起跑确保仍在场。
-  eatN(g, 6, 5000);
-  assert.strictEqual(g.stats.specialsSpawned, 1, '场上已有特殊果时不再刷');
+  eatN(g, 6, 1000);
+  assert.strictEqual(g.stats.specialsSpawned, 1, '没吃掉就不再刷(场上恒 1 个)');
   assert.strictEqual(g.special.type, firstType);
 }
 
-// --- 过期消失 ---
+// --- 永不过期(旧的「超时消失」已废):跑很久之后仍在场 ---
 {
   const g = Core.createGame({ seed: 2 });
   const t = eatN(g, 6, 1000);
-  assert(g.special, '已刷特殊果');
-  Core.step(g, { nowMs: t + Fruits.FRUIT_TIMES.specialLife + 1 });
-  assert.strictEqual(g.special, null, '超时消失');
+  assert(g.special, '已有特殊果');
+  const type0 = g.special.type;
+  Core.step(g, { nowMs: t + Fruits.FRUIT_TIMES.specialLife * 100 });
+  assert(g.special, '⛔ 特殊果永不过期(旧策略是 8s 消失)');
+  assert.strictEqual(g.special.type, type0, '还是同一个,没被换掉');
 }
 
 // --- 吃到特殊果:计数 + 生效(用 gold 验证通路) ---
@@ -53,8 +49,11 @@ function eatN(g, n, startMs) {  // 连吃 n 个苹果:每次把苹果摆到头�
   g.special = { type: 'gold', x: h.x + d.x, y: h.y + d.y, expiresAt: t + 8000 };
   g.apple = { x: 0, y: 0 };                       // 苹果挪走防干扰
   const sc = g.score, cb = g.combo;
+  const spawned0 = g.stats.specialsSpawned;
   Core.step(g, { nowMs: t + 500 });
-  assert.strictEqual(g.special, null, '吃掉后场上清空');
+  assert(g.special && g.special.type !== 'gold' || g.stats.specialsSpawned === spawned0 + 1,
+    '吃掉后**立刻补上下一个**(不再是清空)');
+  assert.strictEqual(g.stats.specialsSpawned, spawned0 + 1, '补货计入 specialsSpawned');
   assert.strictEqual(g.stats.specials.gold, 1, '类型计数');
   assert.strictEqual(g.combo, cb + 2, '金苹果连击 +2');
   assert.strictEqual(g.score, sc + 50, '金苹果 +50 分');

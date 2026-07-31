@@ -8,6 +8,7 @@ const FR_ = (typeof module !== 'undefined' && module.exports)
 const SNAKE_DIRS = { up:{x:0,y:-1}, down:{x:0,y:1}, left:{x:-1,y:0}, right:{x:1,y:0} };
 const OPP  = { up:'down', down:'up', left:'right', right:'left' };
 const COMBO_WINDOW_MS = 10000;   // 待校准(设计 §13)
+const APPLE_REVEAL = 9;          // 吃一个果实随机揭开几格(2026-08-01 用户定;揭图是核心爽点)
 
 function createGame(opts = {}) {
   const cols = opts.cols || 16, rows = opts.rows || 16;
@@ -30,9 +31,9 @@ function createGame(opts = {}) {
     stats: { apples: 0, steps: 0, specialsSpawned: 0, specials: {},
              meteorsCaught: 0, ghostPassed: 0 },
   };
-  s.nextSpecialAt = 4 + Math.floor(s.rand() * 3);   // 每 4~6 苹果刷 1 个特殊果
   revealCell(s, s.snake[0].x, s.snake[0].y);
   spawnApple(s);
+  ensureSpecial(s, 0);            // 开局就有特殊果(场上永远有一个)
   return s;
 }
 
@@ -97,7 +98,11 @@ function step(s, o = {}) {
   const fx = s.effects;
   tickMeteor(s, now, o);
   tickMagnet(s, now);
-  if (s.special && now >= s.special.expiresAt) s.special = null;   // 限时消失
+  // ⚠ 特殊果**不再限时消失**(2026-08-01 用户定:「特殊果永远有,吃掉一个就补下一个」)。
+  //   expiresAt 字段保留为一个极大值:render 的「快过期闪烁」判据 (expiresAt-now < blinkAt)
+  //   因此永远为假。⛔ 别改回 Infinity——当局快照走 JSON,Infinity 会变 null,
+  //   null-now 是负数 ⇒ 特殊果会一直闪。
+  ensureSpecial(s, now);                                           // 场上永远有一个
   // 光环:到期时蛇头若仍与身体重叠,天然安全——碰撞只判「新格」,重叠本身不判死
   const ghost = !!o.ghost || now < fx.ghostUntil;
   // 消费一个缓冲转向(队首)→ 本 tick 应用;队列空则沿用上一 nextDir
@@ -148,13 +153,13 @@ function step(s, o = {}) {
 function eatAt(s, x, y, now, o) {
   const demonX = now < s.effects.demonUntil ? 2 : 1;   // 小恶魔期间得分 ×2
   if (s.apple && s.apple.x === x && s.apple.y === y) {
-    gainApple(s, now, o, demonX); spawnApple(s); onAppleEaten(s, now); return;
+    gainApple(s, now, o, demonX); spawnApple(s); onAppleEaten(s, now, o); return;
   }
   const ei = s.extraApples.findIndex(a => a.x === x && a.y === y);
   if (ei >= 0) {
     const a = s.extraApples[ei];
     s.extraApples.splice(ei, 1);
-    gainApple(s, now, o, demonX); onAppleEaten(s, now);   // 副苹果不重生
+    gainApple(s, now, o, demonX); onAppleEaten(s, now, o);   // 副苹果不重生
     s.events.push({ t: 'extra', batch: a.batch });
     return;
   }
@@ -164,6 +169,7 @@ function eatAt(s, x, y, now, o) {
     s.lastSpecialEaten = t;
     s.events.push({ t: 'special', type: t });
     applyFruit(s, t, now, o);
+    ensureSpecial(s, now);        // 吃掉一个 ⇒ 立刻补下一个(场上永远有)
     return;
   }
   if (s.meteor && s.meteor.x === x && s.meteor.y === y) {
@@ -186,16 +192,36 @@ function gainApple(s, now, o, demonX) {
   s.events.push({ t: 'apple' });   // 主/副苹果共用
 }
 
-function onAppleEaten(s, now) {
-  s.applesSinceSpecial++;
-  if (s.special || s.applesSinceSpecial < s.nextSpecialAt) return;
+// 吃到果实 ⇒ 随机揭开 APPLE_REVEAL 个未揭格 + 保证场上有特殊果
+// (2026-08-01 用户定的两条节奏改动;揭图是本作的核心爽点,把它从「一步一格」提到「一果九格」)
+function onAppleEaten(s, now, o) {
+  revealRandom(s, APPLE_REVEAL);
+  checkMilestone(s, o || {});          // 揭格后立刻结算里程碑(同 feather 的做法)
+  ensureSpecial(s, now);
+}
+
+/** 场上没有特殊果就补一个(永不过期;吃掉后由 eatAt 立刻再补) */
+function ensureSpecial(s, now) {
+  if (s.special) return;
   const cell = randomFreeCell(s);
   if (!cell) return;
   s.special = { type: pickSpecialType(s), x: cell.x, y: cell.y,
-                expiresAt: now + FR_.FRUIT_TIMES.specialLife };
+                expiresAt: Number.MAX_SAFE_INTEGER };   // JSON 安全的「永不过期」
   s.stats.specialsSpawned++;
-  s.applesSinceSpecial = 0;
-  s.nextSpecialAt = 4 + Math.floor(s.rand() * 3);
+}
+
+/** 随机揭开 n 个未揭格(走 s.rand ⇒ 同种子可复现,AI 回归测试才稳)。返回实际揭开数 */
+function revealRandom(s, n) {
+  const cells = [];
+  for (let y = 0; y < s.rows; y++) for (let x = 0; x < s.cols; x++)
+    if (!s.revealed[idx(s, x, y)]) cells.push({ x, y });
+  let got = 0;
+  while (got < n && cells.length) {
+    const c = cells.splice(Math.floor(s.rand() * cells.length), 1)[0];
+    revealCell(s, c.x, c.y);
+    got++;
+  }
+  return got;
 }
 
 // 权重选型:前期偏得分,后期(揭图>60% 或蛇>30% 棋盘)偏生存/揭图;

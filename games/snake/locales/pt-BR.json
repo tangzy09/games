@@ -7,7 +7,9 @@
     "simWatch": "[Simulação de anúncio] Assistir a um anúncio premiado?",
     "simInterstitial": "[Simulação de anúncio] Anúncio intersticial",
     "revive": "📺 Reviver (anúncio)",
-    "rescue": "📺 IA 30s"
+    "rescue": "📺 IA 30s",
+    "gal3": "Ver anúncio → 3 anjos",
+    "daily2": "Ver anúncio → mais 1 anjo"
   },
   "snake": {
     "score": "Pontos",
@@ -293,5 +295,10 @@
     "dailyB": "Pegue seu anjo diário e mantenha a sequência.",
     "streakT": "Sua sequência acaba hoje à noite!",
     "streakB": "{n} dias em jogo — um toque garante o anjo de hoje."
+  },
+  "ai": {
+    "start": "IA joga",
+    "stop": "Parar IA",
+    "on": "IA jogando"
   }
 }

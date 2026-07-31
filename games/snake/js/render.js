@@ -309,12 +309,9 @@ function drawEffectsRow(safeTop) {
     if (now < fx[key]) items.push(emo + Math.ceil((fx[key] - now) / 1000));
   if (items.length)   // y=+42:棋盘白卡从 safeTop+50 起,+48 时 12px 字形下缘被卡片压住
     txtL(items.join('  '), Layout.bx, safeTop + 42, PAL.text, '12px sans-serif');
-  // AI 救场倒计时(最后 1 秒放大一档预警,设计 §4)
-  if (now < G.rescueUntil) {
-    const remainMs = G.rescueUntil - now;
-    const label = '🤖⏱' + Math.ceil(remainMs / 1000);
-    txtL(label, Layout.bx + Layout.bsize * 0.6, safeTop + 42, PAL.accent,
-         remainMs <= 1000 ? 'bold 17px sans-serif' : 'bold 12px sans-serif');
+  // AI 代打进行中的常驻标记(免费开关,无倒计时)
+  if (G.aiOn) {
+    txtL('🤖 ' + T('ai.on'), Layout.bx + Layout.bsize * 0.55, safeTop + 42, PAL.accent, 'bold 12px sans-serif');
   }
 }
 
@@ -377,17 +374,13 @@ function drawSnake() {
 }
 
 function drawButtons() {
-  // AI 救场 30s(rewarded):进行中画灰 + 显示倒计时,不可再点(不加 hit)
+  // ⭐ AI 代打开关(免费,随时开/关)——开着时高亮,再点即关。⛔ 不接任何广告。
   const r = Layout.btnRescue;
-  const rescueActive = (G.nowMs || 0) < G.rescueUntil;
-  ctx.globalAlpha = rescueActive ? 0.5 : 1;
-  fillRR(r.x, r.y, r.w, r.h, 14, rescueActive ? PAL.accent : PAL.bar);
-  const label = rescueActive
-    ? '🤖 ' + Math.ceil((G.rescueUntil - (G.nowMs || 0)) / 1000) + 's'   // 代驾中:倒计时
-    : T('ads.rescue');
-  txt(label, r.x + r.w / 2, r.y + r.h / 2, rescueActive ? '#fff' : PAL.text, 'bold 15px sans-serif');
-  ctx.globalAlpha = 1;
-  if (!rescueActive) addHit(r.x, r.y, r.w, r.h, 'RESCUE', {});
+  const on = !!G.aiOn;
+  fillRR(r.x, r.y, r.w, r.h, 14, on ? PAL.accent : PAL.bar);
+  txt(on ? '🤖 ' + T('ai.stop') : '🤖 ' + T('ai.start'),
+      r.x + r.w / 2, r.y + r.h / 2, on ? '#fff' : PAL.text, 'bold 15px sans-serif');
+  addHit(r.x, r.y, r.w, r.h, 'AI_TOGGLE', {});
 }
 
 // 非模态提示条(READY 用):不遮盘面、无按钮,任何方向输入即开始

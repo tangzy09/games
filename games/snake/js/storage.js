@@ -12,7 +12,7 @@ function defaults() {
     // reduceMotion:null=跟随系统,true/false=用户显式选择。必须在 defaults 里,否则 merge
     // 只拷 default 的 key(见下),用户的显式选择会在重载时被丢掉(减弱动态偏好不持久)。
     // ⚠ remind 同理:闭合对象的新字段必须列进 defaults,否则用户开了也会被 merge 丢掉
-    settings: { theme: 'cloud', reduceMotion: null, remind: false },
+    settings: { theme: 'cloud', reduceMotion: null, remind: false, aiOn: false },
     // ⚠ stars 是「开放 map」(动态 key=图片名),默认值必须保持空对象 {}(见 merge 注释)
     gallery: { unlocked: [], imgPos: 0, stars: {} },  // unlocked: 图片文件名列表;stars: {文件名:1-3}
     daily: { lastGiftDay: '', giftStreak: 0 },       // 每日天使礼物:领取日(YYYY-MM-DD)+ 连续天数

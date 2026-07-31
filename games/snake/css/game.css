@@ -13,6 +13,13 @@ body { background: #fdf3f7; }
 /* 成就解锁 toast */
 #toasts { position: fixed; top: calc(max(env(safe-area-inset-top), 44px) + 8px); left: 50%; transform: translateX(-50%);
   z-index: 30; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+/* 主界面 AI 代打开关:开着时高亮(与局内按钮同语义) */
+.home-foot button.on { background: #2fbf71; color: #fff; }
+/* 自愿激励位按钮(图鉴 +3 / 每日礼物 +1):绿色、显眼但不挡内容 */
+.gal-ad, .daily-ad { display: block; width: 100%; margin: 4px 0 12px; padding: 11px;
+  border: none; border-radius: 14px; background: #2fbf71; color: #fff;
+  font: 700 14px sans-serif; cursor: pointer; }
+.gal-ad:disabled, .daily-ad:disabled { opacity: .55; }
 /* 每日任务:进度条 + 说明行(复用 .ach-item 的行样式,只补这三条) */
 .q-bar { height: 7px; border-radius: 4px; background: #f6ecf4; margin: 0 8px 12px; overflow: hidden; }
 .q-bar i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, #f7a8c8, #d6336c); }

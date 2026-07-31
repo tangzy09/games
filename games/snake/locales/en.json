@@ -7,7 +7,9 @@
     "simWatch": "[Ad simulation] Watch a rewarded ad?",
     "simInterstitial": "[Ad simulation] Interstitial ad",
     "revive": "📺 Revive (ad)",
-    "rescue": "📺 AI 30s"
+    "rescue": "📺 AI 30s",
+    "gal3": "Watch an ad → 3 angels",
+    "daily2": "Watch an ad → 1 more angel"
   },
   "snake": {
     "score": "Score",
@@ -293,5 +295,10 @@
     "dailyB": "Claim your daily angel and keep the streak alive.",
     "streakT": "Your streak ends tonight!",
     "streakB": "{n} days on the line — one tap claims today’s angel."
+  },
+  "ai": {
+    "start": "AI play",
+    "stop": "Stop AI",
+    "on": "AI playing"
   }
 }

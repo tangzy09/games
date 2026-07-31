@@ -8,7 +8,7 @@ var G = {
   imgFull: false,          // LEVEL_DONE 时点图全屏欣赏中
   save: null, tracker: null, saveKey: null,   // P2b:存档 + 单局成就 tracker
   revivesThisLevel: 0,                        // P3a:复活广告位,每局(每张图)限 2 次
-  rescueUntil: 0, rescueWasActive: false,     // AI 救场 30s(游戏时钟)代驾;结束即停下等玩家滑动继续
+  aiOn: false, aiUsedThisLevel: false,        // AI 代打:免费开关(存 settings.aiOn);用过的关星级封顶 ★1
 
   seed: (Date.now() % 2147483647),
 };
@@ -44,17 +44,17 @@ function dispatch(action) {
       }
       break;
     case 'RESCUE':
-      // AI 救场 30s:看广告换短时代驾(全分,不算刷成就);到期即停下等玩家滑动继续。
-      if (G.phase === 'PLAYING' && !(G.nowMs < G.rescueUntil)) {
-        Ads.showRewarded().then(ok => {
-          if (ok && G.phase === 'PLAYING') {
-            G.rescueUntil = (G.nowMs || 0) + 30000;
-            G.rescueWasActive = true;
-            G.aiMem = AI.createMem();
-            renderAll();
-          }
-        });
-      }
+      // ⭐ AI 代打:**完全免费、随时开关**(2026-08-01 用户定;旧版要看 30s 广告换代驾,已废)。
+      //   ⛔ 核心体验不锁广告——这是 casual-game-meta §0 的红线,AI 属于「玩不动时的救济」。
+      //   代价只有一个:用过 AI 的那一关**只给 ★1**(见 tick 的 aiUsedThisLevel),
+      //   收集/解锁全部照给——不惩罚,只是把「满星」留给手动通关。
+      dispatch('AI_TOGGLE');
+      break;
+    case 'AI_TOGGLE':
+      G.aiOn = !G.aiOn;
+      if (G.save) { G.save.settings.aiOn = G.aiOn; persist(); }
+      if (G.aiOn) G.aiMem = AI.createMem();
+      renderAll();
       break;
     case 'NEXT':
       // 防连点:先离开 LEVEL_DONE,二次点击时覆盖层不再渲染、hit 已不存在;
@@ -109,7 +109,7 @@ function enterReady(resumed) {
   G.revivesThisLevel = 0;
   loopState.last = 0;
   G.lastClearStars = 0;
-  G.rescueUntil = 0; G.rescueWasActive = false;   // 救场不跨关
+  G.aiUsedThisLevel = false;      // 星级封顶标记不跨关(AI 开关本身跨关保持,是玩家的显式选择)
   // 奖励关:每 10 张图一关(imgPos 末位=9),2× 分数。不改盘面尺寸 → AI 保证不受影响。
   G.bonusLevel = !!(G.imgList && G.imgList.length && (G.imgPos % 10 === 9));
   if (G.save) {
@@ -180,17 +180,52 @@ function openGallery() {
   renderGalSets();
   if (G.phase === 'PLAYING') dispatch('PAUSE');       // 看图鉴时暂停
 }
-// 一级视图:25 集列表(集名 + 解锁进度)
+// 一级视图:25 集列表(集名 + 解锁进度)+ 顶部「看广告 +3 张」(自愿、纯增益)
 function renderGalSets() {
   const body = document.getElementById('panel-body');
-  body.innerHTML = ((G.manifest && G.manifest.sets) || []).map((s, i) => {
-    const pg = Gallery.setProgress(G.save, s);
-    return `<div class="gal-set" data-i="${i}"><span>${T('gal.' + s.key)}</span>
-      <span class="pg">${T('gal.progress', { cur: pg, max: s.images.length })}</span></div>`;
-  }).join('');
+  const done = (G.save.gallery.unlocked.length >= ((G.imgList && G.imgList.length) || 500));
+  body.innerHTML =
+    (done ? '' : `<button class="gal-ad" id="gal-ad" type="button">📺 ${T('ads.gal3')}</button>`) +
+    ((G.manifest && G.manifest.sets) || []).map((s, i) => {
+      const pg = Gallery.setProgress(G.save, s);
+      return `<div class="gal-set" data-i="${i}"><span>${T('gal.' + s.key)}</span>
+        <span class="pg">${T('gal.progress', { cur: pg, max: s.images.length })}</span></div>`;
+    }).join('');
+  const ad = document.getElementById('gal-ad');
+  // ⭐ 收集加速位:全场意愿最高的激励视频(玩家正盯着自己的收集进度)。拒绝 ⇒ 什么也不发生。
+  if (ad) ad.onclick = () => {
+    ad.disabled = true;
+    Ads.showRewarded().then(okAd => {
+      ad.disabled = false;
+      if (!okAd) return;
+      grantAngels(3);
+      renderGalSets();
+    });
+  };
   body.querySelectorAll('.gal-set').forEach(el => {
     el.onclick = () => renderGalSet(parseInt(el.dataset.i, 10));
   });
+}
+
+/** 直接解锁 n 张未解锁天使(每日礼物/任务/看广告共用的发放口) */
+function grantAngels(n) {
+  let got = 0;
+  for (let i = 0; i < n; i++) {
+    const f = questPickAngel();
+    if (!f) break;
+    const setsBefore = G.save.stats.setsDone;
+    Gallery.recordUnlock(G.save, f);
+    Gallery.updateSetsDone(G.save, G.manifest);
+    if (G.save.stats.setsDone > setsBefore) setTimeout(showSetComplete, 400);
+    got++;
+  }
+  if (!got) return 0;
+  G.save.stats.distinctImgs = G.save.gallery.unlocked.length;
+  const newly = Ach.checkCum(G.save).unlocked;
+  if (newly.length) showAchToasts(newly);
+  Sfx.play('special'); Haptics.light();
+  persist();
+  return got;
 }
 // 二级视图:集内 20 缩略图(未解锁灰剪影;已解锁点开 lightbox)
 function renderGalSet(i) {
@@ -359,6 +394,7 @@ function openHome() {
      <div class="home-foot">
        <button id="home-lang" class="wide" type="button" title="${T('lang.toggle')}">🌐 ${I18N.NATIVE[I18N.lang] || I18N.lang}</button>
        <button id="home-sfx" type="button">${Sfx.on ? '🔊' : '🔇'}</button>
+       <button id="home-ai" type="button" title="${T('ai.start')}" class="${G.aiOn ? 'on' : ''}">${G.aiOn ? '🤖' : '🎮'}</button>
        <button id="home-motion" type="button" title="${T('home.motion')}">${G.reduceMotion ? '🍃' : '✨'}</button>
        ${Notify.available ? `<button id="home-remind" type="button" title="${T('notif.toggle')}">${G.save.settings.remind ? '🔔' : '🔕'}</button>` : ''}
        <button id="home-fb" type="button" title="Feedback">💬</button>
@@ -381,6 +417,13 @@ function openHome() {
     Notify.reschedule(G.save, dailyClaimable());          // 开=申请权限并排期;关=全部取消
   };
   $('home-sfx').onclick = () => { $('home-sfx').textContent = Sfx.toggle() ? '🔊' : '🔇'; };
+  // AI 代打开关(免费):主界面与局内按钮共用同一个 action
+  $('home-ai').onclick = () => {
+    dispatch('AI_TOGGLE');
+    const b = $('home-ai');
+    b.textContent = G.aiOn ? '🤖' : '🎮';
+    b.className = G.aiOn ? 'on' : '';
+  };
   $('home-motion').onclick = () => { toggleMotion(); $('home-motion').textContent = G.reduceMotion ? '🍃' : '✨'; };
   $('home-fb').onclick = () => { if (typeof Feedback !== 'undefined') Feedback.openForm(); };   // 意见反馈
   // 语言:主界面浮层盖住了顶栏的引擎语言下拉,这里补一个。10 语循环按钮太烂 → 弹菜单直选。
@@ -524,8 +567,20 @@ function showDailyGift(file, streak) {
       <div class="daily-h">🎁 ${file ? T('daily.newAngel') : T('daily.allCollected')}</div>
       ${img}
       <div class="daily-streak">🔥 ${T('daily.streak', { n: streak })}</div>
+      ${file ? `<button id="daily-ad" class="daily-ad" type="button">📺 ${T('ads.daily2')}</button>` : ''}
       <button id="daily-ok" type="button">${T('daily.ok')}</button>
     </div>`;
+  // ⭐ 第二个自愿激励位:刚拿到礼物的正反馈时刻问「再来一张？」——拒绝 ⇒ 什么也不发生
+  const dad = document.getElementById('daily-ad');
+  if (dad) dad.onclick = () => {
+    dad.disabled = true;
+    Ads.showRewarded().then(okAd => {
+      dad.disabled = false;
+      if (!okAd) return;
+      const n = grantAngels(1);
+      if (n) { dad.remove(); const h = lb.querySelector('.daily-h'); if (h) h.textContent = '🎁 ' + T('daily.newAngel'); }
+    });
+  };
   lb.classList.remove('hidden');
   lb.onclick = e => { if (e.target === lb) lb.classList.add('hidden'); };
   const ok = document.getElementById('daily-ok');
@@ -588,17 +643,7 @@ function questBump(type, n) {
   if (!G.save || !(n > 0)) return;
   const done = Quests.bump(G.save, ymd(Date.now()), type, n);
   if (!done.length) return;
-  for (let i = 0; i < done.length * Quests.REWARD_ANGELS; i++) {
-    const f = questPickAngel();
-    if (!f) break;
-    const setsBefore = G.save.stats.setsDone;
-    Gallery.recordUnlock(G.save, f);
-    Gallery.updateSetsDone(G.save, G.manifest);
-    G.save.stats.distinctImgs = G.save.gallery.unlocked.length;
-    if (G.save.stats.setsDone > setsBefore) setTimeout(showSetComplete, 400);
-  }
-  const newly = Ach.checkCum(G.save).unlocked;
-  if (newly.length) showAchToasts(newly);
+  grantAngels(done.length * Quests.REWARD_ANGELS);   // 发放口统一（图鉴广告/每日礼物/任务共用）
   const host = document.getElementById('toasts');
   if (host) {
     const el = document.createElement('div');
@@ -607,8 +652,6 @@ function questBump(type, n) {
     host.appendChild(el);
     setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 400); }, 2600);
   }
-  Sfx.play('special');
-  persist();
 }
 
 async function nextLevel() {
@@ -639,14 +682,14 @@ function frame(ts) {
 function tick(nowMs, interval) {
   G.nowMs = nowMs;
   const run = G.run;
-  // 救场刚到期 → 停下(PAUSED),等玩家滑动才继续。本 tick 不推进,蛇停在原地。
-  if (G.rescueWasActive && nowMs >= G.rescueUntil) {
-    G.rescueWasActive = false; G.phase = 'PAUSED'; return;
-  }
   const before = { score: run.score, revealed: run.revealedCount };
-  // 救场期间 AI 代驾(全分,不算刷成就);先清人手残留转向缓冲,再下 AI 指令(方向权威、当 tick 生效)
-  const rescue = nowMs < G.rescueUntil;
-  if (rescue) { G.rescueWasActive = true; run.dirQueue.length = 0; Core.setDir(run, AI.nextMove(run, G.cyc, G.aiMem)); }
+  // ⭐ AI 代驾 = 免费开关 G.aiOn(玩家自己开关,不再有「到期自动停下」那套)。
+  //   先清人手残留转向缓冲,再下 AI 指令 ⇒ 方向权威、当 tick 生效。
+  if (G.aiOn) {
+    G.aiUsedThisLevel = true;      // 本关用过 AI ⇒ 结算只给 ★1(收集/成就照常)
+    run.dirQueue.length = 0;
+    Core.setDir(run, AI.nextMove(run, G.cyc, G.aiMem));
+  }
   Core.step(run, { nowMs, scoreScale: G.bonusLevel ? 2 : 1 });   // 奖励关 2×
   syncRevealDiff();
   // 事件驱动:音效与成就统一消费 run.events(取代散落 flag 判定)
@@ -670,7 +713,7 @@ function tick(nowMs, interval) {
   if (ev.some(e => e.t === 'meteorCatch')) { fxBurst(h.x, h.y, PAL.glow, 16, 1.6); fxShake(6); Haptics.light(); }
   const milestonePlayed = ev.some(e => e.t === 'milestone') && !run.levelJustDone;
   if (milestonePlayed) { Sfx.play('milestone'); fxShake(4); Haptics.light(); }
-  const aiRun = false;   // 已去掉 AI 代打;救场是全分人工局,一律不按 AI 局降级
+  const aiRun = !!G.aiUsedThisLevel;   // 用过 AI 代打的关:成就照给,但星级封顶 ★1
   G.tracker.scoreGained += scoreDelta;   // onStep 不处理 scoreGained(签名无 ctx),接线方负责
   Ach.onStep(G.tracker, run, ev, nowMs);
   Ach.accumulate(G.save, run, ev, { aiRun, scoreDelta, revealDelta, dtMs: interval });
@@ -720,6 +763,7 @@ async function boot() {
     G.saveKey = CFG.key('save');
     G.save = Storage.load(Platform.storage, G.saveKey);
     G.reduceMotion = computeReduceMotion();   // 减弱动态:显式设置优先,否则跟随系统
+    G.aiOn = !!G.save.settings.aiOn;          // AI 代打开关跨会话保持(玩家的显式选择)
     if (typeof preloadItems === 'function') preloadItems();   // 预载道具 sprite,防首次出现时 emoji 闪一下
     if (typeof Feedback !== 'undefined') Feedback.flushQueue();   // 补发离线的反馈队列
     Notify.reschedule(G.save, dailyClaimable());   // 每日提醒 + streak 保护(原生才生效,不 await)

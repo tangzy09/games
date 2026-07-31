@@ -7,7 +7,9 @@
     "simWatch": "[Werbe-Simulation] Belohnungsvideo ansehen?",
     "simInterstitial": "[Werbe-Simulation] Interstitial-Werbung",
     "revive": "📺 Wiederbeleben (Werbung)",
-    "rescue": "📺 KI 30s"
+    "rescue": "📺 KI 30s",
+    "gal3": "Werbung → 3 Engel",
+    "daily2": "Werbung → 1 Engel mehr"
   },
   "snake": {
     "score": "Punkte",
@@ -293,5 +295,10 @@
     "dailyB": "Hol dir den Tagesengel und halte die Serie am Leben.",
     "streakT": "Deine Serie endet heute Nacht!",
     "streakB": "{n} Tage stehen auf dem Spiel — ein Tipp holt den heutigen Engel."
+  },
+  "ai": {
+    "start": "KI spielt",
+    "stop": "KI stoppen",
+    "on": "KI spielt"
   }
 }

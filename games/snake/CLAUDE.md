@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**Angel Snake / Snake Angel** —— 揭图收集贪吃蛇。走过的格子揭开底下的天使图,揭满换下一张,集 500 张。含 13 果子 / 120 成就 / 4 皮肤 / AI 救场(看广告 30s) / 广告 / 每日天使 / **每日任务** / **统计页** / 每关星级 / 奖励关 / 爽感 FX / 本机 Flux 道具美术 / **10 语 UI** / **意见反馈** / **求好评 + 推送提醒(原生)**。root `CLAUDE.md`(monorepo 引擎契约、部署铁律、git 纪律、iOS 流水线)先读,本文件只讲 snake 专属架构。
+**Angel Snake / Snake Angel** —— 揭图收集贪吃蛇。走过的格子揭开底下的天使图(**吃到果实再随机揭 9 格**),揭满换下一张,集 500 张。含 13 果子(**特殊果永远在场**) / 120 成就 / 4 皮肤 / **AI 代打(免费开关)** / 广告 / 每日天使 / **每日任务** / **统计页** / 每关星级 / 奖励关 / 爽感 FX / 本机 Flux 道具美术 / **10 语 UI** / **意见反馈** / **求好评 + 推送提醒(原生)**。root `CLAUDE.md`(monorepo 引擎契约、部署铁律、git 纪律、iOS 流水线)先读,本文件只讲 snake 专属架构。
 
 ## 命令
 
@@ -37,12 +37,24 @@ node games/snake/tools/gen-items.cjs     # Flux schnell 生成 13 道具 → C:\
 3. **AI「保证通关」是硬承诺,test-ai 是它的守卫**:`ai.js` = 哈密顿闭合回路(必扫全盘)+ 安全捷径(前向距离不变式)+ 停滞保护(退回纯回路)+ BFS 追尾兜底。**改 core 的碰撞/移动/targetLen 或 ai 任何一行,必跑 test-ai**(5+3 种子 + 10 万步零死亡)。安全不变式:`snake.length ≤ targetLen`(targetLen 在 gainApple 封顶 `cols*rows-8`,防蛇填满棋盘必死)。
 4. **转向缓冲 `s.dirQueue`**(core.js):人手快速连拐缓冲≤2 个转向,`setDir` 按**队尾方向**校验反向(不是当前 `dir`,否则「上→左」的左会被误判自吃丢掉),`step` 每 tick 消费队首。`respawn`/`revive`/护盾强制转向都要**清空 dirQueue**;AI 代驾前 `run.dirQueue.length=0` 保证 AI 方向权威、当 tick 生效(main tick)。改了照样跑 test-ai。当局快照带 dirQueue,`restoreRun` 对旧档补 `[]`。
 
-## AI 救场(已去掉「AI 代打」整关自动模式)
+## ⭐ AI 代打(2026-08-01 起:完全免费 + 随时开关)
 
-- **「AI 代打」已移除**(2026-07):去了 AI_TOGGLE、`G.ai`、反刷降级逻辑(`aiRun` 恒 `false`)、开关按钮。**但 `ai.js`(哈密顿闭合回路)保留**——救场仍用,`test-ai` 仍是它的守卫,改 core 碰撞/移动照跑。
-- **AI 救场 30s**(看广告激励):`G.rescueUntil = nowMs + 30000`,tick 里 `if (rescue)` 让 `AI.nextMove` 代驾(先清 `dirQueue` 保方向权威)。救场按钮显示 `🤖 Ns` 倒计时。**算全分人工局**(不降级,正常解锁单局成就/纪录)。
-- **到期即停下**:`G.rescueWasActive` 标记;`nowMs >= rescueUntil` 那 tick → `phase='PAUSED'` 停在原地,玩家**滑动(→RESUME)才继续**。`enterReady` 重置 `rescueUntil`(不跨关)。
-- **E2E 通关靠救场**:去掉 AI_TOGGLE 后,`e2e-p1.js` 用「`rescueUntil=1e15` 让救场 AI 代驾到通关」验证全流程(不改机制、只借同一 AI 路径)。
+- **免费开关**(用户拍板):`G.aiOn` ←→ `save.settings.aiOn`(跨会话保持)。入口两处:局内按钮(原救场键位,`AI_TOGGLE`)+ 主界面。⛔ **零广告**——AI 属于「玩不动时的救济」,锁广告后面是 casual-game-meta §0 的红线。旧的「看 30s 广告换限时代驾」(`rescueUntil`/`rescueWasActive`/到期自动 PAUSED)**已整套删除**。
+- **代价 = 星级封顶 + 单局成就不给**(前者是本次加的,后者是 `achievements.js` 早就有的防刷边界,被 E2E 重新钉死):
+  | AI 局 | 给不给 |
+  |---|---|
+  | 图鉴解锁 / 分数 / 累计成就(`img_*`/`aic_*`/`levelsCleared`…) | ✅ 全给 |
+  | 星级 | **封顶 ★1**(`G.aiUsedThisLevel` → `aiRun=true`) |
+  | 单局成就 `r_*` / 纪录(maxCombo·maxLen) / noDeathClears·speedClears | ❌ 不给(`onLevelClear` 的 `if (!aiRun)`) |
+
+  理由:AI 无限免费又给满星满成就 = 游戏自己玩自己,收集与成就经济一起归零;这条边界把「收集进度」放开、把「本事的证明」留给手动。`enterReady` 重置 `aiUsedThisLevel`(不跨关),开关本身跨关保持(玩家的显式选择)。
+- `ai.js`(哈密顿闭合回路)与 `test-ai`(10 万步零死亡 + 必通关)照旧是硬承诺,改 core 碰撞/移动/targetLen 必跑。
+- **E2E**:`window.G.aiOn = true` 让 AI 代驾到通关;并钉「开 AI 时零广告调用」「aiUsedThisLevel 被标记」。
+
+## ⭐ 揭图节奏(2026-08-01 用户拍板的两条)
+
+- **吃到果实随机揭 9 格**(`APPLE_REVEAL`,`onAppleEaten` → `revealRandom`):揭图是本作核心爽点,从「一步一格」提到「一果九格」,整关时长与收集节奏大幅提速。走 `s.rand()` ⇒ 同种子可复现(AI 回归/快照续玩都依赖这条)。
+- **特殊果永远在场**:开局即生成,吃掉**立刻补下一个**(`ensureSpecial`),**永不过期**——旧的「4~6 苹果刷一个 + 8s 过期」整套作废。⚠ `expiresAt` 保留字段但填 `Number.MAX_SAFE_INTEGER`:① render 的「快过期闪烁」判据因此永假;② **别改回 `Infinity`**——当局快照走 JSON,`Infinity` 会变 `null`,`null - now` 是负数 ⇒ 特殊果会一直闪。
 
 ## 存档(storage.js)—— 两个真实踩过的坑
 
@@ -72,6 +84,16 @@ node games/snake/tools/gen-items.cjs     # Flux schnell 生成 13 道具 → C:\
 - **集齐庆祝**(`showSetComplete`)、奖励关横幅(`showBonusBanner`):`#toasts` 里的临时大横幅。
 - **⭐ 全仓元游戏对齐(2026-07-31,照 `casual-game-meta` skill §9 接入顺序)**——四件新东西,全部纯逻辑可单测(`tests/test-quests.js`):
   - **插屏闸门下调**(`js/adgate.js`):**旧规则「每 2 关一插屏」是这个品类差评的头号来源**(一关 1-3 分钟 ⇒ 几分钟一个),改为全仓统一模型:**前 50 关零插屏 → 之后每 10 关至多 1 个 + 距上次 ≥2min**,且只在**过关后点「下一张」的转场**问(死亡/局中永不问)。新存档字段 `stats.lastAdAt`。
+
+### snake 广告策略定稿(2026-08-01，一句话版)
+
+| | 规则 |
+|---|---|
+| ⛔ **永远没广告** | AI 代打(免费开放) · 死亡瞬间/失败 · 局中任何时刻 · **前 50 关的一切插屏** |
+| **插屏** | 第 51 关起、每 10 关至多 1 个、距上次 ≥2min,**只在过关后点「下一张」的转场** |
+| **激励视频(全自愿,拒绝=什么也不发生)** | ① 死亡后「复活」(每关限 2 次,已有) ② **图鉴页「看广告 +3 张天使」**(收集加速,意愿最高) ③ **每日礼物「再来 1 张」**(刚拿到礼物的正反馈时刻) |
+
+⚠ **AI 改免费后,原「看广告换救场」这个收入位就没了** —— ②③ 是补上它的缺口,且都落在**玩家主动打开收集界面**的时刻,比逼着看的位置转化更高、观感更好。发放口统一在 `grantAngels(n)`(图鉴广告/每日礼物/每日任务共用)。
   - **每日任务**(`js/quests.js`):日期串确定性生成 3 个轻任务(苹果/过关/揭格/特殊果/单局连击/零死亡),进度**挂既有 core 事件流**(`Ach.accumulate` 旁边),**完成即自动发奖不做「领取」按钮**;snake 无金币经济 ⇒ 奖励 = **直接解锁 1 张天使图**(与每日礼物同一种货币)。主界面 📋 显 x/3,面板带进度条。
   - **求好评**(`js/rate.js`,原生):只在**幸福时刻**问(满星通关 / 刚集齐一集),15 关门槛 + 90 天冷却 + 3 次/年,**调用即记账**(`save.rate.asked`)。
   - **推送提醒**(`js/notify.js`,原生):19:00 每日天使 + 21:30 streak 保护(仅当 giftStreak≥2 且今天没领);**领过就立刻撤掉那枪**(`claimDaily` 里 reschedule),绝不放空炮。默认关,主界面 🔔/🔕 开关(`settings.remind`)。
