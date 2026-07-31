@@ -226,6 +226,12 @@
       "sweep": "Trigger {n} SWEEP",
       "score": "Score {n} in one game",
       "streak": "Reach a {n} streak"
-    }
+    },
+    "ladder": "Angel Ladder",
+    "ghostBeat": "Passed angel {name}!",
+    "ghostLine": "{a}/{b} angels passed",
+    "ghostNext": "{name} in {n} pts",
+    "goalGhost": "{n} pts to pass angel {name}",
+    "ladderYou": "Your best: {n}"
   }
 }

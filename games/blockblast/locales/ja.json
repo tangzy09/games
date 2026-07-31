@@ -226,6 +226,12 @@
       "sweep": "SWEEP を {n} 回",
       "score": "1プレイで {n} 点",
       "streak": "{n} 連鎖に到達"
-    }
+    },
+    "ladder": "天使ランキング",
+    "ghostBeat": "天使 {name} を追い抜いた！",
+    "ghostLine": "{a}/{b} 人の天使を突破",
+    "ghostNext": "{name} まであと {n} 点",
+    "goalGhost": "あと {n} 点で天使 {name} を抜ける",
+    "ladderYou": "ベストスコア：{n}"
   }
 }

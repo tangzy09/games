@@ -226,6 +226,12 @@
       "sweep": "触发 {n} 次 SWEEP",
       "score": "单盘拿到 {n} 分",
       "streak": "达成 {n} 连击"
-    }
+    },
+    "ladder": "天使榜",
+    "ghostBeat": "超过了天使 {name}！",
+    "ghostLine": "已超过 {a}/{b} 位天使",
+    "ghostNext": "差 {n} 分追上 {name}",
+    "goalGhost": "差 {n} 分超过天使 {name}",
+    "ladderYou": "你的最高分：{n}"
   }
 }

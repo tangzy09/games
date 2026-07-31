@@ -226,6 +226,12 @@
       "sweep": "Schaffe {n} SWEEP",
       "score": "Erziele {n} Punkte in einem Spiel",
       "streak": "Erreiche eine {n}er-Serie"
-    }
+    },
+    "ladder": "Engel-Leiter",
+    "ghostBeat": "Engel {name} überholt!",
+    "ghostLine": "{a}/{b} Engel überholt",
+    "ghostNext": "{name} in {n} Pkt.",
+    "goalGhost": "Noch {n} Punkte bis Engel {name}",
+    "ladderYou": "Dein Rekord: {n}"
   }
 }

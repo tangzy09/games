@@ -315,6 +315,11 @@
       const qs = Quests.status(G.profile, Daily.dayNo(new Date()));
       const qd = qs.filter(q => q.done).length;
       if (qd < 3) return { label: '\u{1F4CB} ' + T('blockblast.quests') + '  ' + qd + '/3', act: 'PAGE_QUESTS', data: {} };
+      // 天使榜：下一个差得不远（≤600 分）就当目标挂出来
+      const gN = Ghosts.nextTarget(G.best);
+      if (gN && gN.score + 1 - G.best <= 600) {
+        return { label: '\u{1F3C6} ' + T('blockblast.goalGhost', { n: gN.score + 1 - G.best, name: gN.name }), act: 'PAGE_LADDER', data: {} };
+      }
       const nextSkin = Themes.THEMES
         .filter(t => t.games != null && !Themes.isUnlocked(t, 0, [], G.wallet.gamesPlayed))
         .sort((a, b) => a.games - b.games)[0];
@@ -667,6 +672,46 @@
     }
   }
 
+  /** 天使榜：预设分数的追赶角色（明确是游戏角色——标题/文案绝不称「玩家」）*/
+  function renderLadder() {
+    clearHits(); layout();
+    const { SW, SH } = GameGlobal, G = root.G, cx = L.cx;
+    const grad = ctx.createLinearGradient(0, 0, SW, SH);
+    grad.addColorStop(0, PAL.bg1); grad.addColorStop(1, PAL.bg2);
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, SW, SH);
+    txt('\u{1F3C6} ' + T('blockblast.ladder'), cx, GameGlobal.safeTop + 30, '#fff', 'bold 22px sans-serif');
+    const beat = Ghosts.beatenCount(G.best);
+    txt(T('blockblast.ladderYou', { n: G.best }) + '  ·  ' + beat + '/' + Ghosts.LADDER.length,
+        cx, GameGlobal.safeTop + 54, PAL.accent, 'bold 13px sans-serif');
+
+    const PER = 8;
+    const pages = Math.ceil(Ghosts.LADDER.length / PER);
+    const page = Math.max(0, Math.min(pages - 1, G.ladPage | 0));
+    Ghosts.LADDER.slice(page * PER, page * PER + PER).forEach((g, i) => {
+      const idx0 = page * PER + i;
+      const y = GameGlobal.safeTop + 72 + i * 56;
+      const won = G.best > g.score;
+      fillRR(L.playX + 14, y, L.playW - 28, 48, 12, won ? 'rgba(34,197,94,0.18)' : 'rgba(0,0,0,0.20)');
+      drawAngel(g.img, L.playX + 22, y + 6, 36, 36, 8);
+      txtL('#' + (idx0 + 1) + '  ' + g.name, L.playX + 68, y + 24, won ? '#7ef2a0' : '#fff', 'bold 14px sans-serif');
+      txtR(won ? g.score + '  ✓' : String(g.score), L.playX + L.playW - 26, y + 24,
+           won ? '#7ef2a0' : PAL.sub, 'bold 13px sans-serif');
+    });
+    const py = GameGlobal.safeTop + 72 + PER * 56 + 6;
+    txt(`${page + 1} / ${pages}`, cx, py + 16, PAL.sub, '12px sans-serif');
+    if (page > 0) {
+      fillRR(cx - 110, py, 44, 32, 10, 'rgba(255,255,255,0.16)');
+      txt('‹', cx - 88, py + 16, '#fff', 'bold 16px sans-serif');
+      addHit(cx - 110, py, 44, 32, 'LAD_PAGE', { d: -1 });
+    }
+    if (page < pages - 1) {
+      fillRR(cx + 66, py, 44, 32, 10, 'rgba(255,255,255,0.16)');
+      txt('›', cx + 88, py + 16, '#fff', 'bold 16px sans-serif');
+      addHit(cx + 66, py, 44, 32, 'LAD_PAGE', { d: 1 });
+    }
+    backButton();
+  }
+
   /** 每日任务页：3 个轻任务 + 进度条（完成自动发奖，无需手动领）*/
   function renderQuests() {
     clearHits(); layout();
@@ -807,6 +852,7 @@
     if (G0.phase === 'ANG') return renderAngels();
     if (G0.phase === 'QUESTS') return renderQuests();
     if (G0.phase === 'STATS') return renderStats();
+    if (G0.phase === 'LADDER') return renderLadder();
     clearHits();
     layout();
     const { SW, SH } = GameGlobal;
@@ -1149,8 +1195,15 @@
       } else if (!s.daily && !s.challenge && G.best > s.score) {
         txt(T('blockblast.bestGap', { n: G.best - s.score }), cx, SH * 0.50, PAL.sub, '12px sans-serif');
       }
+      // 天使榜对比：本盘打到第几、下一个差多少（点击看全榜）
+      const gBeat = Ghosts.beatenCount(Math.max(s.score, G.best));
+      const gNext = Ghosts.nextTarget(Math.max(s.score, G.best));
+      const gTxt = '\u{1F3C6} ' + T('blockblast.ghostLine', { a: gBeat, b: Ghosts.LADDER.length }) +
+                   (gNext ? '  ·  ' + T('blockblast.ghostNext', { name: gNext.name, n: gNext.score + 1 - Math.max(s.score, G.best) }) : '');
+      txt(gTxt, cx, SH * 0.522, PAL.accent, 'bold 11px sans-serif');
+      addHit(cx - 140, SH * 0.522 - 10, 280, 20, 'PAGE_LADDER', {});
       const sweeps = s.stats.sweeps + s.stats.deeps + s.stats.perfects;
-      txt(T('blockblast.statLine', { a: s.stats.maxStreak, b: sweeps }), cx, SH * 0.54, PAL.sub, '12px sans-serif');
+      txt(T('blockblast.statLine', { a: s.stats.maxStreak, b: sweeps }), cx, SH * 0.548, PAL.sub, '12px sans-serif');
       earnRow(G, SH * 0.572);                        // 得分换金币 + 看广告×2（无尽原来零产出）
       if (G.newAngels > 0) {                         // 本盘收集到的天使（点击进图鉴看）
         txt('\u{1F47C} +' + G.newAngels + ' · ' + (G.wallet.angels | 0) + '/' + Shop.ANGELS.total,

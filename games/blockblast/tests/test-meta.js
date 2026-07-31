@@ -140,6 +140,28 @@ const Daily = require('../js/daily.js');
   console.log('test-meta: 连续奖励阶梯 + 金币补签 OK');
 }
 
+// ════════ 天使榜（预设分数追赶）：进度由分数推导、零存档 ════════
+{
+  const Ghosts = require('../js/ghosts.js');
+  const L = Ghosts.LADDER;
+  assert(L.length >= 20, '至少 20 个角色');
+  for (let i = 1; i < L.length; i++) assert(L[i].score > L[i - 1].score, '梯子严格递增');
+  assert(L[0].score <= 300, '第一档几盘内就能超掉（即时爽点）');
+  assert(L.every(g => g.img >= 0 && g.img < 500), '头像序号在天使画廊范围内');
+  assert(L.every(g => !/player|玩家/i.test(g.name)), '⛔ 名字绝不含「玩家」（DESIGN §7 红线）');
+  assert.strictEqual(Ghosts.beatenCount(0), 0);
+  assert.strictEqual(Ghosts.beatenCount(201), 1, '201 分超过第一档(200)');
+  assert.strictEqual(Ghosts.beatenCount(200), 0, '平分不算超过');
+  assert.strictEqual(Ghosts.beatenCount(999999), L.length, '全超');
+  assert.strictEqual(Ghosts.nextTarget(0).score, 200);
+  assert.strictEqual(Ghosts.nextTarget(2101).score, 2600);
+  assert.strictEqual(Ghosts.nextTarget(999999), null);
+  const cr = Ghosts.crossed(180, 700);
+  assert.deepStrictEqual(cr.map(g => g.score), [200, 400, 650], '一步跨多档全部报出');
+  assert.deepStrictEqual(Ghosts.crossed(700, 700), [], '分数没动不报');
+  console.log('test-meta: 天使榜 OK');
+}
+
 // ════════ 每日补玩（backfill）：只记成绩，绝不动 streak/天数/首次标记 ════════
 {
   const Daily = require('../js/daily.js');

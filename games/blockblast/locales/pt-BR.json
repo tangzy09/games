@@ -226,6 +226,12 @@
       "sweep": "Faça {n} SWEEP",
       "score": "Marque {n} pontos em uma partida",
       "streak": "Alcance sequência de {n}"
-    }
+    },
+    "ladder": "Escada dos anjos",
+    "ghostBeat": "Você passou o anjo {name}!",
+    "ghostLine": "{a}/{b} anjos superados",
+    "ghostNext": "{name} a {n} pts",
+    "goalGhost": "{n} pts para passar o anjo {name}",
+    "ladderYou": "Seu recorde: {n}"
   }
 }

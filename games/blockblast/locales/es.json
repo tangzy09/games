@@ -226,6 +226,12 @@
       "sweep": "Logra {n} SWEEP",
       "score": "Consigue {n} puntos en una partida",
       "streak": "Alcanza una racha de {n}"
-    }
+    },
+    "ladder": "Escalera de ángeles",
+    "ghostBeat": "¡Superaste al ángel {name}!",
+    "ghostLine": "{a}/{b} ángeles superados",
+    "ghostNext": "{name} a {n} pts",
+    "goalGhost": "{n} pts para superar al ángel {name}",
+    "ladderYou": "Tu récord: {n}"
   }
 }

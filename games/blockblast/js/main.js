@@ -396,6 +396,18 @@ function consume(events) {
     }
   }
 
+  // 天使榜：这一步超过了谁就立刻说（明确是游戏角色，绝不称「玩家」——DESIGN §7 红线）
+  if (s.mode === 'endless' && G.scoreBefore != null) {
+    const crossed = Ghosts.crossed(G.scoreBefore, s.score);
+    if (crossed.length) {
+      const g = crossed[crossed.length - 1];        // 一步跨多档只报最高那个
+      FX.toast('✨ ' + T('blockblast.ghostBeat', { name: g.name }), Render.L.cx, Render.L.boardY - 64,
+               '#fbcfe8', 'bold 16px sans-serif', 1.3);
+      Sound.pick();
+    }
+  }
+  G.scoreBefore = null;
+
   // 破纪录的**瞬间**就庆祝（原来只在结算页提一句 —— 而且那行还因为 best 先被更新永远不显示）
   if (s.mode === 'endless' && !s.daily && !s.challenge && !s.over && !G.bestToastShown
       && G.best > 0 && s.score > G.best) {
@@ -529,6 +541,12 @@ function dispatch(action, data) {
     case 'PAGE_ANG': G.phase = 'ANG'; G.angView = -1; break;
     case 'PAGE_QUESTS': G.phase = 'QUESTS'; break;
     case 'PAGE_STATS': G.phase = 'STATS'; break;
+    case 'PAGE_LADDER': G.phase = 'LADDER'; break;
+    case 'LAD_PAGE': {
+      const pages = Math.max(1, Math.ceil(Ghosts.LADDER.length / 8));
+      G.ladPage = Math.max(0, Math.min(pages - 1, (G.ladPage | 0) + data.d));
+      break;
+    }
     case 'REPAIR_STREAK': {
       // 金币补签：断签当场（结算页）有效，接回 prev+1 天
       const offer = G.repairOffer;
@@ -640,6 +658,7 @@ function dispatch(action, data) {
   renderAll();
 }
 function onPlace(slot, r, c) {
+  G.scoreBefore = G.s.score;                  // 天使榜局中超越检测要「落子前的分」
   const evs = Core.place(G.s, slot, r, c);
   if (evs) Shop.onTurn(G.items);            // 每落一子给「换一手」充能
   consume(evs);
