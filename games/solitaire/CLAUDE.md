@@ -47,6 +47,11 @@ E2E：`npm run test:sol:exp`。⚠ 撤销=按 seed 重放 ⇒ **手搓的 G.s �
 `wwwExtras` 拷进 www（通用机制，任何游戏可用）。`js/angels.js`：固定 seed 洗牌全球同序、
 只存计数 `G.angels`、图鉴翻页只缓存当前页（500 张全解码是几百 MB）。
 解锁：赢 +1 / 每日赢 +3 / 图鉴看广告 +3。E2E：`npm run test:sol:angels`。
+⚠ **线上有一条 nginx 依赖**（2026-07-31 已配好）：cards.ai-speeds.com 的 root 是 solitaire
+目录,`../snake/` 会被 SPA 兜底吃成 index.html（manifest 拿到 HTML = 图鉴空白,curl 只看 200
+会误判）——`/etc/nginx/conf.d/solitaire.conf` 里加了
+`location /snake/assets/angels/ { alias …/games/snake/assets/angels/; }`（照 /engine/ 先例）。
+**验收要看 content-type 是 application/json,不是只看状态码。**
 **收藏页已分签**（back|table|fx，`G.shopTab`）——牌背 19 款后单页放不下。
 **易收集牌背 10 款**（cherry…candy，20-80 金币）：⚠ Flux 生成牌背 prompt **绝不能带
 「playing card back」字样**——会把牌角点数一起画上（20 张全废过一轮）；
