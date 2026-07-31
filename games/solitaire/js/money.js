@@ -74,6 +74,11 @@
     { id: 'plaid',   cost: 80 },
     { id: 'stars',   cost: 120 },
     { id: 'gold',    cost: 200 },
+    // ⭐ 高级款（本机 Flux 整幅插画，assets/backs/）：收集曲线的后段，定价压着瀑布特效走
+    { id: 'koi',     cost: 260 },
+    { id: 'peacock', cost: 320 },
+    { id: 'nebula',  cost: 400 },
+    { id: 'deco',    cost: 500 },
   ];
   const TABLES = [
     { id: 'felt',    cost: 0 },

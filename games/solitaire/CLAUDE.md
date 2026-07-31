@@ -37,6 +37,12 @@ E2E：`npm run test:sol:exp`。⚠ 撤销=按 seed 重放 ⇒ **手搓的 G.s �
 （⚠ web 端模拟激励视频走 `window.confirm`——Playwright 必须 `page.on('dialog', accept)`）。
 ⛔ 插屏节奏**保持每 3 赢 1 个不动**：低胜率下≈每 10-20 局一个，是「广告克制」定位的弹药，
 别为了蚊子肉动它（红线测试在 e2e-p5p6）。
+
+**高级牌背（2026-07-31，本机 Flux 生成）**：`assets/backs/{koi,peacock,nebula,deco}.jpg`
+（360×512 JPG，comfyui-flux-local 管线，schnell 可商用）。sprite.js 里 `BACK_STYLES` 带
+`img:1` 的款式走图片（cover 裁切+圆角 clip），a/b 渐变是**加载兜底**；boot 里 `preloadBacks()` 预热。
+⚠ 两个真坑：① onload 回调可能先于 `G.s` 就绪，必须守卫再 renderAll（全套 E2E 曾因此齐红）；
+② Flux 画牌背会**漏画点数字符**（12 张里 3 张带 J/K/3♦），选图必须人（AI）眼过一遍。
 **待办（需新出包 + TestFlight 验证）**：求好评弹窗（in-app-review 插件）、每日挑战本地推送。
 （去广告 IAP **已决定不做**，见上。）
 

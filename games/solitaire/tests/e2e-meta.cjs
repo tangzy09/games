@@ -108,6 +108,20 @@ const winState=`(()=>{ const s=Core.newGame(7,3);
   });
   ok(badge==='gold', `⭐ 上月每日全勤 ⇒ 金牌（badge=${badge}）`);
 
+  // ── ⑥ 高级牌背（本机 Flux 插画）：买 → 装备 → 图片真的加载出来 ──
+  await page.evaluate(()=>{ Money.state.coins=2000; Money.save(); dispatch('SHOP'); });
+  await page.waitForTimeout(200);
+  await page.screenshot({path:path.join(SHOT,'p11-03-shop-premium.png')});
+  ok(await click(page,'PICK_BACK',{id:'koi'}), '高级牌背可点');
+  await page.waitForTimeout(150);
+  ok(await page.evaluate(()=>Money.owns('back','koi')&&Money.state.back==='koi'),
+     '⭐ 「锦鲤」买下并装备（收集曲线后段）');
+  await page.waitForFunction(()=>Sprite.backReady('koi'),{timeout:5000});
+  console.log('OK ⭐ 插画牌背图片加载完成（assets/backs/koi.jpg 经 http 真实拉取）');
+  await page.evaluate(()=>dispatch('PLAY'));
+  await page.waitForTimeout(250);
+  await page.screenshot({path:path.join(SHOT,'p11-04-koi-back-table.png')});
+
   ok(errs.length===0, '全程零 error'+(errs.length?': '+errs.join(' | '):''));
   await browser.close(); srv.close();
   console.log(process.exitCode?'\nX 变现/留存包 E2E 有失败项':'\nOK 变现/留存包 E2E 全绿');

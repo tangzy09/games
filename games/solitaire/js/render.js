@@ -265,20 +265,22 @@
     y += 16;
     const backY = y;
     Money.BACKS.forEach(function (it, i) {
-      const x = cx - w / 2 + i * (cw + 6);
+      // 每行 5 个，放不下换行（高级款加入后共 9 个）
+      const x = cx - w / 2 + (i % 5) * (cw + 6);
+      const by = backY + Math.floor(i / 5) * (ch + 6);
       const own = Money.owns('back', it.id);
       const on = Money.state.back === it.id;
-      ctx.drawImage(backPreview(it.id, cw, ch), x, backY);
+      ctx.drawImage(backPreview(it.id, cw, ch), x, by);
       if (!own) {
         // ⚠ 遮罩要**轻**：看不清自己要买什么，就没人愿意为它看广告（收集系统的命门）
-        fillRR(x, backY, cw, ch, 5, 'rgba(0,0,0,0.34)');
-        fillRR(x + cw / 2 - 17, backY + ch / 2 - 9, 34, 18, 9, 'rgba(0,0,0,0.75)');
-        txt(String(it.cost), x + cw / 2, backY + ch / 2, '#ffd84d', 'bold 11px sans-serif');
+        fillRR(x, by, cw, ch, 5, 'rgba(0,0,0,0.34)');
+        fillRR(x + cw / 2 - 17, by + ch / 2 - 9, 34, 18, 9, 'rgba(0,0,0,0.75)');
+        txt(String(it.cost), x + cw / 2, by + ch / 2, '#ffd84d', 'bold 11px sans-serif');
       }
-      if (on) { ctx.strokeStyle = '#7ef2a0'; ctx.lineWidth = 3; Sprite.rr(ctx, x, backY, cw, ch, 5); ctx.stroke(); }
-      addHit(x, backY, cw, ch, 'PICK_BACK', { id: it.id });
+      if (on) { ctx.strokeStyle = '#7ef2a0'; ctx.lineWidth = 3; Sprite.rr(ctx, x, by, cw, ch, 5); ctx.stroke(); }
+      addHit(x, by, cw, ch, 'PICK_BACK', { id: it.id });
     });
-    y += ch + 22;
+    y += Math.ceil(Money.BACKS.length / 5) * (ch + 6) + 16;
 
     txtL(T('sol.tables'), cx - w / 2, y, '#fff', 'bold 13px sans-serif');
     y += 16;
@@ -364,6 +366,8 @@
       Sprite.ensure(w, h, root.G.fourColor, root.G.bigText);
       c.getContext('2d').drawImage(Sprite.back(), 0, 0, w, h);
       Sprite.setBack(save);
+      // ⚠ 图片款没加载完时画的是兜底渐变 ⇒ **不缓存**（onload 会触发重画，那时再定稿）
+      if (!Sprite.backReady(id)) return c;
       prevCache[k] = c;
     }
     return prevCache[k];

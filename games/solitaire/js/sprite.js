@@ -67,16 +67,65 @@
   }
 
   // 牌背样式（激励视频的**消耗端** —— 没有可换的东西，激励视频约等于零收入）
+  // img:1 的款式 = 本机 Flux 生成的整幅插画（assets/backs/<id>.jpg，360×512 JPG）；
+  // a/b 渐变是它的**加载兜底**（图没到位时先画程序化底色，onload 后重建缓存）。
   const BACK_STYLES = {
     classic:  { a: '#2b5fa8', b: '#17407a', ink: 'rgba(255,255,255,0.45)' },
     waves:    { a: '#0e7490', b: '#083344', ink: 'rgba(255,255,255,0.40)' },
     plaid:    { a: '#7f1d1d', b: '#450a0a', ink: 'rgba(255,220,180,0.40)' },
     stars:    { a: '#3730a3', b: '#1e1b4b', ink: 'rgba(255,240,150,0.55)' },
     gold:     { a: '#a16207', b: '#4a2c04', ink: 'rgba(255,240,190,0.60)' },
+    koi:      { a: '#0e5f63', b: '#083a3d', ink: 'rgba(255,255,255,0.40)', img: 1 },
+    peacock:  { a: '#0c6b47', b: '#06382a', ink: 'rgba(255,240,150,0.45)', img: 1 },
+    nebula:   { a: '#3b2d6e', b: '#171038', ink: 'rgba(255,240,150,0.45)', img: 1 },
+    deco:     { a: '#3f3a1f', b: '#171405', ink: 'rgba(255,240,190,0.50)', img: 1 },
   };
+
+  // 图片牌背的加载缓存（onload 后失效当前 backCache 并触发重画,商店预览同理）
+  const backImgs = {};
+  function backImg(style) {
+    const st = BACK_STYLES[style];
+    if (!st || !st.img) return null;
+    let im = backImgs[style];
+    if (!im) {
+      im = backImgs[style] = new Image();
+      im.onload = () => {
+        im.ok = true;
+        if (style === curBack) backCache = null;
+        // ⚠ 预热在 boot 早期就开始，onload 可能先于 G.s 就绪 —— 没就绪就别重画（boot 末尾自会画）
+        if (root.renderAll && root.G && root.G.s) root.renderAll();
+      };
+      im.src = 'assets/backs/' + style + '.jpg';
+    }
+    return im.ok ? im : null;
+  }
+  /** 这个款式可以定稿绘制了吗（无图款式恒 true；商店预览靠它决定要不要缓存）*/
+  const backReady = style => !(BACK_STYLES[style] && BACK_STYLES[style].img)
+    || !!(backImgs[style] && backImgs[style].ok);
+  /** 预热全部图片牌背（boot 时调；总共几百 KB）*/
+  function preloadBacks() {
+    for (const k of Object.keys(BACK_STYLES)) if (BACK_STYLES[k].img) backImg(k);
+  }
 
   function makeBack(w, h, style) {
     const st = BACK_STYLES[style] || BACK_STYLES.classic;
+    const im = backImg(style);
+    if (im) {
+      const c0 = document.createElement('canvas');
+      const dpr0 = window.devicePixelRatio || 1;
+      c0.width = Math.ceil(w * dpr0); c0.height = Math.ceil(h * dpr0);
+      const g0 = c0.getContext('2d');
+      g0.scale(dpr0, dpr0);
+      const r0 = Math.max(3, w * 0.09);
+      g0.save();
+      rr(g0, 0.5, 0.5, w - 1, h - 1, r0); g0.clip();
+      const sc = Math.max(w / im.width, h / im.height);      // cover 裁切
+      g0.drawImage(im, (w - im.width * sc) / 2, (h - im.height * sc) / 2, im.width * sc, im.height * sc);
+      g0.restore();
+      g0.strokeStyle = 'rgba(0,0,0,0.30)'; g0.lineWidth = 1;
+      rr(g0, 0.5, 0.5, w - 1, h - 1, r0); g0.stroke();
+      return c0;
+    }
     const c = document.createElement('canvas');
     const dpr = window.devicePixelRatio || 1;
     c.width = Math.ceil(w * dpr); c.height = Math.ceil(h * dpr);
@@ -172,6 +221,7 @@
   }
   const tableStyle = id => TABLE_STYLES[id] || TABLE_STYLES.felt;
 
-  root.Sprite = { ensure, face, back, setBack, tableStyle, BACK_STYLES, TABLE_STYLES,
+  root.Sprite = { ensure, face, back, setBack, backReady, preloadBacks,
+                  tableStyle, BACK_STYLES, TABLE_STYLES,
                   suitColor, SUIT_SYM, RANK_STR, rr };
 })(typeof self !== 'undefined' ? self : this);

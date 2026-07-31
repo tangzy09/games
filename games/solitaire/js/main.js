@@ -734,6 +734,7 @@ async function boot() {
 
   Money.load();
   G.noAds = Money.noAds;
+  Sprite.preloadBacks();                               // 图片牌背预热（几百 KB，onload 自动重画）
   settleMonthBadges();                                 // 上个月的每日奖牌（一次性结算）
   // ⭐ 横幅是**主力收入**（纸牌单次会话 10-15 分钟，曝光时长极高且不打断牌局）。
   //    布局已为它**预留**了 Layout.BANNER_H —— 它永远不会盖在牌上（变现红线 §7.4-5）。
