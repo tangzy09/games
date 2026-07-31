@@ -36,8 +36,8 @@ function dispatch(action) {
           if (!ok || G.phase !== 'DEAD') return;
           G.revivesThisLevel++;
           Core.revive(G.run);
-          G.run.effects.shield += 2;                                   // 护盾 ×2
-          G.run.effects.ghostUntil = (G.nowMs || 0) + 8000;            // 8s 穿身无敌
+          G.run.effects.shield += 3;                                   // 护盾 ×3
+          G.run.effects.ghostUntil = (G.nowMs || 0) + 10000;           // 10s 穿身无敌
           G.save.stats.revives++;
           const u = Ach.checkCum(G.save).unlocked;      // rev_* 成就
           if (u.length) showAchToasts(u);
@@ -70,6 +70,46 @@ function dispatch(action) {
           showBoostToast(got);
           Sfx.play('special'); Haptics.medium();
           renderAll();
+        });
+      }
+      break;
+    case 'AD_GALLERY':
+      // 📖 收集加速(图鉴页):看广告直接 +N 张天使。拒绝 ⇒ 什么也不发生(不扣额度、不给奖励)。
+      if (adQuotaLeft('gal') > 0) {
+        Ads.showRewarded().then(ok => {
+          if (!ok) { renderGalSets(); return; }
+          adUse('gal');
+          grantAngels(AD_REWARD.gal);
+          renderGalSets();
+        });
+      }
+      break;
+    case 'AD_DOUBLE':
+      // ⭐ 过关结算「奖励翻倍」——赢局结算屏是全场转化最高的位置。每关限一次。
+      if (G.phase === 'LEVEL_DONE' && !G.doubledThisLevel) {
+        Ads.showRewarded().then(ok => {
+          if (!ok) return;
+          G.doubledThisLevel = true;
+          const n = grantAngels(AD_REWARD.double);
+          if (n) showBoostToast([`👼 ×${n}`]);
+          renderAll();
+        });
+      }
+      break;
+    case 'AD_SKIN':
+      // 🎨 皮肤解锁(新类别:外观)——看广告直接永久解锁一款未解锁皮肤
+      if (adQuotaLeft('skin') > 0) {
+        Ads.showRewarded().then(ok => {
+          if (!ok) return;
+          const next = Themes.THEME_ORDER.find(k => !Themes.themeUnlocked(k, G.save));
+          if (!next) return;
+          adUse('skin');
+          if (!Array.isArray(G.save.skins)) G.save.skins = [];
+          G.save.skins.push(next);
+          persist();
+          Sfx.play('special'); Haptics.medium();
+          showBoostToast(['🎨 ' + T('skins.' + next)]);
+          openSkins();
         });
       }
       break;
@@ -148,6 +188,7 @@ function enterReady(resumed) {
   loopState.last = 0;
   G.lastClearStars = 0;
   G.aiUsedThisLevel = false;      // 星级封顶标记不跨关(AI 开关本身跨关保持,是玩家的显式选择)
+  G.doubledThisLevel = false;     // 结算「奖励翻倍」每关限一次
   // 奖励关:每 10 张图一关(imgPos 末位=9),2× 分数。不改盘面尺寸 → AI 保证不受影响。
   G.bonusLevel = !!(G.imgList && G.imgList.length && (G.imgPos % 10 === 9));
   if (G.save) {
@@ -231,17 +272,8 @@ function renderGalSets() {
         <span class="pg">${T('gal.progress', { cur: pg, max: s.images.length })}</span></div>`;
     }).join('');
   const ad = document.getElementById('gal-ad');
-  // ⭐ 收集加速位:全场意愿最高的激励视频(玩家正盯着自己的收集进度)。拒绝 ⇒ 什么也不发生。
-  if (ad) ad.onclick = () => {
-    ad.disabled = true;
-    Ads.showRewarded().then(okAd => {
-      ad.disabled = false;
-      if (!okAd) return;              // 拒绝 ⇒ 什么也不发生(不扣额度、不给奖励)
-      adUse('gal');
-      grantAngels(AD_REWARD.gal);
-      renderGalSets();
-    });
-  };
+  // ⭐ 收集加速位:全场意愿最高的激励视频(玩家正盯着自己的收集进度)。走统一 dispatch,冒烟可测。
+  if (ad) ad.onclick = () => { ad.disabled = true; dispatch('AD_GALLERY'); };
   body.querySelectorAll('.gal-set').forEach(el => {
     el.onclick = () => renderGalSet(parseInt(el.dataset.i, 10));
   });
@@ -250,12 +282,15 @@ function renderGalSets() {
 // ——激励视频额度(每日重置)——
 // ⭐ 奖励给得厚 ⇒ 必须有额度,否则一天几十条广告就把 500 张图鉴刷穿、当天毕业(长线没了)。
 //   额度本身也是设计:每天上限 = 25 张图鉴 + 3 次开局礼包 + 1 次任务加速,已经非常大方。
-const AD_CAPS = { gal: 5, boost: 3, quest: 1 };
-const AD_REWARD = { gal: 5, daily: 3, boost: 3 };   // 图鉴每次 5 张 / 每日礼物 3 张 / 礼包 3 个果效
+const AD_CAPS = { gal: 6, boost: 4, quest: 2, skin: 1 };
+// 每次给多少：**奖励要一次见效**（+1 张没人看广告，+8 张才动手）
+const AD_REWARD = { gal: 8, daily: 5, boost: 4, double: 3 };
 function adQuotaLeft(kind) {
   if (!G.save) return 0;
   const a = G.save.ads, today = ymd(Date.now());
-  if (a.day !== today) { a.day = today; a.gal = 0; a.boost = 0; a.quest = 0; }
+  // ⚠ 跨天重置必须**按 AD_CAPS 全量清**:漏掉哪个 key,那个位就永久卡在首日额度
+  //   (skin 上限 1 ⇒ 玩家一辈子只能广告解锁一款皮肤)。加新位时这里零改动。
+  if (a.day !== today) { a.day = today; for (const k of Object.keys(AD_CAPS)) a[k] = 0; }
   return Math.max(0, (AD_CAPS[kind] || 0) - (a[kind] || 0));
 }
 function adUse(kind) {
@@ -369,7 +404,11 @@ function renderSkinsBody() {
   const body = document.getElementById('panel-body');
   if (!body) return;
   const cur = G.save.settings.theme || 'cloud';
-  body.innerHTML = Themes.THEME_ORDER.map(k => {
+  // 🎨 皮肤解锁位:还有没解锁的皮肤 + 今日还有额度 ⇒ 顶部给一个激励视频按钮
+  const locked = Themes.THEME_ORDER.find(k => !Themes.themeUnlocked(k, G.save));
+  body.innerHTML = (locked && adQuotaLeft('skin') > 0
+      ? `<button class="gal-ad" id="skin-ad" type="button">📺 ${T('ads.skin')}</button>` : '')
+    + Themes.THEME_ORDER.map(k => {
     const t = Themes.THEMES[k];
     const un = Themes.themeUnlocked(k, G.save);
     const sw = ['bg', 'cloud', 'snake', 'accent', 'accent2']
@@ -384,6 +423,8 @@ function renderSkinsBody() {
   body.querySelectorAll('.skin-card:not(.locked)').forEach(el => {
     el.onclick = () => applyThemeFromUI(el.dataset.k);
   });
+  const sad = document.getElementById('skin-ad');
+  if (sad) sad.onclick = () => { sad.disabled = true; dispatch('AD_SKIN'); };
 }
 
 // ——主界面(启动/暂停 hub)——
@@ -543,7 +584,7 @@ function openQuests() {
   document.getElementById('panel-tabs').innerHTML = '';
   const list = Quests.status(G.save, ymd(Date.now()));
   document.getElementById('panel-body').innerHTML =
-    `<div class="q-sub">${T('q.reward')}</div>` +
+    `<div class="q-sub">${T('q.reward', { n: Quests.REWARD_ANGELS })}<br>${T('q.bonusHint', { n: Quests.ALLDONE_BONUS })}</div>` +
     list.map(q => {
       const pct = Math.min(100, (q.prog / q.target) * 100).toFixed(0);
       return `<div class="ach-item${q.done ? ' got' : ''}">
@@ -734,14 +775,17 @@ function questPickAngel() {
 /** 进度上报 → 完成即**自动发奖**(不做「领取」按钮:多一次点击就多一批忘了领的人) */
 function questBump(type, n) {
   if (!G.save || !(n > 0)) return;
-  const done = Quests.bump(G.save, ymd(Date.now()), type, n);
+  const day = ymd(Date.now());
+  const done = Quests.bump(G.save, day, type, n);
   if (!done.length) return;
-  grantAngels(done.length * Quests.REWARD_ANGELS);   // 发放口统一（图鉴广告/每日礼物/任务共用）
+  const bonus = Quests.allDoneBonus(G.save, day, done);   // 三个全清额外大红包
+  const total = done.length * Quests.REWARD_ANGELS + bonus;
+  grantAngels(total);                                // 发放口统一（图鉴广告/每日礼物/任务共用）
   const host = document.getElementById('toasts');
   if (host) {
     const el = document.createElement('div');
     el.className = 'ach-toast';
-    el.textContent = `📋 ${T('q.done')} · 👼 +${done.length * Quests.REWARD_ANGELS}`;
+    el.textContent = `📋 ${T(bonus ? 'q.allDoneBonus' : 'q.done')} · 👼 +${total}`;
     host.appendChild(el);
     setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 400); }, 2600);
   }

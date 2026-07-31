@@ -11,10 +11,12 @@
     "gal3": "Ver anúncio → {n} anjos",
     "daily2": "Ver anúncio → mais {n} anjos",
     "left": "Restam {n} hoje",
-    "boost": "Bônus",
+    "boost": "Turbo ×{n}",
     "boostGot": "Bônus ativos!",
     "quest": "Ver anúncio → concluir uma missão",
-    "repair": "Ver anúncio → recuperar sequência de {n} dias"
+    "repair": "Ver anúncio → recuperar sequência de {n} dias",
+    "double": "Anúncio → +{n} anjos",
+    "skin": "Ver anúncio → desbloquear uma skin"
   },
   "snake": {
     "score": "Pontos",
@@ -265,7 +267,7 @@
   },
   "q": {
     "title": "Missões diárias",
-    "reward": "Cada missão libera 1 anjo",
+    "reward": "Cada missão libera {n} anjos",
     "done": "Missão concluída!",
     "allDone": "Tudo feito por hoje. Até amanhã!",
     "apples": "Coma {n} maçãs",
@@ -273,7 +275,9 @@
     "cells": "Revele {n} casas",
     "special": "Coma {n} frutas especiais",
     "combo": "Faça um combo de {n} numa partida",
-    "noDeath": "Complete {n} imagens sem morrer"
+    "noDeath": "Complete {n} imagens sem morrer",
+    "bonusHint": "Complete as 3 → +{n} anjos extras",
+    "allDoneBonus": "Todas as missões concluídas!"
   },
   "stats": {
     "title": "Estatísticas",

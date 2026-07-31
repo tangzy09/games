@@ -184,8 +184,12 @@ function renderAll() {
     if (G.imgFull) drawImgFull();
     // 先放完成庆祝(~0.8s 流光星光),再滑入结算浮层
     else if (!FX.celebrateStart || fxNow() - FX.celebrateStart > 800)
+      // ⭐ 第二按钮优先给「奖励翻倍」——赢局结算屏是全场转化最高的位置(刚赢+庆祝刚放完);
+      //   本关已翻过或没额度时才退回「分享」。
       drawOverlay(T('snake.levelDone', { n: G.run.level - 1 }), T('snake.scoreVal', { n: G.run.score }), T('snake.next'), 'NEXT', true,
-                     { label: T('share.btn'), action: 'SHARE' }, G.lastClearStars || 0);
+                     (!G.doubledThisLevel && typeof AD_REWARD !== 'undefined')
+                       ? { label: '📺 ' + T('ads.double', { n: AD_REWARD.double }), action: 'AD_DOUBLE' }
+                       : { label: T('share.btn'), action: 'SHARE' }, G.lastClearStars || 0);
   }
 }
 
@@ -388,7 +392,9 @@ function drawButtons() {
   if (boost) {
     const bx = r.x + w + 8;
     fillRR(bx, r.y, w, r.h, 14, '#2fbf71');
-    txt('🎁 ' + T('ads.boost'), bx + w / 2, r.y + r.h / 2, '#fff', 'bold 15px sans-serif');
+    // 标出数量:「Boost」不知道能拿多少,「Boost ×4」才动手(奖励要看得见)
+    txt('🎁 ' + T('ads.boost', { n: (typeof AD_REWARD !== 'undefined' ? AD_REWARD.boost : 3) }),
+        bx + w / 2, r.y + r.h / 2, '#fff', 'bold 15px sans-serif');
     addHit(bx, r.y, w, r.h, 'AD_BOOST', {});
   }
 }

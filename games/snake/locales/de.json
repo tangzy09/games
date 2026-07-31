@@ -11,10 +11,12 @@
     "gal3": "Werbung → {n} Engel",
     "daily2": "Werbung → {n} Engel mehr",
     "left": "Heute noch {n}",
-    "boost": "Bonus",
+    "boost": "Boost ×{n}",
     "boostGot": "Power-ups!",
     "quest": "Werbung → eine Aufgabe abschließen",
-    "repair": "Werbung → {n}-Tage-Serie retten"
+    "repair": "Werbung → {n}-Tage-Serie retten",
+    "double": "Werbung → +{n} Engel",
+    "skin": "Werbung → einen Skin freischalten"
   },
   "snake": {
     "score": "Punkte",
@@ -265,7 +267,7 @@
   },
   "q": {
     "title": "Tagesaufgaben",
-    "reward": "Jede Aufgabe schaltet 1 Engel frei",
+    "reward": "Jede Quest bringt {n} Engel",
     "done": "Aufgabe geschafft!",
     "allDone": "Heute alles erledigt — bis morgen!",
     "apples": "Iss {n} Äpfel",
@@ -273,7 +275,9 @@
     "cells": "Decke {n} Felder auf",
     "special": "Iss {n} besondere Früchte",
     "combo": "Erreiche {n}er-Combo in einer Runde",
-    "noDeath": "Schließe {n} Bilder ohne Tod ab"
+    "noDeath": "Schließe {n} Bilder ohne Tod ab",
+    "bonusHint": "Alle 3 schaffen → +{n} Bonus-Engel",
+    "allDoneBonus": "Alle Quests geschafft!"
   },
   "stats": {
     "title": "Statistik",

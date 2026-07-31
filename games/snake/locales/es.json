@@ -11,10 +11,12 @@
     "gal3": "Ver anuncio → {n} ángeles",
     "daily2": "Ver anuncio → {n} ángeles más",
     "left": "Quedan {n} hoy",
-    "boost": "Bonus",
+    "boost": "Potenciar ×{n}",
     "boostGot": "¡Potenciadores!",
     "quest": "Ver anuncio → completar una misión",
-    "repair": "Ver anuncio → recuperar racha de {n} días"
+    "repair": "Ver anuncio → recuperar racha de {n} días",
+    "double": "Anuncio → +{n} ángeles",
+    "skin": "Ver anuncio → desbloquear una skin"
   },
   "snake": {
     "score": "Puntos",
@@ -265,7 +267,7 @@
   },
   "q": {
     "title": "Misiones diarias",
-    "reward": "Cada misión desbloquea 1 ángel",
+    "reward": "Cada misión desbloquea {n} ángeles",
     "done": "¡Misión completada!",
     "allDone": "Todo hecho por hoy. ¡Hasta mañana!",
     "apples": "Come {n} manzanas",
@@ -273,7 +275,9 @@
     "cells": "Descubre {n} casillas",
     "special": "Come {n} frutas especiales",
     "combo": "Logra un combo de {n} en una partida",
-    "noDeath": "Completa {n} imágenes sin morir"
+    "noDeath": "Completa {n} imágenes sin morir",
+    "bonusHint": "Completa las 3 → +{n} ángeles extra",
+    "allDoneBonus": "¡Todas las misiones hechas!"
   },
   "stats": {
     "title": "Estadísticas",

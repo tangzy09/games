@@ -22,7 +22,8 @@ function defaults() {
     rate: { asked: [] },                             // 求好评弹窗的记账(时间戳数组,额度门槛用)
     // 激励视频的**每日额度**(day=YYYY-MM-DD,跨天自动清零)。奖励给得厚,就得有额度护住长线收集,
     // 否则一天几十条广告能把 500 张图鉴刷穿、游戏当天就毕业。
-    ads: { day: '', gal: 0, boost: 0, quest: 0 },
+    ads: { day: '', gal: 0, boost: 0, quest: 0, skin: 0 },
+    skins: [],                                       // 看激励视频直接解锁的皮肤 key(与统计解锁条件并列)
     stats: {                                          // 累计计数(成就引擎消费)
       // ⚠️ specials/skinClears 是「开放 map」(动态 key):默认值必须保持空对象 {},
       //    merge 对空对象整体透传;塞了非空默认就会退回逐 key 递归、丢掉存档动态 key

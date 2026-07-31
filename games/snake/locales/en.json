@@ -11,10 +11,12 @@
     "gal3": "Watch an ad → {n} angels",
     "daily2": "Watch an ad → {n} more angels",
     "left": "{n} left today",
-    "boost": "Boost",
+    "boost": "Boost ×{n}",
     "boostGot": "Power-ups!",
     "quest": "Watch an ad → finish a quest",
-    "repair": "Watch an ad → restore {n}-day streak"
+    "repair": "Watch an ad → restore {n}-day streak",
+    "double": "Ad → +{n} angels",
+    "skin": "Watch an ad → unlock a skin"
   },
   "snake": {
     "score": "Score",
@@ -265,7 +267,7 @@
   },
   "q": {
     "title": "Daily Quests",
-    "reward": "Each quest unlocks 1 angel",
+    "reward": "Each quest unlocks {n} angels",
     "done": "Quest complete!",
     "allDone": "All done today — see you tomorrow!",
     "apples": "Eat {n} apples",
@@ -273,7 +275,9 @@
     "cells": "Reveal {n} tiles",
     "special": "Eat {n} special fruits",
     "combo": "Hit a {n}x combo in one run",
-    "noDeath": "Finish {n} pictures without dying"
+    "noDeath": "Finish {n} pictures without dying",
+    "bonusHint": "Finish all 3 → +{n} bonus angels",
+    "allDoneBonus": "All quests done!"
   },
   "stats": {
     "title": "Statistics",
