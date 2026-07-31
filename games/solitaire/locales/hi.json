@@ -75,6 +75,16 @@
     "back_plaid": "चारख़ाना",
     "back_stars": "सितारे",
     "back_gold": "सुनहरा",
+    "back_cherry": "चेरी",
+    "back_sunset": "सूर्यास्त",
+    "back_ocean": "सागर",
+    "back_sakura": "सकुरा",
+    "back_mint": "पुदीना",
+    "back_honey": "छत्ता",
+    "back_snow": "हिमपात",
+    "back_maple": "मेपल",
+    "back_lavender": "लैवेंडर",
+    "back_candy": "कैंडी",
     "back_koi": "कोई तालाब",
     "back_peacock": "मोर",
     "back_nebula": "निहारिका",
@@ -145,6 +155,10 @@
     "winCoins": "+{n} सिक्के",
     "adX2": "सिक्के ×2",
     "dailyStreak": "लगातार {n} दिन",
-    "monthMedals": "दैनिक पदक"
+    "monthMedals": "दैनिक पदक",
+    "gallery": "परी गैलरी",
+    "galleryProgress": "{n} / {m} संग्रहीत",
+    "galleryHint": "हर जीत से 1 खुलती है — दैनिक जीत से 3।",
+    "galleryAd": "विज्ञापन देखें · +3 परियाँ"
   }
 }

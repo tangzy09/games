@@ -75,6 +75,16 @@
     "back_plaid": "Plaid",
     "back_stars": "Stars",
     "back_gold": "Gold",
+    "back_cherry": "Cherry",
+    "back_sunset": "Sunset",
+    "back_ocean": "Ocean",
+    "back_sakura": "Sakura",
+    "back_mint": "Mint",
+    "back_honey": "Honeycomb",
+    "back_snow": "Snowfall",
+    "back_maple": "Maple",
+    "back_lavender": "Lavender",
+    "back_candy": "Candy",
     "back_koi": "Koi Pond",
     "back_peacock": "Peacock",
     "back_nebula": "Nebula",
@@ -145,6 +155,10 @@
     "winCoins": "+{n} coins",
     "adX2": "Coins ×2",
     "dailyStreak": "{n} days in a row",
-    "monthMedals": "Daily medals"
+    "monthMedals": "Daily medals",
+    "gallery": "Angel Gallery",
+    "galleryProgress": "{n} / {m} collected",
+    "galleryHint": "Every win unlocks 1 — daily-deal wins unlock 3.",
+    "galleryAd": "Watch an ad · +3 angels"
   }
 }

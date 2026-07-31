@@ -70,6 +70,8 @@ async function click(page, action, dm){
   await click(page,'PICK_BACK',{id:'gold'});
   await page.waitForTimeout(150);
   ok(await page.evaluate(()=>Money.owns('back','gold') && Money.state.back==='gold'), '买下并装备「鎏金」牌背');
+  await page.evaluate(()=>dispatch('SHOP_TAB',{t:'table'}));   // 收藏页已分签
+  await page.waitForTimeout(100);
   await click(page,'PICK_TABLE',{id:'midnight'});
   await page.waitForTimeout(150);
   ok(await page.evaluate(()=>Money.state.table==='midnight'), '换上「午夜」桌布');

@@ -152,12 +152,16 @@
     const streak = dailyStreakDays();
     const dailySub = (doneToday ? T('sol.dailyDone') : T('sol.dailySub'))
       + (streak >= 2 ? '  🔥' + T('sol.dailyStreak', { n: streak }) : '');
+    // 小屏（SE 等）：7 个入口 + 日历放不下 ⇒ 藏副标题、缩日历、砍看广告行（图鉴/结算屏有同款入口）
+    const tall = GameGlobal.SH >= 760;
+    const sub760 = t => tall ? t : '';
     const items = [
-      ['📅 ' + T('sol.daily'), dailySub, 'DAILY'],
+      ['📅 ' + T('sol.daily'), sub760(dailySub), 'DAILY'],
+      ['👼 ' + T('sol.gallery'), sub760(T('sol.galleryProgress', { n: root.G.angels, m: Angels.total() || 500 })), 'GALLERY'],
       ['📊 ' + T('sol.stats'), '', 'STATS'],
       ['🏆 ' + T('sol.achievements'), '', 'ACH'],
       ['🎴 ' + T('sol.collection'), '', 'SHOP'],
-      ['⚖ ' + T('sol.fair'), T('sol.fairTitle'), 'FAIR'],
+      ['⚖ ' + T('sol.fair'), sub760(T('sol.fairTitle')), 'FAIR'],
       ['⚙ ' + T('sol.settings'), '', 'SET'],
     ];
     items.forEach(function (it) {
@@ -180,7 +184,7 @@
     y += 4;
     txtL(T('sol.dailyMonth', { n: done }), cx - w / 2, y + 6, PAL.sub, '11px sans-serif');
     y += 16;
-    const cs = GameGlobal.SH >= 760 ? 16 : 12;               // 小屏缩格子，别把下面按钮挤出屏
+    const cs = GameGlobal.SH >= 760 ? 16 : 10;               // 小屏缩格子，别把下面按钮挤出屏
     for (let d = 1; d <= dim; d++) {
       const gx = cx - w / 2 + ((d - 1) % 7) * (cs + 6);
       const gy = y + Math.floor((d - 1) / 7) * (cs + 5);
@@ -196,7 +200,7 @@
 
     // ⛔ 去广告 IAP **不做**（2026-07-31 拍板）：菜单里永远没有内购入口。
     //    （激励视频保留 —— 它不是 IAP，只换外观。）
-    if (!Money.noAds) {
+    if (!Money.noAds && tall) {
       fillRR(cx - w / 2, y, w, 44, 10, 'rgba(255,255,255,0.14)');
       txt('▶ ' + T('sol.watchAd') + '  ' + T('sol.watchAdSub'), cx, y + 22, '#fff', '13px sans-serif');
       addHit(cx - w / 2, y, w, 44, 'EARN_AD', {});
@@ -248,91 +252,194 @@
     });
   }
 
-  /** 收藏：牌背 / 桌布 —— 激励视频的**消耗端**（没有它，激励视频那条腿约等于零收入）*/
+  /**
+   * 收藏：牌背 / 桌布 / 瀑布 —— 激励视频的**消耗端**（没有它，激励视频那条腿约等于零收入）。
+   * ⚠ 分页签：牌背扩到 19 款后三段摞不进一屏了 —— 一次只显示一个品类。
+   */
   function renderShop() {
     const L = page(T('sol.collection'));
     const cx = L.cx, w = Math.min(L.playW - 40, 380);
-    let y = GameGlobal.safeTop + 58;
+    let y = GameGlobal.safeTop + 56;
 
     txt(T('sol.coins', { n: Money.coins }), cx, y, '#ffd84d', 'bold 14px sans-serif');
-    y += 24;
+    y += 22;
 
-    const cw = Math.floor((w - 24) / 5), ch = Math.round(cw * 1.42);
-    txtL(T('sol.backs'), cx - w / 2, y, '#fff', 'bold 13px sans-serif');
-    y += 16;
-    const backY = y;
-    Money.BACKS.forEach(function (it, i) {
-      // 每行 5 个，放不下换行（高级款加入后共 9 个）
-      const x = cx - w / 2 + (i % 5) * (cw + 6);
-      const by = backY + Math.floor(i / 5) * (ch + 6);
-      const own = Money.owns('back', it.id);
-      const on = Money.state.back === it.id;
-      ctx.drawImage(backPreview(it.id, cw, ch), x, by);
-      if (!own) {
-        // ⚠ 遮罩要**轻**：看不清自己要买什么，就没人愿意为它看广告（收集系统的命门）
-        fillRR(x, by, cw, ch, 5, 'rgba(0,0,0,0.34)');
-        fillRR(x + cw / 2 - 17, by + ch / 2 - 9, 34, 18, 9, 'rgba(0,0,0,0.75)');
-        txt(String(it.cost), x + cw / 2, by + ch / 2, '#ffd84d', 'bold 11px sans-serif');
-      }
-      if (on) { ctx.strokeStyle = '#7ef2a0'; ctx.lineWidth = 3; Sprite.rr(ctx, x, by, cw, ch, 5); ctx.stroke(); }
-      addHit(x, by, cw, ch, 'PICK_BACK', { id: it.id });
+    // 页签
+    const tab = root.G.shopTab || 'back';
+    const tabs = [['back', T('sol.backs')], ['table', T('sol.tables')], ['fx', T('sol.cascades')]];
+    const tabW = Math.floor((w - 12) / 3);
+    tabs.forEach(function (t, i) {
+      const x = cx - w / 2 + i * (tabW + 6);
+      const on = tab === t[0];
+      fillRR(x, y, tabW, 30, 8, on ? '#22c55e' : 'rgba(0,0,0,0.26)');
+      ctx.font = 'bold 11px sans-serif';
+      txt(wrapLines(t[1], tabW - 10, 1)[0], x + tabW / 2, y + 15, '#fff', 'bold 11px sans-serif');
+      if (!on) addHit(x, y, tabW, 30, 'SHOP_TAB', { t: t[0] });
     });
-    y += Math.ceil(Money.BACKS.length / 5) * (ch + 6) + 16;
+    y += 42;
 
-    txtL(T('sol.tables'), cx - w / 2, y, '#fff', 'bold 13px sans-serif');
-    y += 16;
-    const tabY2 = y;
-    const tw = Math.floor((w - 18) / 4);
-    Money.TABLES.forEach(function (it, i) {
-      // 每行 4 个，放不下换行（高级材质款加入后共 8 个）
-      const x = cx - w / 2 + (i % 4) * (tw + 6);
-      const ty = tabY2 + Math.floor(i / 4) * 60;
-      const own = Money.owns('table', it.id);
-      const on = Money.state.table === it.id;
-      // 图片款画真实材质小图（圆角 clip），渐变作占位/普通款
-      ctx.save();
-      Sprite.rr(ctx, x, ty, tw, 54, 7); ctx.clip();
-      Sprite.drawTable(ctx, x, ty, tw, 54, it.id);
-      ctx.restore();
-      if (!own) {
-        fillRR(x, ty, tw, 54, 7, 'rgba(0,0,0,0.30)');
-        fillRR(x + tw / 2 - 17, ty + 18, 34, 18, 9, 'rgba(0,0,0,0.75)');
-        txt(String(it.cost), x + tw / 2, ty + 27, '#ffd84d', 'bold 11px sans-serif');
-      }
-      if (on) { ctx.strokeStyle = '#7ef2a0'; ctx.lineWidth = 3; Sprite.rr(ctx, x, ty, tw, 54, 7); ctx.stroke(); }
-      addHit(x, ty, tw, 54, 'PICK_TABLE', { id: it.id });
-    });
-    y += Math.ceil(Money.TABLES.length / 4) * 60 + 16;
+    if (tab === 'back') {
+      const cw = Math.floor((w - 24) / 5), ch = Math.round(cw * 1.42);
+      const backY = y;
+      Money.BACKS.forEach(function (it, i) {
+        const x = cx - w / 2 + (i % 5) * (cw + 6);
+        const by = backY + Math.floor(i / 5) * (ch + 6);
+        const own = Money.owns('back', it.id);
+        const on = Money.state.back === it.id;
+        ctx.drawImage(backPreview(it.id, cw, ch), x, by);
+        if (!own) {
+          // ⚠ 遮罩要**轻**：看不清自己要买什么，就没人愿意为它看广告（收集系统的命门）
+          fillRR(x, by, cw, ch, 5, 'rgba(0,0,0,0.34)');
+          fillRR(x + cw / 2 - 17, by + ch / 2 - 9, 34, 18, 9, 'rgba(0,0,0,0.75)');
+          txt(String(it.cost), x + cw / 2, by + ch / 2, '#ffd84d', 'bold 11px sans-serif');
+        }
+        if (on) { ctx.strokeStyle = '#7ef2a0'; ctx.lineWidth = 3; Sprite.rr(ctx, x, by, cw, ch, 5); ctx.stroke(); }
+        addHit(x, by, cw, ch, 'PICK_BACK', { id: it.id });
+      });
+      y += Math.ceil(Money.BACKS.length / 5) * (ch + 6) + 12;
+    } else if (tab === 'table') {
+      const tw = Math.floor((w - 18) / 4);
+      const tabY2 = y;
+      Money.TABLES.forEach(function (it, i) {
+        const x = cx - w / 2 + (i % 4) * (tw + 6);
+        const ty = tabY2 + Math.floor(i / 4) * 60;
+        const own = Money.owns('table', it.id);
+        const on = Money.state.table === it.id;
+        ctx.save();
+        Sprite.rr(ctx, x, ty, tw, 54, 7); ctx.clip();
+        Sprite.drawTable(ctx, x, ty, tw, 54, it.id);
+        ctx.restore();
+        if (!own) {
+          fillRR(x, ty, tw, 54, 7, 'rgba(0,0,0,0.30)');
+          fillRR(x + tw / 2 - 17, ty + 18, 34, 18, 9, 'rgba(0,0,0,0.75)');
+          txt(String(it.cost), x + tw / 2, ty + 27, '#ffd84d', 'bold 11px sans-serif');
+        }
+        if (on) { ctx.strokeStyle = '#7ef2a0'; ctx.lineWidth = 3; Sprite.rr(ctx, x, ty, tw, 54, 7); ctx.stroke(); }
+        addHit(x, ty, tw, 54, 'PICK_TABLE', { id: it.id });
+      });
+      y += Math.ceil(Money.TABLES.length / 4) * 60 + 12;
+    } else {
+      // ⭐ 瀑布特效 —— 贴着产品灵魂的收藏品（瀑布是玩家记了三十年的画面）
+      const tw = Math.floor((w - 18) / 4);
+      const fxY = y;
+      const FX_EMO = { classic: '🃏', rainbow: '🌈', comet: '☄️', confetti: '🎉' };
+      Money.FXS.forEach(function (it, i) {
+        const x = cx - w / 2 + (i % 4) * (tw + 6);
+        const fy = fxY + Math.floor(i / 4) * 60;
+        const own = Money.owns('fx', it.id);
+        const on = Money.state.fx === it.id;
+        const gg = ctx.createLinearGradient(x, fy, x, fy + 54);
+        gg.addColorStop(0, '#1e293b'); gg.addColorStop(1, '#0f172a');
+        fillRR(x, fy, tw, 54, 7, gg);
+        txt(FX_EMO[it.id] || '✨', x + tw / 2, fy + (own ? 27 : 16), '#fff', '18px sans-serif');
+        if (!own) {
+          fillRR(x + tw / 2 - 17, fy + 30, 34, 18, 9, 'rgba(0,0,0,0.75)');
+          txt(String(it.cost), x + tw / 2, fy + 39, '#ffd84d', 'bold 11px sans-serif');
+        }
+        if (on) { ctx.strokeStyle = '#7ef2a0'; ctx.lineWidth = 3; Sprite.rr(ctx, x, fy, tw, 54, 7); ctx.stroke(); }
+        addHit(x, fy, tw, 54, 'PICK_FX', { id: it.id });
+      });
+      y += Math.ceil(Money.FXS.length / 4) * 60 + 12;
+    }
 
-    // ⭐ 瀑布特效 —— 贴着产品灵魂的收藏品（瀑布是玩家记了三十年的画面）。
-    //   也是收集曲线的后段：牌背+桌布几十局就毕业，激励视频的消耗端不能断（§7.2.1）。
-    txtL(T('sol.cascades'), cx - w / 2, y, '#fff', 'bold 13px sans-serif');
-    y += 16;
-    const fxY = y;
-    const FX_EMO = { classic: '🃏', rainbow: '🌈', comet: '☄️', confetti: '🎉' };
-    Money.FXS.forEach(function (it, i) {
-      const x = cx - w / 2 + i * (tw + 6);
-      const own = Money.owns('fx', it.id);
-      const on = Money.state.fx === it.id;
-      const gg = ctx.createLinearGradient(x, fxY, x, fxY + 54);
-      gg.addColorStop(0, '#1e293b'); gg.addColorStop(1, '#0f172a');
-      fillRR(x, fxY, tw, 54, 7, gg);
-      txt(FX_EMO[it.id] || '✨', x + tw / 2, fxY + (own ? 27 : 16), '#fff', '18px sans-serif');
-      if (!own) {
-        fillRR(x + tw / 2 - 17, fxY + 30, 34, 18, 9, 'rgba(0,0,0,0.75)');
-        txt(String(it.cost), x + tw / 2, fxY + 39, '#ffd84d', 'bold 11px sans-serif');
-      }
-      if (on) { ctx.strokeStyle = '#7ef2a0'; ctx.lineWidth = 3; Sprite.rr(ctx, x, fxY, tw, 54, 7); ctx.stroke(); }
-      addHit(x, fxY, tw, 54, 'PICK_FX', { id: it.id });
-    });
-    y += 76;
-
-    // 小屏（SE 等）放不下这行 —— 菜单里有同款入口，不缺
+    // 小屏（SE 等）放不下这行 —— 图鉴/结算屏有同款激励入口，不缺
     if (!Money.noAds && GameGlobal.SH >= 760) {
       fillRR(cx - w / 2, y, w, 42, 10, 'rgba(255,255,255,0.14)');
       txt('▶ ' + T('sol.watchAd') + '  ' + T('sol.watchAdSub'), cx, y + 21, '#fff', '12px sans-serif');
       addHit(cx - w / 2, y, w, 42, 'EARN_AD', {});
     }
+  }
+
+  /**
+   * 👼 天使图鉴：501 张长线收集（素材复用 snake 的同一份）。
+   * 网格 24 张/页；已解锁画图、未解锁画 ? 暗格；点已解锁 → 大图；看广告 +3。
+   * ⚠ 只缓存当前页的图（Angels.dropCache 在翻页时清）。
+   */
+  function renderGallery() {
+    const L = page('👼 ' + T('sol.gallery'));
+    const G = root.G;
+    const cx = L.cx, w = Math.min(L.playW - 40, 380);
+    const { SH } = GameGlobal;
+    const total = Angels.total();
+    let y = GameGlobal.safeTop + 56;
+
+    txt(T('sol.galleryProgress', { n: G.angels, m: total || 500 }), cx, y, '#ffd84d', 'bold 15px sans-serif');
+    y += 14;
+    ctx.font = '10px sans-serif';
+    txt(wrapLines(T('sol.galleryHint'), w, 1)[0], cx, y + 8, 'rgba(255,255,255,0.55)', '10px sans-serif');
+    y += 24;
+
+    // 网格 4 × 6 = 24/页
+    const COLS = 4, ROWS = GameGlobal.SH >= 760 ? 6 : 5, PER = COLS * ROWS;
+    const pages = Math.max(1, Math.ceil((total || 1) / PER));
+    const pg = Math.min(G.galPage, pages - 1);
+    const cell = Math.floor((w - (COLS - 1) * 6) / COLS);
+    for (let k = 0; k < PER; k++) {
+      const i = pg * PER + k;
+      if (i >= total) break;
+      const x = cx - w / 2 + (k % COLS) * (cell + 6);
+      const yy = y + Math.floor(k / COLS) * (cell + 6);
+      if (i < G.angels) {
+        const im = Angels.img(Angels.fileAt(i));
+        if (im) {
+          ctx.save();
+          Sprite.rr(ctx, x, yy, cell, cell, 8); ctx.clip();
+          const sc = Math.max(cell / im.width, cell / im.height);
+          ctx.drawImage(im, x + (cell - im.width * sc) / 2, yy + (cell - im.height * sc) / 2,
+                        im.width * sc, im.height * sc);
+          ctx.restore();
+        } else {
+          fillRR(x, yy, cell, cell, 8, 'rgba(255,255,255,0.14)');   // 加载中
+        }
+        addHit(x, yy, cell, cell, 'GAL_VIEW', { i });
+      } else {
+        fillRR(x, yy, cell, cell, 8, 'rgba(0,0,0,0.30)');
+        txt('?', x + cell / 2, yy + cell / 2, 'rgba(255,255,255,0.25)', 'bold 16px sans-serif');
+      }
+    }
+    y += ROWS * (cell + 6) + 6;
+
+    // 翻页 ‹ n/pages ›
+    txt((pg + 1) + ' / ' + pages, cx, y + 14, PAL.sub, '12px sans-serif');
+    if (pg > 0) {
+      fillRR(cx - w / 2, y, 60, 28, 8, 'rgba(255,255,255,0.16)');
+      txt('‹', cx - w / 2 + 30, y + 14, '#fff', 'bold 15px sans-serif');
+      addHit(cx - w / 2, y, 60, 28, 'GAL_PG', { p: pg - 1 });
+    }
+    if (pg < pages - 1) {
+      fillRR(cx + w / 2 - 60, y, 60, 28, 8, 'rgba(255,255,255,0.16)');
+      txt('›', cx + w / 2 - 30, y + 14, '#fff', 'bold 15px sans-serif');
+      addHit(cx + w / 2 - 60, y, 60, 28, 'GAL_PG', { p: pg + 1 });
+    }
+    y += 36;
+
+    // 看广告 +3（纯增益消耗端）
+    if (!Money.noAds && G.angels < total) {
+      fillRR(cx - w / 2, y, w, 38, 10, 'rgba(255,216,77,0.20)');
+      txt('▶ ' + T('sol.galleryAd'), cx, y + 19, '#ffd84d', 'bold 12px sans-serif');
+      addHit(cx - w / 2, y, w, 38, 'GAL_AD', {});
+    }
+
+    // 大图查看浮层
+    if (G.galView != null && G.galView < G.angels) {
+      drawDim('rgba(0,0,0,0.82)');
+      const im = Angels.img(Angels.fileAt(G.galView));
+      const size = Math.min(GameGlobal.SW, SH) - 60;
+      const ix = (GameGlobal.SW - size) / 2, iy = (SH - size) / 2 - 20;
+      if (im) {
+        ctx.save();
+        Sprite.rr(ctx, ix, iy, size, size, 16); ctx.clip();
+        const sc = Math.max(size / im.width, size / im.height);
+        ctx.drawImage(im, ix + (size - im.width * sc) / 2, iy + (size - im.height * sc) / 2,
+                      im.width * sc, im.height * sc);
+        ctx.restore();
+      } else {
+        fillRR(ix, iy, size, size, 16, 'rgba(255,255,255,0.12)');
+      }
+      txt((G.galView + 1) + ' / ' + total, cx, iy + size + 26, '#fff', 'bold 13px sans-serif');
+      addHit(0, 0, GameGlobal.SW, SH, 'GAL_CLOSE', {});
+    }
+    drawToast();
   }
 
   /** 成就页：11 项里程碑，达成发金币（目标感 + 收集系统的供弹药）。ACHS 定义在 main.js */
@@ -511,6 +618,7 @@
     if (ph === 'MENU') return renderMenu();
     if (ph === 'STATS') return renderStats();
     if (ph === 'ACH') return renderAch();
+    if (ph === 'GALLERY') return renderGallery();
     if (ph === 'SHOP') return renderShop();
     clearHits();
     const G = root.G;
@@ -737,8 +845,9 @@
       const clean = !s.usedUndo && !s.usedHint;
       txt(clean ? T('sol.cleanWin') : T('sol.withHelp'), L.cx, wy,
           clean ? '#7ef2a0' : PAL.sub, '13px sans-serif'); wy += 22;
-      // 本次赢的金币（×2 翻倍后带 ✓）
-      txt(T('sol.winCoins', { n: G.lastWinCoins || 0 }) + (G.winDoubled ? '  ×2 ✓' : ''),
+      // 本次赢的金币（×2 翻倍后带 ✓）+ 新解锁的天使
+      txt(T('sol.winCoins', { n: G.lastWinCoins || 0 }) + (G.winDoubled ? '  ×2 ✓' : '')
+          + (G.lastAngelGain ? '   👼 +' + G.lastAngelGain : ''),
           L.cx, wy, '#ffd84d', 'bold 13px sans-serif'); wy += 24;
       // ⭐ 每日挑战：盲打 AI 战绩对比（同一副牌、同样看不见暗牌 —— 它输你赢是真本事）
       if (G.dailySeed === s.seed && G.dailyAI && G.dailyAI.seed === s.seed) {

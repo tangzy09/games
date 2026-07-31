@@ -75,6 +75,16 @@
     "back_plaid": "চেক",
     "back_stars": "তারা",
     "back_gold": "সোনালি",
+    "back_cherry": "চেরি",
+    "back_sunset": "সূর্যাস্ত",
+    "back_ocean": "সাগর",
+    "back_sakura": "সাকুরা",
+    "back_mint": "পুদিনা",
+    "back_honey": "মৌচাক",
+    "back_snow": "তুষারপাত",
+    "back_maple": "ম্যাপল",
+    "back_lavender": "ল্যাভেন্ডার",
+    "back_candy": "ক্যান্ডি",
     "back_koi": "কই পুকুর",
     "back_peacock": "ময়ূর",
     "back_nebula": "নীহারিকা",
@@ -145,6 +155,10 @@
     "winCoins": "+{n} কয়েন",
     "adX2": "কয়েন ×2",
     "dailyStreak": "টানা {n} দিন",
-    "monthMedals": "দৈনিক পদক"
+    "monthMedals": "দৈনিক পদক",
+    "gallery": "দেবদূত গ্যালারি",
+    "galleryProgress": "{n} / {m} সংগৃহীত",
+    "galleryHint": "প্রতি জয়ে ১টি খোলে — দৈনিক জয়ে ৩টি।",
+    "galleryAd": "বিজ্ঞাপন দেখুন · +৩ দেবদূত"
   }
 }

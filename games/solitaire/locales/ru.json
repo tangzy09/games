@@ -75,6 +75,16 @@
     "back_plaid": "Клетка",
     "back_stars": "Звёзды",
     "back_gold": "Золото",
+    "back_cherry": "Вишни",
+    "back_sunset": "Закат",
+    "back_ocean": "Океан",
+    "back_sakura": "Сакура",
+    "back_mint": "Мята",
+    "back_honey": "Соты",
+    "back_snow": "Снегопад",
+    "back_maple": "Клён",
+    "back_lavender": "Лаванда",
+    "back_candy": "Карамель",
     "back_koi": "Пруд с карпами",
     "back_peacock": "Павлин",
     "back_nebula": "Туманность",
@@ -145,6 +155,10 @@
     "winCoins": "+{n} монет",
     "adX2": "Монеты ×2",
     "dailyStreak": "{n} дней подряд",
-    "monthMedals": "Медали дня"
+    "monthMedals": "Медали дня",
+    "gallery": "Галерея ангелов",
+    "galleryProgress": "Собрано {n} / {m}",
+    "galleryHint": "Каждая победа открывает 1, победа дня — 3.",
+    "galleryAd": "Посмотреть рекламу · +3 ангела"
   }
 }

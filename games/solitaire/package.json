@@ -2,6 +2,9 @@
   "name": "solitaire-three",
   "version": "1.0.0",
   "private": true,
+  "wwwExtras": [
+    { "from": "games/snake/assets/angels", "to": "assets/angels" }
+  ],
   "description": "Solitaire: Klondike + FreeCell, every deal proven solvable (iOS via Capacitor; web build assembled into www/).",
   "scripts": {
     "build": "node ../../tools/build-www.cjs",

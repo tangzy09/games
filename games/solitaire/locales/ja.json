@@ -75,6 +75,16 @@
     "back_plaid": "チェック",
     "back_stars": "星空",
     "back_gold": "ゴールド",
+    "back_cherry": "さくらんぼ",
+    "back_sunset": "夕日",
+    "back_ocean": "海",
+    "back_sakura": "桜",
+    "back_mint": "ミント",
+    "back_honey": "蜂の巣",
+    "back_snow": "雪",
+    "back_maple": "もみじ",
+    "back_lavender": "ラベンダー",
+    "back_candy": "キャンディ",
     "back_koi": "錦鯉",
     "back_peacock": "孔雀",
     "back_nebula": "星雲",
@@ -145,6 +155,10 @@
     "winCoins": "+{n} コイン",
     "adX2": "コイン ×2",
     "dailyStreak": "{n}日連続",
-    "monthMedals": "デイリーメダル"
+    "monthMedals": "デイリーメダル",
+    "gallery": "天使ギャラリー",
+    "galleryProgress": "{n} / {m} 収集",
+    "galleryHint": "勝利ごとに1枚、デイリー勝利で3枚解放。",
+    "galleryAd": "広告を見る · 天使 +3"
   }
 }

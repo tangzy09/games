@@ -89,6 +89,8 @@ async function click(page, action, dm){
   await page.evaluate(()=>{Money.state.coins=1000;Money.save();dispatch('SHOP');});
   await page.waitForTimeout(150);
   await page.screenshot({path:path.join(SHOT,'p9-01-shop-fx.png')});
+  await page.evaluate(()=>dispatch('SHOP_TAB',{t:'fx'}));      // 收藏页已分签
+  await page.waitForTimeout(100);
   ok(await click(page,'PICK_FX',{id:'rainbow'}), '瀑布特效可点');
   await page.waitForTimeout(120);
   ok(await page.evaluate(()=>Money.owns('fx','rainbow')&&Money.state.fx==='rainbow'),

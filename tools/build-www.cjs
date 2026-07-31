@@ -31,6 +31,19 @@ for (const dir of ['js', 'css', 'assets', 'locales', 'fonts']) {
   if (fs.existsSync(src)) copyDir(src, path.join(WWW, dir));
 }
 
+// 跨游戏共享素材:游戏 package.json 的 wwwExtras [{from,to}](from 相对仓库根)。
+// 场景:solitaire 的天使图鉴复用 snake 的 assets/angels(网页端走相对路径同源,
+// 出包时才需要真拷进 www —— 仓库里绝不存两份 26MB)。
+try {
+  const pkg = JSON.parse(fs.readFileSync(path.join(GAME, 'package.json'), 'utf8'));
+  for (const ex of pkg.wwwExtras || []) {
+    const src = path.join(ROOT, ex.from);
+    if (!fs.existsSync(src)) throw new Error('wwwExtras missing: ' + ex.from);
+    copyDir(src, path.join(WWW, ex.to));
+    console.log('wwwExtras:', ex.from, '->', ex.to);
+  }
+} catch (e) { if (String(e).includes('wwwExtras')) throw e; }
+
 const html = fs.readFileSync(path.join(GAME, 'index.html'), 'utf8')
   .replace(/\.\.\/\.\.\/engine\//g, 'engine/');
 fs.writeFileSync(path.join(WWW, 'index.html'), html);

@@ -75,6 +75,16 @@
     "back_plaid": "格纹",
     "back_stars": "星空",
     "back_gold": "鎏金",
+    "back_cherry": "樱桃",
+    "back_sunset": "落日",
+    "back_ocean": "海浪",
+    "back_sakura": "樱花",
+    "back_mint": "薄荷",
+    "back_honey": "蜂巢",
+    "back_snow": "落雪",
+    "back_maple": "枫叶",
+    "back_lavender": "薰衣草",
+    "back_candy": "糖果",
     "back_koi": "锦鲤",
     "back_peacock": "孔雀",
     "back_nebula": "星云",
@@ -145,6 +155,10 @@
     "winCoins": "+{n} 金币",
     "adX2": "金币 ×2",
     "dailyStreak": "连续 {n} 天",
-    "monthMedals": "每日奖牌"
+    "monthMedals": "每日奖牌",
+    "gallery": "天使图鉴",
+    "galleryProgress": "已收集 {n} / {m}",
+    "galleryHint": "每赢一局解锁 1 张——每日挑战赢局解锁 3 张。",
+    "galleryAd": "看广告 · +3 张天使"
   }
 }

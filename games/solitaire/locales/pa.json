@@ -75,6 +75,16 @@
     "back_plaid": "ਚੌਖਾਨਾ",
     "back_stars": "ਤਾਰੇ",
     "back_gold": "ਸੁਨਹਿਰੀ",
+    "back_cherry": "ਚੈਰੀ",
+    "back_sunset": "ਸੂਰਜ ਡੁੱਬਣਾ",
+    "back_ocean": "ਸਾਗਰ",
+    "back_sakura": "ਸਾਕੁਰਾ",
+    "back_mint": "ਪੁਦੀਨਾ",
+    "back_honey": "ਛੱਤਾ",
+    "back_snow": "ਬਰਫ਼ਬਾਰੀ",
+    "back_maple": "ਮੇਪਲ",
+    "back_lavender": "ਲੈਵੈਂਡਰ",
+    "back_candy": "ਕੈਂਡੀ",
     "back_koi": "ਕੋਈ ਤਲਾਬ",
     "back_peacock": "ਮੋਰ",
     "back_nebula": "ਨਿਹਾਰਿਕਾ",
@@ -145,6 +155,10 @@
     "winCoins": "+{n} ਸਿੱਕੇ",
     "adX2": "ਸਿੱਕੇ ×2",
     "dailyStreak": "ਲਗਾਤਾਰ {n} ਦਿਨ",
-    "monthMedals": "ਰੋਜ਼ਾਨਾ ਤਗਮੇ"
+    "monthMedals": "ਰੋਜ਼ਾਨਾ ਤਗਮੇ",
+    "gallery": "ਫ਼ਰਿਸ਼ਤਾ ਗੈਲਰੀ",
+    "galleryProgress": "{n} / {m} ਇਕੱਠੇ",
+    "galleryHint": "ਹਰ ਜਿੱਤ ਨਾਲ 1 ਖੁੱਲ੍ਹਦੀ ਹੈ — ਰੋਜ਼ਾਨਾ ਜਿੱਤ ਨਾਲ 3।",
+    "galleryAd": "ਇਸ਼ਤਿਹਾਰ ਵੇਖੋ · +3 ਫ਼ਰਿਸ਼ਤੇ"
   }
 }

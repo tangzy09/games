@@ -41,6 +41,17 @@ E2E：`npm run test:sol:exp`。⚠ 撤销=按 seed 重放 ⇒ **手搓的 G.s �
 用户原话是「每 4 盘一个」——落地时把「输局永不出」红线保住了（品类头号差评来源），
 频率比旧的「每 3 赢 1 个」高约一倍（≈4-7 盘一个）。
 
+**天使图鉴（2026-07-31，500 张长线收集）**：素材**复用 snake 的同一份**
+（`games/snake/assets/angels/` 500 webp + manifest.json，仓库里绝不存两份 26MB）——
+网页端走相对路径 `../snake/assets/angels/`（同源），iOS 出包由 build-www 按 package.json
+`wwwExtras` 拷进 www（通用机制，任何游戏可用）。`js/angels.js`：固定 seed 洗牌全球同序、
+只存计数 `G.angels`、图鉴翻页只缓存当前页（500 张全解码是几百 MB）。
+解锁：赢 +1 / 每日赢 +3 / 图鉴看广告 +3。E2E：`npm run test:sol:angels`。
+**收藏页已分签**（back|table|fx，`G.shopTab`）——牌背 19 款后单页放不下。
+**易收集牌背 10 款**（cherry…candy，20-80 金币）：⚠ Flux 生成牌背 prompt **绝不能带
+「playing card back」字样**——会把牌角点数一起画上（20 张全废过一轮）；
+要写「seamless repeating decorative pattern」+ 负面词点名 rank/suit/ace。
+
 **高级桌布（2026-07-31，同管线）**：`assets/tables/{walnut,bamboo,velvet,marble}.jpg`
 （540×960，`Sprite.drawTable` 全屏 cover + 商店小图共用；bamboo 原图太亮，后处理压暗到 55%——
 **桌布必须偏暗**，否则白牌/白字浮不出来）。

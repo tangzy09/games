@@ -128,6 +128,8 @@ const winState=`(()=>{ const s=Core.newGame(7,3);
   await page.waitForFunction(()=>Sprite.backReady('koi'),{timeout:5000});
   console.log('OK ⭐ 插画牌背图片加载完成（assets/backs/koi.jpg 经 http 真实拉取）');
   // 高级桌布（Flux 材质）：买 → 装备 → 图片就绪 → 全屏背景换材质
+  await page.evaluate(()=>dispatch('SHOP_TAB',{t:'table'}));   // 收藏页已分签
+  await page.waitForTimeout(100);
   ok(await click(page,'PICK_TABLE',{id:'walnut'}), '高级桌布可点');
   await page.waitForTimeout(150);
   ok(await page.evaluate(()=>Money.owns('table','walnut')&&Money.state.table==='walnut'),

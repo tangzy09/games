@@ -75,6 +75,16 @@
     "back_plaid": "Xadrez",
     "back_stars": "Estrelas",
     "back_gold": "Ouro",
+    "back_cherry": "Cerejas",
+    "back_sunset": "Pôr do sol",
+    "back_ocean": "Oceano",
+    "back_sakura": "Sakura",
+    "back_mint": "Menta",
+    "back_honey": "Favo",
+    "back_snow": "Neve",
+    "back_maple": "Bordo",
+    "back_lavender": "Lavanda",
+    "back_candy": "Doce",
     "back_koi": "Lago de carpas",
     "back_peacock": "Pavão",
     "back_nebula": "Nebulosa",
@@ -145,6 +155,10 @@
     "winCoins": "+{n} moedas",
     "adX2": "Moedas ×2",
     "dailyStreak": "{n} dias seguidos",
-    "monthMedals": "Medalhas diárias"
+    "monthMedals": "Medalhas diárias",
+    "gallery": "Galeria de anjos",
+    "galleryProgress": "{n} / {m} coletados",
+    "galleryHint": "Cada vitória desbloqueia 1 — as diárias, 3.",
+    "galleryAd": "Assistir a um anúncio · +3 anjos"
   }
 }

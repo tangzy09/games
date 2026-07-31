@@ -79,6 +79,18 @@
     { id: 'plaid',   cost: 80 },
     { id: 'stars',   cost: 120 },
     { id: 'gold',    cost: 200 },
+    // ⭐ 易收集 10 款（2026-07-31 用户点名「很容易能收集到」）：20-80 金币,几局一款,
+    //   新玩家的第一波收集爽感（Flux 无缝图案,assets/backs/）
+    { id: 'cherry',   cost: 20 },
+    { id: 'sunset',   cost: 25 },
+    { id: 'ocean',    cost: 30 },
+    { id: 'sakura',   cost: 35 },
+    { id: 'mint',     cost: 40 },
+    { id: 'honey',    cost: 45 },
+    { id: 'snow',     cost: 50 },
+    { id: 'maple',    cost: 60 },
+    { id: 'lavender', cost: 70 },
+    { id: 'candy',    cost: 80 },
     // ⭐ 高级款（本机 Flux 整幅插画，assets/backs/）：收集曲线的后段，定价压着瀑布特效走
     { id: 'koi',     cost: 260 },
     { id: 'peacock', cost: 320 },

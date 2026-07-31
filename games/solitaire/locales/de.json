@@ -75,6 +75,16 @@
     "back_plaid": "Karo",
     "back_stars": "Sterne",
     "back_gold": "Gold",
+    "back_cherry": "Kirschen",
+    "back_sunset": "Sonnenuntergang",
+    "back_ocean": "Ozean",
+    "back_sakura": "Sakura",
+    "back_mint": "Minze",
+    "back_honey": "Wabe",
+    "back_snow": "Schneefall",
+    "back_maple": "Ahorn",
+    "back_lavender": "Lavendel",
+    "back_candy": "Bonbon",
     "back_koi": "Koiteich",
     "back_peacock": "Pfau",
     "back_nebula": "Nebel",
@@ -145,6 +155,10 @@
     "winCoins": "+{n} Münzen",
     "adX2": "Münzen ×2",
     "dailyStreak": "{n} Tage in Folge",
-    "monthMedals": "Tages-Medaillen"
+    "monthMedals": "Tages-Medaillen",
+    "gallery": "Engel-Galerie",
+    "galleryProgress": "{n} / {m} gesammelt",
+    "galleryHint": "Jeder Sieg schaltet 1 frei — Tagessiege 3.",
+    "galleryAd": "Werbung ansehen · +3 Engel"
   }
 }

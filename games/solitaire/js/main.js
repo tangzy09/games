@@ -25,6 +25,11 @@ const G = window.G = {
   ach: {},                 // 已解锁成就 {id:1}
   lastWinCoins: 0,         // 上一次赢局发的金币（结算屏「×2」按它翻倍）
   winDoubled: false,
+  angels: 0,               // 天使图鉴解锁数（顺序固定,只存计数;赢+1/每日赢+2/看广告+3）
+  lastAngelGain: 0,        // 本次赢局解锁了几张（结算屏显示）
+  galPage: 0,              // 图鉴当前页
+  galView: null,           // 图鉴大图查看中的索引（null=网格）
+  shopTab: 'back',         // 收藏页当前签（back|table|fx —— 牌背 19 款后单页放不下了）
   // ⚠ 双口径（DESIGN §4.5）：无限撤销会把总胜率架空 ⇒ 不分开记，统计就是假的
   stats: { played: 0, won: 0, cleanWon: 0, streak: 0, bestStreak: 0 },
   dailyDone: '',           // 今天的每日挑战完成了没（YYYYMMDD）
@@ -72,7 +77,7 @@ const saveOpts = () => {
     Platform.storage.set(K_OPT(), JSON.stringify({
       fourColor: G.fourColor, bigText: G.bigText, comfort: G.comfort, reduceFx: G.reduceFx,
       difficulty: G.difficulty, dailyDone: G.dailyDone, dailyHist: G.dailyHist,
-      badges: G.badges, ach: G.ach, seenIntro: G.seenIntro,
+      badges: G.badges, ach: G.ach, angels: G.angels, seenIntro: G.seenIntro,
     }));
   } catch (e) {}
 };
@@ -231,6 +236,10 @@ function onWin() {
   if (s.mode === 'freecell') G.stats.fcWon = (G.stats.fcWon || 0) + 1;
   G.lastWinCoins = Money.earnWin(clean);         // 金币（只能换外观，换不到任何优势）
   G.winDoubled = false;
+  // 👼 天使图鉴：赢一局 +1，每日挑战赢局再 +2（501 张的长线收集）
+  const gain = 1 + (G.dailySeed === s.seed ? 2 : 0);
+  G.lastAngelGain = Math.min(gain, Math.max(0, Angels.total() - G.angels));
+  G.angels = Math.min(Angels.total() || 500, G.angels + gain);
   if (G.dailySeed === s.seed) {
     G.dailyDone = todayId();
     G.stats.dailyWon = (G.stats.dailyWon || 0) + 1;
@@ -396,7 +405,29 @@ function dispatch(action, data) {
     case 'INTRO_FAIR': G.phase = 'FAIR'; G.seenIntro = 1; saveOpts(); break;
     case 'STATS': G.phase = 'STATS'; break;
     case 'ACH': G.phase = 'ACH'; break;
+    // 👼 天使图鉴
+    case 'GALLERY': G.phase = 'GALLERY'; G.galView = null; break;
+    case 'GAL_PG': {
+      G.galPage = Math.max(0, data && data.p != null ? data.p : 0);
+      G.galView = null;
+      Angels.dropCache();                      // 只缓存当前页（501 张全解码是几百 MB）
+      break;
+    }
+    case 'GAL_VIEW': G.galView = data && data.i != null ? data.i : null; break;
+    case 'GAL_CLOSE': G.galView = null; break;
+    // 图鉴里看广告 +3 张（纯增益,激励视频的又一消耗端）
+    case 'GAL_AD': {
+      Ads.showRewarded().then(got => {
+        if (got) {
+          G.angels = Math.min(Angels.total() || 500, G.angels + 3);
+          saveOpts();
+        }
+        renderAll();
+      });
+      break;
+    }
     case 'SHOP': G.phase = 'SHOP'; break;
+    case 'SHOP_TAB': if (data && data.t) G.shopTab = data.t; break;
     case 'SET': G.phase = 'SET'; break;
 
     // ⚠ 这三个功能**代码里一直都有，但此前没有任何 UI 入口** —— 等于死代码
@@ -746,6 +777,7 @@ async function boot() {
   G.noAds = Money.noAds || Money.adFree(G.stats.played);
   if (!G.noAds) Ads.showBanner();
 
+  Angels.load();                                       // 👼 图鉴 manifest（非阻塞,失败图鉴显示 0/0）
   await Pool.load();                                   // ⭐ 先加载可解池（决定发什么牌）
   // ⭐ 分享链接进来（#d1-N / #d3-N / #fc-N）⇒ 直接开那一局（朋友挑战同一副牌）。
   //   消费掉 hash（否则之后每次刷新都困在这一局里）。

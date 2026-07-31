@@ -75,6 +75,16 @@
     "back_plaid": "Cuadros",
     "back_stars": "Estrellas",
     "back_gold": "Oro",
+    "back_cherry": "Cerezas",
+    "back_sunset": "Atardecer",
+    "back_ocean": "Océano",
+    "back_sakura": "Sakura",
+    "back_mint": "Menta",
+    "back_honey": "Panal",
+    "back_snow": "Nevada",
+    "back_maple": "Arce",
+    "back_lavender": "Lavanda",
+    "back_candy": "Caramelo",
     "back_koi": "Estanque koi",
     "back_peacock": "Pavo real",
     "back_nebula": "Nebulosa",
@@ -145,6 +155,10 @@
     "winCoins": "+{n} monedas",
     "adX2": "Monedas ×2",
     "dailyStreak": "{n} días seguidos",
-    "monthMedals": "Medallas diarias"
+    "monthMedals": "Medallas diarias",
+    "gallery": "Galería de ángeles",
+    "galleryProgress": "{n} / {m} conseguidos",
+    "galleryHint": "Cada victoria desbloquea 1; las diarias, 3.",
+    "galleryAd": "Ver un anuncio · +3 ángeles"
   }
 }
