@@ -60,6 +60,7 @@
   function update(dt) {
     updateSlides(dt);
     updateFloats(dt);
+    updateTrans(dt);
     if (!running) return;
     const { SW, SH } = GameGlobal;
     const L = Layout.L;
@@ -135,11 +136,12 @@
    * 让一叠牌从 (x0,y0) 滑到 (x1,y1)。
    * ids 是**整叠**（supermove 一次滑好几张，它们保持相对偏移）。
    */
-  function slide(ids, x0, y0, x1, y1, delay) {
+  function slide(ids, x0, y0, x1, y1, delay, opts) {
     if (root.G && root.G.reduceFx) return;                        // 减弱动态：牌即时到位
     if (!ids || !ids.length) return;
     if (Math.abs(x1 - x0) < 1 && Math.abs(y1 - y0) < 1) return;   // 没动就别演
-    slides.push({ ids: ids.slice(), x0, y0, x1, y1, t: 0, dur: SLIDE_DUR, delay: delay || 0 });
+    slides.push({ ids: ids.slice(), x0, y0, x1, y1, t: 0, dur: SLIDE_DUR, delay: delay || 0,
+                  back: !!(opts && opts.back) });                 // back：画牌背（发牌动画的暗牌）
     ids.forEach(id => slideIds.add(id));
   }
 
@@ -165,7 +167,7 @@
       const x = s.x0 + (s.x1 - s.x0) * k;
       const y = s.y0 + (s.y1 - s.y0) * k;
       s.ids.forEach((id, j) => {
-        ctx.drawImage(Sprite.face(id), x, y + j * L.upOff, L.cardW, L.cardH);
+        ctx.drawImage(s.back ? Sprite.back() : Sprite.face(id), x, y + j * L.upOff, L.cardW, L.cardH);
       });
     }
   }
@@ -195,6 +197,17 @@
     ctx.globalAlpha = 1;
   }
 
+  // ── 过场：切屏时旧画面快照淡出（0.22s；reduceFx 关）──
+  let transC = null, transT = 0;
+  const TRANS_DUR = 0.22;
+  function transition(snap) {
+    if (root.G && root.G.reduceFx) return;
+    transC = snap; transT = TRANS_DUR;
+  }
+  function updateTrans(dt) {
+    if (transT > 0) { transT -= dt; if (transT <= 0) transC = null; }
+  }
+
   /** 把拖尾层合成到主 canvas + 画滑动中的牌（render 每帧调一次，**最后**调）*/
   function draw(ctx) {
     if (trail) {
@@ -203,9 +216,16 @@
     }
     drawSlides(ctx);
     drawFloats(ctx);
+    if (transC && transT > 0) {                 // 旧画面盖在最上层淡出 = 跨屏过渡
+      ctx.globalAlpha = Math.max(0, transT / TRANS_DUR);
+      ctx.drawImage(transC, 0, 0, GameGlobal.SW, GameGlobal.SH);
+      ctx.globalAlpha = 1;
+    }
   }
 
-  const busy = () => running || slides.length > 0 || floats.length > 0;
+  const busy = () => running || slides.length > 0 || floats.length > 0 || transT > 0;
+  /** 只有纸牌瀑布算「霸屏」——输入层只在瀑布时锁（滑牌/过场期间照常可点）*/
+  const cascading = () => running;
   function skip() { running = false; flying.length = 0; }
   function reset() {
     running = false; flying.length = 0;
@@ -214,5 +234,6 @@
     if (tctx) tctx.clearRect(0, 0, GameGlobal.SW, GameGlobal.SH);
   }
 
-  root.FX = { startCascade, update, draw, busy, skip, reset, slide, isFlying, updateSlides, float };
+  root.FX = { startCascade, update, draw, busy, cascading, skip, reset,
+              slide, isFlying, updateSlides, float, transition };
 })(typeof self !== 'undefined' ? self : this);

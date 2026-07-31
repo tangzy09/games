@@ -67,6 +67,18 @@ supermove 公式）；**赢局战绩图卡**（`shareWinCard` 1080×1350，canSh
 桌面自动降级链接分享）；**「演 3 步」**（prover 有解时演解法头 3 步——只演 3 步，演完整解=看戏；
 worker 回传 `solMoves` 头 12 步）。E2E：`npm run test:sol:exp2`。
 
+**三期（2026-07-31，用户点名六件）**：**单击自动走牌**（Klondike 专属——FreeCell 保持
+「选中→落点」，那边是规划游戏，自动走会替玩家做致命决定）；**连击音效**（4s 窗口
+`G.comboN`，`Snd.combo` 音阶上扬 + ×N 浮字）；**提示自动翻牌**（无步可走时帮翻到有为止，
+最多一圈+一次回收；翻穿仍无步 = 真卡死 ⇒ 点亮 🃏）；**🃏 万能牌**（看广告救场，
+`core.apply 'jk'` 召唤 foundation 需要的**真牌**——52 张守恒、可重放、`usedJoker` 不算干净赢；
+Klondike 专属、本局上限 3、真卡死/prover 判死才点亮入口。⚠ 红线口径同步改：激励=外观+救场
+（同 snake AI 救场），**提示/撤销/证明仍永远免费**）；**过场动画**（`goPhase` 快照淡出 0.22s +
+`dealAnim` 发牌飞入，暗牌以背飞行不泄底；⚠ **输入锁从 FX.busy 收窄到 cascading**——
+否则发牌 1 秒内点击全被吞）；**预设对手榜**（`rivalScores(seed)` 确定性四人 + 你，
+赢局结算显示，零后端不可作弊）。E2E：`npm run test:sol:exp3`。
+⚠ 手搓 `G.s` 的测试块**必须带 `FX.reset()`**——上一局发牌动画的残余 slides 会把结算浮层压住几百 ms（实踩）。
+
 **高级桌布（2026-07-31，同管线）**：`assets/tables/{walnut,bamboo,velvet,marble}.jpg`
 （540×960，`Sprite.drawTable` 全屏 cover + 商店小图共用；bamboo 原图太亮，后处理压暗到 55%——
 **桌布必须偏暗**，否则白牌/白字浮不出来）。

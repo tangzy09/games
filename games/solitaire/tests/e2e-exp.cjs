@@ -62,7 +62,7 @@ async function click(page, action, dm){
     s.foundations=[0,1,2,3].map(fi=>Array.from({length:12},(_,r)=>r*4+fi)); // A..Q 全收
     s.tableau=Array.from({length:7},()=>({cards:[],up:0}));
     [0,1,2,3].forEach(fi=>{ s.tableau[fi]={cards:[12*4+fi],up:1}; });        // 4 张 K 明牌
-    G.s=s; G.sel=null; Prover.reset(); renderAll();
+    G.s=s; G.sel=null; Prover.reset(); FX.reset(); renderAll();
   });
   ok(await click(page,'FINISH'), '⭐ 「自动走完」按钮出现且可点');
   await page.waitForTimeout(400);
@@ -79,7 +79,7 @@ async function click(page, action, dm){
     s.foundations=[0,1,2,3].map(fi=>Array.from({length:12},(_,r)=>r*4+fi));
     s.tableau=Array.from({length:7},()=>({cards:[],up:0}));
     [0,1,2,3].forEach(fi=>{ s.tableau[fi]={cards:[12*4+fi],up:1}; });
-    G.s=s; G.sel=null; Prover.reset(); renderAll();
+    G.s=s; G.sel=null; Prover.reset(); FX.reset(); renderAll();
   });
   await click(page,'FINISH');
   await page.waitForTimeout(300);
@@ -95,7 +95,7 @@ async function click(page, action, dm){
     s.waste=[5*4+1];                                   // 6♥
     s.tableau=Array.from({length:7},()=>({cards:[],up:0}));
     s.tableau[2]={cards:[6*4+0],up:1};                 // 7♠
-    G.s=s; G.sel=null; Prover.reset(); renderAll();
+    G.s=s; G.sel=null; Prover.reset(); FX.reset(); renderAll();
   });
   const drag=await page.evaluate(()=>{
     const c=document.getElementById('game-canvas').getBoundingClientRect();

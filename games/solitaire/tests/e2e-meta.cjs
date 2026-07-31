@@ -33,7 +33,7 @@ const winState=`(()=>{ const s=Core.newGame(7,3);
   s.foundations=[0,1,2,3].map(fi=>Array.from({length:12},(_,r)=>r*4+fi));
   s.tableau=Array.from({length:7},()=>({cards:[],up:0}));
   [0,1,2,3].forEach(fi=>{ s.tableau[fi]={cards:[12*4+fi],up:1}; });
-  G.s=s; G.sel=null; Prover.reset(); renderAll(); })()`;
+  G.s=s; G.sel=null; Prover.reset(); FX.reset(); renderAll(); })()`;
 
 (async()=>{
   fs.mkdirSync(SHOT,{recursive:true});

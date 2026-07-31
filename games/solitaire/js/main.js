@@ -31,6 +31,10 @@ const G = window.G = {
   galView: null,           // 图鉴大图查看中的索引（null=网格）
   shopTab: 'back',         // 收藏页当前签（back|table|fx —— 牌背 19 款后单页放不下了）
   achPage: 0,              // 成就页当前页（18 项后单页放不下）
+  jokers: 0,               // 🃏 万能牌数量（本局有效,看广告获得,上限 3;Klondike 专属救场）
+  jokerOffer: 0,           // 「拿万能牌」入口的展示截止时间戳（卡死检测/死局判定时点亮）
+  comboN: 0,               // 连击收牌计数（4s 窗口）
+  comboAt: 0,
   // ⚠ 双口径（DESIGN §4.5）：无限撤销会把总胜率架空 ⇒ 不分开记，统计就是假的
   stats: { played: 0, won: 0, cleanWon: 0, streak: 0, bestStreak: 0 },
   dailyDone: '',           // 今天的每日挑战完成了没（YYYYMMDD）
@@ -48,7 +52,7 @@ function saveRun() {
     const s = G.s;
     Platform.storage.set(K_RUN(), JSON.stringify({
       v: Core.SAVE_VERSION, seed: s.seed, drawCount: s.drawCount, moves: s.moves,
-      usedUndo: s.usedUndo, usedHint: s.usedHint, tAcc: G.tAcc,
+      usedUndo: s.usedUndo, usedHint: s.usedHint, tAcc: G.tAcc, jokers: G.jokers,
     }));
   } catch (e) {}
 }
@@ -63,6 +67,7 @@ function loadRun() {
     s.usedUndo = !!d.usedUndo; s.usedHint = !!d.usedHint;
     if (s.won) return null;
     G.tAcc = d.tAcc || 0;                                  // 本局用时跟着存档走
+    G.jokers = d.jokers || 0;                              // 🃏 也跟着（本局资产）
     return s;
   } catch (e) { return null; }
 }
@@ -107,6 +112,8 @@ function newGame(drawCount, mode) {
   G.dailySeed = null;
   G.drag = G.pending = G.sel = G.hintMove = null;
   G.tAcc = 0; G.tLast = Date.now();
+  G.jokers = 0; G.jokerOffer = 0;             // 🃏 是本局资产,换局清零
+  G.comboN = 0;
   Prover.reset();
   Snd.deal();                                 // 洗牌声
   G.stats.played++;
@@ -114,6 +121,31 @@ function newGame(drawCount, mode) {
   FX.reset();
   clearRun();
   renderAll();
+  dealAnim();                                 // 发牌飞入（reduceFx 自动跳过）
+}
+
+/** 发牌飞入动画：整副牌从牌堆位置逐张飞到位（暗牌以牌背飞行,不泄底）*/
+function dealAnim() {
+  if (G.reduceFx) return;
+  const s = G.s;
+  const L = Layout.L;
+  const from = s.mode === 'freecell'
+    ? { x: L.cx - L.cardW / 2, y: -L.cardH }             // FreeCell 无牌堆,从顶部中央撒下
+    : Layout.cardXY(s, { p: 'stock' });
+  let k = 0;
+  for (let i = 0; ; i++) {                               // 行优先 = 真实发牌顺序
+    let dealt = false;
+    for (let ti = 0; ti < s.tableau.length; ti++) {
+      const col = s.tableau[ti];
+      if (i >= col.cards.length) continue;
+      dealt = true;
+      const up = i >= col.cards.length - col.up;
+      const to = Layout.cardXY(s, { p: 't', ti, i });
+      FX.slide([col.cards[i]], from.x, from.y, to.x, to.y, k * 0.022, { back: !up });
+      k++;
+    }
+    if (!dealt) break;
+  }
 }
 
 // ── 走子 ──
@@ -168,6 +200,18 @@ function moveAnim(m, before) {
     ids = [before.free[m.ci]];
     from = Layout.cardXY(before, { p: 'c', ci: m.ci });
     to = Layout.cardXY(s, { p: 'f', fi: m.fi });
+  } else if (m.t === 'jk') {
+    // 🃏 被召唤的牌从它原来的位置飞向 foundation
+    const id = s.foundations[m.fi][s.foundations[m.fi].length - 1];
+    ids = [id];
+    to = Layout.cardXY(s, { p: 'f', fi: m.fi });
+    from = null;
+    for (let ti = 0; ti < before.tableau.length && !from; ti++) {
+      const idx = before.tableau[ti].cards.indexOf(id);
+      if (idx >= 0) from = Layout.cardXY(before, { p: 't', ti, i: idx });
+    }
+    if (!from && before.waste.indexOf(id) >= 0) from = Layout.cardXY(before, { p: 'w' });
+    if (!from) from = Layout.cardXY(before, { p: 'stock' });
   }
   if (ids.length && from && to && ids.every(id => id != null)) {
     FX.slide(ids, from.x, from.y, to.x, to.y);
@@ -209,7 +253,22 @@ function doMove(m) {
   }
   // 声音按**动作**分（纸牌的质感全在这里；此前全程静音）
   if (m.t === 'draw' || m.t === 'recycle') Snd.draw();
-  else if (m.t === 'tf' || m.t === 'wf' || m.t === 'cf') Snd.found(G.s.foundations.reduce((a,f)=>a+f.length,0) % 8);
+  else if (m.t === 'tf' || m.t === 'wf' || m.t === 'cf' || m.t === 'jk') {
+    // ⭐ 连击：4s 窗口内连续收 foundation ⇒ 音阶上扬 + ×N 浮字（正反馈要越滚越爽）
+    const now = Date.now();
+    G.comboN = now - G.comboAt < 4000 ? G.comboN + 1 : 1;
+    G.comboAt = now;
+    if (G.comboN >= 2) {
+      Snd.combo(G.comboN);
+      const fe = ev.find(e => e.t === 'toFoundation');
+      if (fe) {
+        const p = Layout.cardXY(G.s, { p: 'f', fi: fe.fi });
+        FX.float('×' + G.comboN, p.x + Layout.L.cardW / 2, p.y - 6, '#ff9d3d');
+      }
+    } else {
+      Snd.found(G.s.foundations.reduce((a, f) => a + f.length, 0) % 8);
+    }
+  }
   else if (m.t === 'tt' && ev.some(e => e.n > 1)) Snd.run(ev[0].n);
   else Snd.place();
   G.sel = null; G.hintMove = null;
@@ -223,7 +282,7 @@ function doMove(m) {
 /** ⭐ 赢局 → 纸牌瀑布（产品的心脏） */
 function onWin() {
   const s = G.s;
-  const clean = !s.usedUndo && !s.usedHint;
+  const clean = !s.usedUndo && !s.usedHint && !s.usedJoker;
   G.stats.won++;
   if (clean) G.stats.cleanWon++;                 // 双口径：零撤销零提示才算「clean」
   G.stats.streak = (G.stats.streak || 0) + 1;
@@ -270,6 +329,37 @@ function onWin() {
   Snd.win();
 }
 
+/** 切屏 + 过场淡出：把当前画面快照交给 FX 盖在上面淡出（reduceFx 自动跳过）*/
+function goPhase(p) {
+  if (!G.reduceFx && G.phase !== p) {
+    try {
+      const cv = document.getElementById(CFG.canvasId);
+      const snap = document.createElement('canvas');
+      snap.width = cv.width; snap.height = cv.height;
+      snap.getContext('2d').drawImage(cv, 0, 0);
+      FX.transition(snap);
+    } catch (e) {}
+  }
+  G.phase = p;
+}
+
+// ── 预设对手（伪排行榜:零后端、按 seed 确定性,全球看到同一组分数）──
+const RIVALS = [
+  { name: 'Mia', ava: '👩🏻', lo: 120, hi: 300 },
+  { name: 'Leo', ava: '👨🏽', lo: 100, hi: 260 },
+  { name: 'Sam', ava: '🧓',  lo: 60,  hi: 200 },
+  { name: 'Ava', ava: '👩🏾', lo: 140, hi: 340 },
+];
+/** 本局四位对手的分数（seed 确定性 ⇒ 可复现、可跟朋友对同一局的榜）*/
+function rivalScores(seed) {
+  return RIVALS.map((r, i) => {
+    let a = (seed ^ Math.imul(i + 1, 2654435761)) >>> 0;
+    a = Math.imul(a ^ (a >>> 15), 1 | a) >>> 0;
+    const f = ((a >>> 8) % 1000) / 1000;
+    return { name: r.name, ava: r.ava, score: Math.round(r.lo + (r.hi - r.lo) * f) };
+  });
+}
+
 // ── 交互 ──
 function onTap(hit, cardHit) {
   const s = G.s;
@@ -306,9 +396,14 @@ function onTap(hit, cardHit) {
     if (auto && doMove(auto)) return;          // 先试自动收 foundation
     G.sel = { p: 'c', ci };
   } else if (hit.action === 'WASTE' && s.waste.length) {
-    // 先试自动送 foundation（双击/单击的常见期待）
+    // ⭐ 单击 = 直接自动走牌（Klondike;先 foundation 再 tableau）——品类标准交互。
+    //   FreeCell 保持「选中→落点」:那边是规划游戏,自动走会替玩家做致命决定。
     const auto = RulesK.legalMoves(s).find(m => m.t === 'wf');
     if (auto && doMove(auto)) return;
+    if (s.mode !== 'freecell') {
+      const am = Core.autoDest(s, { p: 'w' });
+      if (am && doMove(am)) return;
+    }
     G.sel = { p: 'w' };
   } else if (hit.action === 'TAB') {
     const { ti, idx } = hit.data;
@@ -319,6 +414,10 @@ function onTap(hit, cardHit) {
     if (idx === col.cards.length - 1) {
       const auto = Core.rules(s).legalMoves(s).find(m => m.t === 'tf' && m.ti === ti);
       if (auto && doMove(auto)) return;
+    }
+    if (s.mode !== 'freecell') {
+      const am = Core.autoDest(s, { p: 't', ti, idx });
+      if (am && am.t !== 'tc' && doMove(am)) return;
     }
     G.sel = { p: 't', ti, idx };
   }
@@ -397,15 +496,15 @@ function dispatch(action, data) {
       newGame(undefined, next);
       break;
     }
-    case 'FAIR': G.phase = 'FAIR'; break;
-    case 'MENU': G.phase = 'MENU'; break;
+    case 'FAIR': goPhase('FAIR'); break;
+    case 'MENU': goPhase('MENU'); break;
     // 首启一屏（4.3(a) 防线）：看过一次就不再出现
     case 'INTRO_GO': G.phase = 'PLAY'; G.seenIntro = 1; saveOpts(); break;
     case 'INTRO_FAIR': G.phase = 'FAIR'; G.seenIntro = 1; saveOpts(); break;
-    case 'STATS': G.phase = 'STATS'; break;
-    case 'ACH': G.phase = 'ACH'; break;
+    case 'STATS': goPhase('STATS'); break;
+    case 'ACH': goPhase('ACH'); break;
     // 👼 天使图鉴
-    case 'GALLERY': G.phase = 'GALLERY'; G.galView = null; break;
+    case 'GALLERY': goPhase('GALLERY'); G.galView = null; break;
     case 'GAL_PG': {
       G.galPage = Math.max(0, data && data.p != null ? data.p : 0);
       G.galView = null;
@@ -457,11 +556,13 @@ function dispatch(action, data) {
       G.dailySeed = null;
       G.drag = G.sel = G.hintMove = null;
       G.tAcc = 0; G.tLast = Date.now();
+      G.jokers = 0; G.jokerOffer = 0; G.comboN = 0;
       Prover.reset(); FX.reset(); clearRun();
-      G.phase = 'PLAY';
+      goPhase('PLAY');
+      dealAnim();
       break;
     }
-    case 'HELP': G.phase = 'HELP'; break;
+    case 'HELP': goPhase('HELP'); break;
     case 'ACH_PG': G.achPage = Math.max(0, data && data.p != null ? data.p : 0); break;
     // ▶ 演 3 步：prover 证明有解后，把解法的头 3 步慢速演给玩家看（强提示——演完整解=看戏）
     case 'DEMO3': {
@@ -486,9 +587,36 @@ function dispatch(action, data) {
       shareWinCard().catch(() => {});
       break;
     }
-    case 'SHOP': G.phase = 'SHOP'; break;
+    // 🃏 万能牌:看广告获得(⚠ 红线口径:救场与 snake 的 AI 救场同类——提示/撤销/证明仍永远免费)
+    case 'JOKER_AD': {
+      if (s.mode === 'freecell' || G.jokers >= 3) break;
+      Ads.showRewarded().then(got => {
+        if (got) {
+          G.jokers = Math.min(3, G.jokers + 1);
+          G.jokerOffer = 0;
+          saveRun();
+          G.toast = { msg: '🃏 ' + T('sol.jokerReady'), until: Date.now() + 2400 };
+          setTimeout(renderAll, 2500);
+        }
+        renderAll();
+      });
+      break;
+    }
+    case 'JOKER_USE': {
+      if (G.jokers < 1 || s.mode === 'freecell' || s.won) break;
+      // 自动选最缺的 foundation（最短且没满的）
+      let fi = -1, best = 99;
+      for (let i = 0; i < 4; i++) {
+        if (s.foundations[i].length < 13 && s.foundations[i].length < best) {
+          best = s.foundations[i].length; fi = i;
+        }
+      }
+      if (fi >= 0 && doMove({ t: 'jk', fi })) { G.jokers--; saveRun(); }
+      break;
+    }
+    case 'SHOP': goPhase('SHOP'); break;
     case 'SHOP_TAB': if (data && data.t) G.shopTab = data.t; break;
-    case 'SET': G.phase = 'SET'; break;
+    case 'SET': goPhase('SET'); break;
 
     // ⚠ 这三个功能**代码里一直都有，但此前没有任何 UI 入口** —— 等于死代码
     case 'TOG_4COLOR': G.fourColor = !G.fourColor; Sprite.ensure(0, 0); saveOpts(); break;
@@ -523,8 +651,10 @@ function dispatch(action, data) {
         G.dailySeed = seed;
         G.drag = G.sel = G.hintMove = null;
         G.tAcc = 0; G.tLast = Date.now();
+        G.jokers = 0; G.jokerOffer = 0; G.comboN = 0;
         Prover.reset(); FX.reset(); clearRun();
-        G.phase = 'PLAY';
+        goPhase('PLAY');
+        dealAnim();
         // ⭐ 打卡即记（连续天数不要求赢 —— 「来」可控，「赢」不可控）
         G.dailyHist = G.dailyHist || {};
         G.dailyHist[todayId()] = Math.max(G.dailyHist[todayId()] || 0, 1);
@@ -610,7 +740,7 @@ function dispatch(action, data) {
       }
       break;
     }
-    case 'PLAY': G.phase = 'PLAY'; break;
+    case 'PLAY': goPhase('PLAY'); break;
     case 'UNDO': {
       // ⚠ 撤销永远免费、永远不看广告（DESIGN §7.4：纸牌的基本人权）
       const undone = s.moves[s.moves.length - 1];
@@ -625,10 +755,23 @@ function dispatch(action, data) {
       break;
     }
     case 'HINT': {
-      const ms = Core.rules(s).legalMoves(s).filter(m => m.t !== 'draw' && m.t !== 'recycle');
+      let ms = Core.rules(s).legalMoves(s).filter(m => m.t !== 'draw' && m.t !== 'recycle');
+      if (!ms.length && s.mode !== 'freecell' && (s.stock.length || s.waste.length)) {
+        // ⭐ 没有可走的一步 ⇒ **自动帮玩家翻牌**直到出现可走步（要翻多少翻多少,
+        //   最多一整圈+一次回收——翻完一圈还没有,就是真的没有）
+        const guard = Math.ceil((s.stock.length + s.waste.length) / s.drawCount) + 3;
+        for (let i = 0; i < guard; i++) {
+          const dm = s.stock.length ? { t: 'draw' } : { t: 'recycle' };
+          if (!Core.apply(s, dm)) break;
+          ms = Core.rules(s).legalMoves(s).filter(m => m.t !== 'draw' && m.t !== 'recycle');
+          if (ms.length) break;
+        }
+        Snd.draw(); tick(); Prover.reset(); saveRun();
+      }
       if (!ms.length) {
-        // 没有可走的一步 ⇒ 不该扣「零提示」（什么都没给玩家），指路去翻牌堆/撤销
+        // 翻穿一整圈也没有 ⇒ 真卡死。诚实说 + （Klondike）点亮 🃏 救场入口
         G.hintMove = null;
+        if (s.mode !== 'freecell') G.jokerOffer = Date.now() + 12000;
         G.toast = { msg: T('sol.hintNone'), until: Date.now() + 2200 };
         setTimeout(renderAll, 2300);
         break;
@@ -860,7 +1003,7 @@ async function shareWinCard() {
   x.fillText(T('sol.deal', { n: s.seed }), W / 2, 480);
   x.fillStyle = '#eafff2'; x.font = '50px sans-serif';
   x.fillText(T('sol.timeMoves', { t: fmt(G.tAcc), m: s.moves.length }), W / 2, 590);
-  const clean = !s.usedUndo && !s.usedHint;
+  const clean = !s.usedUndo && !s.usedHint && !s.usedJoker;
   if (clean) { x.fillStyle = '#7ef2a0'; x.font = 'bold 44px sans-serif'; x.fillText(T('sol.cleanWin'), W / 2, 690); }
   if (G.dailySeed === s.seed && G.dailyAI && G.dailyAI.seed === s.seed && !G.dailyAI.won) {
     x.fillStyle = '#ffd84d'; x.font = '40px sans-serif';

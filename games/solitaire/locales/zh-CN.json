@@ -179,6 +179,10 @@
     "ach_angels500": "集齐全部 500 位天使",
     "ach_streak7d": "连续 7 天打每日挑战",
     "ach_streak30d": "连续 30 天打每日挑战",
-    "ach_gold1": "拿到一枚月度金牌"
+    "ach_gold1": "拿到一枚月度金牌",
+    "rankTitle": "本局排名",
+    "rankYou": "你",
+    "jokerAd": "卡住了？看广告拿一张万能牌",
+    "jokerReady": "万能牌已就绪——点 🃏 召唤你最缺的那张牌"
   }
 }

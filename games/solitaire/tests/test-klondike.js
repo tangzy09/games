@@ -279,3 +279,38 @@ const S = 0, H = 1, C = 2, D = 3;
   assert(!Core.canAutoFinish(f), '牌堆还有牌 ⇒ 不行');
   console.log('test-klondike: destsFor/canAutoFinish OK');
 }
+
+// ════════ 🃏 万能牌 jk（召唤真牌:52 张守恒、up 计数、usedJoker 留痕）════════
+{
+  const empty7 = () => Array.from({ length: 7 }, () => ({ cards: [], up: 0 }));
+
+  // ① 从暗牌堆里召唤:2♠ 压在底下(暗),上面盖着 9♥(明) ⇒ 抽走后 9♥ 仍是明牌
+  const s = Core.newGame(31, 3);
+  s.tableau = empty7(); s.stock = []; s.waste = [];
+  s.foundations = [[card(0, S)], [], [], []];         // ♠ 收到 A
+  s.tableau[0] = { cards: [card(1, S), card(8, H)], up: 1 };   // 2♠(暗) + 9♥(明)
+  const ev = Core.apply(s, { t: 'jk', fi: 0 });
+  assert(ev && ev.some(e => e.t === 'toFoundation'), 'jk 走子成功');
+  assert.strictEqual(s.foundations[0].length, 2, '2♠ 进了 foundation');
+  assert.deepStrictEqual(s.tableau[0].cards, [card(8, H)], '上面的牌原位下沉');
+  assert.strictEqual(s.tableau[0].up, 1, '抽走暗牌 ⇒ up 不变');
+  assert(s.usedJoker, '⭐ 用过万能牌要留痕(不算干净赢)');
+
+  // ② 从 stock 里召唤 + 52 张守恒(不复制)
+  const s2 = Core.newGame(32, 3);
+  s2.tableau = empty7(); s2.waste = [];
+  s2.foundations = [[], [card(0, H)], [], []];
+  s2.stock = [card(5, C), card(1, H)];                // 2♥ 在牌堆里
+  assert(Core.apply(s2, { t: 'jk', fi: 1 }), '从 stock 召唤');
+  assert.strictEqual(s2.foundations[1][1], card(1, H));
+  assert.deepStrictEqual(s2.stock, [card(5, C)], '牌堆里那张被抽走(守恒,不复制)');
+
+  // ③ foundation 已满/牌不存在 ⇒ 拒绝
+  const s3 = Core.newGame(33, 3);
+  s3.tableau = empty7(); s3.stock = []; s3.waste = [];
+  s3.foundations = [Array.from({ length: 13 }, (_, r) => r * 4 + S), [], [], []];
+  assert.strictEqual(Core.apply(s3, { t: 'jk', fi: 0 }), null, '满门拒绝');
+  s3.foundations[1] = [];                             // 需要 A♥,但全场没有
+  assert.strictEqual(Core.apply(s3, { t: 'jk', fi: 1 }), null, '找不到目标牌拒绝');
+  console.log('test-klondike: 🃏 万能牌 jk OK');
+}

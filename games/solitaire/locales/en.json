@@ -179,6 +179,10 @@
     "ach_angels500": "Collect all 500 angels",
     "ach_streak7d": "Play the daily deal 7 days in a row",
     "ach_streak30d": "Play the daily deal 30 days in a row",
-    "ach_gold1": "Earn a gold monthly medal"
+    "ach_gold1": "Earn a gold monthly medal",
+    "rankTitle": "Deal leaderboard",
+    "rankYou": "You",
+    "jokerAd": "Stuck? Watch an ad — get a Joker",
+    "jokerReady": "Joker ready — tap 🃏 to summon the card you need"
   }
 }

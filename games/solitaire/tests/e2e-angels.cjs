@@ -60,7 +60,7 @@ async function click(page, action, dm){
     s.foundations=[0,1,2,3].map(fi=>Array.from({length:12},(_,r)=>r*4+fi));
     s.tableau=Array.from({length:7},()=>({cards:[],up:0}));
     [0,1,2,3].forEach(fi=>{ s.tableau[fi]={cards:[12*4+fi],up:1}; });
-    G.s=s; G.sel=null; G.phase='PLAY'; Prover.reset(); renderAll(); })()`);
+    G.s=s; G.sel=null; G.phase='PLAY'; Prover.reset(); FX.reset(); renderAll(); })()`);
   await click(page,'FINISH');
   await page.waitForTimeout(400);
   ok(await page.evaluate(()=>G.angels===1&&G.lastAngelGain===1), '⭐ 赢一局解锁 1 张（结算屏 👼+1）');
@@ -69,7 +69,7 @@ async function click(page, action, dm){
     s.foundations=[0,1,2,3].map(fi=>Array.from({length:12},(_,r)=>r*4+fi));
     s.tableau=Array.from({length:7},()=>({cards:[],up:0}));
     [0,1,2,3].forEach(fi=>{ s.tableau[fi]={cards:[12*4+fi],up:1}; });
-    G.s=s; G.sel=null; G.dailySeed=s.seed; G.phase='PLAY'; Prover.reset(); renderAll(); })()`);
+    G.s=s; G.sel=null; G.dailySeed=s.seed; G.phase='PLAY'; Prover.reset(); FX.reset(); renderAll(); })()`);
   await click(page,'FINISH');
   await page.waitForTimeout(400);
   ok(await page.evaluate(()=>G.angels===4&&G.lastAngelGain===3), '⭐ 每日挑战赢局解锁 3 张（1+2）');

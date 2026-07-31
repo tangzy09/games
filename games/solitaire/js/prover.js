@@ -22,6 +22,10 @@
         st.solMoves = e.data.solMoves || null;   // 「演 3 步」的弹药（解法头几步）
         st.ms = e.data.ms;
         if (root.Snd) root.Snd.verdict(st.result === 'solvable');
+        // 证明是死局 ⇒ 点亮 🃏 救场入口（诚实答案永远免费;救场是可选的额外出路）
+        if (st.result === 'dead' && root.G && root.G.s && root.G.s.mode !== 'freecell') {
+          root.G.jokerOffer = Date.now() + 15000;
+        }
         if (root.renderAll) root.renderAll();
       };
       worker.onerror = () => { st.phase = 'done'; st.result = 'unknown'; if (root.renderAll) root.renderAll(); };

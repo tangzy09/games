@@ -36,7 +36,7 @@
         stock: [], waste: [],                  // FreeCell 没有牌堆（留空，保持 state 形状统一）
         foundations: [[], [], [], []],
         moves: [], score: 0, recycles: 0, won: false,
-        usedUndo: false, usedHint: false, usedSolver: false,
+        usedUndo: false, usedHint: false, usedSolver: false, usedJoker: false,
       };
     }
     const d = Deal.klondike(seed);
@@ -56,6 +56,7 @@
       usedUndo: false,
       usedHint: false,
       usedSolver: false,                      // 用过「还有解吗？」
+      usedJoker: false,                       // 用过 🃏 万能牌（不算干净赢）
     };
   }
 
@@ -157,6 +158,34 @@
         to.up += moved.length;
         ev.push({ t: 'move', card, n: moved.length, to: { p: 't', i: m.tj } });
         flipIfNeeded(m.ti);
+        break;
+      }
+      case 'jk': {                              // 🃏 万能牌：把 foundation 需要的下一张**真牌**从
+        // 全场召唤过来（不复制 ⇒ 52 张守恒不破；只有 UI 走这步,solver 永不产生）。
+        // 确定性 ⇒ 撤销=重放、prover 复盘照常成立。⚠ 用过 = usedJoker,不算干净赢。
+        const f = s.foundations[m.fi];
+        if (f.length >= 13) return null;
+        const need = f.length * 4 + m.fi;       // rank = f.length, suit = fi
+        let src = null;
+        for (let ti = 0; ti < s.tableau.length && !src; ti++) {
+          const idx = s.tableau[ti].cards.indexOf(need);
+          if (idx >= 0) src = { p: 't', ti, idx };
+        }
+        if (!src) { const i = s.waste.indexOf(need); if (i >= 0) src = { p: 'w', i }; }
+        if (!src) { const i = s.stock.indexOf(need); if (i >= 0) src = { p: 's', i }; }
+        if (!src) return null;
+        if (src.p === 't') {
+          const col = s.tableau[src.ti];
+          const nDown = col.cards.length - col.up;
+          col.cards.splice(src.idx, 1);
+          if (src.idx >= nDown) col.up--;       // 抽走的是明牌才减 up；抽暗牌 up 不变
+          flipIfNeeded(src.ti);
+        } else if (src.p === 'w') s.waste.splice(src.i, 1);
+        else s.stock.splice(src.i, 1);
+        f.push(need);
+        s.usedJoker = true;
+        addScore(s, 10);
+        ev.push({ t: 'toFoundation', card: need, fi: m.fi });
         break;
       }
       case 'ft': {                              // foundation → tableau（取回）

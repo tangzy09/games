@@ -33,7 +33,9 @@
 
     function down(e) {
       const G = root.G;
-      if (!G || G.s.won || FX.busy()) return;
+      // ⚠ 只在**纸牌瀑布**时锁输入 —— 滑牌/过场动画期间照常可点
+      //   （原来锁 FX.busy()：发牌动画 1 秒内的点击全被吞，快手玩家会觉得「点不动」）
+      if (!G || G.s.won || FX.cascading()) return;
       const { x, y } = pos(e);
       downPos = { x, y };
       downAt = Date.now();

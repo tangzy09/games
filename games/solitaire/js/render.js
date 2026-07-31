@@ -870,6 +870,12 @@
       }
       const rsv = (P.result === 'dead' && P.deadFrom != null) ? 124 : (canDemo ? 108 : 0);
       addHit(L.playX + 8, L.proveY, L.playW - 16 - rsv, L.proveH, 'PROVE', {});
+    } else if (!fc && G.jokerOffer > Date.now() && G.jokers < 1 && !Money.noAds) {
+      // 🃏 真卡死（提示翻穿一圈也没步 / prover 判死局）⇒ 救场入口。
+      //   ⚠ 红线口径:救场与 snake 的「AI 救场看广告」同类;提示/撤销/证明本身永远免费。
+      fillRR(L.playX + 8, L.proveY, L.playW - 16, L.proveH, 10, 'rgba(255,216,77,0.22)');
+      txt('🃏 ' + T('sol.jokerAd'), L.cx, L.proveY + L.proveH / 2, '#ffd84d', 'bold 13px sans-serif');
+      addHit(L.playX + 8, L.proveY, L.playW - 16, L.proveH, 'JOKER_AD', {});
     } else if (Core.canAutoFinish(s)) {
       // ⭐ 稳赢收尾：全明牌 + 牌堆空 ⇒ 剩下的整理不用手磨,solver 播完直接接瀑布
       fillRR(L.playX + 8, L.proveY, L.playW - 16, L.proveH, 10, 'rgba(126,242,160,0.25)');
@@ -879,6 +885,14 @@
       fillRR(L.playX + 8, L.proveY, L.playW - 16, L.proveH, 10, 'rgba(255,255,255,0.14)');
       txt('🔍 ' + T('sol.prove'), L.cx, L.proveY + L.proveH / 2, '#fff', 'bold 14px sans-serif');
       addHit(L.playX + 8, L.proveY, L.playW - 16, L.proveH, 'PROVE', {});
+    }
+
+    // 🃏 已持有的万能牌：悬浮按钮（点一下召唤最缺的 foundation 牌）
+    if (!fc && G.jokers > 0 && !s.won) {
+      const jx = L.playX + L.playW - 8 - 52, jy = L.proveY - 50;
+      fillRR(jx, jy, 52, 42, 12, 'rgba(255,216,77,0.30)');
+      txt('🃏×' + G.jokers, jx + 26, jy + 21, '#ffd84d', 'bold 13px sans-serif');
+      addHit(jx, jy, 52, 42, 'JOKER_USE', {});
     }
 
     // ── 底部工具条（撤销 / 提示 / 自动收牌 / 新局）—— 全部免费，永远不看广告（DESIGN §7.4）──
@@ -912,13 +926,26 @@
       txt(T('sol.finalScore', { n: s.score }), L.cx, wy, '#ffd84d', 'bold 22px sans-serif'); wy += 26;
       txt(T('sol.timeMoves', { t: fmtTime(root.G.tAcc), m: s.moves.length }),
           L.cx, wy, PAL.sub, '11px sans-serif'); wy += 22;
-      const clean = !s.usedUndo && !s.usedHint;
+      const clean = !s.usedUndo && !s.usedHint && !s.usedJoker;
       txt(clean ? T('sol.cleanWin') : T('sol.withHelp'), L.cx, wy,
           clean ? '#7ef2a0' : PAL.sub, '13px sans-serif'); wy += 22;
       // 本次赢的金币（×2 翻倍后带 ✓）+ 新解锁的天使
       txt(T('sol.winCoins', { n: G.lastWinCoins || 0 }) + (G.winDoubled ? '  ×2 ✓' : '')
           + (G.lastAngelGain ? '   👼 +' + G.lastAngelGain : ''),
-          L.cx, wy, '#ffd84d', 'bold 13px sans-serif'); wy += 24;
+          L.cx, wy, '#ffd84d', 'bold 13px sans-serif'); wy += 22;
+      // 🏅 本局排行榜（预设对手,seed 确定性 —— 零后端伪社交,同一局全球同一组分数）
+      const rows2 = rivalScores(s.seed).concat([{ name: T('sol.rankYou'), ava: '⭐', score: s.score, you: 1 }])
+        .sort((a, b) => b.score - a.score);
+      txt(T('sol.rankTitle'), L.cx, wy, PAL.sub, 'bold 11px sans-serif'); wy += 16;
+      const lw = 210;
+      rows2.forEach((r, i) => {
+        const col = r.you ? '#7ef2a0' : 'rgba(255,255,255,0.75)';
+        txtL((i + 1) + '. ' + r.ava + ' ' + r.name, L.cx - lw / 2, wy, col,
+             (r.you ? 'bold ' : '') + '12px sans-serif');
+        txtR(String(r.score), L.cx + lw / 2, wy, col, (r.you ? 'bold ' : '') + '12px sans-serif');
+        wy += 17;
+      });
+      wy += 8;
       // ⭐ 每日挑战：盲打 AI 战绩对比（同一副牌、同样看不见暗牌 —— 它输你赢是真本事）
       if (G.dailySeed === s.seed && G.dailyAI && G.dailyAI.seed === s.seed) {
         const ai = G.dailyAI;
