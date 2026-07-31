@@ -16,10 +16,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `minesweeper` | 已上线 + App Store 送审。完整。 |
 | `snake` | **已上线 App Store**(Snake Angel: Retro Arcade)。完整 + 一轮大改良(爽感 FX/每日天使/星级/奖励关/转向缓冲/收集进度/减弱动态/本机 Flux 道具美术)。ASC 有 1.0.1 草稿(39 语言 + 改良)待出包。 |
 | `abyssshoot` | **被 4.3(a) 拒审后整改中**（2026-07-22 改名「Fish Cannon: Deep Sea Merge」+ 盘面去数字化）。玩法/美术/图鉴/道具/广告全备，线上 <https://fishshoot.ai-speeds.com>。 |
-| `blockblast` | **已提交 App Store 审核**（ASC 名「Cube Blast: Block Puzzle」）。8×8 消除拼图；卖点是**预生成块流**（出块序列落子前就定死、种子可查）。线上 <https://blocks.ai-speeds.com>。 |
-| `solitaire` | **P1 完成（Klondike 可玩 + 纸牌瀑布），未上线**。三合一纸牌；差异化 = **每局都存在解法且可验证**。⚠ 措辞是死线：可解率是「透视暗牌」意义下的，绝不能说成「你一定能赢」（见其 CLAUDE.md）。 |
-| `blockblast` | **已提交 App Store 审核**（ASC 名「Cube Blast: Block Puzzle」）。线上 <https://blocks.ai-speeds.com>。 |
-| `solitaire` | **已提交 App Store 审核**（ASC 名「Fair Deal: Patience & Cards」，Apple ID 6790861224）。Klondike 可解池 + FreeCell 微软局号 + 「这局还有解吗」证明器。线上 <https://cards.ai-speeds.com>。⚠ 商店名**不含 solitaire**（品牌差异化），但 keywords 里有（公有品类，合规）。 |
+| `blockblast` | **已提交 App Store 审核**（ASC 名「Cube Blast: Block Puzzle」）。8×8 消除拼图；卖点是**预生成块流**（出块序列落子前就定死、种子可查）。**1.0.1 改良已上线 web**（金币闭环/转场插屏四重护栏/结算统计/种子挑战，iOS 待出包）。线上 <https://blocks.ai-speeds.com>。 |
+| `solitaire` | **已提交 App Store 审核**（ASC 名「Fair Deal: Patience & Cards」，Apple ID 6790861224）。Klondike 可解池 + FreeCell 微软局号 + 「这局还有解吗」证明器。线上 <https://cards.ai-speeds.com>。⚠ 商店名**不含 solitaire**（品牌差异化），但 keywords 里有（公有品类，合规）。⚠ 措辞是死线：可解率是「透视暗牌」意义下的，绝不能说成「你一定能赢」（见其 CLAUDE.md）。 |
 | `bouncerogue` | **设计 v2 定稿（2026-07-18），零代码，下一个动工目标**。市场调研后骨架从实时 paddle 改为**竖屏回合制瞄准发射**（Ballz/Holedown 形态 × 合球化学 × 规则卡 × 种子可查），调研全文见其 `RESEARCH.md`。动工从 P1 走 writing-plans。 |
 
 ## 常用命令

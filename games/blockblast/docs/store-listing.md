@@ -74,3 +74,25 @@ AdMob 官方披露口径：勾 **Device ID**（Identifiers）、**Advertising Da
 
 - **T1+T2 全语言商店页**（代码里十语 UI 已有，缺的只是商店页文案）。每多一种语言 = 那个国家 App Store 里一份独立的 100 字关键词索引位 = 最大的免费自然流量。
 - `CFBundleLocalizations`：商品页「语言」栏只读**二进制**里的这个 key，不看商店页本地化。Capacitor 用 JS 切语言、包里没有 `.lproj` → 苹果默认只写「英语」。下次出包时在 CI 里 `plutil -replace CFBundleLocalizations` 补上真实十语。
+
+## 1.0.1 出包素材（2026-07-30 改良已上线 web，见 DESIGN §9.1；⚠ 出包/提交前必经批准）
+
+**What's New（en-US 草稿）**：
+
+> • Run stats at game over: longest streak, sweeps, and how close you came to your best
+> • Every endless run now earns coins — double them with an optional ad
+> • Two new skins: Neon Night & Sakura (buy with coins)
+> • Challenge a friend: share your seed — they get the exact same pieces
+> • Instant celebration the moment you break your record
+
+**What's New（zh-Hans 草稿）**：
+
+> • 结算页全新升级：最长连击、清扫次数、距最高分差距一目了然
+> • 无尽模式也产金币，可看广告翻倍（去广告用户直接双倍）
+> • 新增两套皮肤：霓虹之夜 & 樱花（金币购买）
+> • 挑战好友：分享种子链接，对方拿到一模一样的方块
+> • 破纪录瞬间即时庆祝
+
+**⚠ 审核备注必须同步更新**（上面 1.0 的备注写「Interstitials appear only after completing a level」，1.0.1 不再准确——照旧提交等于对审核员撒谎）。1.0.1 版草稿：
+
+> Ads: rewarded videos are always player-initiated (piece refresh / undo / coins / double-coins). Interstitials appear only after completing a level, or in the transition after the player taps "Play Again" following an endless run — never during play, never covering a game-over or failure screen, at most one per 3 wins/runs with a 2-minute minimum spacing, and none in the first 24 hours after install. A one-time IAP removes all interstitials.
