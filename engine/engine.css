@@ -25,8 +25,9 @@ canvas { display: block; touch-action: none; }
 
 #controls {
   position: fixed;
-  top: calc(8px + env(safe-area-inset-top));
-  right: calc(8px + env(safe-area-inset-right));
+  /* --sat/--sar 是**测试钩子**（headless 里 env() 恒 0，注入变量才能模拟刘海）；真机走 env */
+  top: calc(8px + var(--sat, env(safe-area-inset-top)));
+  right: calc(8px + var(--sar, env(safe-area-inset-right)));
   z-index: 20;
   display: flex; gap: 6px; align-items: center;
   padding: 5px 8px; border-radius: 18px;

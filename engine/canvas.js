@@ -9,7 +9,28 @@ let hitAreas = [];
 const T = (k, p) => I18N.t(k, p);
 
 // Screen metrics + safe areas (top control bar clearance).
-const GameGlobal = { SW: 0, SH: 0, safeTop: 44, safeBottom: 0 };
+// ⚠ ctrlH = 右上 DOM 控制栏（#controls：语言下拉等）的高度。它是 fixed 在
+//   `safeTop + 8` 处的**右上禁区**：canvas 在这一带画的东西会被它盖住、**且点不动**
+//   （solitaire 的「✓ 有解」角标、abyssshoot 的 Deepest/Coins 都实踩过）。
+//   ⇒ 右上要放 canvas 内容时，y 从 `safeTop + ctrlH + 8` 起，或整块左移避开。
+const GameGlobal = { SW: 0, SH: 0, safeTop: 44, safeBottom: 0, ctrlH: 34 };
+
+// ⚠ 刘海/灵动岛适配（2026-07-31 用户点名,全游戏铁律）:safeTop **不能写死**。
+//   iPhone X 类≈44/47/48,灵动岛机型(14/15/16 Pro)= **59** —— 写死 44 顶部会被压 15px。
+//   实测 env(safe-area-inset-top)(需 index.html viewport-fit=cover,全游戏已配),
+//   与 44 取大值:web/安卓 env=0 时保留 44 给引擎顶栏(#controls)让位。
+//   __forceSafeTop 是 E2E 模拟刘海用的测试钩子(headless 里 env 恒 0)。
+function measureSafeInset(prop) {
+  try {
+    const el = document.createElement('div');
+    el.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;pointer-events:none;'
+      + 'height:env(' + prop + ',0px);';
+    document.body.appendChild(el);
+    const h = el.getBoundingClientRect().height;
+    el.remove();
+    return h || 0;
+  } catch (e) { return 0; }
+}
 
 function initCanvas() {
   canvas = document.getElementById(CFG.canvasId);
@@ -22,6 +43,9 @@ function initCanvas() {
   ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
   GameGlobal.SW = W; GameGlobal.SH = H;
+  GameGlobal.safeTop = Math.max(44, Math.round(measureSafeInset('safe-area-inset-top')),
+                                GameGlobal.__forceSafeTop || 0);
+  GameGlobal.safeBottom = Math.round(measureSafeInset('safe-area-inset-bottom'));
 }
 
 // ── hit areas (tap targets rebuilt every frame) ──

@@ -74,6 +74,22 @@ ssh -i /c/Users/tangz/Documents/credentials/ec2_1.pem ec2-user@3.26.95.240 "sudo
 `git commit` / `git push` **不用问**；但把代码放到线上（EC2 pull、nginx 改配置等一切影响
 线上站点的动作）**必须先停下来问**。准备到位后报状态、等用户说部署。
 
+## ⛔ 刘海/灵动岛适配（所有游戏，2026-07-31 用户定的铁律）
+
+**任何机型的顶部内容都不许被刘海/灵动岛/状态栏压住。** 引擎已做好地基，游戏侧只需守两条：
+
+1. **canvas 内容一律从 `GameGlobal.safeTop` 起算**，⛔ 禁止写死 y 坐标（`y=46`）或纯比例
+   （`SH*0.145`）——灵动岛机型 safeTop=**59**（iPhone X 类 44/47/48），写死必被压。
+   `safeTop = max(44, env(safe-area-inset-top))`，`initCanvas()` 每次 resize 重测。
+2. **右上角是禁区**：引擎 DOM 控制栏（`#controls`，语言下拉）fixed 在 `safeTop+8`、高
+   `GameGlobal.ctrlH`(34)。canvas 在那一带画的东西会被盖住**且点不动**（solitaire 的
+   「✓ 有解」角标、abyssshoot 的 Deepest/Coins 都实踩过）⇒ 右上要放东西，y 从
+   `safeTop + ctrlH + 8` 起，或整块左移。
+
+**验收工具（改顶部布局后必跑）**：`node tools/shot-notch.cjs` —— 模拟 iPhone 15 Pro
+（safeTop=59，同时注入 `--sat` 让 DOM 顶栏也进入模拟），五个游戏各截一张、顶部叠红色
+灵动岛区，**红带里不该有任何内容**。产物 `C:/tmp/notch-check/*.png`。
+
 **两条部署铁律**：
 1. **改任何 js/css 必须 bump 缓存版本**：该游戏 index.html 里所有 `?v=N` 统一 +1。忘了 = 老玩家拿到新旧混装的 JS。
 2. **改 `G` 的形状必须 bump `SAVE_VERSION`**：旧存档一律丢弃不迁移，否则老玩家「恢复」成畸形状态（0×0 盘面 = 无报错白屏，新档案的 E2E 测不出来）。

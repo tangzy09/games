@@ -234,12 +234,16 @@ function drawKeyArt(cx, cy, size) {
 }
 
 function drawHome() {
-  const { SW, SH } = GameGlobal;
-  drawKeyArt(SW / 2, SH * 0.145, Math.min(SW * 0.52, SH * 0.21));
-  txt(T('home.title'), SW / 2, SH * 0.27, C.accent, 'bold 27px sans-serif');
+  const { SW, SH, safeTop } = GameGlobal;
+  // ⚠ 刘海/灵动岛：主视觉必须整体落在 safeTop 之下（写死 SH*0.145 在 15 Pro 上会被岛压住）
+  const artS = Math.min(SW * 0.52, SH * 0.21);
+  const artCy = Math.max(SH * 0.145, safeTop + artS / 2 + 8);
+  const shift = artCy - SH * 0.145;                 // 主视觉下移多少，标题/副标题跟着挪
+  drawKeyArt(SW / 2, artCy, artS);
+  txt(T('home.title'), SW / 2, SH * 0.27 + shift, C.accent, 'bold 27px sans-serif');
   ctx.font = '13px sans-serif';
   wrapLines(T('home.subtitle'), 290, 3).forEach((ln, k) =>
-    txt(ln, SW / 2, SH * 0.34 + k * 17, C.muted, '13px sans-serif'));
+    txt(ln, SW / 2, SH * 0.34 + shift + k * 17, C.muted, '13px sans-serif'));
   txt(`🏆 ${T('home.wins', { n: Meta.wins })}` + (Meta.streak > 0 ? `   🔥 ${Meta.streak}` : ''), SW / 2, SH * 0.43, C.purple, 'bold 13px sans-serif');
   const owned = BADGES.filter(b => Meta.badges.has(b));
   if (owned.length) txt(owned.map(b => T('badge.' + b + '.icon')).join(' '), SW / 2, SH * 0.47, C.text, '16px sans-serif');
@@ -272,11 +276,12 @@ function drawHelp() {
   drawDim('rgba(80,55,35,0.97)');
   const { SW, SH } = GameGlobal;
   const page = G.helpPage || 0, pages = 4;
-  txt(T('help.title') + `  ·  ${T('help.p' + (page + 1) + 't')}`, SW / 2, 46, '#ffe0b8', 'bold 19px sans-serif');
+  // ⚠ 刘海：标题原本写死 y=46，灵动岛机型(safeTop=59)会被压住
+  txt(T('help.title') + `  ·  ${T('help.p' + (page + 1) + 't')}`, SW / 2, GameGlobal.safeTop + 12, '#ffe0b8', 'bold 19px sans-serif');
   const lines = I18N.get('help.p' + (page + 1)) || [];
   const art = HELP_ART['p' + (page + 1)] || [];
   const AS = 40, textX = 26 + AS + 10, LH = 21;
-  let y = 86;
+  let y = GameGlobal.safeTop + 52;
   const w = SW - textX - 20;
   lines.forEach((par, k) => {
     const id = art[k];
@@ -310,14 +315,14 @@ function drawHelp() {
 function drawCodex() {
   drawDim('rgba(80,55,35,0.97)');
   const { SW, SH } = GameGlobal;
-  txt(T('codex.title'), SW / 2, 46, '#ffe0b8', 'bold 20px sans-serif');
+  txt(T('codex.title'), SW / 2, GameGlobal.safeTop + 12, '#ffe0b8', 'bold 20px sans-serif');   // ⚠ 刘海：不能写死 46
   const ids = Object.keys(MONSTERS);
   const PER = 6, pages = Math.ceil(ids.length / PER);
   const page = Math.min(G.codexPage || 0, pages - 1);
   const slice = ids.slice(page * PER, page * PER + PER);
   const cardH = Math.min(88, (SH - 200) / PER - 8), w = SW - 36;
   slice.forEach((id, k) => {
-    const y = 72 + k * (cardH + 8);
+    const y = GameGlobal.safeTop + 38 + k * (cardH + 8);
     fillRR(18, y, w, cardH, 14, 'rgba(255,250,240,0.97)');
     drawSprite(id, 18 + 30, y + cardH / 2, Math.min(52, cardH - 14), false, MONSTERS[id].icon, '30px sans-serif');
     txtL(T('mon.' + id + '.name'), 18 + 58, y + 20, C.text, 'bold 15px sans-serif');

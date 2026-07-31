@@ -44,7 +44,9 @@ function tileY(L, rows, i) {
 // 最下面再留一行道具栏(P2b-2)。
 function layout(s) {
   const { SW, SH, safeTop } = GameGlobal;
-  const hudY = safeTop + 8;
+  // ⚠ HUD 右半（Deepest/Coins）与引擎右上 DOM 控制栏同一带 ⇒ 必须让开它的高度，
+  //   否则被盖住（solitaire 早年同款坑：被压住的区域连点都点不动）。
+  const hudY = safeTop + 8 + GameGlobal.ctrlH;
   const hudH = 44;
   // 棋盘上方常驻留出「瞄准提示横幅」的高度(0.4 cell + 边距)——横幅**不能**画进棋盘里,
   // 否则会盖住第一排的鱼,而瞄准时你恰恰要看清每条鱼。空间常驻预留,避免开关道具时布局跳动。
