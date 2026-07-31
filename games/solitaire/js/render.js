@@ -128,10 +128,7 @@
     clearHits();
     const L = Layout.layout({ noBanner: true });
     const { SW, SH } = GameGlobal;
-    const tb = Sprite.tableStyle(Money.state.table);
-    const g = ctx.createLinearGradient(0, 0, 0, SH);
-    g.addColorStop(0, tb.a); g.addColorStop(1, tb.b);
-    ctx.fillStyle = g; ctx.fillRect(0, 0, SW, SH);
+    Sprite.drawTable(ctx, 0, 0, SW, SH, Money.state.table);
     txt(title, L.cx, GameGlobal.safeTop + 30, '#fff', 'bold 20px sans-serif');
     fillRR(L.cx - 70, SH - 70, 140, 44, 12, 'rgba(255,255,255,0.20)');
     txt('‹ ' + T('sol.back'), L.cx, SH - 48, '#fff', '14px sans-serif');
@@ -287,22 +284,25 @@
     const tabY2 = y;
     const tw = Math.floor((w - 18) / 4);
     Money.TABLES.forEach(function (it, i) {
-      const x = cx - w / 2 + i * (tw + 6);
+      // 每行 4 个，放不下换行（高级材质款加入后共 8 个）
+      const x = cx - w / 2 + (i % 4) * (tw + 6);
+      const ty = tabY2 + Math.floor(i / 4) * 60;
       const own = Money.owns('table', it.id);
       const on = Money.state.table === it.id;
-      const st = Sprite.tableStyle(it.id);
-      const gg = ctx.createLinearGradient(x, tabY2, x, tabY2 + 54);
-      gg.addColorStop(0, st.a); gg.addColorStop(1, st.b);
-      fillRR(x, tabY2, tw, 54, 7, gg);
+      // 图片款画真实材质小图（圆角 clip），渐变作占位/普通款
+      ctx.save();
+      Sprite.rr(ctx, x, ty, tw, 54, 7); ctx.clip();
+      Sprite.drawTable(ctx, x, ty, tw, 54, it.id);
+      ctx.restore();
       if (!own) {
-        fillRR(x, tabY2, tw, 54, 7, 'rgba(0,0,0,0.30)');
-        fillRR(x + tw / 2 - 17, tabY2 + 18, 34, 18, 9, 'rgba(0,0,0,0.75)');
-        txt(String(it.cost), x + tw / 2, tabY2 + 27, '#ffd84d', 'bold 11px sans-serif');
+        fillRR(x, ty, tw, 54, 7, 'rgba(0,0,0,0.30)');
+        fillRR(x + tw / 2 - 17, ty + 18, 34, 18, 9, 'rgba(0,0,0,0.75)');
+        txt(String(it.cost), x + tw / 2, ty + 27, '#ffd84d', 'bold 11px sans-serif');
       }
-      if (on) { ctx.strokeStyle = '#7ef2a0'; ctx.lineWidth = 3; Sprite.rr(ctx, x, tabY2, tw, 54, 7); ctx.stroke(); }
-      addHit(x, tabY2, tw, 54, 'PICK_TABLE', { id: it.id });
+      if (on) { ctx.strokeStyle = '#7ef2a0'; ctx.lineWidth = 3; Sprite.rr(ctx, x, ty, tw, 54, 7); ctx.stroke(); }
+      addHit(x, ty, tw, 54, 'PICK_TABLE', { id: it.id });
     });
-    y += 76;
+    y += Math.ceil(Money.TABLES.length / 4) * 60 + 16;
 
     // ⭐ 瀑布特效 —— 贴着产品灵魂的收藏品（瀑布是玩家记了三十年的画面）。
     //   也是收集曲线的后段：牌背+桌布几十局就毕业，激励视频的消耗端不能断（§7.2.1）。
@@ -327,7 +327,8 @@
     });
     y += 76;
 
-    if (!Money.noAds) {
+    // 小屏（SE 等）放不下这行 —— 菜单里有同款入口，不缺
+    if (!Money.noAds && GameGlobal.SH >= 760) {
       fillRR(cx - w / 2, y, w, 42, 10, 'rgba(255,255,255,0.14)');
       txt('▶ ' + T('sol.watchAd') + '  ' + T('sol.watchAdSub'), cx, y + 21, '#fff', '12px sans-serif');
       addHit(cx - w / 2, y, w, 42, 'EARN_AD', {});
@@ -520,10 +521,7 @@
 
     const { SW, SH } = GameGlobal;
     Sprite.setBack(Money.state.back);                     // 牌背（收藏品）
-    const tb = Sprite.tableStyle(Money.state.table);      // 桌布（收藏品）
-    const g = ctx.createLinearGradient(0, 0, 0, SH);
-    g.addColorStop(0, tb.a); g.addColorStop(1, tb.b);
-    ctx.fillStyle = g; ctx.fillRect(0, 0, SW, SH);
+    Sprite.drawTable(ctx, 0, 0, SW, SH, Money.state.table);   // 桌布（图片款 cover，渐变兜底）
 
     // ── 顶排 ──
     if (fc) {

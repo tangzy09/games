@@ -38,6 +38,10 @@ E2E：`npm run test:sol:exp`。⚠ 撤销=按 seed 重放 ⇒ **手搓的 G.s �
 ⛔ 插屏节奏**保持每 3 赢 1 个不动**：低胜率下≈每 10-20 局一个，是「广告克制」定位的弹药，
 别为了蚊子肉动它（红线测试在 e2e-p5p6）。
 
+**高级桌布（2026-07-31，同管线）**：`assets/tables/{walnut,bamboo,velvet,marble}.jpg`
+（540×960，`Sprite.drawTable` 全屏 cover + 商店小图共用；bamboo 原图太亮，后处理压暗到 55%——
+**桌布必须偏暗**，否则白牌/白字浮不出来）。
+
 **高级牌背（2026-07-31，本机 Flux 生成）**：`assets/backs/{koi,peacock,nebula,deco}.jpg`
 （360×512 JPG，comfyui-flux-local 管线，schnell 可商用）。sprite.js 里 `BACK_STYLES` 带
 `img:1` 的款式走图片（cover 裁切+圆角 clip），a/b 渐变是**加载兜底**；boot 里 `preloadBacks()` 预热。

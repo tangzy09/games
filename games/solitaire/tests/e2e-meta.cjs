@@ -118,6 +118,13 @@ const winState=`(()=>{ const s=Core.newGame(7,3);
      '⭐ 「锦鲤」买下并装备（收集曲线后段）');
   await page.waitForFunction(()=>Sprite.backReady('koi'),{timeout:5000});
   console.log('OK ⭐ 插画牌背图片加载完成（assets/backs/koi.jpg 经 http 真实拉取）');
+  // 高级桌布（Flux 材质）：买 → 装备 → 图片就绪 → 全屏背景换材质
+  ok(await click(page,'PICK_TABLE',{id:'walnut'}), '高级桌布可点');
+  await page.waitForTimeout(150);
+  ok(await page.evaluate(()=>Money.owns('table','walnut')&&Money.state.table==='walnut'),
+     '⭐ 「胡桃木」桌布买下并装备');
+  await page.waitForFunction(()=>Sprite.tableReady('walnut'),{timeout:5000});
+  console.log('OK ⭐ 材质桌布图片加载完成（assets/tables/walnut.jpg）');
   await page.evaluate(()=>dispatch('PLAY'));
   await page.waitForTimeout(250);
   await page.screenshot({path:path.join(SHOT,'p11-04-koi-back-table.png')});

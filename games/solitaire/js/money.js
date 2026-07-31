@@ -85,6 +85,11 @@
     { id: 'midnight', cost: 60 },
     { id: 'wood',    cost: 100 },
     { id: 'rose',    cost: 150 },
+    // ⭐ 高级材质款（本机 Flux，assets/tables/）
+    { id: 'walnut',  cost: 200 },
+    { id: 'bamboo',  cost: 260 },
+    { id: 'velvet',  cost: 340 },
+    { id: 'marble',  cost: 420 },
   ];
   // 瀑布特效（贴着产品灵魂的收藏品 —— 瀑布是玩家记了三十年的画面,比多一张牌背值钱）。
   // 定价比牌背高:它是收集曲线的后段,防止几十局就毕业、激励视频那条腿断掉(§7.2.1)。

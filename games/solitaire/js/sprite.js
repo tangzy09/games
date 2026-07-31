@@ -102,9 +102,10 @@
   /** 这个款式可以定稿绘制了吗（无图款式恒 true；商店预览靠它决定要不要缓存）*/
   const backReady = style => !(BACK_STYLES[style] && BACK_STYLES[style].img)
     || !!(backImgs[style] && backImgs[style].ok);
-  /** 预热全部图片牌背（boot 时调；总共几百 KB）*/
+  /** 预热全部图片素材（牌背 + 桌布，boot 时调；总共 <1MB）*/
   function preloadBacks() {
     for (const k of Object.keys(BACK_STYLES)) if (BACK_STYLES[k].img) backImg(k);
+    for (const k of Object.keys(TABLE_STYLES)) if (TABLE_STYLES[k].img) tableImg(k);
   }
 
   function makeBack(w, h, style) {
@@ -176,13 +177,55 @@
     return c;
   }
 
-  // 桌布（同上：收藏品）
+  // 桌布（同上：收藏品）。img:1 = 本机 Flux 材质图（assets/tables/<id>.jpg，540×960），
+  // a/b 渐变仍是加载兜底 + 商店小图占位。
   const TABLE_STYLES = {
     felt:     { a: '#0f6b3f', b: '#0a4f2e' },
     midnight: { a: '#1e293b', b: '#0f172a' },
     wood:     { a: '#6b4423', b: '#3d2412' },
     rose:     { a: '#7d2b4a', b: '#4a1229' },
+    walnut:   { a: '#4a2f1a', b: '#241407', img: 1 },
+    bamboo:   { a: '#6b4f1d', b: '#3a2a0e', img: 1 },
+    velvet:   { a: '#16255e', b: '#080d26', img: 1 },
+    marble:   { a: '#0c3330', b: '#04100f', img: 1 },
   };
+
+  const tableImgs = {};
+  function tableImg(style) {
+    const st = TABLE_STYLES[style];
+    if (!st || !st.img) return null;
+    let im = tableImgs[style];
+    if (!im) {
+      im = tableImgs[style] = new Image();
+      im.onload = () => {
+        im.ok = true;
+        if (root.renderAll && root.G && root.G.s) root.renderAll();   // 同牌背:守卫 G.s 就绪
+      };
+      im.src = 'assets/tables/' + style + '.jpg';
+    }
+    return im.ok ? im : null;
+  }
+  const tableReady = style => !(TABLE_STYLES[style] && TABLE_STYLES[style].img)
+    || !!(tableImgs[style] && tableImgs[style].ok);
+
+  /** 画桌布到任意矩形（全屏背景和商店小图共用）：图片款 cover 裁切，没到位/无图 ⇒ 渐变 */
+  function drawTable(g, x, y, w, h, style) {
+    const im = tableImg(style);
+    if (im) {
+      const sc = Math.max(w / im.width, h / im.height);
+      g.save();
+      g.beginPath(); g.rect(x, y, w, h); g.clip();
+      g.drawImage(im, x + (w - im.width * sc) / 2, y + (h - im.height * sc) / 2,
+                  im.width * sc, im.height * sc);
+      g.restore();
+      return;
+    }
+    const st = TABLE_STYLES[style] || TABLE_STYLES.felt;
+    const grad = g.createLinearGradient(x, y, x, y + h);
+    grad.addColorStop(0, st.a); grad.addColorStop(1, st.b);
+    g.fillStyle = grad;
+    g.fillRect(x, y, w, h);
+  }
 
   function rr(g, x, y, w, h, r) {
     g.beginPath();
@@ -222,6 +265,6 @@
   const tableStyle = id => TABLE_STYLES[id] || TABLE_STYLES.felt;
 
   root.Sprite = { ensure, face, back, setBack, backReady, preloadBacks,
-                  tableStyle, BACK_STYLES, TABLE_STYLES,
+                  tableStyle, tableReady, drawTable, BACK_STYLES, TABLE_STYLES,
                   suitColor, SUIT_SYM, RANK_STR, rr };
 })(typeof self !== 'undefined' ? self : this);
