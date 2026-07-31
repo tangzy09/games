@@ -14,7 +14,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | 目录 | 状态 |
 |---|---|
 | `minesweeper` | 已上线 + App Store 送审。完整。 |
-| `snake` | **已上线 App Store**(Snake Angel: Retro Arcade)。完整 + 一轮大改良(爽感 FX/每日天使/星级/奖励关/转向缓冲/收集进度/减弱动态/本机 Flux 道具美术)。ASC 有 1.0.1 草稿(39 语言 + 改良)待出包。 |
+| `snake` | **已上线 App Store**(Snake Angel: Retro Arcade)。完整 + 爽感 FX/每日天使/星级/奖励关/收集进度/本机 Flux 道具美术。**1.0.1 审核中**；**1.0.2 待出包 = 全仓元游戏对齐批**(插屏闸门 2 关→前50关免/每10关、每日任务、统计页、求好评、推送)。 |
 | `abyssshoot` | **被 4.3(a) 拒审后整改中**（2026-07-22 改名「Fish Cannon: Deep Sea Merge」+ 盘面去数字化）。玩法/美术/图鉴/道具/广告全备，线上 <https://fishshoot.ai-speeds.com>。 |
 | `blockblast` | **iOS 1.0 已上架（READY_FOR_SALE）**（ASC 名「Cube Blast: Block Puzzle」）。8×8 消除拼图；卖点是**预生成块流**（出块序列落子前就定死、种子可查）。**1.0.1 全量改良已上线 web、iOS 待出包**：30关3章/拼块水晶/天使画廊500张/天使榜/每日任务/连续奖励+补签/日历补玩/图鉴/16皮肤/统计/新广告模型（前50盘零插屏）/GC+推送+求好评+反馈（原生件）。线上 <https://blocks.ai-speeds.com>。 |
 | `solitaire` | **iOS 1.0 已上架 READY_FOR_SALE（2026-07-23 过审）**（ASC 名「Fair Deal: Patience & Cards」，Apple ID 6790861224）。**web 已迭代四轮改良（v26），iOS 待出新包**。Klondike 可解池 + FreeCell 微软局号 + 「这局还有解吗」证明器。线上 <https://cards.ai-speeds.com>。⚠ 商店名**不含 solitaire**（品牌差异化），但 keywords 里有（公有品类，合规）。⚠ 措辞是死线：可解率是「透视暗牌」意义下的，绝不能说成「你一定能赢」（见其 CLAUDE.md）。 |
@@ -49,9 +49,10 @@ node tools/check-locales.js games/<name>/locales
 | 引擎美术回退 | `engine/canvas.js` 的 `makeArt(dir,ids)` / `drawArtIcon` | 缺图自动回退矢量/emoji ⇒ **零改码换图**；生成素材见 `comfyui-flux-local` |
 | 十语 i18n | `engine/i18n.js` 默认集 + 各游戏 `locales/*.json` | 加语言 = **纯加 json**；`node tools/check-locales.js games/<name>/locales` 必 0 fail |
 | 广告闸门 / 激励视频 | 各游戏 `js/shop.js`（未抽取） | 参数与红线见 skill §1；blockblast 是最简闸门的参考实现 |
-| 原生三件套（推送/求好评/反馈） | `games/blockblast/js/{notify,rate,feedback}.js` | **三个文件都是 game-agnostic**（只依赖 `T()`/`CFG`/`Platform`），复制即用；反馈后端是共享 hub `feedback.ai-speeds.com`（CORS `*`，任何域可直连） |
+| 原生三件套（推送/求好评/反馈） | `games/blockblast/js/{notify,rate,feedback}.js`、`games/snake/js/{notify,rate}.js` | **三个文件都是 game-agnostic**（只依赖 `T()`/`CFG`/`Platform`），复制即用；反馈后端是共享 hub `feedback.ai-speeds.com`（CORS `*`，任何域可直连）。⚠ 已有**两份**实现 ⇒ **下一个游戏要接时先抽进 `engine/`**（drag.js 的老规矩：第三个用例出现才抽） |
+| 插屏闸门 / 每日任务 | `blockblast/js/{shop,quests}.js`、`snake/js/{adgate,quests}.js` | 同一套模型的两份实现（盘数计数口径不同：blockblast 按盘、snake 按关）；参数与红线见 `casual-game-meta` §1/§5.7 |
 
-**各游戏留存件覆盖（2026-07-31 实测）**：blockblast 全套 ✅ · solitaire/snake 大半 · **minesweeper/abyssshoot 几乎为零且只有 2 语**（补齐它们是全仓 ROI 最高的一块）。
+**各游戏留存件覆盖（2026-07-31 实测）**：blockblast 全套 ✅ · **snake 已对齐 ✅**（插屏闸门下调 + 每日任务 + 统计页 + 求好评 + 推送）· solitaire 大半 · **minesweeper/abyssshoot 几乎为零且只有 2 语**（现在它俩是全仓 ROI 最高的缺口）。
 
 ## 语言策略（所有游戏一律如此，第一版就要照办）
 
