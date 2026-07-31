@@ -58,9 +58,12 @@
   const CLEAN_BONUS = 15;                // 零撤销零提示赢 —— 奖励「真本事」
   const AD_COINS = 25;
 
+  /** 赢局发金币。返回本次发放量 —— 结算屏「看广告 ×2」按它翻倍（纯增益，不看也拿基础金币）*/
   function earnWin(cleanWin) {
-    state.coins += WIN_COINS + (cleanWin ? CLEAN_BONUS : 0);
+    const n = WIN_COINS + (cleanWin ? CLEAN_BONUS : 0);
+    state.coins += n;
     save();
+    return n;
   }
   function earnAd() { state.coins += AD_COINS; save(); }
 

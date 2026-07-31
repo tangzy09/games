@@ -26,6 +26,17 @@ E2E：`npm run test:sol:improve`。
 减弱动态开关（跳过瀑布/滑牌/浮字）/ 撤销反向滑牌 / 浮动加分 / 本局计时+步数（胜局屏+最快胜局统计，
 只累计 ≤30s 间隔）/ FreeCell supermove 容量角标 / 菜单每日日历（dailyHist 留 60 天）。
 E2E：`npm run test:sol:exp`。⚠ 撤销=按 seed 重放 ⇒ **手搓的 G.s 不可撤销**（测试里踩过）。
+
+**变现/留存包也已完成（2026-07-31，同批出包）**：
+赢局结算「金币 ×2」激励位（转化最高的位置；纯增益，noAds 用户不显示）/
+首 3 局必发 easy 池（首会话赢过≥1局强烈预测 D1）/
+每日连续天数（**打卡即续**，hist 值 1=来过 2=赢了，日历黄/绿两色）+ 月度奖牌
+（上月结算：全勤金/≥20银/≥10铜，按赢计，`G.badges` 永久）/
+成就系统 11 项（`ACHS` 在 main.js，全部由既有计数器驱动，达成发金币+toast；新计数器
+`stats.fcWon`/`stats.dailyWon`）。E2E：`npm run test:sol:meta`
+（⚠ web 端模拟激励视频走 `window.confirm`——Playwright 必须 `page.on('dialog', accept)`）。
+⛔ 插屏节奏**保持每 3 赢 1 个不动**：低胜率下≈每 10-20 局一个，是「广告克制」定位的弹药，
+别为了蚊子肉动它（红线测试在 e2e-p5p6）。
 **待办（需新出包 + TestFlight 验证）**：去广告 IAP 真接 StoreKit（3.1.2 四要素）、求好评弹窗（in-app-review 插件）。
 
 ⚠ **商店名里没有 `solitaire`，但 keywords 里有** —— 这不矛盾：

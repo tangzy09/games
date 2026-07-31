@@ -121,6 +121,22 @@
     "maxMove": "可搬 ≤{n}",
     "timeMoves": "{t} · {m} 步",
     "bestTime": "最快胜局",
-    "dailyMonth": "本月每日挑战：{n} 天 ✓"
+    "dailyMonth": "本月每日挑战：{n} 天 ✓",
+    "achievements": "成就",
+    "ach_firstWin": "首胜",
+    "ach_win10": "赢 10 局",
+    "ach_win50": "赢 50 局",
+    "ach_clean1": "首个干净胜局——零撤销零提示",
+    "ach_clean10": "10 个干净胜局",
+    "ach_streak3": "连胜 3 局",
+    "ach_streak5": "连胜 5 局",
+    "ach_fast": "3 分钟内取胜",
+    "ach_fc": "赢一局空当接龙",
+    "ach_daily7": "每日挑战赢 7 次",
+    "ach_collect6": "拥有 6 件收藏品",
+    "winCoins": "+{n} 金币",
+    "adX2": "金币 ×2",
+    "dailyStreak": "连续 {n} 天",
+    "monthMedals": "每日奖牌"
   }
 }

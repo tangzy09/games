@@ -149,12 +149,16 @@
     txt(T('sol.coins', { n: Money.coins }), cx, y, '#ffd84d', 'bold 15px sans-serif');
     y += 26;
 
-    // 每日挑战：完成过今天的就亮 ✓（成就感 + 明天再来的钩子）
+    // 每日挑战：完成过今天的就亮 ✓；连续 ≥2 天挂 🔥（打卡即续 —— 回访钩子）
     const d0 = new Date();
     const doneToday = root.G.dailyDone === ('' + d0.getFullYear() + (d0.getMonth() + 1) + d0.getDate());
+    const streak = dailyStreakDays();
+    const dailySub = (doneToday ? T('sol.dailyDone') : T('sol.dailySub'))
+      + (streak >= 2 ? '  🔥' + T('sol.dailyStreak', { n: streak }) : '');
     const items = [
-      ['📅 ' + T('sol.daily'), doneToday ? T('sol.dailyDone') : T('sol.dailySub'), 'DAILY'],
+      ['📅 ' + T('sol.daily'), dailySub, 'DAILY'],
       ['📊 ' + T('sol.stats'), '', 'STATS'],
+      ['🏆 ' + T('sol.achievements'), '', 'ACH'],
       ['🎴 ' + T('sol.collection'), '', 'SHOP'],
       ['⚖ ' + T('sol.fair'), T('sol.fairTitle'), 'FAIR'],
       ['⚙ ' + T('sol.settings'), '', 'SET'],
@@ -183,7 +187,9 @@
     for (let d = 1; d <= dim; d++) {
       const gx = cx - w / 2 + ((d - 1) % 7) * (cs + 6);
       const gy = y + Math.floor((d - 1) / 7) * (cs + 5);
-      fillRR(gx, gy, cs, cs, 4, hist[dayKey(d)] ? 'rgba(126,242,160,0.75)' : 'rgba(0,0,0,0.25)');
+      // 2=赢了(绿) 1=来打过(黄,连续天数认它) 0=没来
+      fillRR(gx, gy, cs, cs, 4, hist[dayKey(d)] >= 2 ? 'rgba(126,242,160,0.75)'
+                              : hist[dayKey(d)] ? 'rgba(255,216,77,0.45)' : 'rgba(0,0,0,0.25)');
       if (d === now.getDate()) {
         ctx.strokeStyle = '#ffd84d'; ctx.lineWidth = 2;
         Sprite.rr(ctx, gx, gy, cs, cs, 4); ctx.stroke();
@@ -221,6 +227,11 @@
       [T('sol.bestStreak'), String(st.bestStreak || 0)],
       [T('sol.bestTime'), st.bestTime ? fmtTime(st.bestTime) : '—'],
     ];
+    // 每日奖牌（月度全勤金/≥20银/≥10铜 —— 微软纸牌验证了十年的回访钩子）
+    const bd = root.G.badges || {};
+    const cnt = t => Object.values(bd).filter(x => x === t).length;
+    rows.push([T('sol.monthMedals'),
+      '🥇' + cnt('gold') + ' 🥈' + cnt('silver') + ' 🥉' + cnt('bronze')]);
     rows.forEach(function (r) {
       fillRR(cx - w / 2, y, w, 34, 8, 'rgba(0,0,0,0.24)');
       txtL(r[0], cx - w / 2 + 14, y + 17, PAL.sub, '12px sans-serif');
@@ -320,6 +331,26 @@
       txt('▶ ' + T('sol.watchAd') + '  ' + T('sol.watchAdSub'), cx, y + 21, '#fff', '12px sans-serif');
       addHit(cx - w / 2, y, w, 42, 'EARN_AD', {});
     }
+  }
+
+  /** 成就页：11 项里程碑，达成发金币（目标感 + 收集系统的供弹药）。ACHS 定义在 main.js */
+  function renderAch() {
+    const L = page(T('sol.achievements'));
+    const cx = L.cx, w = Math.min(L.playW - 40, 380);
+    let y = GameGlobal.safeTop + 58;
+    const got = root.G.ach || {};
+    const rowH = GameGlobal.SH >= 760 ? 34 : 28;
+    ACHS.forEach(function (a) {
+      const done = !!got[a.id];
+      fillRR(cx - w / 2, y, w, rowH, 8, done ? 'rgba(126,242,160,0.16)' : 'rgba(0,0,0,0.24)');
+      ctx.font = '12px sans-serif';
+      const name = wrapLines(T('sol.ach_' + a.id), w - 100, 1)[0];
+      txtL((done ? '🏆 ' : '🔒 ') + name, cx - w / 2 + 12, y + rowH / 2,
+           done ? '#7ef2a0' : PAL.sub, '12px sans-serif');
+      txtR(done ? '✓' : '+' + a.coins, cx + w / 2 - 12, y + rowH / 2,
+           done ? '#7ef2a0' : '#ffd84d', 'bold 12px sans-serif');
+      y += rowH + 6;
+    });
   }
 
   // 牌背预览（离屏缓存；⚠ 用完要把当前牌背还原，否则会污染牌桌）
@@ -475,6 +506,7 @@
     if (ph === 'FAIR') return renderFair();
     if (ph === 'MENU') return renderMenu();
     if (ph === 'STATS') return renderStats();
+    if (ph === 'ACH') return renderAch();
     if (ph === 'SHOP') return renderShop();
     clearHits();
     const G = root.G;
@@ -696,29 +728,43 @@
     // ── 赢局浮层 ──
     if (s.won && !FX.busy()) {
       drawDim('rgba(0,40,20,0.72)');
-      txt(T('sol.youWin'), L.cx, SH * 0.34, '#fff', 'bold 30px sans-serif');
-      txt(T('sol.finalScore', { n: s.score }), L.cx, SH * 0.42, '#ffd84d', 'bold 22px sans-serif');
+      let wy = SH * 0.28;
+      txt(T('sol.youWin'), L.cx, wy, '#fff', 'bold 30px sans-serif'); wy += 46;
+      txt(T('sol.finalScore', { n: s.score }), L.cx, wy, '#ffd84d', 'bold 22px sans-serif'); wy += 26;
       txt(T('sol.timeMoves', { t: fmtTime(root.G.tAcc), m: s.moves.length }),
-          L.cx, SH * 0.452, PAL.sub, '11px sans-serif');
+          L.cx, wy, PAL.sub, '11px sans-serif'); wy += 22;
       const clean = !s.usedUndo && !s.usedHint;
-      txt(clean ? T('sol.cleanWin') : T('sol.withHelp'), L.cx, SH * 0.48,
-          clean ? '#7ef2a0' : PAL.sub, '13px sans-serif');
+      txt(clean ? T('sol.cleanWin') : T('sol.withHelp'), L.cx, wy,
+          clean ? '#7ef2a0' : PAL.sub, '13px sans-serif'); wy += 22;
+      // 本次赢的金币（×2 翻倍后带 ✓）
+      txt(T('sol.winCoins', { n: G.lastWinCoins || 0 }) + (G.winDoubled ? '  ×2 ✓' : ''),
+          L.cx, wy, '#ffd84d', 'bold 13px sans-serif'); wy += 24;
       // ⭐ 每日挑战：盲打 AI 战绩对比（同一副牌、同样看不见暗牌 —— 它输你赢是真本事）
       if (G.dailySeed === s.seed && G.dailyAI && G.dailyAI.seed === s.seed) {
         const ai = G.dailyAI;
         const line = ai.won ? T('sol.dailyAiWon', { n: ai.moves, m: s.moves.length })
                             : T('sol.dailyAiLost');
         ctx.font = '12px sans-serif';
-        wrapLines(line, Math.min(L.playW - 40, 360), 2).forEach((ln, i) =>
-          txt(ln, L.cx, SH * 0.52 + i * 16, '#ffd84d', '12px sans-serif'));
+        const als = wrapLines(line, Math.min(L.playW - 40, 360), 2);
+        als.forEach((ln, i) => txt(ln, L.cx, wy + i * 16, '#ffd84d', '12px sans-serif'));
+        wy += als.length * 16 + 6;
       }
-      fillRR(L.cx - 90, SH * 0.56, 180, 48, 12, '#22c55e');
-      txt(T('sol.newGame'), L.cx, SH * 0.56 + 24, '#fff', 'bold 16px sans-serif');
-      addHit(L.cx - 90, SH * 0.56, 180, 48, 'NEW', {});
+      wy += 6;
+      fillRR(L.cx - 90, wy, 180, 48, 12, '#22c55e');
+      txt(T('sol.newGame'), L.cx, wy + 24, '#fff', 'bold 16px sans-serif');
+      addHit(L.cx - 90, wy, 180, 48, 'NEW', {});
+      wy += 56;
       // 挑战朋友：把刚赢的这局甩出去（同 seed 同规则,对面输了没得赖）
-      fillRR(L.cx - 90, SH * 0.56 + 56, 180, 40, 12, 'rgba(255,255,255,0.18)');
-      txt('📣 ' + T('sol.challenge'), L.cx, SH * 0.56 + 76, '#fff', '13px sans-serif');
-      addHit(L.cx - 90, SH * 0.56 + 56, 180, 40, 'SHARE', {});
+      fillRR(L.cx - 90, wy, 180, 40, 12, 'rgba(255,255,255,0.18)');
+      txt('📣 ' + T('sol.challenge'), L.cx, wy + 20, '#fff', '13px sans-serif');
+      addHit(L.cx - 90, wy, 180, 40, 'SHARE', {});
+      wy += 48;
+      // ⭐ 「金币 ×2」：转化最高的激励位（刚赢、瀑布刚放完）。纯增益；买了去广告的不打扰。
+      if (!Money.noAds && G.lastWinCoins > 0 && !G.winDoubled) {
+        fillRR(L.cx - 90, wy, 180, 40, 12, 'rgba(255,216,77,0.24)');
+        txt('▶ ' + T('sol.adX2') + ' (+' + G.lastWinCoins + ')', L.cx, wy + 20, '#ffd84d', 'bold 13px sans-serif');
+        addHit(L.cx - 90, wy, 180, 40, 'WIN_X2', {});
+      }
     }
     drawToast();
   }

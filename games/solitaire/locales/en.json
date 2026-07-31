@@ -121,6 +121,22 @@
     "maxMove": "move ≤{n}",
     "timeMoves": "{t} · {m} moves",
     "bestTime": "Fastest win",
-    "dailyMonth": "Daily deals this month: {n} ✓"
+    "dailyMonth": "Daily deals this month: {n} ✓",
+    "achievements": "Achievements",
+    "ach_firstWin": "First win",
+    "ach_win10": "10 wins",
+    "ach_win50": "50 wins",
+    "ach_clean1": "First clean win — no undo, no hints",
+    "ach_clean10": "10 clean wins",
+    "ach_streak3": "3-win streak",
+    "ach_streak5": "5-win streak",
+    "ach_fast": "Win in under 3 minutes",
+    "ach_fc": "Win a FreeCell deal",
+    "ach_daily7": "Win 7 daily deals",
+    "ach_collect6": "Own 6 collection items",
+    "winCoins": "+{n} coins",
+    "adX2": "Coins ×2",
+    "dailyStreak": "{n} days in a row",
+    "monthMedals": "Daily medals"
   }
 }

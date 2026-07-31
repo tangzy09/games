@@ -20,7 +20,11 @@ const G = window.G = {
   noAds: false,
   tAcc: 0,                 // 本局用时（ms，只累计两步操作间 ≤30s 的间隔——挂机不算）
   tLast: 0,
-  dailyHist: {},           // 每日挑战完成史 {YYYYMMDD:1}（菜单日历用，只留最近 60 条）
+  dailyHist: {},           // 每日挑战史 {YYYYMMDD: 1=来打过 2=赢了}（日历/连续天数用，只留最近 60 条）
+  badges: {},              // 每日挑战月度奖牌 {YYYYMM: 'gold'|'silver'|'bronze'|'none'}（永久）
+  ach: {},                 // 已解锁成就 {id:1}
+  lastWinCoins: 0,         // 上一次赢局发的金币（结算屏「×2」按它翻倍）
+  winDoubled: false,
   // ⚠ 双口径（DESIGN §4.5）：无限撤销会把总胜率架空 ⇒ 不分开记，统计就是假的
   stats: { played: 0, won: 0, cleanWon: 0, streak: 0, bestStreak: 0 },
   dailyDone: '',           // 今天的每日挑战完成了没（YYYYMMDD）
@@ -67,7 +71,8 @@ const saveOpts = () => {
   try {
     Platform.storage.set(K_OPT(), JSON.stringify({
       fourColor: G.fourColor, bigText: G.bigText, comfort: G.comfort, reduceFx: G.reduceFx,
-      difficulty: G.difficulty, dailyDone: G.dailyDone, dailyHist: G.dailyHist, seenIntro: G.seenIntro,
+      difficulty: G.difficulty, dailyDone: G.dailyDone, dailyHist: G.dailyHist,
+      badges: G.badges, ach: G.ach, seenIntro: G.seenIntro,
     }));
   } catch (e) {}
 };
@@ -78,7 +83,10 @@ function newGame(drawCount, mode) {
   // ⭐ Klondike：只发**已验证可解**的牌局（池里取）。
   //    FreeCell：**不需要池** —— 本来就 ~100% 可解（32000 局里只有 #11982 无解），
   //    直接用微软局号随机取一个（这样玩家可以对照经典局号）。
-  const pooled = md === 'freecell' ? null : Pool.pick(draw, G.difficulty || 'any');
+  // ⭐ 首 3 局必发 easy 池（盲打 AI 都能赢的局）：首次会话有没有赢过一局强烈预测 D1 留存。
+  //   之后回到玩家自选难度。
+  const wantDiff = G.stats.played < 3 ? 'easy' : (G.difficulty || 'any');
+  const pooled = md === 'freecell' ? null : Pool.pick(draw, wantDiff);
   const seed = md === 'freecell'
     ? (1 + Math.floor(Math.random() * 32000))
     : (pooled != null ? pooled : Deal.randomSeed());
@@ -215,15 +223,19 @@ function onWin() {
   saveStats();
   clearRun();
 
-  Money.earnWin(clean);                          // 金币（只能换外观，换不到任何优势）
+  if (s.mode === 'freecell') G.stats.fcWon = (G.stats.fcWon || 0) + 1;
+  G.lastWinCoins = Money.earnWin(clean);         // 金币（只能换外观，换不到任何优势）
+  G.winDoubled = false;
   if (G.dailySeed === s.seed) {
     G.dailyDone = todayId();
+    G.stats.dailyWon = (G.stats.dailyWon || 0) + 1;
     G.dailyHist = G.dailyHist || {};
-    G.dailyHist[todayId()] = 1;
+    G.dailyHist[todayId()] = 2;                  // 2 = 赢了（1 = 只是来打过）
     const ks = Object.keys(G.dailyHist);
     if (ks.length > 60) ks.sort().slice(0, ks.length - 60).forEach(k => delete G.dailyHist[k]);
     saveOpts();
   }
+  checkAchievements();
 
   // ⛔ 插屏**只在赢局后**出，且每 3 局最多 1 个。**输局永远不出** ——
   //    刚输完还甩一脸广告，是这个品类最招恨的做法（微软的「12 连播」就是这么臭掉的）。
@@ -378,6 +390,7 @@ function dispatch(action, data) {
     case 'INTRO_GO': G.phase = 'PLAY'; G.seenIntro = 1; saveOpts(); break;
     case 'INTRO_FAIR': G.phase = 'FAIR'; G.seenIntro = 1; saveOpts(); break;
     case 'STATS': G.phase = 'STATS'; break;
+    case 'ACH': G.phase = 'ACH'; break;
     case 'SHOP': G.phase = 'SHOP'; break;
     case 'SET': G.phase = 'SET'; break;
 
@@ -413,8 +426,13 @@ function dispatch(action, data) {
         G.s = Core.newGame(seed, G.s.drawCount, 'klondike');
         G.dailySeed = seed;
         G.drag = G.sel = G.hintMove = null;
+        G.tAcc = 0; G.tLast = Date.now();
         Prover.reset(); FX.reset(); clearRun();
         G.phase = 'PLAY';
+        // ⭐ 打卡即记（连续天数不要求赢 —— 「来」可控，「赢」不可控）
+        G.dailyHist = G.dailyHist || {};
+        G.dailyHist[todayId()] = Math.max(G.dailyHist[todayId()] || 0, 1);
+        saveOpts();
         // ⭐ 盲打 AI 打同一局（确定性、不透视、几十毫秒）——赢局结算时对比战绩。
         //   它就是公平页基线里那个 AI（js/ai-blind.js 与 sim-blind.js 同一份），不可作弊。
         G.dailyAI = null;
@@ -439,19 +457,32 @@ function dispatch(action, data) {
     case 'PICK_BACK': {
       const id = data.id;
       if (Money.owns('back', id)) Money.equip('back', id);
-      else Money.buy('back', id);
+      else if (Money.buy('back', id)) checkAchievements();
       break;
     }
     case 'PICK_TABLE': {
       const id = data.id;
       if (Money.owns('table', id)) Money.equip('table', id);
-      else Money.buy('table', id);
+      else if (Money.buy('table', id)) checkAchievements();
       break;
     }
     case 'PICK_FX': {
       const id = data.id;
       if (Money.owns('fx', id)) Money.equip('fx', id);
-      else Money.buy('fx', id);
+      else if (Money.buy('fx', id)) checkAchievements();
+      break;
+    }
+    // 赢局结算「金币 ×2」：转化最高的激励位（刚赢、情绪峰值）。纯增益：不看也拿基础金币。
+    case 'WIN_X2': {
+      if (G.winDoubled || !G.lastWinCoins || !s.won) break;
+      Ads.showRewarded().then(got => {
+        if (got && !G.winDoubled) {
+          G.winDoubled = true;
+          Money.state.coins += G.lastWinCoins;
+          Money.save();
+        }
+        renderAll();
+      });
       break;
     }
     // ⭐ 分享此局：牌局 = 一个 seed ⇒ 一条 URL 就是完整挑战（零后端）。
@@ -612,6 +643,58 @@ function undoAnim(m, oldS, newS) {
   }
 }
 
+// ══ 成就（全部从既有计数器算，达成发金币 —— 目标感 + 收集系统的供弹药）══
+const ACHS = [
+  { id: 'firstWin', coins: 20,  ok: () => G.stats.won >= 1 },
+  { id: 'win10',    coins: 50,  ok: () => G.stats.won >= 10 },
+  { id: 'win50',    coins: 100, ok: () => G.stats.won >= 50 },
+  { id: 'clean1',   coins: 30,  ok: () => G.stats.cleanWon >= 1 },
+  { id: 'clean10',  coins: 80,  ok: () => G.stats.cleanWon >= 10 },
+  { id: 'streak3',  coins: 40,  ok: () => (G.stats.bestStreak || 0) >= 3 },
+  { id: 'streak5',  coins: 80,  ok: () => (G.stats.bestStreak || 0) >= 5 },
+  { id: 'fast',     coins: 60,  ok: () => G.stats.bestTime > 0 && G.stats.bestTime < 180000 },
+  { id: 'fc',       coins: 30,  ok: () => (G.stats.fcWon || 0) >= 1 },
+  { id: 'daily7',   coins: 60,  ok: () => (G.stats.dailyWon || 0) >= 7 },
+  { id: 'collect6', coins: 50,
+    ok: () => Money.state.ownedBacks.length + Money.state.ownedTables.length + Money.state.ownedFx.length >= 6 },
+];
+function checkAchievements() {
+  G.ach = G.ach || {};
+  for (const a of ACHS) {
+    if (G.ach[a.id] || !a.ok()) continue;
+    G.ach[a.id] = 1;
+    Money.state.coins += a.coins; Money.save();
+    G.toast = { msg: '🏆 ' + T('sol.ach_' + a.id) + '  +' + a.coins, until: Date.now() + 2400 };
+    setTimeout(renderAll, 2500);
+  }
+  saveOpts();
+}
+
+/** 每日挑战连续天数：打卡即续（不要求赢 —— 回访动机要可控）。今天还没来则从昨天起算（未断）*/
+function dailyStreakDays() {
+  const hist = G.dailyHist || {};
+  const key = dt => '' + dt.getFullYear() + (dt.getMonth() + 1) + dt.getDate();
+  const d = new Date();
+  if (!hist[key(d)]) d.setDate(d.getDate() - 1);
+  let n = 0;
+  while (hist[key(d)]) { n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
+
+/** 上个月的每日挑战奖牌结算（一次性，boot 时跑）：全勤金 / ≥20 银 / ≥10 铜（按**赢**计，与日历同口径）*/
+function settleMonthBadges() {
+  const now = new Date();
+  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const ym = '' + prev.getFullYear() + (prev.getMonth() + 1);
+  G.badges = G.badges || {};
+  if (G.badges[ym] != null) return;
+  const dim = new Date(prev.getFullYear(), prev.getMonth() + 1, 0).getDate();
+  let won = 0;
+  for (let d = 1; d <= dim; d++) if ((G.dailyHist || {})[ym + d] >= 2) won++;
+  G.badges[ym] = won >= dim ? 'gold' : won >= 20 ? 'silver' : won >= 10 ? 'bronze' : 'none';
+  saveOpts();
+}
+
 /** 解析分享链接（#d1-N / #d3-N / #fc-N）。命中就消费掉 hash，返回 {mode, draw, seed} */
 function dealFromHash() {
   const m = /^#(d1|d3|fc)-(\d+)$/.exec(location.hash || '');
@@ -651,6 +734,7 @@ async function boot() {
 
   Money.load();
   G.noAds = Money.noAds;
+  settleMonthBadges();                                 // 上个月的每日奖牌（一次性结算）
   // ⭐ 横幅是**主力收入**（纸牌单次会话 10-15 分钟，曝光时长极高且不打断牌局）。
   //    布局已为它**预留**了 Layout.BANNER_H —— 它永远不会盖在牌上（变现红线 §7.4-5）。
   if (!Money.noAds) Ads.showBanner();
@@ -662,7 +746,11 @@ async function boot() {
   const resumed = linked ? null : loadRun();
   if (linked) { G.s = Core.newGame(linked.seed, linked.draw, linked.mode); clearRun(); }
   else if (resumed) G.s = resumed;
-  else { const sd = Pool.pick(3, 'any'); G.s = Core.newGame(sd != null ? sd : Deal.randomSeed(), 3); }
+  else {
+    // 新玩家的头几局也走 easy 池（与 newGame 的首 3 局规则同口径）
+    const sd = Pool.pick(3, G.stats.played < 3 ? 'easy' : 'any');
+    G.s = Core.newGame(sd != null ? sd : Deal.randomSeed(), 3);
+  }
 
   // ⭐ 第一次打开 → 先给首启一屏（App Store 4.3(a) 的主要防线：差异必须在头 5 秒撞到脸上）
   if (!G.seenIntro) G.phase = 'INTRO';

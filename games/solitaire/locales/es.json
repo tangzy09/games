@@ -121,6 +121,22 @@
     "maxMove": "mover ≤{n}",
     "timeMoves": "{t} · {m} jugadas",
     "bestTime": "Victoria más rápida",
-    "dailyMonth": "Partidas diarias este mes: {n} ✓"
+    "dailyMonth": "Partidas diarias este mes: {n} ✓",
+    "achievements": "Logros",
+    "ach_firstWin": "Primera victoria",
+    "ach_win10": "10 victorias",
+    "ach_win50": "50 victorias",
+    "ach_clean1": "Primera victoria limpia: sin deshacer ni pistas",
+    "ach_clean10": "10 victorias limpias",
+    "ach_streak3": "Racha de 3 victorias",
+    "ach_streak5": "Racha de 5 victorias",
+    "ach_fast": "Gana en menos de 3 minutos",
+    "ach_fc": "Gana una partida de FreeCell",
+    "ach_daily7": "Gana 7 partidas diarias",
+    "ach_collect6": "Posee 6 objetos de colección",
+    "winCoins": "+{n} monedas",
+    "adX2": "Monedas ×2",
+    "dailyStreak": "{n} días seguidos",
+    "monthMedals": "Medallas diarias"
   }
 }

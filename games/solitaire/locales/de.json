@@ -121,6 +121,22 @@
     "maxMove": "Stapel ≤{n}",
     "timeMoves": "{t} · {m} Züge",
     "bestTime": "Schnellster Sieg",
-    "dailyMonth": "Tagespartien diesen Monat: {n} ✓"
+    "dailyMonth": "Tagespartien diesen Monat: {n} ✓",
+    "achievements": "Erfolge",
+    "ach_firstWin": "Erster Sieg",
+    "ach_win10": "10 Siege",
+    "ach_win50": "50 Siege",
+    "ach_clean1": "Erster sauberer Sieg — ohne Zurücknehmen und Tipps",
+    "ach_clean10": "10 saubere Siege",
+    "ach_streak3": "3 Siege in Serie",
+    "ach_streak5": "5 Siege in Serie",
+    "ach_fast": "Sieg in unter 3 Minuten",
+    "ach_fc": "Gewinne eine FreeCell-Partie",
+    "ach_daily7": "Gewinne 7 Tagespartien",
+    "ach_collect6": "Besitze 6 Sammelstücke",
+    "winCoins": "+{n} Münzen",
+    "adX2": "Münzen ×2",
+    "dailyStreak": "{n} Tage in Folge",
+    "monthMedals": "Tages-Medaillen"
   }
 }

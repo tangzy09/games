@@ -121,6 +121,22 @@
     "maxMove": "移動 ≤{n}",
     "timeMoves": "{t}・{m} 手",
     "bestTime": "最速クリア",
-    "dailyMonth": "今月のデイリー: {n} 日 ✓"
+    "dailyMonth": "今月のデイリー: {n} 日 ✓",
+    "achievements": "実績",
+    "ach_firstWin": "初勝利",
+    "ach_win10": "10勝",
+    "ach_win50": "50勝",
+    "ach_clean1": "初のクリーン勝利——取り消し・ヒントなし",
+    "ach_clean10": "クリーン勝利 10回",
+    "ach_streak3": "3連勝",
+    "ach_streak5": "5連勝",
+    "ach_fast": "3分以内に勝利",
+    "ach_fc": "フリーセルで勝利",
+    "ach_daily7": "デイリーで7勝",
+    "ach_collect6": "コレクション6点所持",
+    "winCoins": "+{n} コイン",
+    "adX2": "コイン ×2",
+    "dailyStreak": "{n}日連続",
+    "monthMedals": "デイリーメダル"
   }
 }
