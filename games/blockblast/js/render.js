@@ -294,13 +294,16 @@
         T('blockblast.achProgress', { a: G.profile.unlocked.length, b: Achievements.total() }),
         cx, by2 + 52, PAL.sub, '12px sans-serif');
 
-    // 金币/商店 + 图鉴
-    fillRR(cx - 124, by2 + 64, 120, 32, 10, 'rgba(0,0,0,0.22)');
-    txt('\u{1FA99} ' + G.wallet.coins + '   \u002B', cx - 64, by2 + 80, PAL.accent, 'bold 13px sans-serif');
-    addHit(cx - 124, by2 + 64, 120, 32, 'PAGE_SHOP', {});
-    fillRR(cx + 4, by2 + 64, 120, 32, 10, 'rgba(0,0,0,0.22)');
-    txt('\u{1F48E} ' + T('blockblast.codex'), cx + 64, by2 + 80, PAL.accent, 'bold 12px sans-serif');
-    addHit(cx + 4, by2 + 64, 120, 32, 'PAGE_DEX', {});
+    // 金币/商店 + 水晶图鉴 + 天使图鉴
+    fillRR(cx - 125, by2 + 64, 78, 32, 10, 'rgba(0,0,0,0.22)');
+    txt('\u{1FA99} ' + G.wallet.coins + '   \u002B', cx - 86, by2 + 80, PAL.accent, 'bold 12px sans-serif');
+    addHit(cx - 125, by2 + 64, 78, 32, 'PAGE_SHOP', {});
+    fillRR(cx - 39, by2 + 64, 78, 32, 10, 'rgba(0,0,0,0.22)');
+    txt('\u{1F48E} ' + T('blockblast.codex'), cx, by2 + 80, PAL.accent, 'bold 11px sans-serif');
+    addHit(cx - 39, by2 + 64, 78, 32, 'PAGE_DEX', {});
+    fillRR(cx + 47, by2 + 64, 78, 32, 10, 'rgba(0,0,0,0.22)');
+    txt('\u{1F47C} ' + (G.wallet.angels | 0) + '/' + Shop.ANGELS.total, cx + 86, by2 + 80, PAL.accent, 'bold 10px sans-serif');
+    addHit(cx + 47, by2 + 64, 78, 32, 'PAGE_ANG', {});
   }
 
   /** 成就页 */
@@ -358,9 +361,13 @@
     txt(T('blockblast.stars', { n: stars }), cx, GameGlobal.safeTop + 54, PAL.sub, '13px sans-serif');
 
     txtR('\u{1FA99} ' + G.wallet.coins, L.playX + L.playW - 28, GameGlobal.safeTop + 54, PAL.accent, 'bold 13px sans-serif');
-    Themes.THEMES.forEach((t, i) => {
+    // 分页（16 套 = 3 页 × 6）
+    const PER = 6;
+    const pages = Math.max(1, Math.ceil(Themes.THEMES.length / PER));
+    const page = Math.max(0, Math.min(pages - 1, G.skinPage || 0));
+    Themes.THEMES.slice(page * PER, page * PER + PER).forEach((t, i) => {
       const y = GameGlobal.safeTop + 80 + i * 76;
-      const on = Themes.isUnlocked(t, stars, G.wallet.themes), cur = G.theme === t.id;
+      const on = Themes.isUnlocked(t, stars, G.wallet.themes, G.wallet.gamesPlayed), cur = G.theme === t.id;
       fillRR(L.playX + 14, y, L.playW - 28, 66, 12, cur ? 'rgba(255,255,255,0.26)' : 'rgba(0,0,0,0.20)');
       txtL(T('blockblast.theme.' + t.id), L.playX + 28, y + 20, on ? '#fff' : 'rgba(255,255,255,0.4)', 'bold 14px sans-serif');
       t.blocks.forEach((c, k) => { fillRR(L.playX + 28 + k * 22, y + 34, 18, 18, 4, c); });   // 色板预览
@@ -370,6 +377,10 @@
         txtR('\u{1FA99} ' + t.coins + '  ' + T('blockblast.buy'), L.playX + L.playW - 28, y + 20,
              afford ? PAL.accent : 'rgba(255,255,255,0.4)', 'bold 11px sans-serif');
         if (afford) addHit(L.playX + 14, y, L.playW - 28, 66, 'BUY_SKIN', { id: t.id });
+      } else if (!on && t.games != null) {
+        // 盘数皮肤：玩满 N 盘白送（进度直接写在行上）
+        txtR('\u{1F512} ' + T('blockblast.skinPlays', { a: Math.min(G.wallet.gamesPlayed | 0, t.games), b: t.games }),
+             L.playX + L.playW - 28, y + 20, PAL.sub, '11px sans-serif');
       } else if (!on) {
         txtR('\u{1F512} ' + T('blockblast.skinLocked', { n: t.stars }), L.playX + L.playW - 28, y + 20, PAL.sub, '11px sans-serif');
       } else if (cur) {
@@ -379,6 +390,20 @@
         addHit(L.playX + 14, y, L.playW - 28, 66, 'EQUIP', { id: t.id });
       }
     });
+    if (pages > 1) {
+      const py = GameGlobal.safeTop + 80 + PER * 76 + 8;
+      txt(`${page + 1} / ${pages}`, cx, py + 16, PAL.sub, '12px sans-serif');
+      if (page > 0) {
+        fillRR(cx - 110, py, 44, 32, 10, 'rgba(255,255,255,0.16)');
+        txt('‹', cx - 88, py + 16, '#fff', 'bold 16px sans-serif');
+        addHit(cx - 110, py, 44, 32, 'SKIN_PAGE', { d: -1 });
+      }
+      if (page < pages - 1) {
+        fillRR(cx + 66, py, 44, 32, 10, 'rgba(255,255,255,0.16)');
+        txt('›', cx + 88, py + 16, '#fff', 'bold 16px sans-serif');
+        addHit(cx + 66, py, 44, 32, 'SKIN_PAGE', { d: 1 });
+      }
+    }
     backButton();
   }
 
@@ -533,6 +558,87 @@
     backButton();
   }
 
+  // ── 天使图缓存（LRU 上限 64 张）：500 张全解码 ≈ 500MB，低端 WebView 会被杀 ──
+  const ANG_CACHE = new Map();
+  function angImg(i) {
+    const k = 'a' + String(i + 1).padStart(3, '0');
+    let im = ANG_CACHE.get(k);
+    if (!im) {
+      im = new Image();
+      im.src = 'assets/angels/' + k + '.webp';
+      im.onload = () => { if (typeof root.renderAll === 'function') root.renderAll(); };
+      ANG_CACHE.set(k, im);
+      if (ANG_CACHE.size > 64) ANG_CACHE.delete(ANG_CACHE.keys().next().value);   // 淘汰最老的
+    }
+    return im.complete && im.naturalWidth ? im : null;
+  }
+  function drawAngel(i, x, y, w, h, r) {
+    const im = angImg(i);
+    ctx.save();
+    roundRect(x, y, w, h, r);
+    ctx.clip();
+    if (im) ctx.drawImage(im, x, y, w, h);
+    else { ctx.fillStyle = 'rgba(255,255,255,0.10)'; ctx.fillRect(x, y, w, h); }
+    ctx.restore();
+    return !!im;
+  }
+
+  /** 天使图鉴（500 张收集，素材=「大头萌天使」词图）：网格分页 + 点开大图 */
+  function renderAngels() {
+    clearHits(); layout();
+    const { SW, SH } = GameGlobal, G = root.G, cx = L.cx;
+    const grad = ctx.createLinearGradient(0, 0, SW, SH);
+    grad.addColorStop(0, PAL.bg1); grad.addColorStop(1, PAL.bg2);
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, SW, SH);
+    const have = G.wallet.angels | 0, total = Shop.ANGELS.total;
+    txt('\u{1F47C} ' + T('blockblast.angels'), cx, GameGlobal.safeTop + 30, '#fff', 'bold 22px sans-serif');
+    txt(have + ' / ' + total, cx, GameGlobal.safeTop + 54, PAL.accent, 'bold 14px sans-serif');
+
+    const COLS = 4, ROWS = 6, PER = COLS * ROWS;
+    const pages = Math.ceil(total / PER);
+    const page = Math.max(0, Math.min(pages - 1, G.angPage || 0));
+    const cell = Math.min(86, (L.playW - 32) / COLS, (SH - GameGlobal.safeTop - 214) / ROWS);   // 矮屏也放得下
+    const gx = cx - (COLS * cell) / 2, gy = GameGlobal.safeTop + 72;
+    for (let k = 0; k < PER; k++) {
+      const idx0 = page * PER + k;
+      if (idx0 >= total) break;
+      const x = gx + (k % COLS) * cell, y = gy + Math.floor(k / COLS) * cell;
+      if (idx0 < have) {
+        drawAngel(idx0, x + 3, y + 3, cell - 6, cell - 6, 10);
+        addHit(x + 3, y + 3, cell - 6, cell - 6, 'ANG_VIEW', { i: idx0 });
+      } else {
+        fillRR(x + 3, y + 3, cell - 6, cell - 6, 10, 'rgba(0,0,0,0.22)');
+        txt('?', x + cell / 2, y + cell / 2, 'rgba(255,255,255,0.25)', 'bold 18px sans-serif');
+      }
+    }
+    const py = gy + ROWS * cell + 8;
+    txt(`${page + 1} / ${pages}`, cx, py + 16, PAL.sub, '12px sans-serif');
+    if (page > 0) {
+      fillRR(cx - 110, py, 44, 32, 10, 'rgba(255,255,255,0.16)');
+      txt('‹', cx - 88, py + 16, '#fff', 'bold 16px sans-serif');
+      addHit(cx - 110, py, 44, 32, 'ANG_PAGE', { d: -1 });
+    }
+    if (page < pages - 1) {
+      fillRR(cx + 66, py, 44, 32, 10, 'rgba(255,255,255,0.16)');
+      txt('›', cx + 88, py + 16, '#fff', 'bold 16px sans-serif');
+      addHit(cx + 66, py, 44, 32, 'ANG_PAGE', { d: 1 });
+    }
+    ctx.font = '11px sans-serif';
+    wrapLines(T('blockblast.angelHint'), L.playW - 60, 2)
+      .forEach((ln, i) => txt(ln, cx, py + 48 + i * 15, PAL.sub, '11px sans-serif'));
+    backButton();
+
+    // 大图查看：全屏遮罩 + 居中大图，点任意处关闭
+    if (G.angView >= 0 && G.angView < have) {
+      drawDim('rgba(10,5,25,0.88)');
+      const size = Math.min(L.playW - 48, SH * 0.5);
+      drawAngel(G.angView, cx - size / 2, SH * 0.5 - size / 2 - 20, size, size, 18);
+      txt('#' + (G.angView + 1), cx, SH * 0.5 + size / 2 + 8, PAL.accent, 'bold 14px sans-serif');
+      clearHits();                                     // 遮罩层只留一个「点哪都关」
+      addHit(0, 0, SW, SH, 'ANG_CLOSE', {});
+    }
+  }
+
   /** 设置页：下一手预览（关掉 = 硬核模式）/ 粒子特效（低端机、减弱动态）。
    *  声音开关在引擎的悬浮控件里（同一开关不另起一套）。*/
   function renderSettings() {
@@ -603,6 +709,7 @@
     if (G0.phase === 'SET') return renderSettings();
     if (G0.phase === 'CAL') return renderCal();
     if (G0.phase === 'DEX') return renderDex();
+    if (G0.phase === 'ANG') return renderAngels();
     clearHits();
     layout();
     const { SW, SH } = GameGlobal;
@@ -907,6 +1014,11 @@
             cx, SH * 0.50, PAL.sub, '13px sans-serif');
         txt(String(s.score), cx, SH * 0.555, '#ffe08a', 'bold 26px sans-serif');
         earnRow(G0, SH * 0.585);                     // 通关金币 + 看广告×2（正反馈时刻的自愿广告位）
+        if (G0.newAngels > 0) {
+          txt('\u{1F47C} +' + G0.newAngels + ' · ' + (G0.wallet.angels | 0) + '/' + Shop.ANGELS.total,
+              cx, SH * 0.628, PAL.accent, 'bold 11px sans-serif');
+          addHit(cx - 80, SH * 0.628 - 11, 160, 20, 'PAGE_ANG', {});
+        }
         fillRR(cx - 95, SH * 0.655, 190, 48, 14, '#22c55e');
         txt(T('blockblast.nextLevel'), cx, SH * 0.655 + 24, '#fff', 'bold 16px sans-serif');
         addHit(cx - 95, SH * 0.655, 190, 48, 'NEXT_LEVEL', {});
@@ -943,6 +1055,11 @@
       const sweeps = s.stats.sweeps + s.stats.deeps + s.stats.perfects;
       txt(T('blockblast.statLine', { a: s.stats.maxStreak, b: sweeps }), cx, SH * 0.54, PAL.sub, '12px sans-serif');
       earnRow(G, SH * 0.572);                        // 得分换金币 + 看广告×2（无尽原来零产出）
+      if (G.newAngels > 0) {                         // 本盘收集到的天使（点击进图鉴看）
+        txt('\u{1F47C} +' + G.newAngels + ' · ' + (G.wallet.angels | 0) + '/' + Shop.ANGELS.total,
+            cx, SH * 0.615, PAL.accent, 'bold 12px sans-serif');
+        addHit(cx - 80, SH * 0.615 - 12, 160, 22, 'PAGE_ANG', {});
+      }
       txt(T('blockblast.seed', { s: s.seed }), cx, SH * 0.638, 'rgba(255,255,255,0.45)', '11px sans-serif');
       // 种子挑战：同一条块流比分数 —— 只有「发牌不看棋盘」的游戏才能提供的分享
       fillRR(cx - 95, SH * 0.663, 190, 38, 12, 'rgba(255,255,255,0.16)');

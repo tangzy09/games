@@ -113,13 +113,21 @@ const ok = (c, m) => { if (!c) { console.error('✗ ' + m); process.exitCode = 1
     });
   }
 
-  let guard = 0;
-  while (guard++ < 60) {
-    const st = await page.evaluate(() => ({ over: G.s.over, won: G.s.won }));
-    if (st.over) break;
-    const mv = await bestMove();
-    if (!mv) break;
-    await dragSlotTo(mv.slot, mv.r, mv.c);
+  // 每次重开换新种子（免费重来是产品行为）：弱贪心 AI 在第 1 关约 1% 会撞上坏种子死掉，
+  // 单次尝试就是彩票测试（真踩响过 14 步死局）——最多三个种子。
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let guard = 0;
+    while (guard++ < 60) {
+      const st = await page.evaluate(() => ({ over: G.s.over, won: G.s.won }));
+      if (st.over) break;
+      const mv = await bestMove();
+      if (!mv) break;
+      await dragSlotTo(mv.slot, mv.r, mv.c);
+    }
+    const won = await page.evaluate(() => G.s.won);
+    if (won) break;
+    await page.evaluate(() => { G.overAnim = null; dispatch('RETRY_LEVEL'); });   // 免费重来 = 新种子
+    await page.waitForTimeout(200);
   }
   const res = await page.evaluate(() => ({
     won: G.s.won, over: G.s.over, turns: G.s.stats.turns,

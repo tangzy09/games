@@ -108,7 +108,17 @@
       "ocean": "Océano",
       "sunset": "Atardecer",
       "neon": "Noche de neón",
-      "sakura": "Sakura"
+      "sakura": "Sakura",
+      "lavender": "Lavanda",
+      "mint": "Menta",
+      "peach": "Melocotón",
+      "midnight": "Medianoche",
+      "coral": "Coral",
+      "ice": "Hielo",
+      "gold": "Oro",
+      "rose": "Rosa",
+      "grape": "Uva",
+      "slate": "Pizarra"
     },
     "coins": "{n}",
     "refresh": "Nuevas piezas",
@@ -165,6 +175,9 @@
     },
     "restore": "Restaurar compras",
     "leaderboards": "Clasificaciones",
-    "adPolicy": "Nuestra política de anuncios: cero interstitiales en tus primeras 50 partidas. Después, máximo uno cada 10 partidas — solo tras una victoria, nunca en medio del juego ni al perder."
+    "adPolicy": "Nuestra política de anuncios: cero interstitiales en tus primeras 50 partidas. Después, máximo uno cada 10 partidas — solo tras una victoria, nunca en medio del juego ni al perder.",
+    "angels": "Álbum de ángeles",
+    "angelHint": "Cada partida terminada colecciona un ángel; las victorias, dos. Toca cualquier ángel para verlo.",
+    "skinPlays": "{a}/{b} partidas"
   }
 }

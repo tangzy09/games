@@ -50,14 +50,22 @@ const Daily = require('../js/daily.js');
   assert.strictEqual(Themes.THEMES[0].stars, 0, '默认皮肤免费');
   assert(Themes.THEMES.every(t => /^#[0-9a-f]{6}$/i.test(t.bg1)), '颜色是合法 hex（不许有全角字符等脏数据）');
   assert(Themes.THEMES.every(t => t.blocks.length === 7 && t.blocks.every(c => /^#[0-9a-f]{6}$/i.test(c))));
-  assert.strictEqual(Themes.unlockedList(0).length, 1, '0 星只有默认皮肤');
+  assert.strictEqual(Themes.unlockedList(0).length, 1, '0 星 0 盘只有默认皮肤');
   assert(Themes.unlockedList(15).length >= 2, '15 星解锁第二套');
-  const starThemes = Themes.THEMES.filter(t => !t.coins);
+  const starThemes = Themes.THEMES.filter(t => !t.coins && t.games == null);
   assert.strictEqual(Themes.unlockedList(999).length, starThemes.length,
-    '星够多解锁全部**星星皮肤**（金币皮肤是另一条赛道，星星买不到）');
+    '星够多解锁全部**星星皮肤**（金币/盘数是另两条赛道）');
   const paidIds = Themes.THEMES.filter(t => t.coins).map(t => t.id);
-  assert.strictEqual(Themes.unlockedList(999, paidIds).length, Themes.THEMES.length,
-    '星星 + 已购列表 ⇒ 全解锁');
+  assert.strictEqual(Themes.unlockedList(999, paidIds, 999).length, Themes.THEMES.length,
+    '星星 + 已购 + 盘数 ⇒ 全解锁');
+  // 盘数皮肤（很容易收集）：2 盘就开第一套，阶梯全部 ≤40 盘
+  const gameThemes = Themes.THEMES.filter(t => t.games != null);
+  assert(gameThemes.length >= 10, `盘数皮肤 ≥10 套（现 ${gameThemes.length}）`);
+  assert(Math.min(...gameThemes.map(t => t.games)) <= 2, '最早 2 盘就开新皮肤');
+  assert(Math.max(...gameThemes.map(t => t.games)) <= 40, '最迟 40 盘全开（很容易收集）');
+  const gt = gameThemes[0];
+  assert(!Themes.isUnlocked(gt, 999, [], gt.games - 1), '差一盘不开');
+  assert(Themes.isUnlocked(gt, 0, [], gt.games), '盘数够就开（与星星/金币无关）');
   // ⚠ 主题里绝不能有随机/时间相关的东西（否则同一盘面每帧长得不一样 —— snake 实踩）
   // 只扫**真实代码**：注释里提到这些词是正常的（第一版这条断言就误伤了自己的注释）
   const raw = require('fs').readFileSync(require('path').join(__dirname, '../js/themes.js'), 'utf8');

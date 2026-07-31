@@ -108,7 +108,17 @@
       "ocean": "Ozean",
       "sunset": "Sonnenuntergang",
       "neon": "Neon-Nacht",
-      "sakura": "Sakura"
+      "sakura": "Sakura",
+      "lavender": "Lavendel",
+      "mint": "Minze",
+      "peach": "Pfirsich",
+      "midnight": "Mitternacht",
+      "coral": "Koralle",
+      "ice": "Eis",
+      "gold": "Gold",
+      "rose": "Rose",
+      "grape": "Traube",
+      "slate": "Schiefer"
     },
     "coins": "{n}",
     "refresh": "Neue Steine",
@@ -165,6 +175,9 @@
     },
     "restore": "Käufe wiederherstellen",
     "leaderboards": "Bestenlisten",
-    "adPolicy": "Unsere Werbe-Politik: null Interstitials in deinen ersten 50 Spielen. Danach höchstens eins alle 10 Spiele — nur nach einem Sieg, nie mitten im Spiel, nie bei einer Niederlage."
+    "adPolicy": "Unsere Werbe-Politik: null Interstitials in deinen ersten 50 Spielen. Danach höchstens eins alle 10 Spiele — nur nach einem Sieg, nie mitten im Spiel, nie bei einer Niederlage.",
+    "angels": "Engel-Album",
+    "angelHint": "Jedes beendete Spiel sammelt einen Engel, Siege zwei. Tippe auf einen Engel, um ihn anzusehen.",
+    "skinPlays": "{a}/{b} Spiele"
   }
 }

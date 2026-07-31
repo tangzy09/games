@@ -145,6 +145,21 @@ const Core = require('../js/core.js');
   console.log('test-shop: 章末宝箱 OK');
 }
 
+// ════════ 天使图收集：顺序发放、封顶 500、返回实际新增 ════════
+{
+  const w = Shop.emptyWallet();
+  assert.strictEqual(Shop.ANGELS.total, 500);
+  assert.strictEqual(Shop.earnAngels(w, 1), 1, '每盘 +1');
+  assert.strictEqual(Shop.earnAngels(w, 2), 2, '通关 +2');
+  assert.strictEqual(w.angels, 3);
+  w.angels = 499;
+  assert.strictEqual(Shop.earnAngels(w, 3), 1, '封顶 500：只发得出 1 张');
+  assert.strictEqual(w.angels, 500);
+  assert.strictEqual(Shop.earnAngels(w, 1), 0, '满了不再发');
+  assert.strictEqual(Shop.earnAngels(w, -5), 0, '负数不扣');
+  console.log('test-shop: 天使图收集 OK');
+}
+
 // ════════ 换一手：块流是预生成的 ⇒ 换手只是跳过，**换不出更合意的块** ════════
 {
   const s = Core.newGame(2024);

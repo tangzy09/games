@@ -24,6 +24,10 @@ const G = window.G = {
   recentPlaces: [],              // 最近 3 手的落子格（死亡回放用）
   hint: null,                    // FTUE 指引（第 1-2 关首步：{slot,r,c,piece}）
   achPage: 0,                    // 成就页当前页
+  skinPage: 0,                   // 皮肤页当前页
+  angPage: 0,                    // 天使图鉴当前页
+  angView: -1,                   // 天使大图查看（-1 = 关）
+  newAngels: 0,                  // 本盘新收集的天使数（结算页显示）
   chapter: 0,                    // 关卡地图当前章节（0 = 自动定位到进度所在章）
   animClock: 0,                  // 表现层脉冲时钟（心跳/指引/宽限警示共用）
 };
@@ -82,6 +86,7 @@ function resetRunUi() {
   G.overAnim = null;
   G.recentPlaces = [];
   G.hint = null;
+  G.newAngels = 0;
   FX.reset();
 }
 
@@ -310,6 +315,7 @@ function consume(events) {
       // ⛔ 插屏只在**通关结算**（正反馈时刻）出，且过总闸门（前 50 盘零插屏 / 每 10 盘至多 1 个 / ≥2min）。
       //    失败/局中永远不出。
       Shop.notePlayed(G.wallet);                  // 这一盘计入盘数
+      G.newAngels = Shop.earnAngels(G.wallet, 2); // 通关 = 收集 2 张天使图
       const show = Shop.canShowInterstitial(G.wallet);
       if (show) Shop.noteAdShown(G.wallet);
       saveWallet();
@@ -349,10 +355,12 @@ function consume(events) {
         if (earned > 0 && G.wallet.noAds) { Shop.earnDouble(G.wallet, earned); G.lastEarn = { n: earned * 2, doubled: true }; }
         else G.lastEarn = { n: earned, doubled: false };
         Shop.notePlayed(G.wallet);                     // 每完成一盘都计数（无尽/每日/挑战）
+        G.newAngels = Shop.earnAngels(G.wallet, 1 + (G.newBestRun ? 1 : 0));   // 每盘 +1，破纪录再 +1
         if (pure) GC.submit('endless', s.score);       // Game Center 无尽榜
         saveWallet();
       } else {
         Shop.notePlayed(G.wallet);                     // 关卡失败也是一盘（但失败永远不出广告）
+        G.newAngels = Shop.earnAngels(G.wallet, 1);    // 失败也收集 1 张（收集不惩罚失败）
         saveWallet();
         saveProfile();                                 // 图鉴收集数落盘
       }
@@ -474,13 +482,26 @@ function dispatch(action, data) {
       break;
     }
     case 'PAGE_DEX': G.phase = 'DEX'; break;
+    case 'PAGE_ANG': G.phase = 'ANG'; G.angView = -1; break;
+    case 'ANG_PAGE': {
+      const pages = Math.max(1, Math.ceil(Shop.ANGELS.total / 24));
+      G.angPage = Math.max(0, Math.min(pages - 1, G.angPage + data.d));
+      break;
+    }
+    case 'ANG_VIEW': G.angView = data.i; break;
+    case 'ANG_CLOSE': G.angView = -1; break;
+    case 'SKIN_PAGE': {
+      const pages = Math.max(1, Math.ceil(Themes.THEMES.length / 6));
+      G.skinPage = Math.max(0, Math.min(pages - 1, G.skinPage + data.d));
+      break;
+    }
     case 'PAGE_ACH': G.phase = 'ACH'; G.achPage = 0; break;
     case 'PAGE_SKIN': G.phase = 'SKIN'; break;
     case 'PAGE_FAIR': G.phase = 'FAIR'; break;
     case 'EQUIP': {
       const stars = Object.values(G.progress).reduce((a, v) => a + v, 0);
       const t = Themes.byId(data.id);
-      if (Themes.isUnlocked(t, stars, G.wallet.themes)) {   // 二次校验：不能靠伪造点击装上没解锁的皮肤
+      if (Themes.isUnlocked(t, stars, G.wallet.themes, G.wallet.gamesPlayed)) {   // 二次校验：不能伪造点击装上未解锁皮肤
         G.theme = t.id;
         Render.applyTheme(t.id);
         try { Platform.storage.set(K_THEME(), t.id); } catch (e) {}
@@ -608,7 +629,7 @@ async function boot() {
   G.items = Shop.newRunItems();
   const savedTheme = Platform.storage.get(K_THEME()) || 'candy';
   const stars0 = Object.values(G.progress).reduce((a, v) => a + v, 0);
-  G.theme = Themes.isUnlocked(Themes.byId(savedTheme), stars0, G.wallet.themes) ? savedTheme : 'candy';
+  G.theme = Themes.isUnlocked(Themes.byId(savedTheme), stars0, G.wallet.themes, G.wallet.gamesPlayed) ? savedTheme : 'candy';
   Render.applyTheme(G.theme);
   // ?seed= 好友挑战链接 → 直接开一局同种子（优先于恢复存档；不动无尽存档，退出后还能续）
   let qseed = null;

@@ -108,7 +108,17 @@
       "ocean": "Ocean",
       "sunset": "Sunset",
       "neon": "Neon Night",
-      "sakura": "Sakura"
+      "sakura": "Sakura",
+      "lavender": "Lavender",
+      "mint": "Mint",
+      "peach": "Peach",
+      "midnight": "Midnight",
+      "coral": "Coral",
+      "ice": "Ice",
+      "gold": "Gold",
+      "rose": "Rose",
+      "grape": "Grape",
+      "slate": "Slate"
     },
     "coins": "{n}",
     "refresh": "New Pieces",
@@ -165,6 +175,9 @@
     },
     "restore": "Restore Purchases",
     "leaderboards": "Leaderboards",
-    "adPolicy": "Our ad policy: zero interstitials for your first 50 games. After that, at most one every 10 games — only after a win, never mid-game, never on a loss."
+    "adPolicy": "Our ad policy: zero interstitials for your first 50 games. After that, at most one every 10 games — only after a win, never mid-game, never on a loss.",
+    "angels": "Angel Album",
+    "angelHint": "Every finished game collects an angel; wins collect two. Tap any angel to view it.",
+    "skinPlays": "{a}/{b} games"
   }
 }

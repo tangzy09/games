@@ -30,6 +30,11 @@
     minGapMs: 120 * 1000,      // 任意两个插屏至少隔 2 分钟
   };
 
+  // ── 天使图收集（500 张，素材=语言学习项目「大头萌天使」词图）──
+  //    发放节奏（很容易收集，长尾靠量）：每完成一盘 +1；通关 +2；破纪录额外 +1。
+  //    解锁是**顺序制**（第 n 张），钱包只存一个数 ⇒ 存档零膨胀。
+  const ANGELS = { total: 500 };
+
   const emptyWallet = () => ({
     coins: 50,                 // 开局送一点，让玩家第一次就能用得起道具
     noAds: false,              // 历史本地开关（IAP 已封存不接；留着 = 老用户继续免广告，不收回）
@@ -38,6 +43,7 @@
     lastAdAt: 0,               // 上一个插屏的时间戳
     themes: [],                // 已购皮肤 id（金币皮肤 —— 金币的消耗出口）
     chests: [],                // 已领的章末宝箱 id
+    angels: 0,                 // 天使图已收集张数（顺序解锁）
   });
 
   /** 本局的道具状态（每局重置）*/
@@ -139,6 +145,13 @@
     return true;
   }
 
+  /** 天使图发放。返回实际新增张数（封顶 500 后为 0）*/
+  function earnAngels(wallet, n) {
+    const before = wallet.angels | 0;
+    wallet.angels = Math.min(ANGELS.total, before + Math.max(0, n | 0));
+    return wallet.angels - before;
+  }
+
   /** 买金币皮肤（金币的消耗出口 —— 没有出口，「看广告领币」就是个死广告位）*/
   function buyTheme(wallet, theme) {
     if (!theme || !theme.coins) return false;
@@ -158,6 +171,7 @@
     endlessCoins, earnEndless, earnDouble,
     notePlayed, canShowInterstitial, noteAdShown,
     buyTheme, canClaimChest, claimChest,
+    ANGELS, earnAngels,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   else root.Shop = API;

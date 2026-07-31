@@ -169,6 +169,33 @@ async function clickAction(page, action) {
   });
   ok(setOk.flipped && setOk.persisted && setOk.fxSynced, '设置开关翻转 + 持久化 + FX.enabled 同步');
 
+  // ── 天使图鉴：每盘结束发放 + 图鉴页翻页 + 盘数皮肤解锁 ──
+  const ang = await page.evaluate(() => {
+    const a0 = G.wallet.angels | 0;
+    dispatch('NEW_RUN');
+    G.s.score = 300; G.s.over = true;
+    consume([{ t: 'over' }]);                      // 真实结算路径
+    G.overAnim = null;
+    const gained = (G.wallet.angels | 0) - a0;
+    dispatch('PAGE_ANG');
+    const phase = G.phase;
+    dispatch('ANG_PAGE', { d: 1 }); const p1 = G.angPage;
+    dispatch('ANG_PAGE', { d: -1 }); const p0 = G.angPage;
+    // 盘数皮肤：盘数够 lavender(2盘) 即解锁可装
+    G.wallet.gamesPlayed = 5;
+    dispatch('EQUIP', { id: 'lavender' });
+    const equipped = G.theme;
+    dispatch('MENU');
+    return { gained, phase, p1, p0, equipped };
+  });
+  ok(ang.gained >= 1, `一盘结束收集 ${ang.gained} 张天使（挂在真实结算路径上）`);
+  ok(ang.phase === 'ANG' && ang.p1 === 1 && ang.p0 === 0, '天使图鉴翻页 + 钳制 OK');
+  ok(ang.equipped === 'lavender', '盘数皮肤：玩满 2 盘即可装上');
+  await page.evaluate(() => { G.wallet.angels = 30; dispatch('PAGE_ANG'); });
+  await page.waitForTimeout(600);                  // 等图片加载
+  await page.screenshot({ path: path.join(SHOT_DIR, 'p3-09-angels.png') });
+  await page.evaluate(() => dispatch('MENU'));
+
   // ── 中文 ──
   await page.evaluate(() => I18N.setLang('zh-CN'));
   await page.waitForTimeout(250);
