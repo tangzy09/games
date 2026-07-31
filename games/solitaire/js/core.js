@@ -201,6 +201,38 @@
     return next;
   }
 
+  /**
+   * 双击（再点一下已选中的牌）⇒ 自动挑一个落点。
+   * 纯函数：只读 s，返回 move 或 null（没有可去的地方）。
+   * sel 形状同 UI 的 G.sel：{p:'w'} | {p:'c',ci} | {p:'t',ti,idx}。
+   * 优先级：foundation → 有牌的列 → 空列 → free cell。
+   *   空列排在有牌的列后面 —— 空列是稀缺资源，别被双击随手占掉；
+   *   free cell 只当兜底（FreeCell 经典双击行为），同理。
+   */
+  function autoDest(s, sel) {
+    const topIdx = ti => s.tableau[ti].cards.length - 1;
+    const match = m => {
+      if (sel.p === 'w') return m.t === 'wf' || m.t === 'wt';
+      if (sel.p === 'c') return (m.t === 'cf' || m.t === 'ct') && m.ci === sel.ci;
+      if (m.t === 'tf' || m.t === 'tc') return m.ti === sel.ti && sel.idx === topIdx(sel.ti);
+      if (m.t === 'tt') return m.ti === sel.ti && m.idx === sel.idx;
+      return false;
+    };
+    const rank = m => {
+      if (m.t === 'tf' || m.t === 'wf' || m.t === 'cf') return 0;
+      if (m.t === 'tc') return 3;
+      const tj = m.t === 'wt' ? m.ti : m.tj;      // ⚠ wt 的目标列字段叫 ti，不是 tj
+      return s.tableau[tj].cards.length ? 1 : 2;
+    };
+    let best = null, bestR = Infinity;
+    for (const m of rules(s).legalMoves(s)) {
+      if (!match(m)) continue;
+      const r = rank(m);
+      if (r < bestR) { best = m; bestR = r; }     // 同档取 legalMoves 的先后（列号小者）
+    }
+    return best;
+  }
+
   /** 一次 autoplay 能收的所有牌（安全判定见 rules.isSafeToAutoPlay）*/
   function autoPlayMoves(s) {
     const out = [];
@@ -225,7 +257,7 @@
     return out;
   }
 
-  const API = { SAVE_VERSION, newGame, apply, replay, undo, autoPlayMoves, addScore, rules };
+  const API = { SAVE_VERSION, newGame, apply, replay, undo, autoPlayMoves, autoDest, addScore, rules };
   if (isNode) module.exports = API;
   else root.Core = API;
 })(typeof self !== 'undefined' ? self : this);

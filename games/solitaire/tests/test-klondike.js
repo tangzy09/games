@@ -177,3 +177,78 @@ const S = 0, H = 1, C = 2, D = 3;
     '⭐ 整列的 K 搬到另一个空列 = 无意义空转，必须禁掉（否则 solver 会绕圈）');
   console.log('test-klondike: 禁止 K 空列空转 OK');
 }
+
+// ════════ 双击自动落点 autoDest（foundation → 有牌的列 → 空列 → free cell）════════
+{
+  const empty7 = () => Array.from({ length: 7 }, () => ({ cards: [], up: 0 }));
+
+  // ① foundation 优先：waste 顶 = A♠，即使 tableau 也有落点（红 2），也要送 foundation
+  const s1 = Core.newGame(11, 3);
+  s1.tableau = empty7();
+  s1.stock = []; s1.waste = [card(0, S)];
+  s1.tableau[0] = { cards: [card(1, H)], up: 1 };       // 2♥ 顶（A 也能落这，但不该选）
+  const m1 = Core.autoDest(s1, { p: 'w' });
+  assert(m1 && m1.t === 'wf' && m1.fi === S, '双击 waste 的 A ⇒ 送 foundation，不落 tableau');
+
+  // ② waste → tableau：6♥ 落到黑 7 上
+  const s2 = Core.newGame(11, 3);
+  s2.tableau = empty7();
+  s2.stock = []; s2.waste = [card(5, H)];
+  s2.tableau[2] = { cards: [card(6, S)], up: 1 };       // 7♠
+  const m2 = Core.autoDest(s2, { p: 'w' });
+  assert(m2 && m2.t === 'wt' && m2.ti === 2, '双击 waste ⇒ 自动落到黑 7 上');
+
+  // ③ tableau 序列 → tableau：9♥ 落到 10♠ 上（idx 精确匹配选中的那叠）
+  const s3 = Core.newGame(11, 3);
+  s3.tableau = empty7();
+  s3.stock = []; s3.waste = [];
+  s3.tableau[0] = { cards: [card(4, D), card(8, H)], up: 1 };   // 5♦(暗) + 9♥(明)
+  s3.tableau[1] = { cards: [card(9, S)], up: 1 };               // 10♠
+  const m3 = Core.autoDest(s3, { p: 't', ti: 0, idx: 1 });
+  assert(m3 && m3.t === 'tt' && m3.tj === 1 && m3.idx === 1, '双击牌叠 ⇒ 自动搬到 10♠ 上');
+
+  // ④ 顶牌能收就收：A♦ ⇒ foundation
+  const s4 = Core.newGame(11, 3);
+  s4.tableau = empty7();
+  s4.stock = []; s4.waste = [];
+  s4.tableau[0] = { cards: [card(0, D)], up: 1 };
+  const m4 = Core.autoDest(s4, { p: 't', ti: 0, idx: 0 });
+  assert(m4 && m4.t === 'tf' && m4.fi === D, '双击顶牌 A ⇒ 收进 foundation');
+
+  // ⑤ 没有可去的地方 ⇒ null（8♠ 没有红 9 可落、进不了 foundation、空列只收 K）
+  const s5 = Core.newGame(11, 3);
+  s5.tableau = empty7();
+  s5.stock = []; s5.waste = [card(7, S)];
+  assert.strictEqual(Core.autoDest(s5, { p: 'w' }), null, '无处可去 ⇒ null（UI 当作取消选中）');
+  console.log('test-klondike: autoDest（Klondike）OK');
+}
+
+// ════════ 双击自动落点 autoDest（FreeCell：空列/free cell 只当兜底）════════
+{
+  const filler = i => card(2 + (i % 3), [S, H, C, D][i % 4]);   // 3..5 各花色，凑非空列
+
+  // ① 有牌的列优先于空列，空列优先于 free cell：7♦ 该落 8♠，不占空列、不进格子
+  const f1 = Core.newGame(1, 3, 'freecell');
+  f1.tableau = Array.from({ length: 8 }, (_, i) => ({ cards: [filler(i)], up: 1 }));
+  f1.tableau[0] = { cards: [card(6, D)], up: 1 };       // 7♦
+  f1.tableau[1] = { cards: [card(7, S)], up: 1 };       // 8♠
+  f1.tableau[2] = { cards: [], up: 0 };                 // 空列（FreeCell 空列收任何牌）
+  const n1 = Core.autoDest(f1, { p: 't', ti: 0, idx: 0 });
+  assert(n1 && n1.t === 'tt' && n1.tj === 1, '有牌的列 > 空列 > free cell');
+
+  // ② tableau 无处可去、也无空列 ⇒ free cell 兜底（经典 FreeCell 双击行为）
+  const f2 = Core.newGame(1, 3, 'freecell');
+  f2.tableau = Array.from({ length: 8 }, (_, i) => ({ cards: [filler(i)], up: 1 }));
+  f2.tableau[0] = { cards: [card(6, D)], up: 1 };       // 7♦，没有黑 8
+  const n2 = Core.autoDest(f2, { p: 't', ti: 0, idx: 0 });
+  assert(n2 && n2.t === 'tc' && n2.ti === 0, '实在没处去 ⇒ 进 free cell');
+
+  // ③ free cell 里的 A 双击 ⇒ 收 foundation（cf 优先于 ct）
+  const f3 = Core.newGame(1, 3, 'freecell');
+  f3.tableau = Array.from({ length: 8 }, (_, i) => ({ cards: [filler(i)], up: 1 }));
+  f3.tableau[3] = { cards: [card(1, S)], up: 1 };       // 2♠（A♥ 本也能落黑 2 上）
+  f3.free = [null, card(0, H), null, null];
+  const n3 = Core.autoDest(f3, { p: 'c', ci: 1 });
+  assert(n3 && n3.t === 'cf' && n3.ci === 1 && n3.fi === H, '格子里的 A ⇒ 收 foundation');
+  console.log('test-klondike: autoDest（FreeCell）OK');
+}

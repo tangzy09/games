@@ -213,6 +213,16 @@ function onTap(hit, cardHit) {
     return;
   }
 
+  // 双击 = 再点一下已选中的牌 ⇒ 自动送到可去的地方（foundation → 有牌的列 → 空列 → free cell）。
+  // ⚠ 判据是「点的还是它」而不是两击间隔 —— 65+ 手抖用户吃不住 250ms 计时窗（DESIGN §7.5）。
+  //   取消选中 = 点空白处（onTap 开头的 !hit 分支），不受影响。
+  if (G.sel && sameAsSel(hit)) {
+    const m = Core.autoDest(s, G.sel);
+    if (m && doMove(m)) return;
+    G.sel = null;                              // 没有可去的地方 ⇒ 当作取消选中
+    return renderAll();
+  }
+
   // 已有选中 ⇒ 这一下是「落点」
   if (G.sel) {
     const m = buildMove(G.sel, hit);
@@ -246,6 +256,15 @@ function onTap(hit, cardHit) {
     G.sel = { p: 't', ti, idx };
   }
   renderAll();
+}
+
+/** 这一下点的就是当前选中的那张牌？（双击判定）*/
+function sameAsSel(hit) {
+  const sel = G.sel;
+  if (hit.action === 'WASTE') return sel.p === 'w';
+  if (hit.action === 'CELL') return sel.p === 'c' && hit.data.ci === sel.ci;
+  if (hit.action === 'TAB') return sel.p === 't' && hit.data.ti === sel.ti && hit.data.idx === sel.idx;
+  return false;
 }
 
 /** 从「选中 + 落点」构造一个 move */
