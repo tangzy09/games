@@ -97,10 +97,39 @@ function expectWinner(moves, who, label) {
   console.log('test-bitboard: play 是纯函数 OK');
 }
 
+// ⚠ 表示法不变量（绕回 / 列间串线）这两节**故意排在下面的 C1 之前**：
+//   C1 那个局面碰巧也是个绕回探针，会把绕回的错抢先判成「前提断言挂了」，
+//   让人跑去怀疑局面写错，而不是去看 hasFourMasks。归因优先级：先怪表示法，再怪守卫。
+
+// ════════ ⭐ 绝不许从棋盘一侧「绕回」另一侧（表示法不变量）════════
+// ⚠ 这几条要真有牙，先手就必须**占满 4 个绕回后才相邻的格子**——只占 c0/c6 两列是空转的
+//    （绕回四连要 4 个连续列，两列怎么都凑不齐，任何实现都判 null，抓不到东西）。
+{
+  // (a) 同一行的 c5,c6,c0,c1：任何「列号按 7 取模/循环移位」的实现都会把它看成四连。
+  expectWinner([0, 2, 1, 3, 5, 4, 6], null, '绕回：行0 的 c5,c6,c0,c1 不许成四连');
+  // (b) (5,0)(6,0)(0,1)(1,1)：若按**行主序**打包（index = r*W+c，横向移位 1），
+  //     这四格恰是连续的 bit 5/6/7/8，横向检查会从行尾绕到下一行行首。
+  // (a) 与 (b) 打的是**不同**的表示法陷阱，各自单独验过能杀掉对应的绕回变异体，别删任何一条。
+  expectWinner([5, 0, 6, 1, 0, 3, 1], null, '绕回：行主序下 (5,0)(6,0)(0,1)(1,1) 不许成四连');
+  console.log('test-bitboard: 不许绕回边缘 OK');
+}
+
+// ════════ ⭐ 列与列之间不许竖向串起来（针对「42 位连续打包」表示法的经典陷阱）════════
+// 先手同时占 (5,5) 与 (6,0)(6,1)(6,2)。若按「每列 6 位连续打包、无哨兵行」存，
+// 这四格恰好是连续的 bit 35/36/37/38，v&(v>>1)&(v>>2)&(v>>3) 会假报竖四连。
+// 每列一个独立掩码 ⇒ 结构性不可能。（局面由 DFS 搜出，全程无人成四）
+expectWinner(
+  [6, 4, 4, 4, 3, 0, 1, 4, 1, 4, 6, 3, 2, 1, 4, 0, 3, 3, 3, 3, 1, 5, 6, 1, 5, 5, 5, 6, 1, 2, 0, 6, 5, 2, 6, 0, 5],
+  null, 'c5 顶格 + c6 底三格不许被串成竖四连');
+console.log('test-bitboard: 列间不串竖线 OK');
+
 // ════════ ⭐ play 必须校验合法性（否则会造出「第 7 行的幽灵子」并被判成竖四连）════════
 {
   // c0 已满：先手占 r3,r4,r5（三连），后手占 r0,r1,r2，轮到先手。
   // 不校验的话 play(bd,0) 会写进不存在的第 7 行，凑成 bit 3/4/5/6 的假竖四连。
+  // ⚠ 顺带说明：这个局面**碰巧**也是个绕回探针（后手占 c4,c5,c6 的行0 + c0 的行0-2，
+  //   绕回实现下会误判后手赢），所以下面那条 winner===null 的前提断言也守着绕回。
+  //   将来换局面时别把这层附带覆盖悄悄弄没了——但真正负责绕回的是上面那一节。
   const bd = B.fromMoves([1, 0, 2, 0, 3, 0, 0, 4, 0, 5, 0, 6]);
   assert.strictEqual(bd.h[0], 6, '前提：c0 已满');
   assert.strictEqual(bd.turn, 0, '前提：轮到先手');
@@ -156,27 +185,6 @@ console.log('test-bitboard: 斜↗ 四连 OK');
 // 先手占 (3,0)(2,1)(1,2)(0,3)
 expectWinner([3, 2, 2, 1, 1, 0, 1, 0, 0, 6, 0], 0, '斜↘ (0,3)(1,2)(2,1)(3,0)');
 console.log('test-bitboard: 斜↘ 四连 OK');
-
-// ════════ ⭐ 绝不许从棋盘一侧「绕回」另一侧（表示法不变量）════════
-// ⚠ 这几条要真有牙，先手就必须**占满 4 个绕回后才相邻的格子**——只占 c0/c6 两列是空转的
-//    （绕回四连要 4 个连续列，两列怎么都凑不齐，任何实现都判 null，抓不到东西）。
-{
-  // (a) 同一行的 c5,c6,c0,c1：任何「列号按 7 取模/循环移位」的实现都会把它看成四连。
-  expectWinner([0, 2, 1, 3, 5, 4, 6], null, '绕回：行0 的 c5,c6,c0,c1 不许成四连');
-  // (b) (5,0)(6,0)(0,1)(1,1)：若按**行主序**打包（index = r*W+c，横向移位 1），
-  //     这四格恰是连续的 bit 5/6/7/8，横向检查会从行尾绕到下一行行首。
-  expectWinner([5, 0, 6, 1, 0, 3, 1], null, '绕回：行主序下 (5,0)(6,0)(0,1)(1,1) 不许成四连');
-  console.log('test-bitboard: 不许绕回边缘 OK');
-}
-
-// ════════ ⭐ 列与列之间不许竖向串起来（针对「42 位连续打包」表示法的经典陷阱）════════
-// 先手同时占 (5,5) 与 (6,0)(6,1)(6,2)。若按「每列 6 位连续打包、无哨兵行」存，
-// 这四格恰好是连续的 bit 35/36/37/38，v&(v>>1)&(v>>2)&(v>>3) 会假报竖四连。
-// 每列一个独立掩码 ⇒ 结构性不可能。（局面由 DFS 搜出，全程无人成四）
-expectWinner(
-  [6, 4, 4, 4, 3, 0, 1, 4, 1, 4, 6, 3, 2, 1, 4, 0, 3, 3, 3, 3, 1, 5, 6, 1, 5, 5, 5, 6, 1, 2, 0, 6, 5, 2, 6, 0, 5],
-  null, 'c5 顶格 + c6 底三格不许被串成竖四连');
-console.log('test-bitboard: 列间不串竖线 OK');
 
 // ════════ 三连不算赢 ════════
 expectWinner([3, 4, 3, 4, 3], null, '三连不算赢');
@@ -238,7 +246,19 @@ const DRAW_MOVES = [3, 5, 5, 1, 6, 3, 2, 5, 1, 3, 5, 4, 4, 4, 2, 6, 5, 4, 6, 3, 
   assert.throws(() => B.fromMoves([0, 0, 0, 0, 0, 0, 0]), /列 0/, '第 7 次落满列必须抛错');
   assert.throws(() => B.fromMoves([7]), /列 7/, '越界列必须抛错');
   assert.throws(() => B.fromMoves([-1]), /列 -1/, '负列必须抛错');
-  console.log('test-bitboard: 非法着法抛错 OK');
+  // ⭐ 类型也要收干净：字符串列号会被静默接受（JS 里 arr['3'] 就是 arr[3]，盘面完全正确），
+  //    但 toMoves() 吐出的是 ["3",...]，下游一切严格比较（复盘判最优手/妙手）全线静默失效。
+  //    `'3,3,4'.split(',')` 忘了 .map(Number) 是分享链接最自然的写法。
+  assert.throws(() => B.fromMoves(['3']), /整数列号/, '字符串列号必须抛错');
+  assert.throws(() => B.fromMoves([3, '3']), /整数列号/, '混进一个字符串也必须抛错');
+  assert.throws(() => B.fromMoves([3.5]), /整数列号/, '小数必须抛错');
+  assert.throws(() => B.fromMoves([null]), /整数列号/, 'null 必须抛错');
+  assert.throws(() => B.fromMoves([NaN]), /整数列号/, 'NaN 必须抛错');
+  // 正确的解析方式必须照常工作，且往返后仍是数字
+  const parsed = B.fromMoves('3,3,4,2,5,1'.split(',').map(Number));
+  assert.deepStrictEqual(B.toMoves(parsed), [3, 3, 4, 2, 5, 1]);
+  assert.ok(B.toMoves(parsed).every((c) => typeof c === 'number'), '往返出来的必须是数字');
+  console.log('test-bitboard: 非法着法/非整数列号抛错 OK');
 }
 
 // ════════ hasFourFor 是推荐入口；⛔ 那个吃掩码数组的原始函数不许叫 hasFour ════════
@@ -251,10 +271,17 @@ const DRAW_MOVES = [3, 5, 5, 1, 6, 3, 2, 5, 1, 3, 5, 4, 4, 4, 2, 6, 5, 4, 6, 3, 
   assert.strictEqual(B.hasFourFor(won, 1), false);
   assert.strictEqual(B.hasFourMasks(won.a), true);
   assert.strictEqual(B.hasFourMasks(won.b), false);
-  // maskOf 是 a↔0 / b↔1 绑定的唯一映射点，别接反
-  assert.strictEqual(B.maskOf(won, 0), won.a);
-  assert.strictEqual(B.maskOf(won, 1), won.b);
-  console.log('test-bitboard: hasFourFor / hasFourMasks / maskOf OK');
+  // a↔先手(0) / b↔后手(1) 的绑定别接反。⚠ 内部的 maskOf 刻意不导出（它返回活引用，
+  // 改它能在不动 h 的情况下破坏重力不变量），所以这里用**行为等价**的写法钉死绑定。
+  assert.strictEqual(typeof B.maskOf, 'undefined',
+    'maskOf 返回的是活引用，默认不导出；求解器将来真要用，导出时 JSDoc 必须写明这点，再改这条断言');
+  const one = B.fromMoves([3]);
+  assert.strictEqual(one.a[3], 1, '先手的子必须落进 a');
+  assert.strictEqual(one.b[3], 0);
+  const two = B.fromMoves([3, 4]);
+  assert.strictEqual(two.b[4], 1, '后手的子必须落进 b');
+  assert.strictEqual(two.a[4], 0);
+  console.log('test-bitboard: hasFourFor / hasFourMasks / 先后手绑定 OK');
 }
 
 // ════════ isWinningMove：不越界、不改盘、且与「落子后 winner」完全一致 ════════
@@ -288,6 +315,16 @@ const DRAW_MOVES = [3, 5, 5, 1, 6, 3, 2, 5, 1, 3, 5, 4, 4, 4, 2, 6, 5, 4, 6, 3, 
   // 搜索盘与来源盘互不影响
   B.playIn(sb, 5);
   assert.strictEqual(src.h[5], 0, 'searchBoard 必须拷贝，不许与来源共享数组');
+
+  // ⭐ playIn 必须拒绝带 mv 的「对外盘」：就地改它会让手数列表与盘面静默脱钩，
+  //    而存档/撤销/「从第 N 步重来」/URL 分享全押在 mv 上（DESIGN §9.3）。
+  const outer = B.fromMoves([3, 3, 4]);
+  assert.throws(() => B.playIn(outer, 5), /searchBoard/,
+    'playIn 吃到带 mv 的盘必须抛错，不然 n 走了 mv 没走，存档会静默存成另一局');
+  assert.strictEqual(outer.n, 3, '被拒之后原盘一点没动');
+  assert.strictEqual(outer.h[5], 0);
+  assert.deepStrictEqual(B.toMoves(outer), [3, 3, 4], '被拒之后手数列表仍与盘面一致');
+  assert.strictEqual(B.fromMoves(B.toMoves(outer)).n, outer.n, '手数列表往返必须还是同一局');
   console.log('test-bitboard: 搜索盘 OK');
 }
 

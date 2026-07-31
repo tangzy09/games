@@ -38,7 +38,11 @@
     };
   }
 
-  /** a↔先手(0) / b↔后手(1) 的**唯一**映射点。V8 会内联（已跑微基准确认不掉速）。 */
+  /** a↔先手(0) / b↔后手(1) 的**唯一**映射点。V8 会内联（已跑微基准确认不掉速）。
+   *  ⛔ 内部函数，**不导出**：它返回的是**活引用**，`maskOf(bd,0)[6] = 0x0f` 能在不动 h 的
+   *     情况下让 winner() 变成 0（重力不变量被破坏且无人察觉），而对外没有任何非它不可的用途
+   *     —— 要读掩码直接读 bd.a / bd.b，要判胜负用 hasFourFor / winner。
+   *     将来求解器若真需要它，导出时这段警告必须一并写进 JSDoc。 */
   function maskOf(bd, player) { return player === 0 ? bd.a : bd.b; }
 
   /** mv 为 null 时保持 null（搜索盘故意不带手数列表，见 searchBoard）。 */
@@ -74,9 +78,16 @@
     return { a: bd.a.slice(), b: bd.b.slice(), h: bd.h.slice(), turn: bd.turn, n: bd.n, mv: null };
   }
 
-  /** 就地落子 / 悔子（**必须成对调用**）。不校验合法性：调用方是求解器，着法由 canPlay 生成。
+  /** 就地落子 / 悔子（**必须成对调用**）。不校验**着法**合法性：调用方是求解器，着法由 canPlay 生成。
+   *  ⛔ 但必须拒绝带 mv 的盘：就地改一个「对外盘」会让手数列表与盘面**静默脱钩**——
+   *     playIn(正常盘,5) 之后 n=4 而 mv 还是 3 手，fromMoves(toMoves(bd)) 就变成了另一局，
+   *     而存档/撤销/「从第 N 步重来」/URL 分享（DESIGN §9.3）全押在 mv 上，全程无人报错。
+   *     这不是着法合法性校验，是「你递错了盘的类型」；实测无可测量开销。
+   *     ⚠ undoIn 故意**不加**对称守卫：成对调用是 negamax 的结构性性质，
+   *       守卫也挡不住「悔错列」这类同样成对的错，真保障是测试里的递归逐手对拍。
    *  ⚠ 这一对一旦不对称就是静默灾难 —— tests 里有随机对局逐手对拍 + 全回退必须还原成空盘。 */
   function playIn(bd, c) {
+    if (bd.mv) throw new Error('playIn 只许用于 searchBoard（这个盘带 mv，就地改会让手数列表与盘面脱钩）');
     const m = maskOf(bd, bd.turn);
     m[c] |= 1 << bd.h[c];
     bd.h[c]++; bd.n++; bd.turn ^= 1;
@@ -141,10 +152,17 @@
 
   // ─────────── 存档 ───────────
 
-  /** 重放手数列表建盘（存档/撤销/分享链接的唯一入口）。非法着法由 play 抛错，不许静默吃掉。 */
+  /** 重放手数列表建盘（存档/撤销/分享链接的**唯一入口**）。非法着法由 play 抛错，不许静默吃掉。
+   *  ⛔ 类型也在这里收干净：字符串列号会被静默接受（JS 里 arr['3'] 就是 arr[3]，盘面**完全正确**），
+   *     但 toMoves() 会吐出 ["3","3",...]，下游一切严格比较全线静默失效 ——
+   *     `'3,3,4'.split(',')` 忘了 .map(Number) 是分享链接最自然的写法，
+   *     后果是从 URL 恢复的一整局被复盘逐手判成「非最优」，精准度失真、妙手一个不亮，零报错。 */
   function fromMoves(moves) {
     let bd = newBoard();
-    for (const c of moves) bd = play(bd, c);
+    for (const c of moves) {
+      if (!Number.isInteger(c)) throw new Error('手数必须是整数列号，收到 ' + JSON.stringify(c));
+      bd = play(bd, c);
+    }
     return bd;
   }
 
@@ -158,7 +176,7 @@
   const API = {
     W, H, CELLS,
     newBoard, clone, canPlay, play, winner, isFull, isWinningMove,
-    hasFourMasks, hasFourFor, maskOf,
+    hasFourMasks, hasFourFor,
     searchBoard, playIn, undoIn,
     fromMoves, toMoves
   };
