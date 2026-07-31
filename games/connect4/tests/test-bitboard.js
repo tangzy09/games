@@ -1,7 +1,10 @@
 // test-bitboard.js —— 位棋盘是整个产品的正确性地基（求解器/AI/提示/复盘/课程全压在它上面）。
 // 它错了是**静默**的灾难，所以本文件除了定点断言，还带一套**独立的朴素 2D 参考实现**
 // 与 bitboard.js 逐手对拍（随机对局 × 每一手）——形状/边界/移位方向的任何错都会当场炸。
-// ⛔ 任何断言变红时，先把盘面打印出来肉眼确认手数串，绝不许为了变绿放松 hasFour 的判定。
+// ⛔ 任何断言变红时，先把盘面打印出来肉眼确认手数串，绝不许为了变绿放松 hasFourMasks 的判定。
+//
+// ⚠ 断言消息里的盘面图一律**惰性求值**（check(cond, () => ...)）：急求值时每手画一次
+//   7×6 ASCII 图，占掉整个测试八成时间。
 const assert = require('assert');
 const B = require('../js/bitboard.js');
 
@@ -32,7 +35,7 @@ function refWinner(cells) {
   }
   return null;
 }
-/** 出错时把盘面画出来，省得下次还要临时写脚本 */
+/** 出错时把盘面画出来，省得下次还要临时写脚本。⚠ 只在失败分支里调。 */
 function draw(moves) {
   const cells = refCells(moves);
   let s = '\n';
@@ -43,40 +46,74 @@ function draw(moves) {
   }
   return s + '     c0c1c2c3c4c5c6\n';
 }
+/** 惰性断言：msgFn 只在失败时才求值。 */
+function check(cond, msgFn) { if (!cond) assert.fail(msgFn()); }
 /** 定点用例：既断言期望值，也断言参考实现同意 —— 手数串写错会立刻暴露 */
 function expectWinner(moves, who, label) {
   const bd = B.fromMoves(moves);
-  assert.strictEqual(refWinner(refCells(moves)), who, label + '：参考实现不同意（手数串写错了？）' + draw(moves));
-  assert.strictEqual(B.winner(bd), who, label + '：bitboard 判错' + draw(moves));
+  check(refWinner(refCells(moves)) === who, () => label + '：参考实现不同意（手数串写错了？）' + draw(moves));
+  check(B.winner(bd) === who, () => label + '：bitboard 判错' + draw(moves));
+  // winner 与 hasFourFor 必须自洽
+  assert.strictEqual(B.hasFourFor(bd, 0), who === 0, label + '：hasFourFor(bd,0) 与 winner 不自洽');
+  assert.strictEqual(B.hasFourFor(bd, 1), who === 1, label + '：hasFourFor(bd,1) 与 winner 不自洽');
 }
 
 // ════════ 建盘 ════════
-let bd = B.newBoard();
-assert.strictEqual(bd.n, 0);
-assert.strictEqual(bd.turn, 0);
-assert.strictEqual(B.winner(bd), null);
-assert.strictEqual(B.isFull(bd), false);
-assert.strictEqual(B.hasFour(bd.a), false);
-assert.strictEqual(B.W, 7);
-assert.strictEqual(B.H, 6);
-assert.strictEqual(B.CELLS, 42);
-console.log('test-bitboard: 新盘 OK');
+{
+  const bd = B.newBoard();
+  assert.strictEqual(bd.n, 0);
+  assert.strictEqual(bd.turn, 0);
+  assert.strictEqual(B.winner(bd), null);
+  assert.strictEqual(B.isFull(bd), false);
+  assert.strictEqual(B.hasFourFor(bd, 0), false);
+  assert.strictEqual(B.hasFourFor(bd, 1), false);
+  assert.strictEqual(B.W, 7);
+  assert.strictEqual(B.H, 6);
+  assert.strictEqual(B.CELLS, 42);
+  // 列数组必须由 W 生成：硬编码 7 个 0 的话，把 W 改成 8 会让第 8 列静默永远不可落子
+  assert.strictEqual(bd.a.length, B.W, 'a 的长度必须跟着 W 走');
+  assert.strictEqual(bd.b.length, B.W, 'b 的长度必须跟着 W 走');
+  assert.strictEqual(bd.h.length, B.W, 'h 的长度必须跟着 W 走');
+  console.log('test-bitboard: 新盘 OK');
+}
 
 // ════════ 落子与列高 ════════
-bd = B.play(B.newBoard(), 3);
-assert.strictEqual(bd.h[3], 1);
-assert.strictEqual(bd.n, 1);
-assert.strictEqual(bd.turn, 1, '落子后换手');
-console.log('test-bitboard: 落子/列高/换手 OK');
+{
+  const bd = B.play(B.newBoard(), 3);
+  assert.strictEqual(bd.h[3], 1);
+  assert.strictEqual(bd.n, 1);
+  assert.strictEqual(bd.turn, 1, '落子后换手');
+  console.log('test-bitboard: 落子/列高/换手 OK');
+}
 
 // ════════ play 不改原棋盘（纯函数）════════
-const before = B.newBoard();
-B.play(before, 0);
-assert.strictEqual(before.n, 0, 'play 必须返回新盘，不许就地改');
-assert.strictEqual(before.a[0], 0, 'play 不许改原盘的掩码');
-assert.strictEqual(before.h[0], 0, 'play 不许改原盘的列高');
-assert.deepStrictEqual(before.mv, [], 'play 不许改原盘的手数列表');
-console.log('test-bitboard: play 是纯函数 OK');
+{
+  const before = B.newBoard();
+  B.play(before, 0);
+  assert.strictEqual(before.n, 0, 'play 必须返回新盘，不许就地改');
+  assert.strictEqual(before.a[0], 0, 'play 不许改原盘的掩码');
+  assert.strictEqual(before.h[0], 0, 'play 不许改原盘的列高');
+  assert.deepStrictEqual(before.mv, [], 'play 不许改原盘的手数列表');
+  console.log('test-bitboard: play 是纯函数 OK');
+}
+
+// ════════ ⭐ play 必须校验合法性（否则会造出「第 7 行的幽灵子」并被判成竖四连）════════
+{
+  // c0 已满：先手占 r3,r4,r5（三连），后手占 r0,r1,r2，轮到先手。
+  // 不校验的话 play(bd,0) 会写进不存在的第 7 行，凑成 bit 3/4/5/6 的假竖四连。
+  const bd = B.fromMoves([1, 0, 2, 0, 3, 0, 0, 4, 0, 5, 0, 6]);
+  assert.strictEqual(bd.h[0], 6, '前提：c0 已满');
+  assert.strictEqual(bd.turn, 0, '前提：轮到先手');
+  assert.strictEqual(B.winner(bd), null, '前提：此时还没人赢');
+  assert.throws(() => B.play(bd, 0), /列 0/, '往满列落子必须抛错（不然就是幽灵子假四连）');
+  assert.throws(() => B.play(B.newBoard(), 7), /列 7/, '越界列必须抛错（不然 a 会被撑到 8 个元素、turn 空翻）');
+  assert.throws(() => B.play(B.newBoard(), -1), /列 -1/, '负列必须抛错');
+  // 抛错后原盘必须一点没动
+  assert.strictEqual(bd.h[0], 6);
+  assert.strictEqual(bd.n, 12);
+  assert.strictEqual(bd.turn, 0);
+  console.log('test-bitboard: play 校验非法列 OK');
+}
 
 // ════════ clone 与原盘完全独立 ════════
 {
@@ -92,13 +129,15 @@ console.log('test-bitboard: play 是纯函数 OK');
 }
 
 // ════════ 列满不可落 ════════
-let full = B.newBoard();
-for (let i = 0; i < 6; i++) full = B.play(full, 0);
-assert.strictEqual(B.canPlay(full, 0), false);
-assert.strictEqual(B.canPlay(full, 1), true);
-assert.strictEqual(B.canPlay(full, -1), false);
-assert.strictEqual(B.canPlay(full, 7), false);
-console.log('test-bitboard: 列满/越界 OK');
+{
+  let full = B.newBoard();
+  for (let i = 0; i < 6; i++) full = B.play(full, 0);
+  assert.strictEqual(B.canPlay(full, 0), false);
+  assert.strictEqual(B.canPlay(full, 1), true);
+  assert.strictEqual(B.canPlay(full, -1), false);
+  assert.strictEqual(B.canPlay(full, 7), false);
+  console.log('test-bitboard: 列满/越界 OK');
+}
 
 // ════════ 竖四连（先手 0 连成）════════
 expectWinner([3, 4, 3, 4, 3, 4, 3], 0, '竖四连 c3 行0-3');
@@ -118,12 +157,19 @@ console.log('test-bitboard: 斜↗ 四连 OK');
 expectWinner([3, 2, 2, 1, 1, 0, 1, 0, 0, 6, 0], 0, '斜↘ (0,3)(1,2)(2,1)(3,0)');
 console.log('test-bitboard: 斜↘ 四连 OK');
 
-// ════════ 斜线绝不许跨越棋盘边缘（结构性不变量）════════
-// 先手在 c6 行0-2、c0 行0-2 各三子；第 6 列与第 0 列相邻是**表示法的假象**，不是棋盘事实。
-expectWinner([6, 5, 6, 5, 6, 5, 0, 4, 0, 4, 0], null, '第 6 列与第 0 列不许被判成四连');
-console.log('test-bitboard: 斜线不跨边缘 OK');
+// ════════ ⭐ 绝不许从棋盘一侧「绕回」另一侧（表示法不变量）════════
+// ⚠ 这几条要真有牙，先手就必须**占满 4 个绕回后才相邻的格子**——只占 c0/c6 两列是空转的
+//    （绕回四连要 4 个连续列，两列怎么都凑不齐，任何实现都判 null，抓不到东西）。
+{
+  // (a) 同一行的 c5,c6,c0,c1：任何「列号按 7 取模/循环移位」的实现都会把它看成四连。
+  expectWinner([0, 2, 1, 3, 5, 4, 6], null, '绕回：行0 的 c5,c6,c0,c1 不许成四连');
+  // (b) (5,0)(6,0)(0,1)(1,1)：若按**行主序**打包（index = r*W+c，横向移位 1），
+  //     这四格恰是连续的 bit 5/6/7/8，横向检查会从行尾绕到下一行行首。
+  expectWinner([5, 0, 6, 1, 0, 3, 1], null, '绕回：行主序下 (5,0)(6,0)(0,1)(1,1) 不许成四连');
+  console.log('test-bitboard: 不许绕回边缘 OK');
+}
 
-// ════════ 列与列之间不许竖向串起来（针对「42 位连续打包」表示法的经典陷阱）════════
+// ════════ ⭐ 列与列之间不许竖向串起来（针对「42 位连续打包」表示法的经典陷阱）════════
 // 先手同时占 (5,5) 与 (6,0)(6,1)(6,2)。若按「每列 6 位连续打包、无哨兵行」存，
 // 这四格恰好是连续的 bit 35/36/37/38，v&(v>>1)&(v>>2)&(v>>3) 会假报竖四连。
 // 每列一个独立掩码 ⇒ 结构性不可能。（局面由 DFS 搜出，全程无人成四）
@@ -149,36 +195,67 @@ console.log('test-bitboard: 横四连贴右边界 OK');
 expectWinner([0, 3, 1, 3, 2, 3, 6, 3], 1, '后手竖四连 c3');
 console.log('test-bitboard: 后手获胜 OK');
 
-// ════════ 满盘和：42 手真的无人连四 ════════
 // ⚠ 这串是 DFS 搜出来并用独立 2D 实现验过的真和棋。
 // （「每列各下 6 手」那种规整序列不是和棋——它会让每一整行同色，横四连遍地。）
-const drawMoves = [3, 5, 5, 1, 6, 3, 2, 5, 1, 3, 5, 4, 4, 4, 2, 6, 5, 4, 6, 3, 5, 6,
-                   6, 0, 2, 4, 4, 2, 2, 6, 0, 0, 1, 2, 3, 3, 1, 0, 0, 1, 0, 1];
-const drawBd = B.fromMoves(drawMoves);
-assert.strictEqual(drawBd.n, 42);
-assert.strictEqual(B.isFull(drawBd), true);
-assert.strictEqual(refWinner(refCells(drawMoves)), null, '这串手数必须真的是和棋' + draw(drawMoves));
-assert.strictEqual(B.winner(drawBd), null, '满盘和不许有赢家' + draw(drawMoves));
-for (let c = 0; c < 7; c++) assert.strictEqual(B.canPlay(drawBd, c), false, '满盘后第 ' + c + ' 列还能落？');
-for (let c = 0; c < 7; c++) assert.strictEqual(B.isWinningMove(drawBd, c), false, '满盘后不该有制胜手');
-console.log('test-bitboard: 满盘和 OK');
+const DRAW_MOVES = [3, 5, 5, 1, 6, 3, 2, 5, 1, 3, 5, 4, 4, 4, 2, 6, 5, 4, 6, 3, 5, 6,
+                    6, 0, 2, 4, 4, 2, 2, 6, 0, 0, 1, 2, 3, 3, 1, 0, 0, 1, 0, 1];
+
+// ════════ 满盘和：42 手真的无人连四 ════════
+{
+  const drawBd = B.fromMoves(DRAW_MOVES);
+  assert.strictEqual(drawBd.n, 42);
+  assert.strictEqual(B.isFull(drawBd), true);
+  check(refWinner(refCells(DRAW_MOVES)) === null, () => '这串手数必须真的是和棋' + draw(DRAW_MOVES));
+  check(B.winner(drawBd) === null, () => '满盘和不许有赢家' + draw(DRAW_MOVES));
+  for (let c = 0; c < 7; c++) assert.strictEqual(B.canPlay(drawBd, c), false, '满盘后第 ' + c + ' 列还能落？');
+  for (let c = 0; c < 7; c++) assert.strictEqual(B.isWinningMove(drawBd, c), false, '满盘后不该有制胜手');
+  console.log('test-bitboard: 满盘和 OK');
+}
+
+// ════════ isFull 的边界正好在 42（41 手时必须还没满）════════
+{
+  const bd41 = B.fromMoves(DRAW_MOVES.slice(0, 41));
+  assert.strictEqual(bd41.n, 41);
+  assert.strictEqual(B.isFull(bd41), false, '41 手不算满盘（isFull 写成 >= CELLS-1 就会在这里炸）');
+  const bd42 = B.play(bd41, DRAW_MOVES[41]);
+  assert.strictEqual(B.isFull(bd42), true, '第 42 手落下必须满盘');
+  console.log('test-bitboard: isFull 边界 OK');
+}
 
 // ════════ fromMoves / toMoves 往返（存档靠它，规格 §9.3）════════
-const mv = [3, 3, 4, 2, 5, 1];
-assert.deepStrictEqual(B.toMoves(B.fromMoves(mv)), mv);
 {
-  const bd2 = B.fromMoves(mv);
-  const out = B.toMoves(bd2);
+  const moves = [3, 3, 4, 2, 5, 1];
+  assert.deepStrictEqual(B.toMoves(B.fromMoves(moves)), moves);
+  const bd = B.fromMoves(moves);
+  const out = B.toMoves(bd);
   out.push(99);
-  assert.deepStrictEqual(B.toMoves(bd2), mv, 'toMoves 必须返回副本，改它不许影响棋盘');
+  assert.deepStrictEqual(B.toMoves(bd), moves, 'toMoves 必须返回副本，改它不许影响棋盘');
+  console.log('test-bitboard: 手数列表往返 OK');
 }
-console.log('test-bitboard: 手数列表往返 OK');
 
 // ════════ fromMoves 遇非法着法必须抛错（不许静默吃掉）════════
-assert.throws(() => B.fromMoves([0, 0, 0, 0, 0, 0, 0]), /列 0/, '第 7 次落满列必须抛错');
-assert.throws(() => B.fromMoves([7]), /列 7/, '越界列必须抛错');
-assert.throws(() => B.fromMoves([-1]), /列 -1/, '负列必须抛错');
-console.log('test-bitboard: 非法着法抛错 OK');
+{
+  assert.throws(() => B.fromMoves([0, 0, 0, 0, 0, 0, 0]), /列 0/, '第 7 次落满列必须抛错');
+  assert.throws(() => B.fromMoves([7]), /列 7/, '越界列必须抛错');
+  assert.throws(() => B.fromMoves([-1]), /列 -1/, '负列必须抛错');
+  console.log('test-bitboard: 非法着法抛错 OK');
+}
+
+// ════════ hasFourFor 是推荐入口；⛔ 那个吃掩码数组的原始函数不许叫 hasFour ════════
+{
+  assert.strictEqual(typeof B.hasFour, 'undefined',
+    '⛔ 别把吃掩码数组的函数导出成 hasFour：hasFour(bd) 是极自然的手滑，' +
+    '它会静默返回 false（=永远没人赢），是最难查的一类错。用 hasFourMasks / hasFourFor。');
+  const won = B.fromMoves([3, 4, 3, 4, 3, 4, 3]);
+  assert.strictEqual(B.hasFourFor(won, 0), true);
+  assert.strictEqual(B.hasFourFor(won, 1), false);
+  assert.strictEqual(B.hasFourMasks(won.a), true);
+  assert.strictEqual(B.hasFourMasks(won.b), false);
+  // maskOf 是 a↔0 / b↔1 绑定的唯一映射点，别接反
+  assert.strictEqual(B.maskOf(won, 0), won.a);
+  assert.strictEqual(B.maskOf(won, 1), won.b);
+  console.log('test-bitboard: hasFourFor / hasFourMasks / maskOf OK');
+}
 
 // ════════ isWinningMove：不越界、不改盘、且与「落子后 winner」完全一致 ════════
 {
@@ -191,59 +268,105 @@ console.log('test-bitboard: 非法着法抛错 OK');
   assert.strictEqual(B.isWinningMove(t, 0), false);
   assert.strictEqual(B.isWinningMove(t, -1), false);
   assert.strictEqual(B.isWinningMove(t, 7), false);
+  // 内部用「借一位算完再还回去」，所以必须钉死对外看棋盘一点没变
   const snapshot = JSON.stringify(t);
   B.isWinningMove(t, 3);
-  assert.strictEqual(JSON.stringify(t), snapshot, 'isWinningMove 不许改棋盘（求解器热路径）');
+  B.isWinningMove(t, 4);
+  assert.strictEqual(JSON.stringify(t), snapshot, 'isWinningMove 不许改棋盘（借了必须还）');
   console.log('test-bitboard: isWinningMove 基本行为 OK');
+}
+
+// ════════ 搜索盘：不带 mv，且 toMoves 必须明确拒绝它 ════════
+{
+  const src = B.fromMoves([3, 3, 4]);
+  const sb = B.searchBoard(src);
+  assert.strictEqual(sb.mv, null, '搜索盘故意不带手数列表');
+  assert.strictEqual(sb.n, 3);
+  assert.strictEqual(sb.turn, src.turn);
+  assert.throws(() => B.toMoves(sb), /搜索盘不带手数列表/, '搜索盘不许被当存档用');
+  assert.strictEqual(B.clone(sb).mv, null, 'clone 搜索盘不许把 null 变成别的东西');
+  // 搜索盘与来源盘互不影响
+  B.playIn(sb, 5);
+  assert.strictEqual(src.h[5], 0, 'searchBoard 必须拷贝，不许与来源共享数组');
+  console.log('test-bitboard: 搜索盘 OK');
 }
 
 // ════════ 随机对拍：逐手比对 bitboard 与独立 2D 参考实现 ════════
 // 覆盖所有位置/所有方向/所有边界，这是防「静默错」的主力。
+// 同时对拍 playIn/undoIn 这对可变 API —— 它一旦不对称就是静默灾难。
 {
+  const GAMES = 30000;
+  const DEEP_GAMES = 3000;    // 前这么多局额外做「每列穷举 isWinningMove vs 落子后 winner」
   let seed = 20260731 >>> 0;
   const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
-  let games = 0, plies = 0, wins = [0, 0], draws = 0;
-  for (let g = 0; g < 3000; g++) {
+  let plies = 0;
+  const wins = [0, 0];
+  let draws = 0;
+  const empty = B.searchBoard(B.newBoard());
+
+  for (let g = 0; g < GAMES; g++) {
     let b = B.newBoard();
+    const sb = B.searchBoard(B.newBoard());     // 可变搜索盘，与纯函数盘并行推进
     const moves = [];
     for (;;) {
       // 1) winner 与参考实现一致
       const rw = refWinner(refCells(moves));
-      assert.strictEqual(B.winner(b), rw, '随机对拍：winner 不一致' + draw(moves));
-      // 2) isWinningMove 与「落子后 winner」一致（对每一列穷举）
-      if (rw === null && !B.isFull(b)) {
+      check(B.winner(b) === rw, () => '随机对拍：winner 不一致' + draw(moves));
+      // 2) 搜索盘与纯函数盘必须逐位一致（playIn 的正确性）
+      check(sb.turn === b.turn && sb.n === b.n, () => '随机对拍：搜索盘 turn/n 不一致' + draw(moves));
+      for (let c = 0; c < 7; c++) {
+        check(sb.a[c] === b.a[c] && sb.b[c] === b.b[c] && sb.h[c] === b.h[c],
+          () => '随机对拍：playIn 与 play 状态不一致（c=' + c + '）' + draw(moves));
+      }
+      check(B.winner(sb) === rw, () => '随机对拍：搜索盘 winner 不一致' + draw(moves));
+      // 3) isWinningMove 与「落子后 winner」一致（每列穷举；只在前 DEEP_GAMES 局做，它要建新盘）
+      if (g < DEEP_GAMES && rw === null && !B.isFull(b)) {
         for (let c = 0; c < 7; c++) {
           const expect = B.canPlay(b, c) && B.winner(B.play(b, c)) === b.turn;
-          assert.strictEqual(B.isWinningMove(b, c), expect,
-            '随机对拍：isWinningMove(c=' + c + ') 与落子后 winner 不一致' + draw(moves));
+          check(B.isWinningMove(b, c) === expect,
+            () => '随机对拍：isWinningMove(c=' + c + ') 与落子后 winner 不一致' + draw(moves));
+          check(B.isWinningMove(sb, c) === expect,
+            () => '随机对拍：搜索盘 isWinningMove(c=' + c + ') 不一致' + draw(moves));
         }
       }
-      // 3) 结构不变量
-      assert.strictEqual(b.n, moves.length);
-      assert.strictEqual(b.turn, moves.length % 2);
-      assert.deepStrictEqual(B.toMoves(b), moves);
+      // 4) 结构不变量
+      check(b.n === moves.length, () => 'n 与手数不符' + draw(moves));
+      check(b.turn === moves.length % 2, () => 'turn 与手数奇偶不符' + draw(moves));
       let sum = 0;
       for (let c = 0; c < 7; c++) {
         sum += b.h[c];
-        assert.ok(b.h[c] >= 0 && b.h[c] <= 6, '列高越界');
-        assert.strictEqual(b.a[c] & b.b[c], 0, '同一格不许被两方同时占');
-        assert.strictEqual((b.a[c] | b.b[c]) >>> 0, ((1 << b.h[c]) - 1) >>> 0, '掩码必须是从底往上的连续段（重力）');
+        check(b.h[c] >= 0 && b.h[c] <= 6, () => '列高越界' + draw(moves));
+        check((b.a[c] & b.b[c]) === 0, () => '同一格不许被两方同时占' + draw(moves));
+        check(((b.a[c] | b.b[c]) >>> 0) === (((1 << b.h[c]) - 1) >>> 0),
+          () => '掩码必须是从底往上的连续段（重力）' + draw(moves));
       }
-      assert.strictEqual(sum, b.n, '列高之和必须等于手数');
+      check(sum === b.n, () => '列高之和必须等于手数' + draw(moves));
+
       if (rw !== null) { wins[rw]++; break; }
       if (B.isFull(b)) { draws++; break; }
+
       const legal = [];
       for (let c = 0; c < 7; c++) if (B.canPlay(b, c)) legal.push(c);
       const c = legal[(rnd() * legal.length) | 0];
       moves.push(c);
       b = B.play(b, c);
+      B.playIn(sb, c);
       plies++;
     }
-    games++;
+    // 5) 全部 undoIn 回退后必须**完全**还原成空盘（一处不对称就在这里炸）
+    for (let i = moves.length - 1; i >= 0; i--) B.undoIn(sb, moves[i]);
+    check(sb.n === 0 && sb.turn === 0, () => 'undoIn 全回退后 n/turn 没还原' + draw(moves));
+    for (let c = 0; c < 7; c++) {
+      check(sb.a[c] === empty.a[c] && sb.b[c] === empty.b[c] && sb.h[c] === empty.h[c],
+        () => 'undoIn 全回退后第 ' + c + ' 列没还原成空' + draw(moves));
+    }
   }
-  assert.ok(wins[0] > 0 && wins[1] > 0 && draws > 0, '随机对局应当三种结局都出现过（覆盖不足？）');
-  console.log('test-bitboard: 随机对拍 OK（' + games + ' 局 / ' + plies + ' 手，先手胜 ' +
-              wins[0] + ' 后手胜 ' + wins[1] + ' 和 ' + draws + '）');
+  // ⚠ 随机对局里和棋极罕见（约千分之一），别把它当断言 —— 局数一调就会红，与正确性无关。
+  //   和棋路径真正的保障是上面那条 42 手定点用例。这里只要求双方都赢过（说明覆盖到两侧）。
+  assert.ok(wins[0] > 0 && wins[1] > 0, '随机对局里双方都该赢过（覆盖不足？）');
+  console.log('test-bitboard: 随机对拍 OK（' + GAMES + ' 局 / ' + plies + ' 手，先手胜 ' +
+              wins[0] + ' 后手胜 ' + wins[1] + ' 和 ' + draws +
+              '；其中前 ' + DEEP_GAMES + ' 局做了 isWinningMove 穷举）');
 }
 
 console.log('test-bitboard: 全部通过');
