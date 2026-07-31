@@ -92,21 +92,27 @@ AdMob 官方披露口径：勾 **Device ID**（Identifiers）、**Advertising Da
 
 ## 1.0.1 出包素材（2026-07-30 改良已上线 web，见 DESIGN §9.1；⚠ 出包/提交前必经批准）
 
-**What's New（en-US 草稿）**：
+**What's New（en-US，2026-07-31 全量版）**：
 
-> • Run stats at game over: longest streak, sweeps, and how close you came to your best
-> • Every endless run now earns coins — double them with an optional ad
-> • Two new skins: Neon Night & Sakura (buy with coins)
-> • Challenge a friend: share your seed — they get the exact same pieces
-> • Instant celebration the moment you break your record
+> • New Emerald Grove chapter — 30 levels in 3 chapters, with chapter chests and pieces that carry crystals
+> • Angel Album: collect 500 hand-drawn angels just by playing — every game adds one
+> • Angel Ladder: 20 characters to out-score, from 200 to 20,000 points
+> • Daily quests, streak rewards (3/7/14/30 days), streak repair, and a calendar to catch up on the past 7 days
+> • Share your daily score or challenge a friend with your exact piece stream
+> • Game Center leaderboards, statistics page, 16 skins, crystal codex
+> • Kinder ads: zero interstitials for your first 50 games, then at most one every 10 games — only after a win
+> • Lots of polish: final-moves replay, heartbeat warning, beginner hints, and more
 
-**What's New（zh-Hans 草稿）**：
+**What's New（zh-Hans，2026-07-31 全量版）**：
 
-> • 结算页全新升级：最长连击、清扫次数、距最高分差距一目了然
-> • 无尽模式也产金币，可看广告翻倍（去广告用户直接双倍）
-> • 新增两套皮肤：霓虹之夜 & 樱花（金币购买）
-> • 挑战好友：分享种子链接，对方拿到一模一样的方块
-> • 破纪录瞬间即时庆祝
+> • 全新「翡翠林地」章节——3 章 30 关、章末宝箱、驮着水晶的拼块
+> • 天使画廊：玩就能收集的 500 张手绘天使图，每盘 +1
+> • 天使榜：20 位角色等你超越，从 200 分到 20000 分
+> • 每日任务、连续奖励（3/7/14/30 天）、金币补签、可补玩过去 7 天的日历
+> • 分享每日成绩，或用同一条块流挑战好友
+> • Game Center 排行榜、统计页、16 套皮肤、水晶图鉴
+> • 更克制的广告：前 50 盘零插屏，之后每 10 盘至多 1 个——只在你赢的时候
+> • 大量打磨：死亡回放、濒死心跳、新手指引等
 
 **⚠ 审核备注必须同步更新**（上面 1.0 的备注写「Interstitials appear only after completing a level」，1.0.1 不再准确——照旧提交等于对审核员撒谎）。1.0.1 版草稿：
 
