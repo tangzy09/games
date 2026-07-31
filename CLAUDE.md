@@ -55,6 +55,11 @@ node tools/check-locales.js games/<name>/locales
 git push origin main
 ssh -i /c/Users/tangz/Documents/credentials/ec2_1.pem ec2-user@3.26.95.240 "sudo git -C /var/www/games pull"
 ```
+
+⛔ **部署前必须先问用户、拿到明确同意才执行（2026-07-31 用户定的，适用于所有游戏）**：
+`git commit` / `git push` **不用问**；但把代码放到线上（EC2 pull、nginx 改配置等一切影响
+线上站点的动作）**必须先停下来问**。准备到位后报状态、等用户说部署。
+
 **两条部署铁律**：
 1. **改任何 js/css 必须 bump 缓存版本**：该游戏 index.html 里所有 `?v=N` 统一 +1。忘了 = 老玩家拿到新旧混装的 JS。
 2. **改 `G` 的形状必须 bump `SAVE_VERSION`**：旧存档一律丢弃不迁移，否则老玩家「恢复」成畸形状态（0×0 盘面 = 无报错白屏，新档案的 E2E 测不出来）。
