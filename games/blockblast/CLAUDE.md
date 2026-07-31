@@ -8,11 +8,10 @@
 
 **1.0 已上架（`READY_FOR_SALE`，7-13 过审）。** 线上 web：<https://blocks.ai-speeds.com>（领先于 iOS，含 1.0.1 全部改良）
 
+- **广告模型（2026-07-31 定稿，取代此前所有插屏规则）**：**前 50 盘零插屏**（明面卖点，商店页 adPolicy 文案明示）→ 之后**每 10 盘至多 1 个**，只在通关结算 / 无尽「再来一局」转场，≥2min 间隔；失败/局中/每日永远零插屏。唯一闸门 `Shop.canShowInterstitial` + `notePlayed/noteAdShown`（盘数 = 关卡赢/输、无尽、每日、挑战都计）。**插屏是姿态不是收入，收入主力 = 自愿激励视频（×2/换手/撤销/领币）。**
 - **iOS 1.0.1 待出包**（package.json 已 bump 1.0.1；⚠ 出包/提交必经批准）：
-  - **IAP `cubeblast_noads`**（$2.99 非消耗型，ASC id 6796603142）**READY_TO_SUBMIT** —— 1.0 线上「去广告」是免费本地开关（收入漏洞），1.0.1 必须带真 IAP。⚠ 首个非消耗型必须随版提交（`reviewSubmissionItems` + `inAppPurchaseVersion`）。
-  - **Game Center**：bundle 能力已开，榜 `cubeblast.endless.best` / `cubeblast.daily.best` 已建；CI 钩子 `tools/ios-extra.sh` 注入 entitlement（codemagic 模板加了通用钩子：游戏目录有 `tools/ios-extra.sh` 就跑）。
-  - **代码**：`js/iap.js`（RevenueCat，web 回退）+ `js/gc.js`（静默兜底）；`GAME_CONFIG.rc.ios` 空 = IAP 不初始化。**出包前唯一手工步 = RC dashboard 建 app config**（详见 docs/store-listing.md「1.0.1 iOS 侧资产」）。
-  - ⚠ 新依赖 `@revenuecat/purchases-capacitor@^9` / `@openforge/capacitor-game-connect@^1.1` 版本是按 Cap6 兼容性选的，**首次云端构建盯一下 npm/pod 这两步**。
+  - **IAP `cubeblast_noads` 封存不提交**（ASC id 6796603142 元数据齐全 READY_TO_SUBMIT，放着；将来要上：随版提交 + 从 git 历史 b6c19aa 取回 `js/iap.js` + RC dashboard 建 app）。商店页「Remove Ads」按钮已撤（假按钮伤信任）；`wallet.noAds` 历史开关继续兑现不收回。**RevenueCat 不再需要 ⇒ 出包零手工步。**
+  - **Game Center**：bundle 能力已开，榜 `cubeblast.endless.best` / `cubeblast.daily.best` 已建；CI 钩子 `tools/ios-extra.sh` 注入 entitlement（codemagic 模板加了通用钩子：游戏目录有 `tools/ios-extra.sh` 就跑）。⚠ 新依赖 `@openforge/capacitor-game-connect@^1.1` 首次云端构建盯 npm/pod 两步。
 
 - **玩法**：无尽模式 + **30 关 / 3 章节**（糖果瀑布/深海矿脉/翡翠林地，章末宝箱 150/200/300 币）+ 每日谜题（**日历页可补玩过去 7 天**，补玩不计 streak）+ 38 成就 + 6 皮肤 + **水晶图鉴**（5 种水晶，收集点亮）+ 撤销/换一手道具 + 种子挑战。
 - **拼块自带水晶（1.0.1，DESIGN §6 的另一半）**：第三章引入 `pieceCrystals: {every, kind, goal}` —— 驮不驮由 `Core.pieceCrystalAt(s, pieceIdx)` 纯函数决定（只看 seed+序号，公平承诺不破；撤销回滚同一块驮同一颗）。⛔ 带它的关**最多 1 颗石块**（2 颗会造行列双封死格 → 软锁死，validate 拦）。goal 别贪：首版 goal5+gap5 把 30 关打到 46% 通关率（verify 拦下），goal 2-3 才是甜区。

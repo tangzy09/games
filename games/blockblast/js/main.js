@@ -307,9 +307,11 @@ function consume(events) {
       // 去广告玩家：原本要看广告才拿的翻倍**直接给**（红线：付费玩家不失去任何功能）
       if (G.wallet.noAds) { Shop.earnDouble(G.wallet, won); G.lastEarn = { n: won * 2, doubled: true }; }
       else G.lastEarn = { n: won, doubled: false };
-      // ⛔ 插屏**只在通关**（正反馈时刻）出，且每 3 次通关最多一个 + 首日/间隔护栏。失败/局中永远不出。
+      // ⛔ 插屏只在**通关结算**（正反馈时刻）出，且过总闸门（前 50 盘零插屏 / 每 10 盘至多 1 个 / ≥2min）。
+      //    失败/局中永远不出。
+      Shop.notePlayed(G.wallet);                  // 这一盘计入盘数
       const show = Shop.canShowInterstitial(G.wallet);
-      Shop.noteWin(G.wallet, show);
+      if (show) Shop.noteAdShown(G.wallet);
       saveWallet();
       if (show) Ads.showInterstitial().finally(() => renderAll());
       FX.toast(T('blockblast.levelWin'), Lo.cx, Lo.boardY + Lo.boardW / 2, '#7ef2a0', 'bold 30px sans-serif', 1.3);
@@ -346,14 +348,13 @@ function consume(events) {
         const earned = Shop.earnEndless(G.wallet, s.score);
         if (earned > 0 && G.wallet.noAds) { Shop.earnDouble(G.wallet, earned); G.lastEarn = { n: earned * 2, doubled: true }; }
         else G.lastEarn = { n: earned, doubled: false };
-        if (pure) {
-          Shop.noteEndlessRun(G.wallet);               // 转场插屏的「每 3 局」计数
-          G.lastRunMs = Date.now() - (G.runStartAt || Date.now());
-          GC.submit('endless', s.score);               // Game Center 无尽榜
-        }
+        Shop.notePlayed(G.wallet);                     // 每完成一盘都计数（无尽/每日/挑战）
+        if (pure) GC.submit('endless', s.score);       // Game Center 无尽榜
         saveWallet();
       } else {
-        saveProfile();                                 // 关卡失败也要把图鉴收集数落盘
+        Shop.notePlayed(G.wallet);                     // 关卡失败也是一盘（但失败永远不出广告）
+        saveWallet();
+        saveProfile();                                 // 图鉴收集数落盘
       }
     }
   }
@@ -388,11 +389,11 @@ function dispatch(action, data) {
   switch (action) {
     case 'RESTART': {
       // ⛔ 无尽转场插屏：**绝不盖在死亡瞬间**——只在玩家已点「再来一局」、决定继续之后的转场里，
-      //    且过四重护栏（首日零插屏 / 短局不出 / 距上次 ≥2min / 每 3 局最多 1 个）。红线 1/3 不动。
+      //    且过总闸门（前 50 盘零插屏 / 每 10 盘至多 1 个 / 距上次 ≥2min）。红线 1/3 不动。
       const s0 = G.s;
       if (s0 && s0.over && s0.mode === 'endless' && !s0.daily && !s0.challenge
-          && Shop.canShowEndlessInterstitial(G.wallet, G.lastRunMs || 0, Date.now())) {
-        Shop.noteEndlessAdShown(G.wallet, Date.now());
+          && Shop.canShowInterstitial(G.wallet, Date.now())) {
+        Shop.noteAdShown(G.wallet, Date.now());
         saveWallet();
         Ads.showInterstitial().finally(() => { newRun(); renderAll(); });
         return;
@@ -533,29 +534,6 @@ function dispatch(action, data) {
         renderAll();
       });
       return;
-    case 'BUY_NOADS':
-      // 真 IAP（RevenueCat）：原生走 App Store 购买；web/未配 key 回退本地开关（web 无支付渠道）。
-      // 取消/失败 ⇒ 什么也不发生（绝不惩罚）。
-      IAP.buy().then(res => {
-        if (res.ok) {
-          G.wallet.noAds = true;
-          saveWallet();
-          FX.toast(T('blockblast.adsRemoved'), Render.L.cx, GameGlobal.SH * 0.4, '#7ef2a0', 'bold 18px sans-serif', 1.3);
-        }
-        renderAll();
-      });
-      return;
-    case 'RESTORE_IAP':
-      // 恢复购买（苹果对非消耗型的硬性要求）
-      IAP.restore().then(res => {
-        if (res.ok) {
-          G.wallet.noAds = true;
-          saveWallet();
-          FX.toast(T('blockblast.adsRemoved'), Render.L.cx, GameGlobal.SH * 0.4, '#7ef2a0', 'bold 18px sans-serif', 1.3);
-        }
-        renderAll();
-      });
-      return;
     case 'SHOW_GC':
       GC.show(data && data.board);
       return;
@@ -604,11 +582,7 @@ async function boot() {
   restoreAudioPrefs();
   Portal.boot();
   await Ads.init();
-  // IAP + Game Center：原生才生效，web 全部静默 no-op。都不 await —— 不阻塞首屏。
-  IAP.init(window.GAME_CONFIG.rc && window.GAME_CONFIG.rc.ios).then(ok => {
-    // 换机/重装：静默恢复已购（App Store 账号是真值源，本地钱包只是缓存）
-    if (ok) IAP.isPro().then(pro => { if (pro && G.wallet && !G.wallet.noAds) { G.wallet.noAds = true; saveWallet(); renderAll(); } });
-  });
+  // Game Center：原生才生效，web 静默 no-op；不 await —— 不阻塞首屏。
   GC.signIn();
   I18N.onChange(() => { Controls.render(); renderAll(); });
   await I18N.setLang(I18N.detect());

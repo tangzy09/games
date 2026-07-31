@@ -33,19 +33,27 @@ const Core = require('../js/core.js');
   console.log('test-shop: 换手充能 OK');
 }
 
-// ════════ ⛔ 红线 3：插屏只在通关后、每 3 次最多 1 个；失败/局中永不出 ════════
+// ════════ ⛔ 插屏总闸门（2026-07-31 定稿）：前 50 盘零插屏；之后每 10 盘至多 1 个 + 2min 间隔 ════════
 {
+  const now0 = 1e12;
   const w = Shop.emptyWallet();
-  assert(!Shop.canShowInterstitial(w), '第 1 次通关不出插屏');
-  Shop.noteWin(w, false);
-  assert(!Shop.canShowInterstitial(w), '第 2 次也不出');
-  Shop.noteWin(w, false);
-  assert(!Shop.canShowInterstitial(w));
-  Shop.noteWin(w, false);
-  assert(Shop.canShowInterstitial(w), '第 3 次通关后才可能出一个');
-  Shop.noteWin(w, true);                       // 出过了 → 计数归零
-  assert(!Shop.canShowInterstitial(w), '出过之后重新计数');
-  console.log('test-shop: 插屏频次红线 OK（每 3 次通关最多 1 个）');
+  for (let g = 1; g <= 50; g++) {
+    Shop.notePlayed(w);
+    assert(!Shop.canShowInterstitial(w, now0), `第 ${g} 盘仍在免广告期`);
+  }
+  assert.strictEqual(w.gamesPlayed, 50);
+  Shop.notePlayed(w);                                        // 第 51 盘
+  assert(Shop.canShowInterstitial(w, now0), '第 51 盘起才可能出第一个');
+  Shop.noteAdShown(w, now0);
+  assert.strictEqual(w.gamesSinceAd, 0);
+  for (let g = 0; g < 9; g++) {
+    Shop.notePlayed(w);
+    assert(!Shop.canShowInterstitial(w, now0 + 1e7), `出过之后第 ${g + 1} 盘还不够 10 盘`);
+  }
+  Shop.notePlayed(w);                                        // 攒满 10 盘
+  assert(Shop.canShowInterstitial(w, now0 + 1e7), '再攒满 10 盘才有下一个');
+  assert(!Shop.canShowInterstitial(w, now0 + 60 * 1000), '⛔ 距上次插屏不足 2 分钟不出');
+  console.log('test-shop: 插屏总闸门 OK（前 50 盘免 / 每 10 盘至 1 / 2min 间隔）');
 }
 
 // ════════ ✅ 去广告 IAP：买了之后一个非自愿广告都没有，但**功能不能变少** ════════
@@ -92,49 +100,12 @@ const Core = require('../js/core.js');
   console.log('test-shop: 无尽结算金币 OK');
 }
 
-// ════════ ⛔ 无尽转场插屏的四重护栏：首日零插屏 / 短局不出 / 距上次 ≥120s / 每 3 局最多 1 个 ════════
+// ════════ noAds 历史开关：闸门永远关死（老用户的去广告继续兑现，不收回）════════
 {
-  const DAY = 24 * 3600 * 1000;
-  const now = 10 * DAY;                            // 固定时钟，测试不依赖真实时间
-  const okRun = 120 * 1000;                        // 一局 2 分钟（≥90s 门槛）
   const w = Shop.emptyWallet();
-  w.installAt = now - 2 * DAY;                     // 装了两天的老玩家
-  w.runsSinceAd = 3;
-  assert(Shop.canShowEndlessInterstitial(w, okRun, now), '四个条件全满足 → 可以出');
-
-  // 每个护栏单独都能拦下
-  assert(!Shop.canShowEndlessInterstitial(Object.assign({}, w, { noAds: true }), okRun, now), '去广告 ⇒ 永不');
-  assert(!Shop.canShowEndlessInterstitial(Object.assign({}, w, { installAt: now - DAY / 2 }), okRun, now),
-    '⛔ 安装后 24h 内零插屏（首日体验 > 首日收入）');
-  assert(!Shop.canShowEndlessInterstitial(w, 30 * 1000, now), '⛔ 短局（<90s = 挫败局）不出');
-  assert(!Shop.canShowEndlessInterstitial(Object.assign({}, w, { lastAdAt: now - 60 * 1000 }), okRun, now),
-    '⛔ 距上次插屏不足 120s 不出');
-  assert(!Shop.canShowEndlessInterstitial(Object.assign({}, w, { runsSinceAd: 2 }), okRun, now), '⛔ 不满 3 局不出');
-
-  // 出过之后：计数与时钟都归位
-  Shop.noteEndlessAdShown(w, now);
-  assert.strictEqual(w.runsSinceAd, 0);
-  assert.strictEqual(w.lastAdAt, now);
-  assert(!Shop.canShowEndlessInterstitial(w, okRun, now + 1000), '刚出过 → 至少再等 3 局 + 120s');
-  Shop.noteEndlessRun(w); Shop.noteEndlessRun(w); Shop.noteEndlessRun(w);
-  assert(Shop.canShowEndlessInterstitial(w, okRun, now + 200 * 1000), '3 局 + 120s 之后才可能再出');
-  console.log('test-shop: 无尽插屏四重护栏 OK');
-}
-
-// ════════ 通关插屏也吃「首日 + 间隔」护栏（老签名不带时钟的调用仍然成立）════════
-{
-  const DAY = 24 * 3600 * 1000, now = 10 * DAY;
-  const w = Shop.emptyWallet();
-  w.winsSinceAd = 3;
-  assert(Shop.canShowInterstitial(w), 'installAt=0（老钱包）→ 不做首日判断，行为不变');
-  w.installAt = now - DAY / 2;
-  assert(!Shop.canShowInterstitial(w, now), '⛔ 首日通关也不出插屏');
-  w.installAt = now - 2 * DAY;
-  w.lastAdAt = now - 60 * 1000;
-  assert(!Shop.canShowInterstitial(w, now), '⛔ 距上次任何插屏不足 120s 不出（和无尽共用时钟）');
-  w.lastAdAt = now - 300 * 1000;
-  assert(Shop.canShowInterstitial(w, now), '护栏全过 → 可以出');
-  console.log('test-shop: 通关插屏护栏 OK');
+  w.gamesPlayed = 999; w.gamesSinceAd = 999; w.noAds = true;
+  assert(!Shop.canShowInterstitial(w, 1e12), 'noAds ⇒ 插屏一个都没有');
+  console.log('test-shop: noAds 历史开关 OK');
 }
 
 // ════════ 金币皮肤：买 → 入手 + 扣款；重复买 / 钱不够都拒绝 ════════

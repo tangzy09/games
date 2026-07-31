@@ -151,20 +151,26 @@ async function clickAction(page, action) {
     `⛔ 关卡失败界面零广告按钮（只有：${failActions.found.join(', ')}）`);
   await page.screenshot({ path: path.join(SHOT_DIR, 'p4-03-fail-no-ads.png') });
 
-  // ── 插屏只在通关后、每 3 次最多一个（把首日/间隔护栏先解除，专测数量闸门）──
-  const interCount = await page.evaluate(() => {
-    window.__ads.interstitial = 0;
-    G.wallet.winsSinceAd = 0;
-    G.wallet.installAt = Date.now() - 2 * 86400e3;      // 装了两天（绕开首日免打扰）
-    G.wallet.lastAdAt = 0;
-    for (let k = 0; k < 6; k++) {                       // 模拟连赢 6 关
-      const show = Shop.canShowInterstitial(G.wallet);
-      Shop.noteWin(G.wallet, show);
-      if (show) window.__ads.interstitial++;
+  // ── 插屏总闸门：前 50 盘零插屏；之后每 10 盘至多 1 个（模拟 80 盘，间隔 3 分钟/盘）──
+  const gate = await page.evaluate(() => {
+    const w = Shop.emptyWallet();
+    const base = Date.now();
+    let shown = 0, first = 0, inGrace = 0;
+    for (let g = 1; g <= 80; g++) {
+      Shop.notePlayed(w);
+      const now = base + g * 3 * 60 * 1000;             // 每盘隔 3 分钟（排除 2min 间隔干扰）
+      if (Shop.canShowInterstitial(w, now)) {
+        Shop.noteAdShown(w, now);
+        shown++;
+        if (!first) first = g;
+        if (g <= 50) inGrace++;
+      }
     }
-    return window.__ads.interstitial;
+    return { shown, first, inGrace };
   });
-  ok(interCount >= 1 && interCount <= 2, `连赢 6 关只出了 ${interCount} 个插屏（每 3 次最多 1 个 + 2min 间隔）`);
+  ok(gate.inGrace === 0, '⛔ 前 50 盘零插屏');
+  ok(gate.first === 51, `第一个插屏出现在第 ${gate.first} 盘（应为 51）`);
+  ok(gate.shown === 3, `80 盘共 ${gate.shown} 个插屏（51/61/71 —— 每 10 盘至多 1 个）`);
 
   // ── 无尽结算：金币入账 + 拒绝翻倍零惩罚 + 转场插屏护栏 ──
   const endlessOver = await page.evaluate(() => {
@@ -201,45 +207,54 @@ async function clickAction(page, action) {
   ok(after2x.coins === coinsBefore2x + 25 && after2x.doubled, '看完广告 ⇒ 翻倍到账');
   ok(!(await findBtn(page, 'DOUBLE_COINS')), '翻过一次 ⇒ 按钮消失（不能无限翻）');
 
-  // ⛔ 首日零转场插屏：installAt 是刚 boot 时打的（= 现在）⇒ 点「再来一局」不该出
-  await page.evaluate(() => { G.wallet.installAt = Date.now(); window.__ads.interstitial = 0; });
+  // ⛔ 免广告期：新玩家（盘数 < 50）点「再来一局」零插屏
+  await page.evaluate(() => { window.__ads.interstitial = 0; });
   await clickAction(page, 'RESTART');
   await page.waitForTimeout(250);
-  ok(await page.evaluate(() => window.__ads.interstitial) === 0, '⛔ 安装首日点「再来一局」零插屏');
+  ok(await page.evaluate(() => window.__ads.interstitial) === 0, '⛔ 免广告期（前 50 盘）点「再来一局」零插屏');
 
-  // 护栏全过（装了 2 天 + 3 局 + 长局 + 距上次久）⇒ 转场恰好出 1 个
+  // 闸门全过（60 盘 + 距上次 15 盘 + 时钟够久）⇒ 转场恰好出 1 个
   await page.evaluate(() => {
     G.s.score = 1200; G.s.over = true;
-    G.runStartAt = Date.now() - 200 * 1000;
     consume([{ t: 'over' }]);
     G.overAnim = null;                                  // 同上：跳过动画直达结算
-    G.wallet.installAt = Date.now() - 2 * 86400e3;
-    G.wallet.runsSinceAd = 3;
+    G.wallet.gamesPlayed = 60;
+    G.wallet.gamesSinceAd = 15;
     G.wallet.lastAdAt = 0;
-    G.lastRunMs = 200 * 1000;
     renderAll();
   });
   await clickAction(page, 'RESTART');
   await page.waitForTimeout(250);
-  ok(await page.evaluate(() => window.__ads.interstitial) === 1, '护栏全过 ⇒ 「再来一局」转场恰好 1 个插屏');
-  ok(await page.evaluate(() => G.wallet.runsSinceAd) === 0, '出过 ⇒ 局数计数归零（下次至少再等 3 局）');
+  ok(await page.evaluate(() => window.__ads.interstitial) === 1, '闸门全过 ⇒ 「再来一局」转场恰好 1 个插屏');
+  ok(await page.evaluate(() => G.wallet.gamesSinceAd) === 0, '出过 ⇒ 盘数预算归零（下次至少再等 10 盘）');
 
-  // ── 去广告 IAP：插屏归零，但功能不变少 ──
+  // ── 商店页：IAP 已封存 ⇒ 不许再有「去广告」假按钮；广告政策文案明示 ──
   await clickAction(page, 'MENU');
   ok(await clickAction(page, 'PAGE_SHOP'), '菜单能进商店');
   await page.screenshot({ path: path.join(SHOT_DIR, 'p4-04-shop.png') });
-  ok(await clickAction(page, 'BUY_NOADS'), '能买去广告');
-  const paid = await page.evaluate(() => {
+  const shopBtns = await page.evaluate(() => {
+    const { SW, SH } = GameGlobal, found = [];
+    for (let y = 0; y < SH; y += 5) for (let x = 0; x < SW; x += 5) {
+      const h = hitTest(x, y);
+      if (h && !found.includes(h.action)) found.push(h.action);
+    }
+    return found;
+  });
+  ok(!shopBtns.includes('BUY_NOADS') && !shopBtns.includes('RESTORE_IAP'),
+    `商店页无 IAP 假按钮（只有：${shopBtns.join(', ')}）`);
+  // 历史 noAds 开关（老用户）：继续兑现，且功能不减
+  const legacy = await page.evaluate(() => {
+    G.wallet.noAds = true;
     G.wallet.coins = 500;
+    G.wallet.gamesPlayed = 999; G.wallet.gamesSinceAd = 999;
     const it = Shop.newRunItems(); it.undoFree = 0;
     return {
-      noAds: G.wallet.noAds,
       canInterstitial: Shop.canShowInterstitial(G.wallet),
-      undoMode: Shop.undoMode(G.wallet, it),     // 付费玩家：不该被要求看广告
+      undoMode: Shop.undoMode(G.wallet, it),
     };
   });
-  ok(paid.noAds && !paid.canInterstitial, '✅ 买了去广告 ⇒ 插屏一个都没有');
-  ok(paid.undoMode !== 'ad', '✅ 付费玩家不会被要求看广告（功能改走金币，不是消失）');
+  ok(!legacy.canInterstitial, '✅ 历史去广告用户 ⇒ 插屏一个都没有（不收回）');
+  ok(legacy.undoMode !== 'ad', '✅ 且不会被要求看广告（道具走金币）');
   await page.screenshot({ path: path.join(SHOT_DIR, 'p4-05-noads.png') });
 
   ok(errors.length === 0, '全程零 error' + (errors.length ? ': ' + errors.join(' | ') : ''));

@@ -19,25 +19,23 @@
   const PRICE = { undo: 100, refresh: 50 };          // 金币价
   const EARN = { levelWin: [20, 30, 50], daily: 50, adCoins: 25, sweep: 2, perfect: 20 };
   const FREE = { undoPerRun: 1, refreshEveryTurns: 8 };   // 每局 1 次免费撤销；每 8 次落子充能 1 次换手
-  const INTERSTITIAL_EVERY = 3;                      // 每 3 次通关最多 1 个插屏
 
-  // ── 插屏护栏（数量闸门之外再加时间闸门）──
-  //    「合理的广告」= 位置(只在正反馈/转场) + 频次(每 3 次一个) + 间隔(≥2min) + 首日免打扰。
-  //    首日零插屏：D1 体验和商店评分比首日 eCPM 值钱得多（这个品类差评第一条就是广告）。
-  const AD_GUARD = {
-    minGapMs: 120 * 1000,      // 任意两个插屏至少隔 2 分钟（通关/无尽共用一个时钟）
-    minRunMs: 90 * 1000,       // 无尽局不满 90s（= 挫败局）不出转场插屏
-    graceMs: 24 * 3600 * 1000, // 安装后 24h 内零插屏
-    endlessEvery: 3,           // 每 3 局无尽最多 1 个转场插屏
+  // ── 插屏总闸门（2026-07-31 定稿：口碑优先，插屏近乎象征性存在；收入主力是自愿的激励视频）──
+  //    前 50 盘（关卡/无尽/每日/挑战都算盘）**零插屏** ≈ 中位玩家前 18 天无广告，且是明面卖点；
+  //    之后全局共享「每 10 盘至多 1 个」的预算，只出现在正反馈/转场时刻（通关结算、无尽「再来一局」）。
+  //    ⛔ 失败/局中/每日结算永远零插屏（红线不变）。
+  const AD_GATE = {
+    graceGames: 50,            // 免广告期（按完成的盘数计）
+    everyGames: 10,            // 之后每 10 盘至多 1 个
+    minGapMs: 120 * 1000,      // 任意两个插屏至少隔 2 分钟
   };
 
   const emptyWallet = () => ({
     coins: 50,                 // 开局送一点，让玩家第一次就能用得起道具
-    noAds: false,              // 一次性 IAP
-    winsSinceAd: 0,            // 距上次插屏过了几次通关
-    runsSinceAd: 0,            // 距上次插屏过了几局无尽
-    lastAdAt: 0,               // 上一个插屏的时间戳（通关/无尽共用）
-    installAt: 0,              // 首次启动时间（boot 时补齐；0 = 老钱包，不做首日判断）
+    noAds: false,              // 历史本地开关（IAP 已封存不接；留着 = 老用户继续免广告，不收回）
+    gamesPlayed: 0,            // 累计完成盘数（免广告期的计数）
+    gamesSinceAd: 0,           // 距上次插屏过了几盘
+    lastAdAt: 0,               // 上一个插屏的时间戳
     themes: [],                // 已购皮肤 id（金币皮肤 —— 金币的消耗出口）
     chests: [],                // 已领的章末宝箱 id
   });
@@ -104,41 +102,26 @@
   /** 看广告翻倍：把刚结算的那笔再给一遍（拒绝 ⇒ 什么也不发生，红线 2）*/
   const earnDouble = (wallet, n) => { wallet.coins += n; };
 
-  /** 首日免打扰。installAt=0 = 升级上来的老钱包，查不到装机时间就不拦（行为不回退）。*/
-  const inGrace = (wallet, now) => wallet.installAt > 0 && now - wallet.installAt < AD_GUARD.graceMs;
-  const tooSoon = (wallet, now) => now - (wallet.lastAdAt || 0) < AD_GUARD.minGapMs;
+  /** 每完成一盘记一笔（关卡赢/关卡输/无尽/每日/挑战都算盘 —— 免广告期和频次预算共用这个计数）*/
+  function notePlayed(wallet) {
+    wallet.gamesPlayed = (wallet.gamesPlayed | 0) + 1;
+    wallet.gamesSinceAd = (wallet.gamesSinceAd | 0) + 1;
+  }
 
   /**
-   * 通关结算后能不能出插屏（红线 3）。
-   * ⚠ 只有**通关**（正反馈时刻）才问这个；失败/局中**永远不问**。
-   * 数量闸门（每 3 次通关）之外还有时间闸门：首日零插屏、距上次任何插屏 ≥2min。
+   * 现在能不能出插屏（唯一闸门，通关结算与无尽「再来一局」转场共用）。
+   * ⚠ 调用方只允许在**正反馈/转场时刻**问；失败/局中/每日结算**永远不问**（红线 3）。
    */
   function canShowInterstitial(wallet, now) {
-    if (wallet.noAds) return false;                  // 买了去广告 = 一个非自愿广告都没有
+    if (wallet.noAds) return false;                            // 历史去广告开关：继续兑现，不收回
+    if ((wallet.gamesPlayed | 0) <= AD_GATE.graceGames) return false;   // 前 50 盘零插屏
+    if ((wallet.gamesSinceAd | 0) < AD_GATE.everyGames) return false;   // 每 10 盘至多 1 个
     now = now == null ? Date.now() : now;
-    if (inGrace(wallet, now) || tooSoon(wallet, now)) return false;
-    return wallet.winsSinceAd >= INTERSTITIAL_EVERY;
+    if (now - (wallet.lastAdAt || 0) < AD_GATE.minGapMs) return false;  // 距上次 ≥2min
+    return true;
   }
-  function noteWin(wallet, shown, now) {
-    wallet.winsSinceAd = shown ? 0 : wallet.winsSinceAd + 1;
-    if (shown) wallet.lastAdAt = now == null ? Date.now() : now;
-  }
-
-  /**
-   * 无尽「再来一局」转场能不能出插屏。⚠ 不在死亡瞬间出（那是失败时刻，红线 3 的精神）——
-   * 只在玩家已经点了「再来一局」、决定继续之后的转场里出。四重护栏见 AD_GUARD。
-   */
-  function canShowEndlessInterstitial(wallet, runMs, now) {
-    if (wallet.noAds) return false;
-    now = now == null ? Date.now() : now;
-    if (inGrace(wallet, now) || tooSoon(wallet, now)) return false;
-    if (!(runMs >= AD_GUARD.minRunMs)) return false; // 短局（挫败局）不出
-    return (wallet.runsSinceAd | 0) >= AD_GUARD.endlessEvery;
-  }
-  /** 一局无尽结束了（不管出没出广告都要记账）*/
-  const noteEndlessRun = wallet => { wallet.runsSinceAd = (wallet.runsSinceAd | 0) + 1; };
-  function noteEndlessAdShown(wallet, now) {
-    wallet.runsSinceAd = 0;
+  function noteAdShown(wallet, now) {
+    wallet.gamesSinceAd = 0;
     wallet.lastAdAt = now == null ? Date.now() : now;
   }
 
@@ -168,13 +151,12 @@
   }
 
   const API = {
-    PRICE, EARN, FREE, INTERSTITIAL_EVERY, AD_GUARD,
+    PRICE, EARN, FREE, AD_GATE,
     emptyWallet, newRunItems, onTurn,
     undoMode, refreshMode, payUndo, payRefresh,
     earnLevel, earnDaily, earnAd,
     endlessCoins, earnEndless, earnDouble,
-    canShowInterstitial, noteWin,
-    canShowEndlessInterstitial, noteEndlessRun, noteEndlessAdShown,
+    notePlayed, canShowInterstitial, noteAdShown,
     buyTheme, canClaimChest, claimChest,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;

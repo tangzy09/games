@@ -12,7 +12,6 @@
   "dependencies": {
     "@capacitor-community/admob": "^6.0.0",
     "@openforge/capacitor-game-connect": "^1.1.1",
-    "@revenuecat/purchases-capacitor": "^9.0.0",
     "@capacitor/android": "^6.1.2",
     "@capacitor/app": "^6.0.1",
     "@capacitor/core": "^6.1.2",

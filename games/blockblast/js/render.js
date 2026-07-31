@@ -452,24 +452,13 @@
     txt('\u{1F4FA} ' + T('blockblast.getCoins'), cx, y1 + 29, '#fff', 'bold 15px sans-serif');
     addHit(L.playX + 20, y1, L.playW - 40, 58, 'AD_COINS', {});
 
-    // 一次性去广告（Woodoku 被骂多年就是没有这个选项）
+    // 广告政策直接印在商店页（2026-07-31 定稿：前 50 盘零插屏、之后每 10 盘至多 1 个、只在赢时）——
+    // 这是卖点，不是免责声明。IAP 已封存不接（假按钮比没有按钮更伤信任）。
     const y2 = y1 + 74;
-    const bought = G.wallet.noAds;
-    fillRR(L.playX + 20, y2, L.playW - 40, 78, 12, bought ? 'rgba(255,255,255,0.18)' : '#f59e0b');
-    txt(bought ? T('blockblast.adsRemoved') : T('blockblast.removeAds'), cx, y2 + 22,
-        '#fff', 'bold 15px sans-serif');
-    ctx.font = '10px sans-serif';
-    wrapLines(T('blockblast.removeAdsDesc'), L.playW - 70, 3)
-      .forEach((ln, i) => txt(ln, cx, y2 + 42 + i * 13, 'rgba(255,255,255,0.85)', '10px sans-serif'));
-    if (!bought) addHit(L.playX + 20, y2, L.playW - 40, 78, 'BUY_NOADS', {});
-
-    // 恢复购买：苹果对非消耗型的硬性要求（只在原生壳里显示，web 没有可恢复的东西）
-    if (IAP.native) {
-      const y3 = y2 + 92;
-      fillRR(L.playX + 20, y3, L.playW - 40, 40, 10, 'rgba(255,255,255,0.14)');
-      txt(T('blockblast.restore'), cx, y3 + 20, PAL.sub, '12px sans-serif');
-      addHit(L.playX + 20, y3, L.playW - 40, 40, 'RESTORE_IAP', {});
-    }
+    fillRR(L.playX + 20, y2, L.playW - 40, 66, 12, 'rgba(0,0,0,0.20)');
+    ctx.font = '11px sans-serif';
+    wrapLines(T('blockblast.adPolicy'), L.playW - 70, 3)
+      .forEach((ln, i) => txt(ln, cx, y2 + 20 + i * 15, PAL.sub, '11px sans-serif'));
 
     backButton();
   }
