@@ -107,6 +107,12 @@ ssh -i /c/Users/tangz/Documents/credentials/ec2_1.pem ec2-user@3.26.95.240 "sudo
 ## 本仓库的协作坑（都真实发生过）
 
 - **多个 Claude 会话并行共用本仓**。提交只 `git add` 精确路径，**禁止 `git add -A`**（曾把别会话的未提交文件夹带进提交）。改 `engine/` 或根级文件（package.json、本文件）前先 `git status` 看别的会话有没有未提交改动，改前先读当前内容（input.js 曾因替换旧版内容被贴进孤儿代码）。
+- ⚠ **「从 git 干净版本重建文件」会踩掉别会话刚做的改动**（2026-07-31 实锤）：某会话为修编码损坏
+  把 `blockblast/index.html` 从旧提交重建，**把另一会话刚 bump 的 `?v=21` 打回 `?v=20`**，
+  结果线上同一页面 10 行 v=20 + 19 行 v=21 **新旧 JS 混装**（其中就有刚改过刘海适配的 `engine/canvas.js`，
+  老玩家命中旧缓存 = 修了等于没修）。**重建/回滚任何文件前先 `git log -3 -- <file>` 看最近有没有别人的改动**；
+  改完 `grep -o "?v=[0-9]*" <file> | sort -u` **必须只有一个值**。混装的修法是**统一提到比现存最大值更高**的号
+  （不能取回原值——命中过高版本的浏览器不会再拉）。
 - 用脚本批量改代码时，**替换后必须 grep 验证生效**——`str.replace` 没匹配不报错，本仓已静默失败四次。
   更稳的做法：python 脚本里对每个替换 `assert old in s`（不匹配直接炸，而不是静默跳过）。
 - **⛔ 绝不用 PowerShell 读写含中文/emoji 的源文件（本仓几乎全是）**——`(Get-Content x.html -Raw) -replace ... | Set-Content -Encoding utf8` 这条看似人畜无害的「bump `?v=N`」写法，**会把整个文件的非 ASCII 毁掉**：PS 5.1 的 `Get-Content` 对**无 BOM 的 UTF-8** 按系统 ANSI 码页解码，再按 UTF-8 写回 ⇒ `✕` 变 `âœ•`、中文注释全成乱码。**2026-07-31 咬了两次**：snake 的面板关闭按钮变成用户可见的 `âœ•`；blockblast 带着损坏注释连发了 9 个提交上线。
