@@ -8,8 +8,13 @@
     "simInterstitial": "[Werbe-Simulation] Interstitial-Werbung",
     "revive": "📺 Wiederbeleben (Werbung)",
     "rescue": "📺 KI 30s",
-    "gal3": "Werbung → 3 Engel",
-    "daily2": "Werbung → 1 Engel mehr"
+    "gal3": "Werbung → {n} Engel",
+    "daily2": "Werbung → {n} Engel mehr",
+    "left": "Heute noch {n}",
+    "boost": "Bonus",
+    "boostGot": "Power-ups!",
+    "quest": "Werbung → eine Aufgabe abschließen",
+    "repair": "Werbung → {n}-Tage-Serie retten"
   },
   "snake": {
     "score": "Punkte",

@@ -29,12 +29,15 @@ function dispatch(action) {
       break;
     }
     case 'REVIVE':
-      // 看广告原地满状态复活,每局(每张图)限 2 次
+      // 看广告原地满状态复活,每局(每张图)限 2 次。⭐ 奖励加厚:复活还附 2 层护盾 + 8s 光环无敌,
+      //   让「复活」真的能救回局面,而不是复活两秒又撞死(那种体验比不给还差)。
       if (G.phase === 'DEAD' && G.revivesThisLevel < 2) {
         Ads.showRewarded().then(ok => {
           if (!ok || G.phase !== 'DEAD') return;
           G.revivesThisLevel++;
           Core.revive(G.run);
+          G.run.effects.shield += 2;                                   // 护盾 ×2
+          G.run.effects.ghostUntil = (G.nowMs || 0) + 8000;            // 8s 穿身无敌
           G.save.stats.revives++;
           const u = Ach.checkCum(G.save).unlocked;      // rev_* 成就
           if (u.length) showAchToasts(u);
@@ -49,6 +52,41 @@ function dispatch(action) {
       //   代价只有一个:用过 AI 的那一关**只给 ★1**(见 tick 的 aiUsedThisLevel),
       //   收集/解锁全部照给——不惩罚,只是把「满星」留给手动通关。
       dispatch('AI_TOGGLE');
+      break;
+    case 'AD_BOOST':
+      // 🎁 开局礼包(新类别:局内增益):看广告 → 本关立刻获得 3 个随机特殊果效果。
+      //   复用 core 的 applyFruit,不新增机制;⛔ 只给增益,不碰星级/成就/纪录。
+      if ((G.phase === 'READY' || G.phase === 'PLAYING') && adQuotaLeft('boost') > 0) {
+        Ads.showRewarded().then(ok => {
+          if (!ok) return;
+          adUse('boost');
+          const pool = Object.keys(Fruits.FRUITS).filter(k => k !== 'gift' && k !== 'meteor');
+          const got = [];
+          for (let i = 0; i < AD_REWARD.boost; i++) {
+            const t = pool[Math.floor(Math.random() * pool.length)];
+            Core.applyFruit(G.run, t, G.nowMs || 0, {});
+            got.push(Fruits.FRUITS[t].emoji);
+          }
+          showBoostToast(got);
+          Sfx.play('special'); Haptics.medium();
+          renderAll();
+        });
+      }
+      break;
+    case 'AD_QUEST':
+      // 📋 任务加速(新类别:任务进度):看广告直接完成一个未完成的今日任务(含其奖励)
+      if (adQuotaLeft('quest') > 0) {
+        Ads.showRewarded().then(ok => {
+          if (!ok) return;
+          adUse('quest');
+          const day = ymd(Date.now());
+          const st = Quests.status(G.save, day);
+          const i = st.findIndex(q => !q.done);
+          if (i < 0) return;
+          questBump(st[i].t, st[i].target);   // 一次喂满 ⇒ 走既有完成/发奖路径
+          openQuests();
+        });
+      }
       break;
     case 'AI_TOGGLE':
       G.aiOn = !G.aiOn;
@@ -184,8 +222,9 @@ function openGallery() {
 function renderGalSets() {
   const body = document.getElementById('panel-body');
   const done = (G.save.gallery.unlocked.length >= ((G.imgList && G.imgList.length) || 500));
+  const left = adQuotaLeft('gal');
   body.innerHTML =
-    (done ? '' : `<button class="gal-ad" id="gal-ad" type="button">📺 ${T('ads.gal3')}</button>`) +
+    (done || !left ? '' : `<button class="gal-ad" id="gal-ad" type="button">📺 ${T('ads.gal3', { n: AD_REWARD.gal })}<small>${T('ads.left', { n: left })}</small></button>`) +
     ((G.manifest && G.manifest.sets) || []).map((s, i) => {
       const pg = Gallery.setProgress(G.save, s);
       return `<div class="gal-set" data-i="${i}"><span>${T('gal.' + s.key)}</span>
@@ -197,14 +236,33 @@ function renderGalSets() {
     ad.disabled = true;
     Ads.showRewarded().then(okAd => {
       ad.disabled = false;
-      if (!okAd) return;
-      grantAngels(3);
+      if (!okAd) return;              // 拒绝 ⇒ 什么也不发生(不扣额度、不给奖励)
+      adUse('gal');
+      grantAngels(AD_REWARD.gal);
       renderGalSets();
     });
   };
   body.querySelectorAll('.gal-set').forEach(el => {
     el.onclick = () => renderGalSet(parseInt(el.dataset.i, 10));
   });
+}
+
+// ——激励视频额度(每日重置)——
+// ⭐ 奖励给得厚 ⇒ 必须有额度,否则一天几十条广告就把 500 张图鉴刷穿、当天毕业(长线没了)。
+//   额度本身也是设计:每天上限 = 25 张图鉴 + 3 次开局礼包 + 1 次任务加速,已经非常大方。
+const AD_CAPS = { gal: 5, boost: 3, quest: 1 };
+const AD_REWARD = { gal: 5, daily: 3, boost: 3 };   // 图鉴每次 5 张 / 每日礼物 3 张 / 礼包 3 个果效
+function adQuotaLeft(kind) {
+  if (!G.save) return 0;
+  const a = G.save.ads, today = ymd(Date.now());
+  if (a.day !== today) { a.day = today; a.gal = 0; a.boost = 0; a.quest = 0; }
+  return Math.max(0, (AD_CAPS[kind] || 0) - (a[kind] || 0));
+}
+function adUse(kind) {
+  const a = G.save.ads;
+  a.day = ymd(Date.now());
+  a[kind] = (a[kind] || 0) + 1;
+  persist();
 }
 
 /** 直接解锁 n 张未解锁天使(每日礼物/任务/看广告共用的发放口) */
@@ -464,6 +522,17 @@ function openHowTo() {
   if (G.phase === 'PLAYING') dispatch('PAUSE');
 }
 
+/** 开局礼包发到手时的横幅(显示拿到哪三个果效) */
+function showBoostToast(emojis) {
+  const host = document.getElementById('toasts');
+  if (!host) return;
+  const el = document.createElement('div');
+  el.className = 'set-banner';
+  el.innerHTML = `<span class="sb-emo">🎁</span><span>${T('ads.boostGot')} ${emojis.join(' ')}</span>`;
+  host.appendChild(el);
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 500); }, 2600);
+}
+
 // ——每日任务面板——(复用 #panel;进度条 + 自动发奖,无「领取」按钮)
 function questDoneCount() {
   try { return Quests.status(G.save, ymd(Date.now())).filter(q => q.done).length; } catch (e) { return 0; }
@@ -484,7 +553,11 @@ function openQuests() {
         </div>
         <div class="q-bar"><i style="width:${pct}%"></i></div>`;
     }).join('') +
-    (list.every(q => q.done) ? `<div class="q-all">✨ ${T('q.allDone')}</div>` : '');
+    (list.every(q => q.done)
+      ? `<div class="q-all">✨ ${T('q.allDone')}</div>`
+      : (adQuotaLeft('quest') > 0 ? `<button class="gal-ad" id="q-ad" type="button">📺 ${T('ads.quest')}</button>` : ''));
+  const qad = document.getElementById('q-ad');
+  if (qad) qad.onclick = () => { qad.disabled = true; dispatch('AD_QUEST'); };
   document.getElementById('panel-close').onclick = () => {
     panel.classList.add('hidden');
     if (G.phase === 'PAUSED') renderAll();
@@ -540,7 +613,10 @@ function claimDaily() {
   // 相邻天 streak+1,断档回 1。用 Math.round 算日差:夏令时切换日是 23/25h,严格减 86400000ms
   // 会误判(与 achievements.onLevelClear 的 streak 处理对齐)。
   const prevMs = d.lastGiftDay ? new Date(d.lastGiftDay).getTime() : null;
-  const adjacent = prevMs != null && Math.round((new Date(today).getTime() - prevMs) / 86400000) === 1;
+  const gapDays = prevMs != null ? Math.round((new Date(today).getTime() - prevMs) / 86400000) : null;
+  const adjacent = gapDays === 1;
+  // 恰好漏了 1 天且原来有 ≥2 天连续 ⇒ 给「看广告补签」的机会(弹窗里出按钮)
+  G.repairOffer = (!adjacent && gapDays === 2 && (d.giftStreak || 0) >= 2) ? d.giftStreak : null;
   d.giftStreak = adjacent ? d.giftStreak + 1 : 1;
   d.lastGiftDay = today;
   const angel = dailyPickAngel();
@@ -567,7 +643,8 @@ function showDailyGift(file, streak) {
       <div class="daily-h">🎁 ${file ? T('daily.newAngel') : T('daily.allCollected')}</div>
       ${img}
       <div class="daily-streak">🔥 ${T('daily.streak', { n: streak })}</div>
-      ${file ? `<button id="daily-ad" class="daily-ad" type="button">📺 ${T('ads.daily2')}</button>` : ''}
+      ${file ? `<button id="daily-ad" class="daily-ad" type="button">📺 ${T('ads.daily2', { n: AD_REWARD.daily })}</button>` : ''}
+      ${G.repairOffer ? `<button id="daily-fix" class="daily-ad" type="button">🔥 ${T('ads.repair', { n: G.repairOffer + 1 })}</button>` : ''}
       <button id="daily-ok" type="button">${T('daily.ok')}</button>
     </div>`;
   // ⭐ 第二个自愿激励位:刚拿到礼物的正反馈时刻问「再来一张？」——拒绝 ⇒ 什么也不发生
@@ -577,8 +654,24 @@ function showDailyGift(file, streak) {
     Ads.showRewarded().then(okAd => {
       dad.disabled = false;
       if (!okAd) return;
-      const n = grantAngels(1);
-      if (n) { dad.remove(); const h = lb.querySelector('.daily-h'); if (h) h.textContent = '🎁 ' + T('daily.newAngel'); }
+      const n = grantAngels(AD_REWARD.daily);
+      if (n) { dad.remove(); const h = lb.querySelector('.daily-h'); if (h) h.textContent = `🎁 +${n}`; }
+    });
+  };
+  // 🔥 streak 补签:恰好漏 1 天 ⇒ 看广告把连续接回来(习惯保护;Duolingo 模式)
+  const fix = document.getElementById('daily-fix');
+  if (fix) fix.onclick = () => {
+    fix.disabled = true;
+    Ads.showRewarded().then(okAd => {
+      fix.disabled = false;
+      if (!okAd || !G.repairOffer) return;
+      G.save.daily.giftStreak = G.repairOffer + 1;
+      G.repairOffer = null;
+      persist();
+      fix.remove();
+      const el = lb.querySelector('.daily-streak');
+      if (el) el.textContent = '🔥 ' + T('daily.streak', { n: G.save.daily.giftStreak });
+      Sfx.play('special'); Haptics.light();
     });
   };
   lb.classList.remove('hidden');

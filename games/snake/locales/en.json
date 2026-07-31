@@ -8,8 +8,13 @@
     "simInterstitial": "[Ad simulation] Interstitial ad",
     "revive": "📺 Revive (ad)",
     "rescue": "📺 AI 30s",
-    "gal3": "Watch an ad → 3 angels",
-    "daily2": "Watch an ad → 1 more angel"
+    "gal3": "Watch an ad → {n} angels",
+    "daily2": "Watch an ad → {n} more angels",
+    "left": "{n} left today",
+    "boost": "Boost",
+    "boostGot": "Power-ups!",
+    "quest": "Watch an ad → finish a quest",
+    "repair": "Watch an ad → restore {n}-day streak"
   },
   "snake": {
     "score": "Score",

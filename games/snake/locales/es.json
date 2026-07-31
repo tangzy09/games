@@ -8,8 +8,13 @@
     "simInterstitial": "[Simulación de anuncio] Anuncio intersticial",
     "revive": "📺 Revivir (anuncio)",
     "rescue": "📺 IA 30s",
-    "gal3": "Ver anuncio → 3 ángeles",
-    "daily2": "Ver anuncio → 1 ángel más"
+    "gal3": "Ver anuncio → {n} ángeles",
+    "daily2": "Ver anuncio → {n} ángeles más",
+    "left": "Quedan {n} hoy",
+    "boost": "Bonus",
+    "boostGot": "¡Potenciadores!",
+    "quest": "Ver anuncio → completar una misión",
+    "repair": "Ver anuncio → recuperar racha de {n} días"
   },
   "snake": {
     "score": "Puntos",

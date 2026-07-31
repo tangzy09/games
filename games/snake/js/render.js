@@ -374,13 +374,23 @@ function drawSnake() {
 }
 
 function drawButtons() {
-  // ⭐ AI 代打开关(免费,随时开/关)——开着时高亮,再点即关。⛔ 不接任何广告。
+  // 左:AI 代打开关(免费,随时开/关,⛔ 不接任何广告)  右(仅 READY 且有额度):🎁 开局礼包(激励视频)
   const r = Layout.btnRescue;
   const on = !!G.aiOn;
-  fillRR(r.x, r.y, r.w, r.h, 14, on ? PAL.accent : PAL.bar);
+  const boost = G.phase === 'READY' && typeof adQuotaLeft === 'function' && adQuotaLeft('boost') > 0;
+  const w = boost ? (r.w - 8) / 2 : r.w;
+
+  fillRR(r.x, r.y, w, r.h, 14, on ? PAL.accent : PAL.bar);
   txt(on ? '🤖 ' + T('ai.stop') : '🤖 ' + T('ai.start'),
-      r.x + r.w / 2, r.y + r.h / 2, on ? '#fff' : PAL.text, 'bold 15px sans-serif');
-  addHit(r.x, r.y, r.w, r.h, 'AI_TOGGLE', {});
+      r.x + w / 2, r.y + r.h / 2, on ? '#fff' : PAL.text, 'bold 15px sans-serif');
+  addHit(r.x, r.y, w, r.h, 'AI_TOGGLE', {});
+
+  if (boost) {
+    const bx = r.x + w + 8;
+    fillRR(bx, r.y, w, r.h, 14, '#2fbf71');
+    txt('🎁 ' + T('ads.boost'), bx + w / 2, r.y + r.h / 2, '#fff', 'bold 15px sans-serif');
+    addHit(bx, r.y, w, r.h, 'AD_BOOST', {});
+  }
 }
 
 // 非模态提示条(READY 用):不遮盘面、无按钮,任何方向输入即开始

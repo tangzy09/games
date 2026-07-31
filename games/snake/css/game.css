@@ -20,6 +20,7 @@ body { background: #fdf3f7; }
   border: none; border-radius: 14px; background: #2fbf71; color: #fff;
   font: 700 14px sans-serif; cursor: pointer; }
 .gal-ad:disabled, .daily-ad:disabled { opacity: .55; }
+.gal-ad small { display: block; font: 400 11px sans-serif; opacity: .85; margin-top: 2px; }
 /* 每日任务:进度条 + 说明行(复用 .ach-item 的行样式,只补这三条) */
 .q-bar { height: 7px; border-radius: 4px; background: #f6ecf4; margin: 0 8px 12px; overflow: hidden; }
 .q-bar i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, #f7a8c8, #d6336c); }
