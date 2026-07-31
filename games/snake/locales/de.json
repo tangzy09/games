@@ -255,5 +255,43 @@
     "r_clutch": "Rettung in letzter Sekunde",
     "r_edge": "Kantengänger",
     "r_lastbite": "Vollendungskunst"
+  },
+  "q": {
+    "title": "Tagesaufgaben",
+    "reward": "Jede Aufgabe schaltet 1 Engel frei",
+    "done": "Aufgabe geschafft!",
+    "allDone": "Heute alles erledigt — bis morgen!",
+    "apples": "Iss {n} Äpfel",
+    "levels": "Schließe {n} Bilder ab",
+    "cells": "Decke {n} Felder auf",
+    "special": "Iss {n} besondere Früchte",
+    "combo": "Erreiche {n}er-Combo in einer Runde",
+    "noDeath": "Schließe {n} Bilder ohne Tod ab"
+  },
+  "stats": {
+    "title": "Statistik",
+    "levels": "Bilder geschafft",
+    "imgs": "Engel gesammelt",
+    "sets": "Sets komplett",
+    "score": "Gesamtpunkte",
+    "apples": "Äpfel gegessen",
+    "cells": "Felder aufgedeckt",
+    "steps": "Schritte",
+    "combo": "beste Combo",
+    "len": "längste Schlange",
+    "noDeath": "ohne Tod geschafft",
+    "deaths": "Tode",
+    "saves": "Schild-Rettungen",
+    "streak": "Tage in Folge",
+    "gift": "Geschenk-Serie",
+    "time": "Spielzeit",
+    "stars": "Sterne"
+  },
+  "notif": {
+    "toggle": "Tägliche Erinnerung",
+    "dailyT": "Dein Engel von heute wartet 👼",
+    "dailyB": "Hol dir den Tagesengel und halte die Serie am Leben.",
+    "streakT": "Deine Serie endet heute Nacht!",
+    "streakB": "{n} Tage stehen auf dem Spiel — ein Tipp holt den heutigen Engel."
   }
 }

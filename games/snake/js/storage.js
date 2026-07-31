@@ -11,11 +11,15 @@ function defaults() {
     v: SAVE_V,
     // reduceMotion:null=跟随系统,true/false=用户显式选择。必须在 defaults 里,否则 merge
     // 只拷 default 的 key(见下),用户的显式选择会在重载时被丢掉(减弱动态偏好不持久)。
-    settings: { theme: 'cloud', reduceMotion: null },
+    // ⚠ remind 同理:闭合对象的新字段必须列进 defaults,否则用户开了也会被 merge 丢掉
+    settings: { theme: 'cloud', reduceMotion: null, remind: false },
     // ⚠ stars 是「开放 map」(动态 key=图片名),默认值必须保持空对象 {}(见 merge 注释)
     gallery: { unlocked: [], imgPos: 0, stars: {} },  // unlocked: 图片文件名列表;stars: {文件名:1-3}
     daily: { lastGiftDay: '', giftStreak: 0 },       // 每日天使礼物:领取日(YYYY-MM-DD)+ 连续天数
     ach: { unlocked: [] },
+    // 每日任务:day=YYYY-MM-DD;⚠ prog 是「开放 map」(动态 key=任务序号),默认必须空对象
+    quests: { day: '', prog: {}, done: [] },
+    rate: { asked: [] },                             // 求好评弹窗的记账(时间戳数组,额度门槛用)
     stats: {                                          // 累计计数(成就引擎消费)
       // ⚠️ specials/skinClears 是「开放 map」(动态 key):默认值必须保持空对象 {},
       //    merge 对空对象整体透传;塞了非空默认就会退回逐 key 递归、丢掉存档动态 key
@@ -25,7 +29,7 @@ function defaults() {
       revives: 0, meteorsCaught: 0, ghostPassed: 0, setsDone: 0,
       playtimeMs: 0, langSwitched: 0, skinClears: {},
       distinctImgs: 0,                                // 不同图张数(=gallery.unlocked.length,img 族用)
-      levelsSinceAd: 0,                               // 距上次插屏的过关数(P3a,每 2 关一插屏)
+      levelsSinceAd: 0, lastAdAt: 0,                  // 插屏闸门(adgate.js:前 50 关免/每 10 关至多 1 个/≥2min)
       maxCombo: 0, maxLen: 0,                         // 历史纪录(AI 局不刷)
       lastPlayDay: '', streakDays: 0, dayClears: 0, dayClearsDate: '',
       day5Done: 0,

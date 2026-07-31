@@ -255,5 +255,43 @@
     "r_clutch": "Salvada clave",
     "r_edge": "Caminante del borde",
     "r_lastbite": "Arte del remate"
+  },
+  "q": {
+    "title": "Misiones diarias",
+    "reward": "Cada misión desbloquea 1 ángel",
+    "done": "¡Misión completada!",
+    "allDone": "Todo hecho por hoy. ¡Hasta mañana!",
+    "apples": "Come {n} manzanas",
+    "levels": "Completa {n} imágenes",
+    "cells": "Descubre {n} casillas",
+    "special": "Come {n} frutas especiales",
+    "combo": "Logra un combo de {n} en una partida",
+    "noDeath": "Completa {n} imágenes sin morir"
+  },
+  "stats": {
+    "title": "Estadísticas",
+    "levels": "imágenes completadas",
+    "imgs": "ángeles coleccionados",
+    "sets": "series completas",
+    "score": "puntuación total",
+    "apples": "manzanas comidas",
+    "cells": "casillas descubiertas",
+    "steps": "pasos dados",
+    "combo": "mejor combo",
+    "len": "serpiente más larga",
+    "noDeath": "sin morir",
+    "deaths": "muertes",
+    "saves": "escudos salvadores",
+    "streak": "racha de días",
+    "gift": "racha de regalos",
+    "time": "tiempo jugado",
+    "stars": "estrellas"
+  },
+  "notif": {
+    "toggle": "Recordatorio diario",
+    "dailyT": "Tu ángel de hoy te espera 👼",
+    "dailyB": "Recoge tu ángel diario y mantén viva la racha.",
+    "streakT": "¡Tu racha termina esta noche!",
+    "streakB": "{n} días en juego: un toque reclama el ángel de hoy."
   }
 }

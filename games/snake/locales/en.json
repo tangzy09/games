@@ -255,5 +255,43 @@
     "r_clutch": "Clutch Save",
     "r_edge": "Edge Walker",
     "r_lastbite": "Finishing Art"
+  },
+  "q": {
+    "title": "Daily Quests",
+    "reward": "Each quest unlocks 1 angel",
+    "done": "Quest complete!",
+    "allDone": "All done today — see you tomorrow!",
+    "apples": "Eat {n} apples",
+    "levels": "Finish {n} pictures",
+    "cells": "Reveal {n} tiles",
+    "special": "Eat {n} special fruits",
+    "combo": "Hit a {n}x combo in one run",
+    "noDeath": "Finish {n} pictures without dying"
+  },
+  "stats": {
+    "title": "Statistics",
+    "levels": "pictures finished",
+    "imgs": "angels collected",
+    "sets": "sets completed",
+    "score": "total score",
+    "apples": "apples eaten",
+    "cells": "tiles revealed",
+    "steps": "steps taken",
+    "combo": "best combo",
+    "len": "longest snake",
+    "noDeath": "no-death clears",
+    "deaths": "deaths",
+    "saves": "shield saves",
+    "streak": "day streak",
+    "gift": "gift streak",
+    "time": "play time",
+    "stars": "stars earned"
+  },
+  "notif": {
+    "toggle": "Daily reminder",
+    "dailyT": "Today's angel is waiting 👼",
+    "dailyB": "Claim your daily angel and keep the streak alive.",
+    "streakT": "Your streak ends tonight!",
+    "streakB": "{n} days on the line — one tap claims today’s angel."
   }
 }

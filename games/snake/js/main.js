@@ -62,8 +62,10 @@ function dispatch(action) {
       if (G.phase === 'LEVEL_DONE') {
         G.imgFull = false; G.phase = 'LOADING';
         G.save.stats.levelsSinceAd = (G.save.stats.levelsSinceAd || 0) + 1;
-        const wantAd = G.save.stats.levelsSinceAd >= 2;   // 每 2 关一插屏
-        (wantAd ? Ads.showInterstitial().then(() => { G.save.stats.levelsSinceAd = 0; persist(); })
+        // 插屏总闸门（adgate.js，全仓统一）：前 50 关零插屏 → 之后每 10 关至多 1 个 + ≥2min。
+        // ⚠ 只在这里（过关后点「下一张」的转场）问；死亡/局中永远不问。
+        const wantAd = AdGate.canShow(G.save.stats, Date.now());
+        (wantAd ? Ads.showInterstitial().then(() => { AdGate.noteShown(G.save.stats, Date.now()); persist(); })
                 : Promise.resolve()).finally(() => nextLevel());
       }
       break;
@@ -347,25 +349,37 @@ function openHome() {
      <button class="home-daily${dailyClaimable() ? ' ready' : ''}" id="home-daily" type="button">
        🎁 ${dailyClaimable() ? T('daily.claim') : T('daily.streak', { n: (G.save.daily && G.save.daily.giftStreak) || 0 })}</button>
      <div class="home-menu">
+       <button class="home-btn" id="home-quests" type="button"><span class="ico">📋</span>${T('q.title')} ${questDoneCount()}/3</button>
        <button class="home-btn" id="home-ach" type="button"><span class="ico">🏅</span>${T('menu.achievements')}</button>
        <button class="home-btn" id="home-gal" type="button"><span class="ico">🖼️</span>${T('menu.gallery')}</button>
        <button class="home-btn" id="home-skin" type="button"><span class="ico">🎨</span>${T('menu.skins')}</button>
+       <button class="home-btn" id="home-stats" type="button"><span class="ico">📊</span>${T('stats.title')}</button>
        <button class="home-btn" id="home-howto" type="button"><span class="ico">❓</span>${T('howto.title')}</button>
      </div>
      <div class="home-foot">
        <button id="home-lang" class="wide" type="button" title="${T('lang.toggle')}">🌐 ${I18N.NATIVE[I18N.lang] || I18N.lang}</button>
        <button id="home-sfx" type="button">${Sfx.on ? '🔊' : '🔇'}</button>
        <button id="home-motion" type="button" title="${T('home.motion')}">${G.reduceMotion ? '🍃' : '✨'}</button>
+       ${Notify.available ? `<button id="home-remind" type="button" title="${T('notif.toggle')}">${G.save.settings.remind ? '🔔' : '🔕'}</button>` : ''}
        <button id="home-fb" type="button" title="Feedback">💬</button>
      </div>`;
   home.classList.remove('hidden');
   const $ = id => document.getElementById(id);
   $('home-play').onclick = () => { hideHome(); if (playAct) dispatch(playAct); };
   $('home-daily').onclick = () => claimDaily();
+  $('home-quests').onclick = () => openQuests();
   $('home-ach').onclick = () => openAchievements();      // 面板 DOM 在 #home 之后,自动叠其上;关闭回到主界面
   $('home-gal').onclick = () => openGallery();
   $('home-skin').onclick = () => openSkins();
+  $('home-stats').onclick = () => openStats();
   $('home-howto').onclick = () => openHowTo();
+  const rb = $('home-remind');
+  if (rb) rb.onclick = () => {                            // 每日提醒开关(原生才显示)
+    G.save.settings.remind = !G.save.settings.remind;
+    persist();
+    rb.textContent = G.save.settings.remind ? '🔔' : '🔕';
+    Notify.reschedule(G.save, dailyClaimable());          // 开=申请权限并排期;关=全部取消
+  };
   $('home-sfx').onclick = () => { $('home-sfx').textContent = Sfx.toggle() ? '🔊' : '🔇'; };
   $('home-motion').onclick = () => { toggleMotion(); $('home-motion').textContent = G.reduceMotion ? '🍃' : '✨'; };
   $('home-fb').onclick = () => { if (typeof Feedback !== 'undefined') Feedback.openForm(); };   // 意见反馈
@@ -407,6 +421,65 @@ function openHowTo() {
   if (G.phase === 'PLAYING') dispatch('PAUSE');
 }
 
+// ——每日任务面板——(复用 #panel;进度条 + 自动发奖,无「领取」按钮)
+function questDoneCount() {
+  try { return Quests.status(G.save, ymd(Date.now())).filter(q => q.done).length; } catch (e) { return 0; }
+}
+function openQuests() {
+  const panel = document.getElementById('panel');
+  document.getElementById('panel-title').textContent = T('q.title');
+  document.getElementById('panel-tabs').innerHTML = '';
+  const list = Quests.status(G.save, ymd(Date.now()));
+  document.getElementById('panel-body').innerHTML =
+    `<div class="q-sub">${T('q.reward')}</div>` +
+    list.map(q => {
+      const pct = Math.min(100, (q.prog / q.target) * 100).toFixed(0);
+      return `<div class="ach-item${q.done ? ' got' : ''}">
+          <span class="medal">${q.done ? '✅' : '📋'}</span>
+          <span class="nm">${T('q.' + q.t, { n: q.target })}</span>
+          <span class="pg">${q.done ? '✓' : q.prog + '/' + q.target}</span>
+        </div>
+        <div class="q-bar"><i style="width:${pct}%"></i></div>`;
+    }).join('') +
+    (list.every(q => q.done) ? `<div class="q-all">✨ ${T('q.allDone')}</div>` : '');
+  document.getElementById('panel-close').onclick = () => {
+    panel.classList.add('hidden');
+    if (G.phase === 'PAUSED') renderAll();
+  };
+  panel.classList.remove('hidden');
+  if (G.phase === 'PLAYING') dispatch('PAUSE');
+}
+
+// ——统计面板——(既有计数器一屏摆出来:沉没成本可视化 = 留存)
+function openStats() {
+  const panel = document.getElementById('panel');
+  document.getElementById('panel-title').textContent = T('stats.title');
+  document.getElementById('panel-tabs').innerHTML = '';
+  const s = G.save.stats, g = G.save.gallery;
+  const total = (G.imgList && G.imgList.length) || 500;
+  const hrs = (s.playtimeMs / 3600000);
+  const cells = [
+    ['levels', s.levelsCleared | 0], ['imgs', (g.unlocked.length | 0) + '/' + total],
+    ['sets', s.setsDone | 0], ['score', s.totalScore | 0],
+    ['apples', s.apples | 0], ['cells', s.cellsRevealed | 0],
+    ['steps', s.steps | 0], ['combo', s.maxCombo | 0],
+    ['len', s.maxLen | 0], ['noDeath', s.noDeathClears | 0],
+    ['deaths', s.deaths | 0], ['saves', s.shieldSaves | 0],
+    ['streak', s.streakDays | 0], ['gift', (G.save.daily && G.save.daily.giftStreak) || 0],
+    ['time', (hrs >= 1 ? hrs.toFixed(1) + 'h' : Math.round(s.playtimeMs / 60000) + 'm')],
+    ['stars', Object.values(g.stars || {}).reduce((a, v) => a + (v | 0), 0)],
+  ];
+  document.getElementById('panel-body').innerHTML = `<div class="st-grid">` +
+    cells.map(([k, v]) => `<div class="st-cell"><b>${v}</b><span>${T('stats.' + k)}</span></div>`).join('') +
+    `</div>`;
+  document.getElementById('panel-close').onclick = () => {
+    panel.classList.add('hidden');
+    if (G.phase === 'PAUSED') renderAll();
+  };
+  panel.classList.remove('hidden');
+  if (G.phase === 'PLAYING') dispatch('PAUSE');
+}
+
 // ——每日天使礼物——(每天领一张未解锁的天使直接进图鉴 + 连续天数;Date 在 UI 层允许)
 function ymd(ms) { const d = new Date(ms); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 function dailyClaimable() { return !!(G.save && G.save.daily && G.save.daily.lastGiftDay !== ymd(Date.now())); }
@@ -438,6 +511,7 @@ function claimDaily() {
     if (G.save.stats.setsDone > setsBefore) setTimeout(showSetComplete, 400);   // 每日礼物也可能集齐
   }
   persist();
+  Notify.reschedule(G.save, false);          // 今天领过了 ⇒ 撤掉今晚那枪 streak 提醒(绝不放空炮)
   Sfx.play('special'); Haptics.light();
   if (newly.length) showAchToasts(newly);
   showDailyGift(angel, d.giftStreak);
@@ -497,6 +571,44 @@ function showAchToasts(ids) {
     host.appendChild(el);
     setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 400); }, 2600);
   }
+}
+
+// ——每日任务——(quests.js 纯逻辑;奖励 = 直接解锁天使图,与每日礼物同一种货币)
+// 按日期稳定挑一张未解锁天使;盐与每日礼物不同,免得同一天两处给同一张
+function questPickAngel() {
+  const got = new Set(G.save.gallery.unlocked);
+  const locked = (G.imgList || []).filter(f => !got.has(f));
+  if (!locked.length) return null;
+  const seed = [...(ymd(Date.now()) + 'q' + G.save.gallery.unlocked.length)]
+    .reduce((h, c) => ((h * 31 + c.charCodeAt(0)) >>> 0), 11);
+  return locked[seed % locked.length];
+}
+/** 进度上报 → 完成即**自动发奖**(不做「领取」按钮:多一次点击就多一批忘了领的人) */
+function questBump(type, n) {
+  if (!G.save || !(n > 0)) return;
+  const done = Quests.bump(G.save, ymd(Date.now()), type, n);
+  if (!done.length) return;
+  for (let i = 0; i < done.length * Quests.REWARD_ANGELS; i++) {
+    const f = questPickAngel();
+    if (!f) break;
+    const setsBefore = G.save.stats.setsDone;
+    Gallery.recordUnlock(G.save, f);
+    Gallery.updateSetsDone(G.save, G.manifest);
+    G.save.stats.distinctImgs = G.save.gallery.unlocked.length;
+    if (G.save.stats.setsDone > setsBefore) setTimeout(showSetComplete, 400);
+  }
+  const newly = Ach.checkCum(G.save).unlocked;
+  if (newly.length) showAchToasts(newly);
+  const host = document.getElementById('toasts');
+  if (host) {
+    const el = document.createElement('div');
+    el.className = 'ach-toast';
+    el.textContent = `📋 ${T('q.done')} · 👼 +${done.length * Quests.REWARD_ANGELS}`;
+    host.appendChild(el);
+    setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 400); }, 2600);
+  }
+  Sfx.play('special');
+  persist();
 }
 
 async function nextLevel() {
@@ -562,6 +674,11 @@ function tick(nowMs, interval) {
   G.tracker.scoreGained += scoreDelta;   // onStep 不处理 scoreGained(签名无 ctx),接线方负责
   Ach.onStep(G.tracker, run, ev, nowMs);
   Ach.accumulate(G.save, run, ev, { aiRun, scoreDelta, revealDelta, dtMs: interval });
+  // 每日任务:复用同一份 core 事件流/增量,**绝不另铺埋点**(quests.js 铁律②)
+  questBump('apples', ev.filter(e => e.t === 'apple').length);
+  questBump('special', ev.filter(e => e.t === 'special').length);
+  if (revealDelta > 0) questBump('cells', revealDelta);
+  if (run.combo > 1) questBump('combo', run.combo);          // max 型:传当前值,内部取最大
   let newly = [];
   if (run.levelJustDone) {
     // 皮肤通关计数 + 图鉴解锁/集齐检测(sk_*/set_* 成就)——放 checkCum 之前当场触发
@@ -581,6 +698,10 @@ function tick(nowMs, interval) {
     const cf = G.imgList[G.imgPos % G.imgList.length];
     G.save.gallery.stars[cf] = Math.max(G.save.gallery.stars[cf] || 0, stars);
     G.lastClearStars = stars;   // 结算浮层显示本次拿到几星
+    questBump('levels', 1);
+    if (t.deathsInLevel === 0) questBump('noDeath', 1);
+    // 求好评:只在**幸福时刻**问(满星通关 / 刚集齐一集),额度门槛全在 rate.js 内部
+    if (stars === 3 || G.save.stats.setsDone > setsBefore) { if (Rate.maybeAsk(G.save)) persist(); }
   }
   newly = newly.concat(Ach.checkCum(G.save).unlocked);
   if (newly.length) { showAchToasts(newly); if (!milestonePlayed) Sfx.play('milestone'); }   // 本 tick 播过就不双播
@@ -601,6 +722,7 @@ async function boot() {
     G.reduceMotion = computeReduceMotion();   // 减弱动态:显式设置优先,否则跟随系统
     if (typeof preloadItems === 'function') preloadItems();   // 预载道具 sprite,防首次出现时 emoji 闪一下
     if (typeof Feedback !== 'undefined') Feedback.flushQueue();   // 补发离线的反馈队列
+    Notify.reschedule(G.save, dailyClaimable());   // 每日提醒 + streak 保护(原生才生效,不 await)
     applyTheme(G.save.settings.theme);   // 主题不合法自动回 cloud
     Portal.boot();
     await Ads.init();

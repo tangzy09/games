@@ -255,5 +255,43 @@
     "r_clutch": "Salvamento na Raça",
     "r_edge": "Beira-Abismo",
     "r_lastbite": "Arte do Arremate"
+  },
+  "q": {
+    "title": "Missões diárias",
+    "reward": "Cada missão libera 1 anjo",
+    "done": "Missão concluída!",
+    "allDone": "Tudo feito por hoje. Até amanhã!",
+    "apples": "Coma {n} maçãs",
+    "levels": "Complete {n} imagens",
+    "cells": "Revele {n} casas",
+    "special": "Coma {n} frutas especiais",
+    "combo": "Faça um combo de {n} numa partida",
+    "noDeath": "Complete {n} imagens sem morrer"
+  },
+  "stats": {
+    "title": "Estatísticas",
+    "levels": "imagens completas",
+    "imgs": "anjos coletados",
+    "sets": "séries completas",
+    "score": "pontuação total",
+    "apples": "maçãs comidas",
+    "cells": "casas reveladas",
+    "steps": "passos dados",
+    "combo": "melhor combo",
+    "len": "cobra mais longa",
+    "noDeath": "sem morrer",
+    "deaths": "mortes",
+    "saves": "escudos salvadores",
+    "streak": "sequência de dias",
+    "gift": "sequência de presentes",
+    "time": "tempo jogado",
+    "stars": "estrelas"
+  },
+  "notif": {
+    "toggle": "Lembrete diário",
+    "dailyT": "Seu anjo de hoje espera 👼",
+    "dailyB": "Pegue seu anjo diário e mantenha a sequência.",
+    "streakT": "Sua sequência acaba hoje à noite!",
+    "streakB": "{n} dias em jogo — um toque garante o anjo de hoje."
   }
 }

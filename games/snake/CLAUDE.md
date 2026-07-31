@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**Angel Snake / Snake Angel** —— 揭图收集贪吃蛇。走过的格子揭开底下的天使图,揭满换下一张,集 500 张。含 13 果子 / 120 成就 / 4 皮肤 / AI 救场(看广告 30s) / 广告 / 每日天使 / 每关星级 / 奖励关 / 爽感 FX / 本机 Flux 道具美术 / **10 语 UI** / **意见反馈**。root `CLAUDE.md`(monorepo 引擎契约、部署铁律、git 纪律、iOS 流水线)先读,本文件只讲 snake 专属架构。
+**Angel Snake / Snake Angel** —— 揭图收集贪吃蛇。走过的格子揭开底下的天使图,揭满换下一张,集 500 张。含 13 果子 / 120 成就 / 4 皮肤 / AI 救场(看广告 30s) / 广告 / 每日天使 / **每日任务** / **统计页** / 每关星级 / 奖励关 / 爽感 FX / 本机 Flux 道具美术 / **10 语 UI** / **意见反馈** / **求好评 + 推送提醒(原生)**。root `CLAUDE.md`(monorepo 引擎契约、部署铁律、git 纪律、iOS 流水线)先读,本文件只讲 snake 专属架构。
 
 ## 命令
 
@@ -24,9 +24,9 @@ node games/snake/tools/gen-items.cjs     # Flux schnell 生成 13 道具 → C:\
 
 ## 模块分层(index.html 加载顺序即依赖顺序,load-bearing)
 
-引擎脚本 → `prng` → `fruits` → `core` → `ai` → `storage` → `achievements` → `themes` → `gallery` → `render` → `main`。
+引擎脚本 → `prng` → `fruits` → `core` → `ai` → `storage` → `achievements` → `themes` → `gallery` → **`quests` → `adgate`** → `render` → `feedback-client` → **`rate` → `notify`** → `main`。
 
-- **纯逻辑层**(双导出 `if(module.exports)...else 全局`,node 可单测):`prng/core/fruits/ai/storage/achievements/themes` + `gallery` 的数据函数。**改这些先写/跑测试**。
+- **纯逻辑层**(双导出 `if(module.exports)...else 全局`,node 可单测):`prng/core/fruits/ai/storage/achievements/themes/quests/adgate` + `gallery` 的数据函数。**改这些先写/跑测试**。
 - **DOM/渲染层**(浏览器专用,无单测,靠 E2E + 无头截图验):`render`(renderAll 契约,offscreen 双层)、`main`(boot/主循环/事件消费/存档触发/面板)、`gallery` 的 DOM 部分。
 - `main.js` 的 `G` 用 **`var`**(非 const)——顶层 const 不挂 window,E2E/调试要 `window.G`。同理 dispatch/renderAll/openGallery 等靠全局函数声明暴露。
 
@@ -70,6 +70,14 @@ node games/snake/tools/gen-items.cjs     # Flux schnell 生成 13 道具 → C:\
 - **壁纸导出**(`Gallery.saveWallpaper`):图鉴 lightbox 一键存 1080×1920 竖版天使壁纸(粉彩渐变+柔光,Web Share 优先降级下载)。
 - **无障碍减弱动态**(`computeReduceMotion`/`G.reduceMotion`):跟随系统 `prefers-reduced-motion`,主界面 ✨/🍃 可覆盖;`fxBurst`/`fxShake`/庆祝缩放/星光按它门控(飘字/流光保留)。持久化坑见存档节。
 - **集齐庆祝**(`showSetComplete`)、奖励关横幅(`showBonusBanner`):`#toasts` 里的临时大横幅。
+- **⭐ 全仓元游戏对齐(2026-07-31,照 `casual-game-meta` skill §9 接入顺序)**——四件新东西,全部纯逻辑可单测(`tests/test-quests.js`):
+  - **插屏闸门下调**(`js/adgate.js`):**旧规则「每 2 关一插屏」是这个品类差评的头号来源**(一关 1-3 分钟 ⇒ 几分钟一个),改为全仓统一模型:**前 50 关零插屏 → 之后每 10 关至多 1 个 + 距上次 ≥2min**,且只在**过关后点「下一张」的转场**问(死亡/局中永不问)。新存档字段 `stats.lastAdAt`。
+  - **每日任务**(`js/quests.js`):日期串确定性生成 3 个轻任务(苹果/过关/揭格/特殊果/单局连击/零死亡),进度**挂既有 core 事件流**(`Ach.accumulate` 旁边),**完成即自动发奖不做「领取」按钮**;snake 无金币经济 ⇒ 奖励 = **直接解锁 1 张天使图**(与每日礼物同一种货币)。主界面 📋 显 x/3,面板带进度条。
+  - **求好评**(`js/rate.js`,原生):只在**幸福时刻**问(满星通关 / 刚集齐一集),15 关门槛 + 90 天冷却 + 3 次/年,**调用即记账**(`save.rate.asked`)。
+  - **推送提醒**(`js/notify.js`,原生):19:00 每日天使 + 21:30 streak 保护(仅当 giftStreak≥2 且今天没领);**领过就立刻撤掉那枪**(`claimDaily` 里 reschedule),绝不放空炮。默认关,主界面 🔔/🔕 开关(`settings.remind`)。
+  - **统计页**(`openStats`):16 项既有计数器一屏摆出(沉没成本可视化)。
+  - ⚠ 新存档字段全部按 storage.js 两条铁律加:`quests.prog` 是**开放 map ⇒ 空默认**;`settings.remind`/`stats.lastAdAt` 是**闭合对象新字段 ⇒ 必须进 defaults**。未 bump `SAVE_V`(纯增量字段,merge 自动补,老档无损)。
+  - ⚠ 两个新原生插件(`in-app-review` / `local-notifications`)**要新二进制才生效**,web 端全静默 no-op。**1.0.1 正在审核中 ⇒ 这批随 1.0.2 出**(出包前先 bump package.json 到 1.0.2)。
 - **10 语 UI**(`GAME_CONFIG.languages`=引擎十语默认集 zh-CN/en/es/hi/bn/pt-BR/ru/ja/pa/de):加语言=加 `locales/<code>.json`,零改逻辑。主界面 🌐 弹语言菜单(`openLangMenu`,10 语循环按钮太烂);顶栏引擎语言下拉被 `#home` 盖住,故主界面自带一个。App Store 语言栏(`CFBundleLocalizations`)由 codemagic **从 `GAME_CONFIG.languages` 动态注入**(自动映射 zh-Hans/pt-BR),不虚报。
 - **意见反馈**(`js/feedback-client.js`,drop-in):`FB_CONFIG.app="angel-snake"` → 共享 hub `feedback.ai-speeds.com/api/feedback`(EC2 systemd `feedback-hub`,面板 `/admin`,**后端零改**)。表单已粉彩重样式 + 接 snake 的 `T()`/`I18N.lang`(内置中英随语言切,其余回退英文)。主界面 💬 入口,boot `Feedback.flushQueue()` 补发离线队列;诊断静默附版本/平台/语言/`__lastError`。改后端要单独 `systemctl restart feedback-hub`(见 app-ratings-feedback skill)。
 
@@ -81,4 +89,5 @@ node games/snake/tools/gen-items.cjs     # Flux schnell 生成 13 道具 → C:\
 - AdMob(iOS):App ID `ca-app-pub-2141208066469648~2322595323`,激励 `/4457804077`、插屏 `/5188431812`(在 `index.html` GAME_CONFIG.adUnits + `codemagic.yaml` GAD_APP_ID)。**app-ads.txt 已在 `snake.ai-speeds.com` 根**(全 5 游戏同一份,见 root/admob skill)。
 - 网页版 + 隐私页:`https://snake.ai-speeds.com/`(EC2)。tag 里程碑:`snake-p1-playable` → `p2a-fruits` → `p2b-achievements` → `p2c-gallery` → `p3a-ads`。
 - **界面已 10 语**(zh-CN/en/es/hi/bn/pt-BR/ru/ja/pa/de);**意见反馈已接生产 hub**。
-- 未做(候选):P3b 游戏门户铺量、Android 打包、BGM、评分弹窗(见 app-ratings-feedback skill,建议先攒反馈再上)。
+- **1.0.2 待出包**(2026-07-31 全仓元游戏对齐批,见上节):插屏闸门下调 + 每日任务 + 统计页 + 求好评 + 推送提醒。⚠ 出包前 bump package.json 到 `1.0.2`(与 ASC 版本一字不差,否则 build 挂不上)。
+- 未做(候选):P3b 游戏门户铺量、Android 打包、BGM、静态分数榜(见 casual-game-meta §4.4)。

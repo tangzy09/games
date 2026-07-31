@@ -227,12 +227,30 @@ async function main() {
     log('level-2 wait diag: ' + JSON.stringify(diag));
   }
   assert(done2, 'rescue-AI cleared level 2 within 300s');
+  // ⭐ 广告闸门（adgate.js，2026-07-31 全仓对齐）——旧断言钉的是「每 2 关一插屏」，已作废。
+  //    现在钉的是新策略：**新玩家（前 50 关）一个插屏都不出**。
   const sinceBefore = await page.evaluate(() => window.G.save.stats.levelsSinceAd);
   assert(sinceBefore === 1, `levelsSinceAd === 1 before second NEXT (got ${sinceBefore})`);
-  await page.evaluate(() => dispatch('NEXT'));   // 人工 NEXT → 触发插屏
+  await page.evaluate(() => dispatch('NEXT'));
   await page.waitForTimeout(1500);
-  const sinceAfter = await page.evaluate(() => window.G.save.stats.levelsSinceAd);
-  assert(sinceAfter === 0, `interstitial shown and levelsSinceAd reset to 0 (got ${sinceAfter})`);
+  const gateNewbie = await page.evaluate(() => ({
+    since: window.G.save.stats.levelsSinceAd,
+    lastAdAt: window.G.save.stats.lastAdAt,
+    cleared: window.G.save.stats.levelsCleared,
+  }));
+  assert(gateNewbie.since === 2 && gateNewbie.lastAdAt === 0,
+    `⛔ 蜜月期零插屏：过了 ${gateNewbie.cleared} 关仍不出（levelsSinceAd 累加到 ${gateNewbie.since}、lastAdAt 未动）`);
+  // 老玩家侧：造出「>50 关 + 攒够 10 关 + 距上次够久」→ 闸门开
+  const gateVeteran = await page.evaluate(() => {
+    const st = window.G.save.stats;
+    st.levelsCleared = 60; st.levelsSinceAd = 10; st.lastAdAt = 0;
+    const can = AdGate.canShow(st, Date.now());
+    AdGate.noteShown(st, Date.now());
+    return { can, since: st.levelsSinceAd, tooSoon: AdGate.canShow(st, Date.now()) };
+  });
+  assert(gateVeteran.can === true, 'veteran (>50 clears, 10 since) passes the gate');
+  assert(gateVeteran.since === 0 && gateVeteran.tooSoon === false,
+    'noteShown resets counter and the 2-min gap blocks the next one');
 
   const shot1 = path.join(SHOT_DIR, 'e2e-p1.png');
   await page.screenshot({ path: shot1 });
