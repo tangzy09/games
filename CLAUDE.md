@@ -39,6 +39,20 @@ node tools/check-locales.js games/<name>/locales
 
 全局脚本按序加载共享命名空间，无模块。游戏提供单一可变状态 `G` + `renderAll()`（每帧 `clearHits()` 重画全屏并 `addHit()` 可点区域）+ `dispatch(action, data)`。`GAME_CONFIG.id` 决定存储键前缀。
 
+## 跨游戏共用件（加留存/收集系统前先看这张表 + `casual-game-meta` skill）
+
+**元游戏打法（广告节奏/收集三层曲线/每日任务/streak 补签/静态分数榜/伪社交）全部沉淀在全局 skill `casual-game-meta`**，三款上线产品验证过——**别重新发明，也别重新踩坑**。
+
+| 共用件 | 位置 | 复用方式 |
+|---|---|---|
+| **天使图鉴素材 501 张（25MB）** | `games/snake/assets/angels/` + `manifest.json` | ⛔ **绝不再拷第二份**：web 走相对路径 `../snake/assets/angels/`，iOS 出包走 package.json 的 `wwwExtras`（照 `games/solitaire` 抄）。⚠ blockblast 已踩：又拷了 24MB 进自己目录，待去重 |
+| 引擎美术回退 | `engine/canvas.js` 的 `makeArt(dir,ids)` / `drawArtIcon` | 缺图自动回退矢量/emoji ⇒ **零改码换图**；生成素材见 `comfyui-flux-local` |
+| 十语 i18n | `engine/i18n.js` 默认集 + 各游戏 `locales/*.json` | 加语言 = **纯加 json**；`node tools/check-locales.js games/<name>/locales` 必 0 fail |
+| 广告闸门 / 激励视频 | 各游戏 `js/shop.js`（未抽取） | 参数与红线见 skill §1；blockblast 是最简闸门的参考实现 |
+| 原生三件套（推送/求好评/反馈） | `games/blockblast/js/{notify,rate,feedback}.js` | **三个文件都是 game-agnostic**（只依赖 `T()`/`CFG`/`Platform`），复制即用；反馈后端是共享 hub `feedback.ai-speeds.com`（CORS `*`，任何域可直连） |
+
+**各游戏留存件覆盖（2026-07-31 实测）**：blockblast 全套 ✅ · solitaire/snake 大半 · **minesweeper/abyssshoot 几乎为零且只有 2 语**（补齐它们是全仓 ROI 最高的一块）。
+
 ## 语言策略（所有游戏一律如此，第一版就要照办）
 
 **新游戏首发只做 `en` + `zh-CN` 两语，但代码从第一行起就必须是「零硬编码文案」** —— 全部走 `T('key')` + `locales/<lang>.json`。后续加语言是**纯加 json 文件、零改代码**（`GAME_CONFIG.languages` 加一项即可，不加则用引擎的十语默认集）。
