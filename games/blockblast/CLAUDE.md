@@ -13,6 +13,7 @@
 - **天使榜（2026-07-31，DESIGN §7 幽灵追赶的落地形态）**：`js/ghosts.js` 20 个预设分数角色（200→20000，头像复用天使画廊图）。⛔ §7 红线照守：**明确是游戏角色，文案绝不称「玩家」**（单测钉死名字不含 player/玩家）。进度零存档（由最高分推导 `beatenCount`）；局中超越即 toast、结算页对比行（x/20 + 下一个差多少，点进全榜）、目标条挂「差 ≤600 分」的追赶目标。
 - **广告模型（2026-07-31 定稿，取代此前所有插屏规则）**：**前 50 盘零插屏**（明面卖点，商店页 adPolicy 文案明示）→ 之后**每 10 盘至多 1 个**，只在通关结算 / 无尽「再来一局」转场，≥2min 间隔；失败/局中/每日永远零插屏。唯一闸门 `Shop.canShowInterstitial` + `notePlayed/noteAdShown`（盘数 = 关卡赢/输、无尽、每日、挑战都计）。**插屏是姿态不是收入，收入主力 = 自愿激励视频（×2/换手/撤销/领币）。**
 - **iOS 1.0.1 待出包**（package.json 已 bump 1.0.1；⚠ 出包/提交必经批准）：
+  - **ASC 1.0.1 版本载体已建（2026-07-31，PREPARE_FOR_SUBMISSION）**，并补上了缺失的 **marketingUrl=https://blocks.ai-speeds.com**（两 locale，已回读校验）。⛔ **为什么必须补**：AdMob 的 app-ads.txt 验证只认商店页的「Developer Website」(=)，**不认「App Support」(=)**；1.0 只填了后者 ⇒ 商店页没有 Developer Website 那行 ⇒ AdMob 无处可爬、Verify 永远失败。⚠ 该字段在 READY_FOR_SALE 版本上**锁死**（PATCH 报 409 ，supportUrl 同样锁），只能随 1.0.1 上架生效。**提交前还差 whatsNew（更新版必填）+ 新 build**。
   - **IAP `cubeblast_noads` 封存不提交**（ASC id 6796603142 元数据齐全 READY_TO_SUBMIT，放着；将来要上：随版提交 + 从 git 历史 b6c19aa 取回 `js/iap.js` + RC dashboard 建 app）。商店页「Remove Ads」按钮已撤（假按钮伤信任）；`wallet.noAds` 历史开关继续兑现不收回。**RevenueCat 不再需要 ⇒ 出包零手工步。**
   - **Game Center**：bundle 能力已开，榜 `cubeblast.endless.best` / `cubeblast.daily.best` 已建；CI 钩子 `tools/ios-extra.sh` 注入 entitlement（codemagic 模板加了通用钩子：游戏目录有 `tools/ios-extra.sh` 就跑）。⚠ 新依赖 `@openforge/capacitor-game-connect@^1.1` 首次云端构建盯 npm/pod 两步。
 
