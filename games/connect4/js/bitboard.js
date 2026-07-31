@@ -181,6 +181,14 @@
     searchBoard, playIn, undoIn,
     fromMoves, toMoves
   };
+  // 与 rules-classic.js / solver.js 对齐：API 对象冻结，挡住 `B.play = ...`、
+  // `B.isWinningMove = () => false` 这类把最深的真值源整个换掉的误用（换掉之后
+  // 上面每一层仍会「正常工作」，正是本仓最怕的失败模式）。
+  // ⚠ 零性能代价，且**只冻结这个容器**：里面全是函数与数字，没有任何数组值 ——
+  //   Object.freeze 会把数组踢出 V8 的 fast packed elements（rules-classic 的
+  //   _ORDER 实锤减速），所以 newBoard()/searchBoard() **产出**的 a/b/h 数组和
+  //   R.moves() 的返回值一律不许冻结。⛔ 别顺手 deep-freeze。
+  Object.freeze(API);
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   else root.Bitboard = API;
 })(typeof self !== 'undefined' ? self : this);

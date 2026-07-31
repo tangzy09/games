@@ -70,14 +70,22 @@
     if (max < 0) max = 0;
     if (beta > max) { beta = max; if (alpha >= beta) return beta; }
 
+    let best = -INF;
     for (const c of ms) {
       B.playIn(bd, c);
       const score = -negamax(bd, -beta, -alpha);
       B.undoIn(bd, c);                                  // ⚠ 必须与 playIn 成对且同列
-      if (score >= beta) return score;                  // fail-soft：返回下界
-      if (score > alpha) alpha = score;
+      if (score >= beta) return score;                  // fail-soft 高侧：返回真实下界
+      if (score > best) { best = score; if (score > alpha) alpha = score; }
     }
-    return alpha;
+    // fail-soft 低侧：返回**真实**上界（≤ 入口 alpha），不是入口 alpha 本身。
+    // ⛔ 别「简化」成 `return alpha`：那样 fail-low 与 exact 的返回值都等于入口 alpha，
+    //    Task 5 的置换表没法据此判 EXACT / UPPER，只能一律当 UPPER 存最松的界 ——
+    //    「注释写 fail-soft、代码低侧却是 fail-hard」正是照注释写却存进糟糕界的标准剧本。
+    //    实测：`return alpha` → `return best` 后，3120 个局面的 score/best/**nodes**
+    //    与每一列的 scoreAll 逐位不变（控制流不变：fail-low 时父节点必然 score>=beta 当场
+    //    截断，只是返回值更紧）。纯白送的信息，零风险。
+    return best;
   }
 
   /**
@@ -85,7 +93,12 @@
    * @returns [{ c, score }]，按 R.moves 的中路优先序
    * ⚠ 每列都用满窗 (-INF, INF) 单独搜 —— 用「上一列的 alpha」收窄会更快，但那样非最优
    *   列拿到的只是上界而不是精确分，而 scoreAll 的精确分正是提示/精准度/妙手的输入。
-   *   慢一档换「每一列都是真值」，本任务的取舍就是这个。
+   * ⛔ **「既精确又快」的两个自然写法都已被实测证伪，别再试**（P1 code review 实锤）：
+   *      · 先跑一遍收窄 pass 拿到精确最大分 M，再用 `beta = M+1` 重搜全部列 → 节点数 **1.83×**
+   *      · 同上但只重搜 fail-low 的列                                    → 节点数 **1.01×**
+   *    两者结果都精确，但都更慢。原因：negamax 内部的 `beta = max` 夹取**已经**把 beta
+   *    收到该节点的理论上界，外面塞进来的 `M+1` 几乎从不更紧 ⇒ 多跑的那一遍 pass 是净亏。
+   *    满窗逐列搜就是这里的最优解。
    */
   function rootScores(sb) {
     _nodes++;                                           // 根也是一个访问过的节点
@@ -109,6 +122,22 @@
   }
 
   /**
+   * ⭐ 计数器的**唯一**闸口：`_nodes` 的重置与读取只在这一个函数里发生，且紧挨着。
+   * ⛔ 别退回「solve 和 scoreAll 各写一次 `_nodes = 0`」—— 这俩今天近似重复
+   *    （solve ≈ rootScores 的 max + argmax），下一个人最自然的合并就是让 solve
+   *    内部去调 scoreAll，那一刻第二次重置会在搜索**中途**清零，`solve().nodes`
+   *    静默变小、零报错。而 nodes 将来喂的是诚实分档 AI 的搜索预算和 gen-book.js
+   *    的进度 —— 错了没有任何一处会响。计数器只许有一个开关。
+   * @param sb 非终局的 searchBoard（由调用方 B.searchBoard 出来，本函数不再复制）
+   * @returns { cols: [{c, score}], nodes }
+   */
+  function analyze(sb) {
+    _nodes = 0;
+    const cols = rootScores(sb);
+    return { cols: cols, nodes: _nodes };
+  }
+
+  /**
    * ⭐ 求解一个局面。
    * @param bd 普通盘或搜索盘皆可；**绝不会被修改**（内部一律先 searchBoard 复制一份）
    * @returns { score, best, nodes }
@@ -121,35 +150,49 @@
    *   这个问题不成立。⛔ 消费端别把这个 0 读成「和棋」——先自己查 R.terminal。
    */
   function solve(bd) {
-    _nodes = 0;
     if (R.terminal(bd) !== null) return { score: 0, best: [], nodes: 0 };
 
     const sb = B.searchBoard(bd);
     // 捷径：有当场制胜手时 CELLS - n 就是这个节点**理论上的最大分**（不可能更早赢），
-    // 于是并列最优 = 全部制胜手，其余列一定更差，一个节点都不用搜。
+    // 于是并列最优 = 全部制胜手，其余列一定更差，一个子节点都不用展开。
     // 这条让「AI 落子 / 提示」在任何深度的战术局面上都是瞬时的。
+    // ⚠ 这条路径报 `nodes: 1`（**不是 0**）：根节点确实被检查过——一次 moves() 加
+    //   至多 W 次 isWinningMove——只是没展开任何子节点。这里写字面量而不是碰 _nodes，
+    //   是为了让「重置 + 读取」始终只发生在 analyze() 里（见那里的 ⛔）。
     const mates = R.winningMoves(sb);
-    if (mates.length) { _nodes = 1; return { score: B.CELLS - sb.n, best: mates, nodes: _nodes }; }
+    if (mates.length) return { score: B.CELLS - sb.n, best: mates, nodes: 1 };
 
-    const rs = rootScores(sb);
-    let score = -INF;
+    const a = analyze(sb);
+    const rs = a.cols;
+    // ⚠ 用 rs[0] 起头而不是 -INF 哨兵：rs 若为空（今天不可达——非终局必有合法列），
+    //   哨兵会让 solve 返回 { score: -43, best: [] }，看着像个合法的「必败」；
+    //   rs[0].score 则当场 TypeError（响的）。真值组件宁可炸，别静默编一个分数。
+    let score = rs[0].score;
     for (const e of rs) if (e.score > score) score = e.score;
     const best = [];
     for (const e of rs) if (e.score === score) best.push(e.c);
-    return { score: score, best: best, nodes: _nodes };
+    return { score: score, best: best, nodes: a.nodes };
   }
 
   /**
    * ⭐ 每一个合法列的精确分数（同样是**当前行棋方**视角，约定见文件头）。
    * 提示的「有几列不输」、精准度的每手打标签、妙手判定、课程的自动判分全读它。
-   * @returns { [col]: score }（键是列号；已终局的局面返回 {}）
-   * ⚠ 它比 solve 贵得多：solve 有「当场制胜」捷径，它没有（它必须给出每一列的真值）。
+   * @returns { [col]: score }（已终局的局面返回 {}）
+   *   ⚠ JS 对象的键**是字符串**：`Object.keys(sa)` 拿到的是 `'3'` 不是 `3`，
+   *     `Object.entries` 同理。要拿去调 B.play / 比对列号，先 `.map(Number)`
+   *     （bitboard 的 play 对字符串列号会当场抛错——响的，但别踩）。
+   * ⚠ 它比 solve 贵得多。注意**不是**因为它没有当场制胜捷径 —— rootScores 对每一列
+   *   都走了那条捷径（见那里的 isWinningMove 分支）。差别在于：solve 一旦发现存在制胜手，
+   *   就知道其余列必定更差，**整个都不用搜**；scoreAll 必须给出每一列的真值，所以那些
+   *   「更差的列」它一个都省不掉。
+   * ⛔ 别照 solve 在这里加一个顶层的 `if (mates.length) return {...}` 捷径 ——
+   *   那会让每个**非制胜列**返回错值，而提示的「有几列不输」、妙手判定、课程判分
+   *   全读这些值（且 solve 的定点测试只钉制胜列，未必挡得住）。
    */
   function scoreAll(bd) {
-    _nodes = 0;
     const out = {};
     if (R.terminal(bd) !== null) return out;
-    for (const e of rootScores(B.searchBoard(bd))) out[e.c] = e.score;
+    for (const e of analyze(B.searchBoard(bd)).cols) out[e.c] = e.score;
     return out;
   }
 

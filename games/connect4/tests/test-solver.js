@@ -203,13 +203,16 @@ const DRAW_MOVES = [3, 5, 5, 1, 6, 3, 2, 5, 1, 3, 5, 4, 4, 4, 2, 6, 5, 4, 6, 3, 
     if (c === t) continue;
     assert.strictEqual(sa[c], loseNow, '不堵的每一列都必须正好是「下一手被杀」的分数：列 ' + c);
   }
+  // ⚠ 复现信息必须进**断言 message**，不能只放在成功那行 console.log 里 —— 失败时
+  //   那行永远执行不到，只剩一句 `3 !== -1`，零线索。这条断言恰好是最先抓到剪枝错误的
+  //   一条（「上界过紧」「窗口反号」两类变异体都死在这里）。
+  const rep = 'mv=[' + B.toMoves(bd).join(',') + '] n=' + bd.n + ' 堵 c' + t;
   const r = S.solve(bd);
-  assert.ok(r.score < 0, '被将死一方分数必须 < 0，实得 ' + r.score);
-  assert.strictEqual(r.score, sa[t]);
-  assert.deepStrictEqual(r.best, [t], 'best 必须是唯一的防守手 c' + t);
-  assert.deepStrictEqual(S.scoreAll(bd), sa, 'scoreAll 必须与参考解逐位相同');
-  console.log('test-solver: 被将死 ⇒ score<0 且 best 唯一防守手 OK'
-    + '（局面 mv=[' + B.toMoves(bd).join(',') + '] n=' + bd.n + ' 堵 c' + t + ' 得 ' + sa[t] + '）');
+  assert.ok(r.score < 0, '被将死一方分数必须 < 0，实得 ' + r.score + '：' + rep);
+  assert.strictEqual(r.score, sa[t], 'solve.score 与参考解不符：' + rep);
+  assert.deepStrictEqual(r.best, [t], 'best 必须是唯一的防守手 c' + t + '：' + rep);
+  assert.deepStrictEqual(S.scoreAll(bd), sa, 'scoreAll 必须与参考解逐位相同：' + rep);
+  console.log('test-solver: 被将死 ⇒ score<0 且 best 唯一防守手 OK（' + rep + ' 得 ' + sa[t] + '）');
 }
 
 // 3.6 不污染入参 + 确定性（单独钉一次，massive 对拍里还会再逐个查）
@@ -231,22 +234,35 @@ const DRAW_MOVES = [3, 5, 5, 1, 6, 3, 2, 5, 1, 3, 5, 4, 4, 4, 2, 6, 5, 4, 6, 3, 
 // r = 剩余空格数。⭐ 必须**同时**压两头：
 //   · r 小（盘快满）：朴素解几乎免费，而 αβ 的上界公式恰恰在这里出边界错 ——
 //     初版 `max = CELLS-2-n` 在 n=41 给 -1（真值 0），父节点取反凭空长出 +1 必胜。
-//     ⛔ 别因为「快满盘看着平凡」就砍掉 r ≤ 4 这几块，它们是那个 bug 的回归测试。
 //   · r 大：树深、剪枝多，是剪枝逻辑本身出错的地方（也是唯一贵的部分）。
-const CORPUS = [
+//
+// ⛔⛔ **`r: 3` 与 `r: 4` 这两块是 n=41 夹取的回归测试，动它们等于把门禁拆了。**
+//    去掉 `if (max < 0) max = 0;` 后逐块实测错列数：**r=1 → 0、r=2 → 0、r=3 → 127、r=4 → 81**。
+//    ⚠ 别以为「越满盘越能抓到」而砍成只留 r ≤ 2 —— 那样回归测试当场消失而测试全绿：
+//      · r=1：唯一子节点 n=42，在 negamax 的 `bd.n === CELLS` 那行就返回了，**根本走不到**夹取；
+//      · r=2：走得到 n=41 的夹取，但根给的是满窗（alpha=-INF）⇒ `alpha >= beta` 不成立，
+//             不会走那条 `return beta`，循环里的 fail-soft 高侧仍然返回真值 0。
+//      要触发这个 bug，得在进入 n=41 时 alpha 已经 ≥ -1（即已有一条不差的兄弟着法），
+//      那要求 n=41 之上还有真正的选择 —— 从 r=3 起才出现。
+const CORPUS_SHALLOW = [
   { r: 1,  count: 300 }, { r: 2,  count: 300 }, { r: 3,  count: 300 },
   { r: 4,  count: 300 }, { r: 5,  count: 300 }, { r: 6,  count: 300 },
   { r: 7,  count: 300 }, { r: 8,  count: 400 }, { r: 9,  count: 400 },
   { r: 10, count: 400 }, { r: 11, count: 300 }, { r: 12, count: 250 },
-  { r: 13, count: 80 },  { r: 14, count: 30 },
 ];
-// ⚠ 数量为什么在 r=13/14 掉下来：零剪枝的参考解在这两块要 ~150ms / ~580ms 一个局面，
-//   实测占整份测试 90% 的时间。r ≤ 12 的 3850 个局面走的是**同一套剪枝代码**，
-//   深度块的边际收益远小于它的时间成本。要加深就单独跑，别把 npm test 拖成分钟级。
+// ⚠ r ≥ 13 单独成块、由 `npm run test:c4:deep` 跑（--deep）：零剪枝的参考解在这两块要
+//   ~150ms / ~580ms 一个局面，实测占整份测试 ~79% 的时间，而 9 个变异体**全部**在
+//   ≤210ms 内死在定点用例或 r ≤ 3 —— 深块对变异杀伤力的边际贡献为零。
+//   ⛔ 但它不是被删掉的：深块是真实覆盖，进包前必须跑（DESIGN §10 已列为门禁）。
+const CORPUS_DEEP = [{ r: 13, count: 80 }, { r: 14, count: 30 }];
+const DEEP = process.argv.includes('--deep');
+const CORPUS = DEEP ? CORPUS_DEEP : CORPUS_SHALLOW;
 {
-  const rnd = mulberry32(20260731);
   let total = 0, ties = 0, wins = 0, draws = 0, losses = 0, withMate = 0, solverNodes = 0;
   for (const { r, count } of CORPUS) {
+    // ⚠ 每块一条**独立**的随机流：共用一条流时，改任何一块的 count 都会把后面所有块
+    //   整体洗牌 —— 上面那些抓 bug 的 r=3/4 局面会静默换成另一批，门禁悄悄失效。
+    const rnd = mulberry32(20260731 + r);
     for (let i = 0; i < count; i++) {
       const bd = randomPosition(rnd, CELLS - r, i % 2 === 0);
       const tag = 'r=' + r + ' #' + i + ' mv=[' + B.toMoves(bd).join(',') + ']';
@@ -303,11 +319,28 @@ const CORPUS = [
   }
   // 语料不能退化（全是「随便走都赢」之类的平凡局面就等于没测）
   assert.strictEqual(total, CORPUS.reduce((s, x) => s + x.count, 0));
-  assert.ok(wins > total * 0.05 && losses > total * 0.05 && draws > 0,
-    '语料退化：胜/负/和 = ' + wins + '/' + losses + '/' + draws);
+  assert.ok(wins > total * 0.05 && losses > total * 0.05,
+    '语料退化：胜/负 = ' + wins + '/' + losses);
+  // 和棋几乎只出现在接近满盘的块里 ⇒ 只对浅块（默认门禁）要求，--deep 那两块本就该没有
+  if (!DEEP) assert.ok(draws > 0, '浅块里一个和棋都没有，说明 r 小的语料块被人动过');
   assert.ok(ties > total * 0.05, '并列最优的局面太少（' + ties + '），best 的顺序/完整性没被真正压到');
-  console.log('test-solver: ⭐ 大规模对拍 OK —— ' + total + ' 个局面，**每一列的精确分数**'
-    + '与朴素参考求解器逐位相同');
+
+  // ⭐ 剪枝有效性的门禁：节点总数封顶。
+  // 语料由固定 PRNG 生成、搜索全同步 ⇒ 这个数**完全确定**（不是计时，零 flaky）。
+  // 为什么需要它：剪枝退化**不会报错也不会算错**，只是变慢 —— 与 DESIGN §9.1 里
+  // 「_ORDER 被冻结导致慢几个数量级却零报错」是同一类病。实测两个变异体：
+  //   · 上界放松 `CELLS-1-n`      ⇒ 结果逐位不变、节点 **1.31×**
+  //   · fail-high 的 `>=` 写成 `>` ⇒ 结果逐位不变、节点 **7.30×**
+  // 两者都躲过了全部正确性断言（它们确实不改答案），只有这条能拦。
+  // ⚠ 上限只在**变松**时才该改：加置换表 / 更好的 move ordering 会让它降，那一律通过。
+  //   要调高之前先想清楚是不是剪枝坏了。
+  const NODE_CEILING = DEEP ? 12500 : 62000;
+  assert.ok(solverNodes <= NODE_CEILING,
+    '剪枝退化：solver 共访问 ' + solverNodes + ' 节点，超过上限 ' + NODE_CEILING
+    + '（结果可能仍然全对——这条专门拦「只变慢不算错」）');
+  console.log('test-solver: ⭐ 大规模对拍 OK —— ' + total + ' 个局面'
+    + (DEEP ? '（--deep：剩 13-14 手的深块）' : '（剩 1-12 手）')
+    + '，**每一列的精确分数**与朴素参考求解器逐位相同');
   console.log('            分布：必胜 ' + wins + ' / 和 ' + draws + ' / 必败 ' + losses
     + '；有并列最优 ' + ties + '；有当场制胜手 ' + withMate
     + '；solver 共访问 ' + solverNodes + ' 节点');
