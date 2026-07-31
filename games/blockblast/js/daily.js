@@ -45,21 +45,61 @@
     }
 
     const first = profile.lastDaily !== today;
+    let broken = 0;                                    // 断签信息（恰好漏 1 天才可补签）
     if (first) {
       // 连续：昨天玩过 → +1；否则从 1 重新开始
-      profile.dailyStreak = (profile.lastDaily === today - 1) ? (profile.dailyStreak || 0) + 1 : 1;
+      if (profile.lastDaily === today - 1) {
+        profile.dailyStreak = (profile.dailyStreak || 0) + 1;
+      } else {
+        // 恰好漏了 1 天且之前有 ≥2 天连续 ⇒ 给「金币补签」的机会（调用方弹按钮）
+        if (profile.lastDaily === today - 2 && (profile.dailyStreak || 0) >= 2) broken = profile.dailyStreak;
+        profile.dailyStreak = 1;
+        profile.streakRewardedAt = 0;                  // 断了 ⇒ 里程碑奖励从头再来
+      }
       profile.dailyDays = (profile.dailyDays || 0) + 1;
+      profile.bestDailyStreak = Math.max(profile.bestDailyStreak || 0, profile.dailyStreak);
       profile.lastDaily = today;
     }
     const prev = profile.dailyBest[id] || 0;
     if (score > prev) profile.dailyBest[id] = score;
-    return { first, streak: profile.dailyStreak, best: profile.dailyBest[id] };
+    return { first, streak: profile.dailyStreak, best: profile.dailyBest[id], broken };
+  }
+
+  // ── 连续天数奖励阶梯（3/7/14/30 天；断签后从头再来）──
+  const STREAK_MILESTONES = [
+    { days: 3, coins: 50, angels: 2 },
+    { days: 7, coins: 120, angels: 5 },
+    { days: 14, coins: 250, angels: 10 },
+    { days: 30, coins: 600, angels: 20 },
+  ];
+
+  /** 查这次 streak 有没有跨过新的里程碑（一档只发一次）。返回里程碑或 null（调用方发奖励）。*/
+  function streakReward(profile) {
+    const s = profile.dailyStreak || 0;
+    const last = profile.streakRewardedAt || 0;
+    let hit = null;
+    for (const m of STREAK_MILESTONES) if (s >= m.days && m.days > last) hit = m;
+    if (hit) profile.streakRewardedAt = hit.days;
+    return hit;
+  }
+
+  /**
+   * 金币补签：断签（恰好漏 1 天）后，花金币把连续接回来（prevStreak + 今天 = prev+1）。
+   * 只在 settleDaily 返回 broken>0 的当场有效（调用方管 UI 与时效）。
+   */
+  function repairStreak(profile, wallet, prevStreak, cost) {
+    if (!(prevStreak >= 2) || wallet.coins < cost) return false;
+    wallet.coins -= cost;
+    profile.dailyStreak = prevStreak + 1;
+    profile.bestDailyStreak = Math.max(profile.bestDailyStreak || 0, profile.dailyStreak);
+    return true;
   }
 
   /** 今天玩过了吗 */
   const playedToday = (profile, date) => profile.lastDaily === dayNo(date);
 
-  const API = { dayNo, dayId, newDaily, settleDaily, playedToday };
+  const API = { dayNo, dayId, newDaily, settleDaily, playedToday,
+                STREAK_MILESTONES, streakReward, repairStreak, REPAIR_COST: 100 };
   if (isNode) module.exports = API;
   else root.Daily = API;
 })(typeof self !== 'undefined' ? self : this);

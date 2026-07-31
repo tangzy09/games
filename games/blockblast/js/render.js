@@ -304,6 +304,34 @@
     fillRR(cx + 47, by2 + 64, 78, 32, 10, 'rgba(0,0,0,0.22)');
     txt('\u{1F47C} ' + (G.wallet.angels | 0) + '/' + Shop.ANGELS.total, cx + 86, by2 + 80, PAL.accent, 'bold 10px sans-serif');
     addHit(cx + 47, by2 + 64, 78, 32, 'PAGE_ANG', {});
+
+    // 「下一个目标」提示条：把收集系统串成打开即见的短期目标（宝箱 > 今日任务 > 临近皮肤 > 临近连续奖励）
+    const goal = (() => {
+      for (const c2 of chs) {
+        if (Shop.canClaimChest(G.wallet, G.progress, c2)) {
+          return { label: '\u{1F381} ' + T('blockblast.chestClaim', { n: c2.chest }), act: 'CHAPTER', data: { id: c2.id } };
+        }
+      }
+      const qs = Quests.status(G.profile, Daily.dayNo(new Date()));
+      const qd = qs.filter(q => q.done).length;
+      if (qd < 3) return { label: '\u{1F4CB} ' + T('blockblast.quests') + '  ' + qd + '/3', act: 'PAGE_QUESTS', data: {} };
+      const nextSkin = Themes.THEMES
+        .filter(t => t.games != null && !Themes.isUnlocked(t, 0, [], G.wallet.gamesPlayed))
+        .sort((a, b) => a.games - b.games)[0];
+      if (nextSkin && nextSkin.games - (G.wallet.gamesPlayed | 0) <= 5) {
+        return { label: '\u{1F3A8} ' + T('blockblast.goalSkin', { n: nextSkin.games - (G.wallet.gamesPlayed | 0) }), act: 'PAGE_SKIN', data: {} };
+      }
+      const st0 = G.profile.dailyStreak | 0;
+      const nm = Daily.STREAK_MILESTONES.find(m => m.days > (G.profile.streakRewardedAt || 0) && m.days > st0 && m.days - st0 <= 3);
+      if (nm) return { label: '\u{1F525} ' + T('blockblast.goalStreak', { n: nm.days - st0 }), act: 'PAGE_CAL', data: {} };
+      return null;
+    })();
+    if (goal) {
+      const gw2 = Math.min(L.playW - 60, 300);
+      fillRR(cx - gw2 / 2, by2 + 104, gw2, 26, 13, 'rgba(0,0,0,0.25)');
+      txt(goal.label, cx, by2 + 117, PAL.accent, 'bold 11px sans-serif');
+      addHit(cx - gw2 / 2, by2 + 104, gw2, 26, goal.act, goal.data);
+    }
   }
 
   /** 成就页 */
@@ -639,6 +667,65 @@
     }
   }
 
+  /** 每日任务页：3 个轻任务 + 进度条（完成自动发奖，无需手动领）*/
+  function renderQuests() {
+    clearHits(); layout();
+    const { SW, SH } = GameGlobal, G = root.G, cx = L.cx;
+    const grad = ctx.createLinearGradient(0, 0, SW, SH);
+    grad.addColorStop(0, PAL.bg1); grad.addColorStop(1, PAL.bg2);
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, SW, SH);
+    txt('\u{1F4CB} ' + T('blockblast.quests'), cx, GameGlobal.safeTop + 30, '#fff', 'bold 22px sans-serif');
+    txt(T('blockblast.questReward'), cx, GameGlobal.safeTop + 54, PAL.sub, '12px sans-serif');
+
+    const qs = Quests.status(G.profile, Daily.dayNo(new Date()));
+    qs.forEach((q, i) => {
+      const y = GameGlobal.safeTop + 80 + i * 96;
+      fillRR(L.playX + 14, y, L.playW - 28, 84, 12, q.done ? 'rgba(34,197,94,0.20)' : 'rgba(0,0,0,0.20)');
+      txtL(T('blockblast.q.' + q.t, { n: q.target }), L.playX + 28, y + 24,
+           q.done ? '#7ef2a0' : '#fff', 'bold 14px sans-serif');
+      // 进度条
+      const bw = L.playW - 120;
+      fillRR(L.playX + 28, y + 46, bw, 12, 6, 'rgba(0,0,0,0.30)');
+      fillRR(L.playX + 28, y + 46, bw * (q.prog / q.target), 12, 6, q.done ? '#22c55e' : PAL.accent);
+      txtR(q.done ? '✓' : q.prog + '/' + q.target, L.playX + L.playW - 28, y + 52,
+           q.done ? '#7ef2a0' : PAL.sub, 'bold 12px sans-serif');
+    });
+    // 全部完成的小彩蛋文案
+    if (qs.every(q => q.done)) {
+      txt('✨ ' + T('blockblast.questAllDone'), cx, GameGlobal.safeTop + 80 + 3 * 96 + 16, '#7ef2a0', 'bold 13px sans-serif');
+    }
+    backButton();
+  }
+
+  /** 统计页：终身数据一屏（沉没成本可视化 = 留存）*/
+  function renderStats() {
+    clearHits(); layout();
+    const { SW, SH } = GameGlobal, G = root.G, cx = L.cx;
+    const grad = ctx.createLinearGradient(0, 0, SW, SH);
+    grad.addColorStop(0, PAL.bg1); grad.addColorStop(1, PAL.bg2);
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, SW, SH);
+    txt('\u{1F4CA} ' + T('blockblast.stats'), cx, GameGlobal.safeTop + 30, '#fff', 'bold 22px sans-serif');
+    const p = G.profile, w = G.wallet;
+    const crystals = Object.values(p.crystals || {}).reduce((a, v) => a + v, 0);
+    const items = [
+      ['stGames', w.gamesPlayed | 0], ['stBestScore', G.best],
+      ['stTurns', p.turns | 0], ['stLines', p.lines | 0],
+      ['stStreak', p.bestStreak | 0], ['stSweeps', p.sweepsTotal | 0],
+      ['stPerfects', p.perfects | 0], ['stLevels', p.levelsWon | 0],
+      ['stStars', p.stars | 0], ['stCrystals', crystals],
+      ['stAngels', (w.angels | 0) + '/' + Shop.ANGELS.total], ['stDailyDays', p.dailyDays | 0],
+      ['stBestDaily', p.bestDailyStreak | 0], ['stCoins', w.coins | 0],
+    ];
+    const cw = (L.playW - 36) / 2;
+    items.forEach(([k, v], i) => {
+      const x = L.playX + 12 + (i % 2) * (cw + 12), y = GameGlobal.safeTop + 58 + Math.floor(i / 2) * 58;
+      fillRR(x, y, cw, 50, 10, 'rgba(0,0,0,0.20)');
+      txt(String(v), x + cw / 2, y + 18, PAL.accent, 'bold 16px sans-serif');
+      txt(T('blockblast.' + k), x + cw / 2, y + 38, PAL.sub, '10px sans-serif');
+    });
+    backButton();
+  }
+
   /** 设置页：下一手预览（关掉 = 硬核模式）/ 粒子特效（低端机、减弱动态）。
    *  声音开关在引擎的悬浮控件里（同一开关不另起一套）。*/
   function renderSettings() {
@@ -653,6 +740,9 @@
       { act: 'TOGGLE_PREVIEW', on: G.opts.preview, label: T('blockblast.optPreview'), sub: T('blockblast.optPreviewSub') },
       { act: 'TOGGLE_FX', on: G.opts.fx, label: T('blockblast.optFx'), sub: T('blockblast.optFxSub') },
     ];
+    if (Notify.available) {
+      rows.push({ act: 'TOGGLE_REMIND', on: !!G.opts.remind, label: T('blockblast.remind'), sub: T('blockblast.remindSub') });
+    }
     rows.forEach((r, i) => {
       const y = GameGlobal.safeTop + 76 + i * 84;
       fillRR(L.playX + 14, y, L.playW - 28, 72, 12, 'rgba(0,0,0,0.20)');
@@ -666,13 +756,18 @@
           r.on ? '#fff' : PAL.sub, 'bold 9px sans-serif');
       addHit(L.playX + 14, y, L.playW - 28, 72, r.act, {});
     });
-    // Game Center 排行榜入口（只在原生壳显示）
-    if (GC.available) {
-      const y = GameGlobal.safeTop + 76 + rows.length * 84;
+    // 按钮行：统计 / 反馈 / Game Center 排行榜（原生）
+    const btns = [
+      { act: 'PAGE_STATS', label: '\u{1F4CA} ' + T('blockblast.stats'), data: {} },
+      { act: 'FB_OPEN', label: '\u{1F4AC} ' + T('blockblast.fbTitle'), data: {} },
+    ];
+    if (GC.available) btns.push({ act: 'SHOW_GC', label: '\u{1F3C5} ' + T('blockblast.leaderboards'), data: { board: 'endless' } });
+    btns.forEach((b, i) => {
+      const y = GameGlobal.safeTop + 76 + rows.length * 84 + i * 60;
       fillRR(L.playX + 14, y, L.playW - 28, 52, 12, 'rgba(0,0,0,0.20)');
-      txtL('\u{1F3C5} ' + T('blockblast.leaderboards'), L.playX + 28, y + 26, '#fff', 'bold 14px sans-serif');
-      addHit(L.playX + 14, y, L.playW - 28, 52, 'SHOW_GC', { board: 'endless' });
-    }
+      txtL(b.label, L.playX + 28, y + 26, '#fff', 'bold 14px sans-serif');
+      addHit(L.playX + 14, y, L.playW - 28, 52, b.act, b.data);
+    });
     backButton();
   }
 
@@ -710,6 +805,8 @@
     if (G0.phase === 'CAL') return renderCal();
     if (G0.phase === 'DEX') return renderDex();
     if (G0.phase === 'ANG') return renderAngels();
+    if (G0.phase === 'QUESTS') return renderQuests();
+    if (G0.phase === 'STATS') return renderStats();
     clearHits();
     layout();
     const { SW, SH } = GameGlobal;
@@ -1061,10 +1158,15 @@
         addHit(cx - 80, SH * 0.615 - 12, 160, 22, 'PAGE_ANG', {});
       }
       txt(T('blockblast.seed', { s: s.seed }), cx, SH * 0.638, 'rgba(255,255,255,0.45)', '11px sans-serif');
-      // 种子挑战：同一条块流比分数 —— 只有「发牌不看棋盘」的游戏才能提供的分享
-      fillRR(cx - 95, SH * 0.663, 190, 38, 12, 'rgba(255,255,255,0.16)');
-      txt('\u{1F517} ' + T('blockblast.challenge'), cx, SH * 0.663 + 19, '#fff', '13px sans-serif');
-      addHit(cx - 95, SH * 0.663, 190, 38, 'SHARE_SEED', {});
+      // 分享/补签按钮（按优先级）：断签补签 > 每日分享成绩 > 种子挑战
+      const shareBtn = (s.daily && G.repairOffer)
+        ? { label: '\u{1F525} ' + T('blockblast.repair', { n: G.repairOffer.prev + 1 }), act: 'REPAIR_STREAK', bg: '#f59e0b' }
+        : s.daily
+        ? { label: '\u{1F4E4} ' + T('blockblast.shareScore'), act: 'SHARE_DAILY', bg: 'rgba(255,255,255,0.16)' }
+        : { label: '\u{1F517} ' + T('blockblast.challenge'), act: 'SHARE_SEED', bg: 'rgba(255,255,255,0.16)' };
+      fillRR(cx - 95, SH * 0.663, 190, 38, 12, shareBtn.bg);
+      txt(shareBtn.label, cx, SH * 0.663 + 19, '#fff', '13px sans-serif');
+      addHit(cx - 95, SH * 0.663, 190, 38, shareBtn.act, {});
       fillRR(cx - 90, SH * 0.728, 180, 50, 14, '#22c55e');
       txt(T('blockblast.restart'), cx, SH * 0.728 + 25, '#fff', 'bold 17px sans-serif');
       addHit(cx - 90, SH * 0.728, 180, 50, 'RESTART', {});

@@ -71,7 +71,10 @@
     turns: 0, lines: 0, games: 0, perfects: 0,
     levelsWon: 0, stars: 0, cleanWins: 0,
     dailyDays: 0, dailyStreak: 0, lastDaily: 0,
+    bestDailyStreak: 0, streakRewardedAt: 0,   // 连续奖励阶梯（daily.js streakReward）
+    bestStreak: 0, sweepsTotal: 0,     // 终身统计（统计页）
     crystals: {},                      // 图鉴：每种水晶的累计收集数
+    quests: null,                      // 每日任务进度（quests.js ensure 按天重置）
     unlocked: [],                      // 已解锁的成就 id
   });
 
@@ -85,6 +88,9 @@
     p.lines += s.stats.lines;
     p.perfects += s.stats.perfects;
     p.games += 1;
+    // 终身统计（统计页用；老档缺字段用 ||0 兜）
+    p.bestStreak = Math.max(p.bestStreak || 0, s.stats.maxStreak || 0);
+    p.sweepsTotal = (p.sweepsTotal || 0) + (s.stats.sweeps || 0) + (s.stats.deeps || 0) + (s.stats.perfects || 0);
 
     const fresh = [];
     const seen = new Set(p.unlocked);

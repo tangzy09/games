@@ -175,6 +175,8 @@ async function clickAction(page, action) {
   // ── 无尽结算：金币入账 + 拒绝翻倍零惩罚 + 转场插屏护栏 ──
   const endlessOver = await page.evaluate(() => {
     dispatch('PLAY_ENDLESS');
+    // 先把今日任务全标完成 —— 任务奖励（+30/个）会混进金币差值，这里专测 score/100
+    Quests.ensure(G.profile, Daily.dayNo(new Date())).done = [0, 1, 2];
     const before = G.wallet.coins;
     G.s.score = 2500;
     G.s.over = true;

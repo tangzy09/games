@@ -8,6 +8,7 @@
 
 **1.0 已上架（`READY_FOR_SALE`，7-13 过审）。** 线上 web：<https://blocks.ai-speeds.com>（领先于 iOS，含 1.0.1 全部改良）
 
+- **留存批（2026-07-31）**：①**每日任务**（`js/quests.js` 纯函数：dayNo 确定性生成 3 个轻任务，进度挂 consume 事件流，完成自动发 +30🪙+1👼，profile 只存进度）；②**连续奖励阶梯** 3/7/14/30 天（`Daily.streakReward`，断签清零重来）+ **金币补签**（恰好漏 1 天可花 100 币接回，`repairStreak`，结算页按钮）；③**统计页**（14 项终身数据；`achievements.settle` 新增 bestStreak/sweepsTotal 累计）；④**每日 Wordle 式分享**（SHARE_DAILY，日期+分数+同种子链接）；⑤**菜单目标提示条**（宝箱>任务>临近皮肤>临近连续奖励）；⑥**推送提醒** `js/notify.js`（19:00 每日 + 21:30 streak 保护、玩过即撤、默认关、开关在设置）；⑦**求好评** `js/rate.js`（幸福时刻=三星通关/破纪录，15 盘门槛+90 天冷却+3 次/年，调用即记账）；⑧**反馈** `js/feedback.js`（DOM 底部表单 → feedback.ai-speeds.com 共享 hub，离线入队 boot 补发）。⑥⑦要新二进制；⚠ 新依赖 local-notifications@^6.1 / in-app-review@^6 首次云端构建盯 npm/pod。
 - **广告模型（2026-07-31 定稿，取代此前所有插屏规则）**：**前 50 盘零插屏**（明面卖点，商店页 adPolicy 文案明示）→ 之后**每 10 盘至多 1 个**，只在通关结算 / 无尽「再来一局」转场，≥2min 间隔；失败/局中/每日永远零插屏。唯一闸门 `Shop.canShowInterstitial` + `notePlayed/noteAdShown`（盘数 = 关卡赢/输、无尽、每日、挑战都计）。**插屏是姿态不是收入，收入主力 = 自愿激励视频（×2/换手/撤销/领币）。**
 - **iOS 1.0.1 待出包**（package.json 已 bump 1.0.1；⚠ 出包/提交必经批准）：
   - **IAP `cubeblast_noads` 封存不提交**（ASC id 6796603142 元数据齐全 READY_TO_SUBMIT，放着；将来要上：随版提交 + 从 git 历史 b6c19aa 取回 `js/iap.js` + RC dashboard 建 app）。商店页「Remove Ads」按钮已撤（假按钮伤信任）；`wallet.noAds` 历史开关继续兑现不收回。**RevenueCat 不再需要 ⇒ 出包零手工步。**

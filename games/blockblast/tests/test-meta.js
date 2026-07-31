@@ -74,6 +74,72 @@ const Daily = require('../js/daily.js');
   console.log(`test-meta: ${Themes.THEMES.length} 套皮肤，解锁门槛 OK`);
 }
 
+// ════════ 每日任务：确定性、进度、完成、跨天重置 ════════
+{
+  const Quests = require('../js/quests.js');
+  const day = 20500;
+  const a = Quests.todays(day), b = Quests.todays(day);
+  assert.deepStrictEqual(a, b, '同一天全球同一组任务（确定性）');
+  assert.strictEqual(a.length, 3);
+  assert.strictEqual(new Set(a.map(q => q.t)).size, 3, '3 个任务类型互不相同');
+  assert.notDeepStrictEqual(Quests.todays(day + 1).map(q => q.t + q.target),
+    a.map(q => q.t + q.target), '隔天任务不同（极小概率撞，撞了换个 day 数字）');
+
+  const p = { };
+  // 找一个 sum 型任务喂进度
+  const sumQ = a.find(q => q.mode === 'sum');
+  let done = [];
+  for (let i = 0; i < sumQ.target; i++) done = done.concat(Quests.bump(p, day, sumQ.t, 1));
+  assert.strictEqual(done.length, 1, '攒满目标恰好完成一次');
+  assert.deepStrictEqual(Quests.bump(p, day, sumQ.t, 99), [], '完成后不重复发');
+  const st = Quests.status(p, day);
+  assert(st.find(q => q.t === sumQ.t).done, 'status 反映完成态');
+  // max 型：低值不倒退
+  const maxQ = a.find(q => q.mode === 'max');
+  if (maxQ) {
+    Quests.bump(p, day, maxQ.t, maxQ.target - 1);
+    Quests.bump(p, day, maxQ.t, 1);
+    assert.strictEqual(Quests.status(p, day).find(q => q.t === maxQ.t).prog, maxQ.target - 1, 'max 型取最大不累加');
+  }
+  // 跨天重置
+  Quests.ensure(p, day + 1);
+  assert.strictEqual(p.quests.day, day + 1);
+  assert.deepStrictEqual(p.quests.done, [], '新的一天进度清零');
+  console.log('test-meta: 每日任务 OK');
+}
+
+// ════════ 连续奖励阶梯 + 金币补签 ════════
+{
+  const Daily = require('../js/daily.js');
+  const p = { dailyStreak: 0, dailyBest: {} };
+  p.dailyStreak = 3;
+  const m3 = Daily.streakReward(p);
+  assert(m3 && m3.days === 3, '3 天里程碑触发');
+  assert(!Daily.streakReward(p), '同一档只发一次');
+  p.dailyStreak = 7;
+  assert(Daily.streakReward(p).days === 7, '7 天档接着发');
+  p.dailyStreak = 1; p.streakRewardedAt = 0;             // 断签重置（settleDaily 负责清零）
+  p.dailyStreak = 3;
+  assert(Daily.streakReward(p).days === 3, '断签后 3 天档可再拿（阶梯从头再来）');
+
+  // 补签：恰好漏 1 天才给机会；花 100 币接回 prev+1
+  const p2 = { dailyStreak: 5, dailyDays: 5, lastDaily: 1000, dailyBest: {} };
+  const d = new Date(2026, 6, 31);
+  p2.lastDaily = Daily.dayNo(d) - 2;                     // 恰好漏了昨天
+  const r = Daily.settleDaily(p2, d, 900);
+  assert.strictEqual(r.broken, 5, '断签时报告之前的连续天数');
+  assert.strictEqual(p2.dailyStreak, 1, '未补签前 streak 归 1');
+  const w = { coins: 150 };
+  assert(Daily.repairStreak(p2, w, r.broken, Daily.REPAIR_COST), '金币够 → 补签成功');
+  assert.strictEqual(p2.dailyStreak, 6, '接回 5+1=6 天');
+  assert.strictEqual(w.coins, 50, '扣 100 币');
+  assert(!Daily.repairStreak(p2, { coins: 10 }, 5, Daily.REPAIR_COST), '金币不够拒绝');
+  // 漏 2 天不给机会
+  const p3 = { dailyStreak: 5, lastDaily: Daily.dayNo(d) - 3, dailyBest: {} };
+  assert.strictEqual(Daily.settleDaily(p3, d, 100).broken, 0, '漏 2 天以上不可补签');
+  console.log('test-meta: 连续奖励阶梯 + 金币补签 OK');
+}
+
 // ════════ 每日补玩（backfill）：只记成绩，绝不动 streak/天数/首次标记 ════════
 {
   const Daily = require('../js/daily.js');

@@ -28,6 +28,7 @@ const G = window.G = {
   angPage: 0,                    // 天使图鉴当前页
   angView: -1,                   // 天使大图查看（-1 = 关）
   newAngels: 0,                  // 本盘新收集的天使数（结算页显示）
+  repairOffer: null,             // 断签补签报价 {prev}（每日结算页按钮）
   chapter: 0,                    // 关卡地图当前章节（0 = 自动定位到进度所在章）
   animClock: 0,                  // 表现层脉冲时钟（心跳/指引/宽限警示共用）
 };
@@ -87,6 +88,7 @@ function resetRunUi() {
   G.recentPlaces = [];
   G.hint = null;
   G.newAngels = 0;
+  G.repairOffer = null;
   FX.reset();
 }
 
@@ -225,6 +227,21 @@ function settleRun() {
     const d = new Date(Math.floor(id / 10000), Math.floor(id / 100) % 100 - 1, id % 100);
     const r = Daily.settleDaily(G.profile, d, s.score, s.backfill);
     if (r.first) { Shop.earnDaily(G.wallet); saveWallet(); }
+    if (!s.backfill) {
+      // 连续天数奖励阶梯（3/7/14/30 天，一档一次）
+      const m = Daily.streakReward(G.profile);
+      if (m) {
+        G.wallet.coins += m.coins;
+        Shop.earnAngels(G.wallet, m.angels);
+        saveWallet();
+        FX.toast('\u{1F525} ' + T('blockblast.streakMilestone', { d: m.days }) + '  +' + m.coins + '\u{1FA99}',
+                 Render.L.cx, Render.L.boardY - 44, '#ffe08a', 'bold 15px sans-serif', 1.4);
+        if (Haptics.heavy) Haptics.heavy();
+      }
+      // 断签（恰好漏 1 天）⇒ 结算页给「金币补签」按钮
+      if (r.broken) G.repairOffer = { prev: r.broken };
+      Notify.reschedule(G.opts, G.profile);    // 今天玩过了 ⇒ 撤掉今晚的 streak 保护提醒
+    }
     GC.submit('daily', s.score);               // Game Center 每日榜（原生；BEST_SCORE 重复提交无害）
     fresh.push(...Achievements.check(G.profile));
   }
@@ -240,10 +257,12 @@ function startDaily(date, backfill) {
   G.items = Shop.newRunItems();
 }
 
-// ── 事件消费：core 事件流 → 画面 + 声音（DESIGN §8）──
+// ── 事件消费：core 事件流 → 画面 + 声音（DESIGN §8）+ 每日任务进度 ──
 function consume(events) {
   if (!events) return;
   const Lo = Render.L, s = G.s;
+  const qDay = Daily.dayNo(new Date());
+  const qdone = [];                                  // 本次事件流里新完成的任务
 
   for (const e of events) {
     if (e.t === 'place') {
@@ -272,6 +291,7 @@ function consume(events) {
         FX.burst(x + Lo.cell / 2, y + Lo.cell / 2, col, 4);
         G.cellColor[Core.idx(r, c)] = null;
       }
+      qdone.push(...Quests.bump(G.profile, qDay, 'lines', e.L));
       const praise = e.L >= 4 ? 'unbelievable' : e.L === 3 ? 'amazing' : e.L === 2 ? 'great' : 'good';
       FX.toast(T('blockblast.praise.' + praise), Lo.cx, Lo.boardY + Lo.boardW / 2,
         '#ffe08a', 'bold 30px sans-serif', e.L >= 3 ? 1.25 : 1);
@@ -285,12 +305,14 @@ function consume(events) {
         'bold ' + (e.kind === 'perfect' ? 40 : 30) + 'px sans-serif', 1.3);
       FX.shake(e.kind === 'perfect' ? 22 : 12);
       Sound.sweep(e.kind);
+      qdone.push(...Quests.bump(G.profile, qDay, 'sweep', 1));
       // 最爽的时刻要有触觉（DESIGN §8：PERFECT = 最高音效 + 长震动 —— 之前漏了）
       if (Haptics.heavy) Haptics.heavy(); else Haptics.medium ? Haptics.medium() : Haptics.light();
 
     } else if (e.t === 'collect') {
       // 水晶飞向顶部目标条（贝塞尔感：用粒子近似）+ 叮；顺手记图鉴的累计收集数
       G.profile.crystals = G.profile.crystals || {};
+      qdone.push(...Quests.bump(G.profile, qDay, 'crystals', e.gained.length));
       for (const g of e.gained) {
         G.profile.crystals[g.kind] = (G.profile.crystals[g.kind] || 0) + 1;
         const r = Math.floor(g.i / 8), c = g.i % 8;
@@ -315,7 +337,11 @@ function consume(events) {
       // ⛔ 插屏只在**通关结算**（正反馈时刻）出，且过总闸门（前 50 盘零插屏 / 每 10 盘至多 1 个 / ≥2min）。
       //    失败/局中永远不出。
       Shop.notePlayed(G.wallet);                  // 这一盘计入盘数
+      qdone.push(...Quests.bump(G.profile, qDay, 'win', 1));
+      qdone.push(...Quests.bump(G.profile, qDay, 'games', 1));
       G.newAngels = Shop.earnAngels(G.wallet, 2); // 通关 = 收集 2 张天使图
+      // 三星通关 = 幸福时刻：满足条件时请求原生评分弹窗（rate.js 内部管额度）
+      if (e.stars === 3) { Rate.maybeAsk(G); saveProfile(); }
       const show = Shop.canShowInterstitial(G.wallet);
       if (show) Shop.noteAdShown(G.wallet);
       saveWallet();
@@ -355,11 +381,14 @@ function consume(events) {
         if (earned > 0 && G.wallet.noAds) { Shop.earnDouble(G.wallet, earned); G.lastEarn = { n: earned * 2, doubled: true }; }
         else G.lastEarn = { n: earned, doubled: false };
         Shop.notePlayed(G.wallet);                     // 每完成一盘都计数（无尽/每日/挑战）
+        qdone.push(...Quests.bump(G.profile, qDay, 'games', 1));
         G.newAngels = Shop.earnAngels(G.wallet, 1 + (G.newBestRun ? 1 : 0));   // 每盘 +1，破纪录再 +1
+        if (G.newBestRun) Rate.maybeAsk(G);            // 破纪录也是幸福时刻
         if (pure) GC.submit('endless', s.score);       // Game Center 无尽榜
         saveWallet();
       } else {
         Shop.notePlayed(G.wallet);                     // 关卡失败也是一盘（但失败永远不出广告）
+        qdone.push(...Quests.bump(G.profile, qDay, 'games', 1));
         G.newAngels = Shop.earnAngels(G.wallet, 1);    // 失败也收集 1 张（收集不惩罚失败）
         saveWallet();
         saveProfile();                                 // 图鉴收集数落盘
@@ -375,6 +404,21 @@ function consume(events) {
     FX.burst(Render.L.cx, Render.L.boardY - 24, '#7ef2a0', 14);
     Sound.sweep('sweep');
     Haptics.medium ? Haptics.medium() : Haptics.light();
+  }
+
+  // 每日任务：单盘极值型（分数/最长连击）每批事件后对账；完成的统一发奖励
+  qdone.push(...Quests.bump(G.profile, qDay, 'score', s.score));
+  qdone.push(...Quests.bump(G.profile, qDay, 'streak', s.stats.maxStreak));
+  if (qdone.length) {
+    for (let i = 0; i < qdone.length; i++) {
+      G.wallet.coins += Quests.REWARD.coins;
+      Shop.earnAngels(G.wallet, Quests.REWARD.angels);
+    }
+    FX.toast('\u{1F4CB} ' + T('blockblast.questDone') + '  +' + (Quests.REWARD.coins * qdone.length) + '\u{1FA99}',
+             Render.L.cx, Render.L.boardY - 44, '#7ef2a0', 'bold 15px sans-serif', 1.3);
+    Sound.sweep('sweep');
+    saveWallet();
+    saveProfile();
   }
 
   // ⚠ K_RUN 只存**纯无尽**局：每日/挑战若也写进去，恢复时 daily/challenge 标志会丢，
@@ -483,6 +527,39 @@ function dispatch(action, data) {
     }
     case 'PAGE_DEX': G.phase = 'DEX'; break;
     case 'PAGE_ANG': G.phase = 'ANG'; G.angView = -1; break;
+    case 'PAGE_QUESTS': G.phase = 'QUESTS'; break;
+    case 'PAGE_STATS': G.phase = 'STATS'; break;
+    case 'REPAIR_STREAK': {
+      // 金币补签：断签当场（结算页）有效，接回 prev+1 天
+      const offer = G.repairOffer;
+      if (offer && Daily.repairStreak(G.profile, G.wallet, offer.prev, Daily.REPAIR_COST)) {
+        G.repairOffer = null;
+        saveWallet();
+        saveProfile();
+        FX.toast('\u{1F525} ' + T('blockblast.dailyStreak', { n: G.profile.dailyStreak }), Render.L.cx, GameGlobal.SH * 0.4, '#ffe08a', 'bold 18px sans-serif', 1.3);
+        Sound.sweep('deep');
+      }
+      break;
+    }
+    case 'SHARE_DAILY': {
+      // Wordle 式每日分享：日期 + 分数 + 同种子链接（对方打开就是同一条块流）
+      const id = G.s.daily || 0;
+      const dstr = Math.floor(id / 10000) + '-' + String(Math.floor(id / 100) % 100).padStart(2, '0') + '-' + String(id % 100).padStart(2, '0');
+      const text = T('blockblast.shareDaily', { d: dstr, n: G.s.score }) + ' ' + challengeUrl(G.s.seed);
+      const done = () => {
+        FX.toast(T('blockblast.challengeCopied'), Render.L.cx, Render.L.boardY + 40, '#7ef2a0', 'bold 15px sans-serif', 1.2);
+        renderAll();
+      };
+      if (navigator.share) navigator.share({ text }).then(done).catch(() => renderAll());
+      else if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done).catch(() => renderAll());
+      return;
+    }
+    case 'TOGGLE_REMIND':
+      G.opts.remind = !G.opts.remind;
+      saveOpts();
+      Notify.reschedule(G.opts, G.profile);          // 开 = 申请权限并排期；关 = 全部取消
+      break;
+    case 'FB_OPEN': FB.open(); return;
     case 'ANG_PAGE': {
       const pages = Math.max(1, Math.ceil(Shop.ANGELS.total / 24));
       G.angPage = Math.max(0, Math.min(pages - 1, G.angPage + data.d));
@@ -603,8 +680,9 @@ async function boot() {
   restoreAudioPrefs();
   Portal.boot();
   await Ads.init();
-  // Game Center：原生才生效，web 静默 no-op；不 await —— 不阻塞首屏。
+  // Game Center / 推送提醒 / 反馈补发：原生才生效，web 静默 no-op；不 await —— 不阻塞首屏。
   GC.signIn();
+  FB.flush();
   I18N.onChange(() => { Controls.render(); renderAll(); });
   await I18N.setLang(I18N.detect());
   initCanvas();
@@ -623,8 +701,8 @@ async function boot() {
   } catch (e) { G.wallet = Shop.emptyWallet(); }
   if (!G.wallet.installAt) { G.wallet.installAt = Date.now(); saveWallet(); }   // 首日免打扰的时钟从这里起跳
   try {
-    G.opts = Object.assign({ fx: true, preview: true }, JSON.parse(Platform.storage.get(K_OPTS()) || 'null') || {});
-  } catch (e) { G.opts = { fx: true, preview: true }; }
+    G.opts = Object.assign({ fx: true, preview: true, remind: false }, JSON.parse(Platform.storage.get(K_OPTS()) || 'null') || {});
+  } catch (e) { G.opts = { fx: true, preview: true, remind: false }; }
   FX.enabled = !!G.opts.fx;
   G.items = Shop.newRunItems();
   const savedTheme = Platform.storage.get(K_THEME()) || 'candy';
@@ -645,6 +723,7 @@ async function boot() {
   Input.bind({ onAction: dispatch });                      // 只处理浮层按钮（棋盘/托盘不注册 hit）
   Drag.bind(document.getElementById(CFG.canvasId), { onPlace, onChange: renderAll });
   window.addEventListener('resize', () => { initCanvas(); renderAll(); });
+  Notify.reschedule(G.opts, G.profile);    // 每日/streak 提醒（要 profile 就位后才能排，故放 boot 尾部）
   Controls.render();
   renderAll();
   if (qseed !== null) {          // 挑战局开场提示（toast 依赖 renderAll 先把布局算出来）
