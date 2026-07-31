@@ -35,8 +35,11 @@ E2E：`npm run test:sol:exp`。⚠ 撤销=按 seed 重放 ⇒ **手搓的 G.s �
 成就系统 11 项（`ACHS` 在 main.js，全部由既有计数器驱动，达成发金币+toast；新计数器
 `stats.fcWon`/`stats.dailyWon`）。E2E：`npm run test:sol:meta`
 （⚠ web 端模拟激励视频走 `window.confirm`——Playwright 必须 `page.on('dialog', accept)`）。
-⛔ 插屏节奏**保持每 3 赢 1 个不动**：低胜率下≈每 10-20 局一个，是「广告克制」定位的弹药，
-别为了蚊子肉动它（红线测试在 e2e-p5p6）。
+⛔ **插屏节奏（2026-07-31 用户拍板，红线测试在 e2e-p5p6）**：
+**前 30 盘蜜月零广告（连横幅都不出，`Money.adFree`/`G.noAds`）；第 31 盘起横幅常驻；
+插屏 = 距上次 ≥4 盘冷却 + 仍只在赢局结算后 + 输局永不出**。
+用户原话是「每 4 盘一个」——落地时把「输局永不出」红线保住了（品类头号差评来源），
+频率比旧的「每 3 赢 1 个」高约一倍（≈4-7 盘一个）。
 
 **高级桌布（2026-07-31，同管线）**：`assets/tables/{walnut,bamboo,velvet,marble}.jpg`
 （540×960，`Sprite.drawTable` 全屏 cover + 商店小图共用；bamboo 原图太亮，后处理压暗到 55%——

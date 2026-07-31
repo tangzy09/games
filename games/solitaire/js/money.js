@@ -8,7 +8,8 @@
 //      ⭐ 而且我们实测过：**玩家输掉的局里有 45% 其实还有解**（tools/measure-deadlock.js）——
 //      把提示锁在广告后面 = **收钱才让你知道自己还有救**。这事我们不干。
 //   2. **绝不局间连播插屏**（微软那个「12 连播」是本品类最致命的叙事）。
-//      插屏只在**赢局结算后**出，且每 3 局最多 1 个，输局永远不出。
+//      插屏只在**赢局结算后**出、输局永远不出；节奏（2026-07-31 拍板）=
+//      前 30 盘蜜月零广告（横幅同步，见 main.js）+ 之后距上次 ≥4 盘冷却。
 //   3. **不要体力，不要押注式金币**（Klondike 玩家零容忍）。
 //   4. **不做去广告 IAP**（2026-07-31 拍板）。noAds/buyNoAds 只是死开关（红线测试用），别接 StoreKit。
 //   5. **横幅绝不遮牌** —— 布局为它**预留**空间（Layout.BANNER_H），不是盖上去。
@@ -20,11 +21,12 @@
   'use strict';
 
   const K = () => CFG.key('money');
-  const INTERSTITIAL_EVERY = 3;          // 每 3 次**赢局**最多 1 个插屏
+  const AD_FREE_DEALS = 30;              // ⭐ 蜜月期：前 30 盘零广告（横幅也不出——首因效应和评分关键期）
+  const AD_EVERY_DEALS = 4;              // 插屏冷却：距上次 ≥4 盘（⛔ 仍只在赢局后，输局永不出）
 
   const state = {
-    noAds: false,                        // 一次性 IAP
-    winsSinceAd: 0,
+    noAds: false,                        // 死开关（IAP 不做，红线测试用）
+    lastAdDeal: 0,                       // 上次插屏时的盘数（stats.played 口径）
     coins: 0,                            // 只能靠赢局/看广告赚，**不能买**（不做押注经济）
     ownedBacks: ['classic'],             // 已解锁的牌背
     ownedTables: ['felt'],               // 已解锁的桌布
@@ -41,14 +43,17 @@
     try { Platform.storage.set(K(), JSON.stringify(state)); } catch (e) {}
   }
 
-  // ── 插屏：只在赢局后，且节流 ──
+  // ── 插屏：只在赢局后，且按盘数节流 ──
+  /** 蜜月期判定（横幅与插屏共用；played = G.stats.played）*/
+  const adFree = played => (played || 0) <= AD_FREE_DEALS;
   /** ⚠ 输局**永远**不出插屏 —— 刚输完还甩你一脸广告，是这个品类最招恨的做法 */
-  function canShowInterstitial() {
+  function canShowInterstitial(played) {
     if (state.noAds) return false;
-    return state.winsSinceAd + 1 >= INTERSTITIAL_EVERY;
+    if (adFree(played)) return false;
+    return (played || 0) - (state.lastAdDeal || 0) >= AD_EVERY_DEALS;
   }
-  function noteWin(shown) {
-    state.winsSinceAd = shown ? 0 : state.winsSinceAd + 1;
+  function noteWin(shown, played) {
+    if (shown) state.lastAdDeal = played || 0;
     save();
   }
 
@@ -129,7 +134,7 @@
 
   root.Money = {
     load, save, state,
-    canShowInterstitial, noteWin,
+    canShowInterstitial, noteWin, adFree,
     earnWin, earnAd,
     BACKS, TABLES, FXS, owns, itemsOf, buy, equip, buyNoAds,
     get coins() { return state.coins; },

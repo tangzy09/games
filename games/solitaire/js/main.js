@@ -93,6 +93,11 @@ function newGame(drawCount, mode) {
   G.s = Core.newGame(seed, draw, md);
   // 换局 = 放弃了上一局 ⇒ 连胜断（没打完就换，不能算赢）
   if (G.s && !G.s.won && G.s.moves.length > 0) G.stats.streak = 0;
+  // 蜜月期结束的那一盘把横幅亮出来（前 30 盘连横幅都没有 —— 首因效应和评分关键期）
+  if (G.noAds && !Money.noAds && !Money.adFree(G.stats.played + 1)) {
+    G.noAds = false;
+    Ads.showBanner();
+  }
   G.dailySeed = null;
   G.drag = G.pending = G.sel = G.hintMove = null;
   G.tAcc = 0; G.tLast = Date.now();
@@ -237,10 +242,10 @@ function onWin() {
   }
   checkAchievements();
 
-  // ⛔ 插屏**只在赢局后**出，且每 3 局最多 1 个。**输局永远不出** ——
-  //    刚输完还甩一脸广告，是这个品类最招恨的做法（微软的「12 连播」就是这么臭掉的）。
-  const showAd = Money.canShowInterstitial();
-  Money.noteWin(showAd);
+  // ⛔ 插屏**只在赢局后**出，**输局永远不出**（刚输完还甩一脸广告是本品类最招恨的做法）。
+  //    节奏：前 30 盘蜜月零广告 + 之后距上次 ≥4 盘冷却（Money.AD_*，2026-07-31 拍板）。
+  const showAd = Money.canShowInterstitial(G.stats.played);
+  Money.noteWin(showAd, G.stats.played);
   if (showAd) setTimeout(() => Ads.showInterstitial().finally(() => renderAll()), 1800);  // 让瀑布先跑
 
   // 减弱动态：跳过瀑布，直接进结算（瀑布是产品的心脏，但晕动症用户的舒适优先）
@@ -733,12 +738,13 @@ async function boot() {
   try { Object.assign(G, JSON.parse(Platform.storage.get(K_OPT()) || '{}')); } catch (e) {}
 
   Money.load();
-  G.noAds = Money.noAds;
   Sprite.preloadBacks();                               // 图片牌背预热（几百 KB，onload 自动重画）
   settleMonthBadges();                                 // 上个月的每日奖牌（一次性结算）
   // ⭐ 横幅是**主力收入**（纸牌单次会话 10-15 分钟，曝光时长极高且不打断牌局）。
   //    布局已为它**预留**了 Layout.BANNER_H —— 它永远不会盖在牌上（变现红线 §7.4-5）。
-  if (!Money.noAds) Ads.showBanner();
+  //    G.noAds = 「不占横幅位」：死开关 noAds 或**前 30 盘蜜月期**（跨过蜜月在 newGame 里亮出）。
+  G.noAds = Money.noAds || Money.adFree(G.stats.played);
+  if (!G.noAds) Ads.showBanner();
 
   await Pool.load();                                   // ⭐ 先加载可解池（决定发什么牌）
   // ⭐ 分享链接进来（#d1-N / #d3-N / #fc-N）⇒ 直接开那一局（朋友挑战同一副牌）。

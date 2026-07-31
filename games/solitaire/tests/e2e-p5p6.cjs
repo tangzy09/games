@@ -90,22 +90,27 @@ async function click(page, action, dm){
     r.freeActionsAdCalls = adCalls;
     Ads.showRewarded = realRewarded; Ads.showInterstitial = realInter;
 
-    // ② 插屏节流：每 3 次赢局最多 1 个；输局永远不出
-    Money.state.noAds = false; Money.state.winsSinceAd = 0;
+    // ② 蜜月期 + 插屏节流：前 30 盘零插屏；之后距上次 ≥4 盘、且只在赢局后
+    Money.state.noAds = false; Money.state.lastAdDeal = 0;
+    r.honeymoon30 = !Money.canShowInterstitial(30);            // 第 30 盘仍是蜜月
     const seq = [];
-    for (let i=0;i<7;i++){ const show = Money.canShowInterstitial(); Money.noteWin(show); seq.push(show?1:0); }
-    r.interstitialSeq = seq;
+    for (let d=31; d<=40; d++){                                // 盘盘都赢的极端情况
+      const show = Money.canShowInterstitial(d);
+      Money.noteWin(show, d);
+      seq.push(show?1:0);
+    }
+    r.interstitialSeq = seq;                                   // 期望 1000100010（31/35/39）
 
     // ③ 买了去广告 => 一个非自愿广告都没有
     Money.buyNoAds();
-    r.noAdsBlocksInterstitial = !Money.canShowInterstitial();
+    r.noAdsBlocksInterstitial = !Money.canShowInterstitial(100);
     return r;
   });
   ok(red.freeActionsAdCalls === 0,
     `撤销/提示/重开/证明/自动 —— 一个广告都不弹（实测调用 ${red.freeActionsAdCalls} 次）`);
-  const shown = red.interstitialSeq.reduce((a,b)=>a+b,0);
-  ok(shown <= 3 && red.interstitialSeq.slice(0,2).every(x=>x===0),
-    `插屏节流：7 次赢局只出 ${shown} 个（序列 ${red.interstitialSeq.join('')}），且绝不连播`);
+  ok(red.honeymoon30, '⭐ 蜜月期：前 30 盘零插屏');
+  ok(red.interstitialSeq.join('') === '1000100010',
+    `插屏节流：盘盘赢也是每 4 盘 1 个（31-40 盘序列 ${red.interstitialSeq.join('')}），绝不连播`);
   ok(red.noAdsBlocksInterstitial, '买了去广告 -> 一个非自愿广告都没有');
 
   ok(errs.length===0, '全程零 error' + (errs.length?': '+errs.join(' | '):''));

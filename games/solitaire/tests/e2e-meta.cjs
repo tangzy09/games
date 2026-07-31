@@ -57,6 +57,15 @@ const winState=`(()=>{ const s=Core.newGame(7,3);
   d1=await page.evaluate(()=>Pool.difficultyOf(G.s.drawCount,G.s.seed));
   ok(d1==='easy', `第 2 局仍是 easy（played=${await page.evaluate(()=>G.stats.played)}）`);
 
+  // ── ①' 蜜月期：前 30 盘连横幅位都不占；第 31 盘起亮出 ──
+  ok(await page.evaluate(()=>G.noAds===true&&Layout.L.bannerH===0),
+     '⭐ 蜜月期（前 30 盘）：横幅位都不占（首因效应/评分关键期）');
+  await page.evaluate(()=>{ G.stats.played=30; dispatch('NEW'); });
+  await page.waitForTimeout(150);
+  ok(await page.evaluate(()=>G.noAds===false&&Layout.L.bannerH>0),
+     '⭐ 第 31 盘起横幅亮出（主力收入）');
+  await page.evaluate(()=>{ G.stats.played=5; });   // 回到蜜月内，后续赢局不受插屏干扰
+
   // ── ② 赢局「金币 ×2」：纯增益激励位 ──
   await page.evaluate(()=>dispatch('TOG_RFX'));            // 免瀑布,直接见结算
   await page.evaluate(winState);
