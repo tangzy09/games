@@ -5,6 +5,9 @@
 //
 // ⚠ 断言消息里的盘面图一律**惰性求值**（check(cond, () => ...)）：急求值时每手画一次
 //   7×6 ASCII 图，占掉整个测试八成时间。
+// ⚠ 配套的变异测试脚本自己也会静默失效——本轮就有一个变异体因为被测文件的导出行改过、
+//   匹配串没命中，变异根本没植入却被计成「存活」。⇒ 变异脚本必须自检「这次替换到底生效了没有」
+//   （替换前后相同就直接炸）。静默失效的验证工具比没有验证更危险：它给你一个假的绿。
 const assert = require('assert');
 const B = require('../js/bitboard.js');
 
@@ -141,7 +144,22 @@ console.log('test-bitboard: 列间不串竖线 OK');
   assert.strictEqual(bd.h[0], 6);
   assert.strictEqual(bd.n, 12);
   assert.strictEqual(bd.turn, 0);
-  console.log('test-bitboard: play 校验非法列 OK');
+
+  // ⭐ 类型也在 play 这个唯一闸口收：字符串列号会被静默接受（JS 里 arr['3'] 就是 arr[3]，
+  //    盘面**完全正确**），但 mv 被污染成 ["3",...]，复盘/精准度/妙手全线静默失效。
+  //    `play(bd, e.target.dataset.col)`（dataset 天生是字符串）是 P2 写 UI 时最自然的一手。
+  const fresh = B.newBoard();
+  assert.throws(() => B.play(fresh, '3'), /整数列号/, '字符串列号必须抛错');
+  assert.throws(() => B.play(fresh, 3.5), /整数列号/, '小数必须抛错');
+  assert.throws(() => B.play(fresh, NaN), /整数列号/, 'NaN 必须抛错');
+  assert.throws(() => B.play(fresh, null), /整数列号/, 'null 必须抛错');
+  assert.throws(() => B.play(fresh, undefined), /整数列号/, 'undefined 必须抛错');
+  // 抛错后原盘零改动（尤其 mv 不许被塞进字符串）
+  assert.strictEqual(fresh.n, 0);
+  assert.strictEqual(fresh.turn, 0);
+  assert.deepStrictEqual(fresh.mv, []);
+  assert.deepStrictEqual(fresh.h, [0, 0, 0, 0, 0, 0, 0]);
+  console.log('test-bitboard: play 校验列号类型/非法列 OK');
 }
 
 // ════════ clone 与原盘完全独立 ════════
@@ -246,8 +264,7 @@ const DRAW_MOVES = [3, 5, 5, 1, 6, 3, 2, 5, 1, 3, 5, 4, 4, 4, 2, 6, 5, 4, 6, 3, 
   assert.throws(() => B.fromMoves([0, 0, 0, 0, 0, 0, 0]), /列 0/, '第 7 次落满列必须抛错');
   assert.throws(() => B.fromMoves([7]), /列 7/, '越界列必须抛错');
   assert.throws(() => B.fromMoves([-1]), /列 -1/, '负列必须抛错');
-  // ⭐ 类型也要收干净：字符串列号会被静默接受（JS 里 arr['3'] 就是 arr[3]，盘面完全正确），
-  //    但 toMoves() 吐出的是 ["3",...]，下游一切严格比较（复盘判最优手/妙手）全线静默失效。
+  // ⭐ 类型守卫由 play 提供，fromMoves 靠**委托**覆盖（这几条同时证明委托生效，别删）。
   //    `'3,3,4'.split(',')` 忘了 .map(Number) 是分享链接最自然的写法。
   assert.throws(() => B.fromMoves(['3']), /整数列号/, '字符串列号必须抛错');
   assert.throws(() => B.fromMoves([3, '3']), /整数列号/, '混进一个字符串也必须抛错');

@@ -56,11 +56,17 @@
   function canPlay(bd, c) { return c >= 0 && c < W && bd.h[c] < H; }
 
   /** 纯函数：返回落子后的新棋盘，绝不就地修改（存档/撤销/复盘全靠这条）。
-   *  ⛔ 非法列必须抛错，别改成静默返回原盘：不校验时往满列上落子会写进**第 7 行的幽灵子**，
+   *  ⛔ 列号的**类型**和**合法性**都在这里收干净——这是全仓落子的唯一闸口，fromMoves 委托它。
+   *  1) 非整数列号：JS 里 `arr['3']` 就是 `arr[3]`，所以字符串列号会让盘面**完全正确地**建出来，
+   *     但 mv 被污染成 ["3",...]，下游一切严格比较静默失效。两条现实路径都很自然：
+   *     UI 的 `play(bd, e.target.dataset.col)`（dataset 天生是字符串）、
+   *     分享链接的 `'3,3,4'.split(',')` 忘了 .map(Number)。
+   *     后果一样：整局被复盘逐手判成「非最优」，精准度失真、妙手一个不亮，零报错。
+   *  2) 非法列必须抛错，别改成静默返回原盘：不校验时往满列上落子会写进**第 7 行的幽灵子**，
    *     v&(v>>1)&(v>>2)&(v>>3) 当场假报竖四连；越界列还会把 a 数组撑到 8 个元素、
-   *     h[7] 变 NaN、并且**没落子却把 turn 翻了一次**（之后整局先后手全错）。
-   *     与 fromMoves 共用同一份契约。 */
+   *     h[7] 变 NaN、并且**没落子却把 turn 翻了一次**（之后整局先后手全错）。 */
   function play(bd, c) {
+    if (!Number.isInteger(c)) throw new Error('非法着法：必须是整数列号，收到 ' + (typeof c) + ' ' + String(c));
     if (!canPlay(bd, c)) throw new Error('非法着法：列 ' + c + ' 已满或越界');
     const nb = clone(bd);
     maskOf(nb, nb.turn)[c] |= 1 << nb.h[c];
@@ -152,17 +158,12 @@
 
   // ─────────── 存档 ───────────
 
-  /** 重放手数列表建盘（存档/撤销/分享链接的**唯一入口**）。非法着法由 play 抛错，不许静默吃掉。
-   *  ⛔ 类型也在这里收干净：字符串列号会被静默接受（JS 里 arr['3'] 就是 arr[3]，盘面**完全正确**），
-   *     但 toMoves() 会吐出 ["3","3",...]，下游一切严格比较全线静默失效 ——
-   *     `'3,3,4'.split(',')` 忘了 .map(Number) 是分享链接最自然的写法，
-   *     后果是从 URL 恢复的一整局被复盘逐手判成「非最优」，精准度失真、妙手一个不亮，零报错。 */
+  /** 重放手数列表建盘（存档/撤销/分享链接的**唯一入口**）。
+   *  ⛔ 列号的类型与合法性一律**委托 play** —— 别在这里再写一份，两份迟早会漂移。
+   *     （`'3,3,4'.split(',')` 忘了 .map(Number) 会在 play 里当场炸，见那边的注释。） */
   function fromMoves(moves) {
     let bd = newBoard();
-    for (const c of moves) {
-      if (!Number.isInteger(c)) throw new Error('手数必须是整数列号，收到 ' + JSON.stringify(c));
-      bd = play(bd, c);
-    }
+    for (const c of moves) bd = play(bd, c);
     return bd;
   }
 
