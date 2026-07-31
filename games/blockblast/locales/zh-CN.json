@@ -102,7 +102,9 @@
       "candy": "糖果",
       "forest": "森林",
       "ocean": "海洋",
-      "sunset": "落日"
+      "sunset": "落日",
+      "neon": "霓虹之夜",
+      "sakura": "樱花"
     },
     "coins": "{n}",
     "refresh": "换一手",
@@ -114,6 +116,13 @@
     "removeAdsDesc": "再也没有插屏。激励奖励照旧——只是不用看广告，直接给你。",
     "adsRemoved": "已去广告",
     "notEnough": "金币不够",
-    "buy": "购买"
+    "buy": "购买",
+    "statLine": "最长连击 {a} · 清扫 {b}",
+    "bestGap": "距最高分还差 {n}",
+    "double": "金币×2",
+    "challenge": "挑战好友",
+    "challengeCopied": "挑战链接已复制！",
+    "challengeRun": "好友挑战 — 所有人同一条块流",
+    "shareText": "我在这条块流上拿了 {n} 分。同一种子、同样的块 — 来超过我："
   }
 }

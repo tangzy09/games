@@ -102,7 +102,9 @@
       "candy": "Caramelo",
       "forest": "Bosque",
       "ocean": "Océano",
-      "sunset": "Atardecer"
+      "sunset": "Atardecer",
+      "neon": "Noche de neón",
+      "sakura": "Sakura"
     },
     "coins": "{n}",
     "refresh": "Nuevas piezas",
@@ -114,6 +116,13 @@
     "removeAdsDesc": "Sin anuncios intersticiales, nunca. Las recompensas se mantienen: las recibes al instante.",
     "adsRemoved": "Anuncios eliminados",
     "notEnough": "Monedas insuficientes",
-    "buy": "Comprar"
+    "buy": "Comprar",
+    "statLine": "Racha máxima {a} · Barridos {b}",
+    "bestGap": "A {n} puntos de tu récord",
+    "double": "Monedas ×2",
+    "challenge": "Reta a un amigo",
+    "challengeCopied": "¡Enlace de reto copiado!",
+    "challengeRun": "Reto de amigo: las mismas piezas para todos",
+    "shareText": "Hice {n} puntos con esta secuencia exacta de piezas. Misma semilla, mismas piezas. ¡Supérame!"
   }
 }

@@ -148,10 +148,12 @@ async function clickAction(page, action) {
     `⛔ 关卡失败界面零广告按钮（只有：${failActions.found.join(', ')}）`);
   await page.screenshot({ path: path.join(SHOT_DIR, 'p4-03-fail-no-ads.png') });
 
-  // ── 插屏只在通关后、每 3 次最多一个 ──
+  // ── 插屏只在通关后、每 3 次最多一个（把首日/间隔护栏先解除，专测数量闸门）──
   const interCount = await page.evaluate(() => {
     window.__ads.interstitial = 0;
     G.wallet.winsSinceAd = 0;
+    G.wallet.installAt = Date.now() - 2 * 86400e3;      // 装了两天（绕开首日免打扰）
+    G.wallet.lastAdAt = 0;
     for (let k = 0; k < 6; k++) {                       // 模拟连赢 6 关
       const show = Shop.canShowInterstitial(G.wallet);
       Shop.noteWin(G.wallet, show);
@@ -159,7 +161,63 @@ async function clickAction(page, action) {
     }
     return window.__ads.interstitial;
   });
-  ok(interCount <= 2, `连赢 6 关只出了 ${interCount} 个插屏（每 3 次最多 1 个）`);
+  ok(interCount >= 1 && interCount <= 2, `连赢 6 关只出了 ${interCount} 个插屏（每 3 次最多 1 个 + 2min 间隔）`);
+
+  // ── 无尽结算：金币入账 + 拒绝翻倍零惩罚 + 转场插屏护栏 ──
+  const endlessOver = await page.evaluate(() => {
+    dispatch('PLAY_ENDLESS');
+    const before = G.wallet.coins;
+    G.s.score = 2500;
+    G.s.over = true;
+    G.runStartAt = Date.now() - 200 * 1000;             // 一局 200s（过「短局不出」门槛）
+    consume([{ t: 'over' }]);                           // 走真实结算路径（coins/lastEarn/局数计账）
+    renderAll();
+    return { gained: G.wallet.coins - before, lastEarn: G.lastEarn };
+  });
+  ok(endlessOver.gained === 25, `无尽 2500 分结算 +${endlessOver.gained} 币（score/100）`);
+  ok(!!(await findBtn(page, 'DOUBLE_COINS')), '结算页有「看广告×2」按钮');
+  ok(!!(await findBtn(page, 'SHARE_SEED')), '结算页有「挑战好友」按钮（种子分享）');
+
+  // 拒绝翻倍 ⇒ 金币不变、绝不强塞插屏（红线 2 在新广告位上依然成立）
+  await page.evaluate(() => { window.__ads.rewardResult = false; window.__ads.interstitial = 0; });
+  const coinsBefore2x = await page.evaluate(() => G.wallet.coins);
+  await clickAction(page, 'DOUBLE_COINS');
+  await page.waitForTimeout(250);
+  const afterRefuse2x = await page.evaluate(() => ({
+    coins: G.wallet.coins, interstitial: window.__ads.interstitial, doubled: G.lastEarn.doubled,
+  }));
+  ok(afterRefuse2x.coins === coinsBefore2x && !afterRefuse2x.doubled, '拒绝翻倍 ⇒ 金币不变、不标记已翻倍');
+  ok(afterRefuse2x.interstitial === 0, '⛔ 拒绝翻倍后绝不强塞插屏');
+
+  // 接受翻倍 ⇒ 再给一遍；按钮消失（不能反复翻）
+  await page.evaluate(() => { window.__ads.rewardResult = true; });
+  await clickAction(page, 'DOUBLE_COINS');
+  await page.waitForTimeout(250);
+  const after2x = await page.evaluate(() => ({ coins: G.wallet.coins, doubled: G.lastEarn.doubled }));
+  ok(after2x.coins === coinsBefore2x + 25 && after2x.doubled, '看完广告 ⇒ 翻倍到账');
+  ok(!(await findBtn(page, 'DOUBLE_COINS')), '翻过一次 ⇒ 按钮消失（不能无限翻）');
+
+  // ⛔ 首日零转场插屏：installAt 是刚 boot 时打的（= 现在）⇒ 点「再来一局」不该出
+  await page.evaluate(() => { G.wallet.installAt = Date.now(); window.__ads.interstitial = 0; });
+  await clickAction(page, 'RESTART');
+  await page.waitForTimeout(250);
+  ok(await page.evaluate(() => window.__ads.interstitial) === 0, '⛔ 安装首日点「再来一局」零插屏');
+
+  // 护栏全过（装了 2 天 + 3 局 + 长局 + 距上次久）⇒ 转场恰好出 1 个
+  await page.evaluate(() => {
+    G.s.score = 1200; G.s.over = true;
+    G.runStartAt = Date.now() - 200 * 1000;
+    consume([{ t: 'over' }]);
+    G.wallet.installAt = Date.now() - 2 * 86400e3;
+    G.wallet.runsSinceAd = 3;
+    G.wallet.lastAdAt = 0;
+    G.lastRunMs = 200 * 1000;
+    renderAll();
+  });
+  await clickAction(page, 'RESTART');
+  await page.waitForTimeout(250);
+  ok(await page.evaluate(() => window.__ads.interstitial) === 1, '护栏全过 ⇒ 「再来一局」转场恰好 1 个插屏');
+  ok(await page.evaluate(() => G.wallet.runsSinceAd) === 0, '出过 ⇒ 局数计数归零（下次至少再等 3 局）');
 
   // ── 去广告 IAP：插屏归零，但功能不变少 ──
   await clickAction(page, 'MENU');

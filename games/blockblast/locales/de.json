@@ -102,7 +102,9 @@
       "candy": "Bonbon",
       "forest": "Wald",
       "ocean": "Ozean",
-      "sunset": "Sonnenuntergang"
+      "sunset": "Sonnenuntergang",
+      "neon": "Neon-Nacht",
+      "sakura": "Sakura"
     },
     "coins": "{n}",
     "refresh": "Neue Steine",
@@ -114,6 +116,13 @@
     "removeAdsDesc": "Nie wieder Interstitials. Belohnungen bleiben – du bekommst sie sofort.",
     "adsRemoved": "Werbung entfernt",
     "notEnough": "Zu wenig Münzen",
-    "buy": "Kaufen"
+    "buy": "Kaufen",
+    "statLine": "Längste Serie {a} · Sweeps {b}",
+    "bestGap": "Noch {n} Punkte bis zu deinem Rekord",
+    "double": "Münzen ×2",
+    "challenge": "Freund herausfordern",
+    "challengeCopied": "Herausforderungs-Link kopiert!",
+    "challengeRun": "Freundes-Duell — gleiche Teile für alle",
+    "shareText": "Ich habe {n} Punkte mit genau dieser Teile-Folge geholt. Gleicher Seed, gleiche Teile — schlag mich:"
   }
 }

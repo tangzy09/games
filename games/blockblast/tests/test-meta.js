@@ -52,7 +52,12 @@ const Daily = require('../js/daily.js');
   assert(Themes.THEMES.every(t => t.blocks.length === 7 && t.blocks.every(c => /^#[0-9a-f]{6}$/i.test(c))));
   assert.strictEqual(Themes.unlockedList(0).length, 1, '0 星只有默认皮肤');
   assert(Themes.unlockedList(15).length >= 2, '15 星解锁第二套');
-  assert.strictEqual(Themes.unlockedList(999).length, Themes.THEMES.length, '星够多全解锁');
+  const starThemes = Themes.THEMES.filter(t => !t.coins);
+  assert.strictEqual(Themes.unlockedList(999).length, starThemes.length,
+    '星够多解锁全部**星星皮肤**（金币皮肤是另一条赛道，星星买不到）');
+  const paidIds = Themes.THEMES.filter(t => t.coins).map(t => t.id);
+  assert.strictEqual(Themes.unlockedList(999, paidIds).length, Themes.THEMES.length,
+    '星星 + 已购列表 ⇒ 全解锁');
   // ⚠ 主题里绝不能有随机/时间相关的东西（否则同一盘面每帧长得不一样 —— snake 实踩）
   // 只扫**真实代码**：注释里提到这些词是正常的（第一版这条断言就误伤了自己的注释）
   const raw = require('fs').readFileSync(require('path').join(__dirname, '../js/themes.js'), 'utf8');

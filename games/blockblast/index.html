@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -10,22 +10,22 @@
 <meta property="og:image" content="assets/icons/icon-512.png">
 <meta name="theme-color" content="#290A5A">
 <link rel="stylesheet" href="../../engine/engine.css">
-<link rel="stylesheet" href="css/game.css?v=11">
+<link rel="stylesheet" href="css/game.css?v=12">
 </head>
 <body>
 <canvas id="game-canvas"></canvas>
 <div id="controls"></div>
 
 <script>
-  // 十语（引擎默认集）。加语言 = 加一个 locales/<lang>.json + 在这里加一项，**零改代码**
-  // —— 因为从第一行起就零硬编码文案（全走 T('key')）。
+  // åè¯­ï¼ˆå¼•æ“Žé»˜è®¤é›†ï¼‰ã€‚åŠ è¯­è¨€ = åŠ ä¸€ä¸ª locales/<lang>.json + åœ¨è¿™é‡ŒåŠ ä¸€é¡¹ï¼Œ**é›¶æ”¹ä»£ç **
+  // â€”â€” å› ä¸ºä»Žç¬¬ä¸€è¡Œèµ·å°±é›¶ç¡¬ç¼–ç æ–‡æ¡ˆï¼ˆå…¨èµ° T('key')ï¼‰ã€‚
   window.GAME_CONFIG = {
     id: 'blockblast',
     languages: ['en', 'zh-CN', 'es', 'hi', 'bn', 'pt-BR', 'ru', 'ja', 'pa', 'de'],
 
-    // ⚠ 广告位:**本游戏专属**(AdMob app「Cube Blast」,App ID ~6813744374)。
-    //    已核对不与 mines/snake/abyss 的任何一个广告位重复 —— 复用他游戏的位会污染两边的数据。
-    //    ⚠ 两个 `/` 号 ID 形状一样、不含类型信息,**别填反**:
+    // âš  å¹¿å‘Šä½:**æœ¬æ¸¸æˆä¸“å±ž**(AdMob appã€ŒCube Blastã€,App ID ~6813744374)ã€‚
+    //    å·²æ ¸å¯¹ä¸ä¸Ž mines/snake/abyss çš„ä»»ä½•ä¸€ä¸ªå¹¿å‘Šä½é‡å¤ â€”â€” å¤ç”¨ä»–æ¸¸æˆçš„ä½ä¼šæ±¡æŸ“ä¸¤è¾¹çš„æ•°æ®ã€‚
+    //    âš  ä¸¤ä¸ª `/` å· ID å½¢çŠ¶ä¸€æ ·ã€ä¸å«ç±»åž‹ä¿¡æ¯,**åˆ«å¡«å**:
     //       rewarded = /1692445484   interstitial = /1094976854
     adUnits: {
       rewarded:     { ios: 'ca-app-pub-2141208066469648/1692445484' },
@@ -33,29 +33,29 @@
     },
   };
 </script>
-<script src="../../engine/config.js?v=11"></script>
-<script src="../../engine/platform.js?v=11"></script>
-<script src="../../engine/i18n.js?v=11"></script>
-<script src="../../engine/portal.js?v=11"></script>
-<script src="../../engine/ads.js?v=11"></script>
-<script src="../../engine/audio.js?v=11"></script>
-<script src="../../engine/canvas.js?v=11"></script>
-<script src="../../engine/input.js?v=11"></script>
-<script src="../../engine/controls.js?v=11"></script>
+<script src="../../engine/config.js?v=12"></script>
+<script src="../../engine/platform.js?v=12"></script>
+<script src="../../engine/i18n.js?v=12"></script>
+<script src="../../engine/portal.js?v=12"></script>
+<script src="../../engine/ads.js?v=12"></script>
+<script src="../../engine/audio.js?v=12"></script>
+<script src="../../engine/canvas.js?v=12"></script>
+<script src="../../engine/input.js?v=12"></script>
+<script src="../../engine/controls.js?v=12"></script>
 
-<!-- 加载顺 = 依赖顺（load-bearing）：纯逻辑 → 表现 → 主循环 -->
-<script src="js/pieces.js?v=11"></script>
-<script src="js/dealer.js?v=11"></script>
-<script src="js/core.js?v=11"></script>
-<script src="js/levels.js?v=11"></script>
-<script src="js/themes.js?v=11"></script>
-<script src="js/achievements.js?v=11"></script>
-<script src="js/daily.js?v=11"></script>
-<script src="js/shop.js?v=11"></script>
-<script src="js/sound.js?v=11"></script>
-<script src="js/fx.js?v=11"></script>
-<script src="js/render.js?v=11"></script>
-<script src="js/drag.js?v=11"></script>
-<script src="js/main.js?v=11"></script>
+<!-- åŠ è½½é¡º = ä¾èµ–é¡ºï¼ˆload-bearingï¼‰ï¼šçº¯é€»è¾‘ â†’ è¡¨çŽ° â†’ ä¸»å¾ªçŽ¯ -->
+<script src="js/pieces.js?v=12"></script>
+<script src="js/dealer.js?v=12"></script>
+<script src="js/core.js?v=12"></script>
+<script src="js/levels.js?v=12"></script>
+<script src="js/themes.js?v=12"></script>
+<script src="js/achievements.js?v=12"></script>
+<script src="js/daily.js?v=12"></script>
+<script src="js/shop.js?v=12"></script>
+<script src="js/sound.js?v=12"></script>
+<script src="js/fx.js?v=12"></script>
+<script src="js/render.js?v=12"></script>
+<script src="js/drag.js?v=12"></script>
+<script src="js/main.js?v=12"></script>
 </body>
 </html>

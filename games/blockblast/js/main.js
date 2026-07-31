@@ -59,16 +59,34 @@ function loadRun() {
 }
 function clearRun() { try { Platform.storage.set(K_RUN(), ''); } catch (e) {} }
 
-// ── 新局 ──
-function newRun() {
-  G.s = Core.newGame(Dealer.randomSeed());
+/** 每局公共的表现层状态复位（无尽/关卡/每日/挑战都要过这里）*/
+function resetRunUi() {
   G.cellColor = new Array(Core.N).fill(null);
   G.drag = null;
   G.fly = null;
   G.phase = 'PLAYING';
-  G.items = Shop.newRunItems();
+  G.lastEarn = null;            // 本局结算发了多少金币（翻倍按钮用）
+  G.newBestRun = false;         // 本局是否破了纪录（结算页用 —— 不能拿 score>best 现比：over 时 best 已被更新）
+  G.bestToastShown = false;     // 破纪录的**瞬间**只庆祝一次
+  G.runStartAt = Date.now();    // 局时长（无尽转场插屏的「短局不出」护栏用）
   FX.reset();
+}
+
+// ── 新局 ──
+function newRun() {
+  G.s = Core.newGame(Dealer.randomSeed());
+  resetRunUi();
+  G.items = Shop.newRunItems();
   clearRun();
+}
+
+/** 好友挑战：用对方的种子开一局（同一条块流）。不写无尽存档、不计入无尽最高分 ——
+ *  同种子可以反复练，混进最高分就不公平了。*/
+function startChallenge(seed) {
+  G.s = Core.newGame(seed >>> 0);
+  G.s.challenge = true;
+  resetRunUi();
+  G.items = Shop.newRunItems();
 }
 
 /** 开一关。每次重开换一个新种子（块流不同）—— 但**绝不看你之前失败过几次**。*/
@@ -76,15 +94,12 @@ function startLevel(id) {
   const def = Levels.byId(id);
   if (!def) return;
   G.s = Core.newLevel(def, Dealer.randomSeed());
-  G.cellColor = new Array(Core.N).fill(null);
+  resetRunUi();
   // 预置块也要有颜色（关卡盘面不能是一片死灰）
   for (let i = 0; i < Core.N; i++) {
     if (G.s.board[i] && !G.s.stone[i]) G.cellColor[i] = Render.COLORS[(i * 3) % Render.COLORS.length];
   }
-  G.drag = null; G.fly = null;
-  G.phase = 'PLAYING';
   G.items = Shop.newRunItems();
-  FX.reset();
   // ⚠ 别 clearRun()：K_RUN 存的是**无尽模式**的当前局。进一次关卡就把它抹了 = 玩家没打完的
   //    无尽局凭空消失（红队指出）。关卡局本来就不做续玩存档，跟 K_RUN 无关。
 }
@@ -154,10 +169,8 @@ function settleRun() {
 /** 开今天的每日谜题：同一天全球同一条块流 */
 function startDaily() {
   G.s = Daily.newDaily(new Date());
-  G.cellColor = new Array(Core.N).fill(null);
-  G.drag = null; G.fly = null;
-  G.phase = 'PLAYING';
-  FX.reset();
+  resetRunUi();
+  G.items = Shop.newRunItems();
 }
 
 // ── 事件消费：core 事件流 → 画面 + 声音（DESIGN §8）──
@@ -219,8 +232,11 @@ function consume(events) {
       G.profile.stars = Object.values(G.progress).reduce((a, v) => a + v, 0);
       if (!s.usedUndo) G.profile.cleanWins += 1;
       announce(Achievements.check(G.profile));
-      Shop.earnLevel(G.wallet, e.stars);
-      // ⛔ 插屏**只在通关**（正反馈时刻）出，且每 3 次通关最多一个。失败/局中永远不出。
+      const won = Shop.earnLevel(G.wallet, e.stars);
+      // 去广告玩家：原本要看广告才拿的翻倍**直接给**（红线：付费玩家不失去任何功能）
+      if (G.wallet.noAds) { Shop.earnDouble(G.wallet, won); G.lastEarn = { n: won * 2, doubled: true }; }
+      else G.lastEarn = { n: won, doubled: false };
+      // ⛔ 插屏**只在通关**（正反馈时刻）出，且每 3 次通关最多一个 + 首日/间隔护栏。失败/局中永远不出。
       const show = Shop.canShowInterstitial(G.wallet);
       Shop.noteWin(G.wallet, show);
       saveWallet();
@@ -239,22 +255,69 @@ function consume(events) {
       // ⚠ 只有**无尽模式**的结束才动最高分和 K_RUN：
       //    关卡失败也会走 'over'，若不门控，关卡的分数会污染无尽的最高分、还会抹掉无尽存档。
       if (s.mode === 'endless') {
-        if (!s.daily && s.score > G.best) {            // 每日谜题的分不进无尽最高分（是两条赛道）
+        const pure = !s.daily && !s.challenge;         // 每日/挑战是另两条赛道，不动无尽的账
+        if (pure && s.score > G.best) {
+          G.newBestRun = true;                         // 结算页靠这个标志：下面 best 更新后 score>best 就永远假了
           G.best = s.score;
           try { Platform.storage.set(K_BEST(), String(G.best)); } catch (err) {}
         }
         settleRun();
-        clearRun();
+        if (pure) clearRun();
+        // 无尽也产金币（原来无尽零产出 ⇒ 金币经济和主模式脱节）+ 去广告玩家直接翻倍
+        const earned = Shop.earnEndless(G.wallet, s.score);
+        if (earned > 0 && G.wallet.noAds) { Shop.earnDouble(G.wallet, earned); G.lastEarn = { n: earned * 2, doubled: true }; }
+        else G.lastEarn = { n: earned, doubled: false };
+        if (pure) {
+          Shop.noteEndlessRun(G.wallet);               // 转场插屏的「每 3 局」计数
+          G.lastRunMs = Date.now() - (G.runStartAt || Date.now());
+        }
+        saveWallet();
       }
     }
   }
-  if (!s.over && s.mode === 'endless') saveRun();     // 关卡局不做续玩存档（重开成本低）
+
+  // 破纪录的**瞬间**就庆祝（原来只在结算页提一句 —— 而且那行还因为 best 先被更新永远不显示）
+  if (s.mode === 'endless' && !s.daily && !s.challenge && !s.over && !G.bestToastShown
+      && G.best > 0 && s.score > G.best) {
+    G.bestToastShown = true;
+    FX.toast(T('blockblast.newBest'), Render.L.cx, Render.L.boardY - 24, '#7ef2a0', 'bold 22px sans-serif', 1.4);
+    FX.burst(Render.L.cx, Render.L.boardY - 24, '#7ef2a0', 14);
+    Sound.sweep('sweep');
+  }
+
+  // ⚠ K_RUN 只存**纯无尽**局：每日/挑战若也写进去，恢复时 daily/challenge 标志会丢，
+  //    一局每日就把玩家没打完的无尽局覆盖掉了（实为老 bug，这次一并堵上）。
+  if (!s.over && s.mode === 'endless' && !s.daily && !s.challenge) saveRun();
 }
 
 // ── 交互入口 ──
+/** 挑战链接：web 上用当前地址，原生壳里用线上域名（分享出去的链接必须打得开）*/
+function challengeUrl(seed) {
+  try {
+    if (!Platform.isNative && location.protocol.startsWith('http')) {
+      return location.origin + location.pathname + '?seed=' + seed;
+    }
+  } catch (e) {}
+  return 'https://blocks.ai-speeds.com/?seed=' + seed;
+}
+
 function dispatch(action, data) {
   switch (action) {
-    case 'RESTART': newRun(); break;
+    case 'RESTART': {
+      // ⛔ 无尽转场插屏：**绝不盖在死亡瞬间**——只在玩家已点「再来一局」、决定继续之后的转场里，
+      //    且过四重护栏（首日零插屏 / 短局不出 / 距上次 ≥2min / 每 3 局最多 1 个）。红线 1/3 不动。
+      const s0 = G.s;
+      if (s0 && s0.over && s0.mode === 'endless' && !s0.daily && !s0.challenge
+          && Shop.canShowEndlessInterstitial(G.wallet, G.lastRunMs || 0, Date.now())) {
+        Shop.noteEndlessAdShown(G.wallet, Date.now());
+        saveWallet();
+        Ads.showInterstitial().finally(() => { newRun(); renderAll(); });
+        return;
+      }
+      if (s0 && s0.over && s0.challenge) { startChallenge(s0.seed); break; }   // 挑战局重开 = 同一种子再练
+      newRun();
+      break;
+    }
     case 'PLAY_ENDLESS': newRun(); break;
     case 'PLAY_LEVEL': startLevel(data.id); break;
     case 'RETRY_LEVEL': startLevel(G.s.levelId); break;          // ⚠ 免费重来：零广告、零插屏
@@ -271,12 +334,50 @@ function dispatch(action, data) {
     case 'EQUIP': {
       const stars = Object.values(G.progress).reduce((a, v) => a + v, 0);
       const t = Themes.byId(data.id);
-      if (Themes.isUnlocked(t, stars)) {              // 二次校验：不能靠伪造点击装上没解锁的皮肤
+      if (Themes.isUnlocked(t, stars, G.wallet.themes)) {   // 二次校验：不能靠伪造点击装上没解锁的皮肤
         G.theme = t.id;
         Render.applyTheme(t.id);
         try { Platform.storage.set(K_THEME(), t.id); } catch (e) {}
       }
       break;
+    }
+    case 'BUY_SKIN': {
+      const t = Themes.byId(data.id);
+      if (Shop.buyTheme(G.wallet, t)) {               // 内部校验价格/余额/重复购买
+        saveWallet();
+        G.theme = t.id;                               // 买完直接穿上（所见即所得）
+        Render.applyTheme(t.id);
+        try { Platform.storage.set(K_THEME(), t.id); } catch (e) {}
+        Sound.pick();
+      }
+      break;
+    }
+    case 'DOUBLE_COINS': {
+      // 结算页的「看广告金币×2」。拒绝/失败 ⇒ 什么也不发生（红线 2：绝不惩罚、绝不强塞）
+      const earn = G.lastEarn;
+      if (!earn || earn.doubled || !earn.n) return;
+      Ads.showRewarded().then(rewarded => {
+        if (rewarded && G.lastEarn === earn && !earn.doubled) {
+          Shop.earnDouble(G.wallet, earn.n);
+          earn.n *= 2;
+          earn.doubled = true;
+          saveWallet();
+        }
+        renderAll();
+      });
+      return;
+    }
+    case 'SHARE_SEED': {
+      // 种子挑战：块流由种子定死 ⇒ 「同一条块流比分数」天然成立（公平机制的病毒式副产品）
+      const url = challengeUrl(G.s.seed);
+      const text = T('blockblast.shareText', { n: G.s.score }) + ' ' + url;
+      const done = () => {
+        FX.toast(T('blockblast.challengeCopied'), Render.L.cx, Render.L.boardY + 40, '#7ef2a0', 'bold 15px sans-serif', 1.2);
+        renderAll();
+      };
+      if (navigator.share) navigator.share({ text }).then(done).catch(() => renderAll());
+      else if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done).catch(() => renderAll());
+      return;
     }
     case 'UNDO': useItem('undo'); return;              // 走 Shop 的三段阶梯（免费/广告/金币）
     case 'REFRESH': useItem('refresh'); return;
@@ -337,13 +438,21 @@ async function boot() {
     const raw = JSON.parse(Platform.storage.get(K_WALLET()) || 'null');
     G.wallet = Object.assign(Shop.emptyWallet(), raw || {});
   } catch (e) { G.wallet = Shop.emptyWallet(); }
+  if (!G.wallet.installAt) { G.wallet.installAt = Date.now(); saveWallet(); }   // 首日免打扰的时钟从这里起跳
   G.items = Shop.newRunItems();
   const savedTheme = Platform.storage.get(K_THEME()) || 'candy';
   const stars0 = Object.values(G.progress).reduce((a, v) => a + v, 0);
-  G.theme = Themes.isUnlocked(Themes.byId(savedTheme), stars0) ? savedTheme : 'candy';
+  G.theme = Themes.isUnlocked(Themes.byId(savedTheme), stars0, G.wallet.themes) ? savedTheme : 'candy';
   Render.applyTheme(G.theme);
-  const resumed = loadRun();
-  if (resumed) { G.s = resumed; G.phase = 'PLAYING'; }
+  // ?seed= 好友挑战链接 → 直接开一局同种子（优先于恢复存档；不动无尽存档，退出后还能续）
+  let qseed = null;
+  try {
+    const v = new URLSearchParams(location.search).get('seed');
+    if (v && /^\d{1,10}$/.test(v)) qseed = parseInt(v, 10) >>> 0;
+  } catch (e) {}
+  const resumed = qseed === null ? loadRun() : null;
+  if (qseed !== null) startChallenge(qseed);
+  else if (resumed) { G.s = resumed; G.phase = 'PLAYING'; G.runStartAt = Date.now(); }
   else { G.s = Core.newGame(Dealer.randomSeed()); G.phase = 'MENU'; }   // 起手在菜单
 
   Input.bind({ onAction: dispatch });                      // 只处理浮层按钮（棋盘/托盘不注册 hit）
@@ -351,6 +460,9 @@ async function boot() {
   window.addEventListener('resize', () => { initCanvas(); renderAll(); });
   Controls.render();
   renderAll();
+  if (qseed !== null) {          // 挑战局开场提示（toast 依赖 renderAll 先把布局算出来）
+    FX.toast(T('blockblast.challengeRun'), Render.L.cx, Render.L.boardY - 24, '#ffd6e7', 'bold 15px sans-serif', 1.5);
+  }
   requestAnimationFrame(loop);
 }
 

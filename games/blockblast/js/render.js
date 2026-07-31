@@ -284,13 +284,20 @@
     txt(T('blockblast.skins'), cx, GameGlobal.safeTop + 30, '#fff', 'bold 22px sans-serif');
     txt(T('blockblast.stars', { n: stars }), cx, GameGlobal.safeTop + 54, PAL.sub, '13px sans-serif');
 
+    txtR('\u{1FA99} ' + G.wallet.coins, L.playX + L.playW - 28, GameGlobal.safeTop + 54, PAL.accent, 'bold 13px sans-serif');
     Themes.THEMES.forEach((t, i) => {
       const y = GameGlobal.safeTop + 80 + i * 76;
-      const on = Themes.isUnlocked(t, stars), cur = G.theme === t.id;
+      const on = Themes.isUnlocked(t, stars, G.wallet.themes), cur = G.theme === t.id;
       fillRR(L.playX + 14, y, L.playW - 28, 66, 12, cur ? 'rgba(255,255,255,0.26)' : 'rgba(0,0,0,0.20)');
       txtL(T('blockblast.theme.' + t.id), L.playX + 28, y + 20, on ? '#fff' : 'rgba(255,255,255,0.4)', 'bold 14px sans-serif');
       t.blocks.forEach((c, k) => { fillRR(L.playX + 28 + k * 22, y + 34, 18, 18, 4, c); });   // 色板预览
-      if (!on) {
+      if (!on && t.coins) {
+        // 金币皮肤：显示价格；买得起就整行可点（金币经济的消耗出口）
+        const afford = G.wallet.coins >= t.coins;
+        txtR('\u{1FA99} ' + t.coins + '  ' + T('blockblast.buy'), L.playX + L.playW - 28, y + 20,
+             afford ? PAL.accent : 'rgba(255,255,255,0.4)', 'bold 11px sans-serif');
+        if (afford) addHit(L.playX + 14, y, L.playW - 28, 66, 'BUY_SKIN', { id: t.id });
+      } else if (!on) {
         txtR('\u{1F512} ' + T('blockblast.skinLocked', { n: t.stars }), L.playX + L.playW - 28, y + 20, PAL.sub, '11px sans-serif');
       } else if (cur) {
         txtR(T('blockblast.equipped'), L.playX + L.playW - 28, y + 20, '#7ef2a0', 'bold 11px sans-serif');
@@ -384,6 +391,22 @@
     if (!bought) addHit(L.playX + 20, y2, L.playW - 40, 78, 'BUY_NOADS', {});
 
     backButton();
+  }
+
+  /** 结算页的金币行：+n，未翻倍时旁边给「看广告×2」按钮（拒绝 ⇒ 什么也不发生，红线 2）。
+   *  去广告玩家在 main 里已直接拿到双倍 ⇒ 这里只会走「已翻倍」分支，绝不会向付费玩家要广告。*/
+  function earnRow(G, y) {
+    const e = G.lastEarn;
+    if (!e || !e.n) return;
+    const cx = L.cx;
+    if (e.doubled) {
+      txt('\u{1FA99} +' + e.n + '  ✓', cx, y + 16, '#7ef2a0', 'bold 14px sans-serif');
+      return;
+    }
+    txt('\u{1FA99} +' + e.n, cx - 62, y + 16, PAL.accent, 'bold 14px sans-serif');
+    fillRR(cx - 8, y, 124, 32, 10, '#8b5cf6');
+    txt('\u{1F4FA} ' + T('blockblast.double'), cx + 54, y + 16, '#fff', 'bold 12px sans-serif');
+    addHit(cx - 8, y, 124, 32, 'DOUBLE_COINS', {});
   }
 
   function backButton() {
@@ -585,10 +608,11 @@
         }
         txt(T('blockblast.moves', { n: s.stats.turns }) + (s.par ? ` / ${T('blockblast.parHint', { n: s.par })}` : ''),
             cx, SH * 0.50, PAL.sub, '13px sans-serif');
-        txt(String(s.score), cx, SH * 0.56, '#ffe08a', 'bold 26px sans-serif');
-        fillRR(cx - 95, SH * 0.63, 190, 48, 14, '#22c55e');
-        txt(T('blockblast.nextLevel'), cx, SH * 0.63 + 24, '#fff', 'bold 16px sans-serif');
-        addHit(cx - 95, SH * 0.63, 190, 48, 'NEXT_LEVEL', {});
+        txt(String(s.score), cx, SH * 0.555, '#ffe08a', 'bold 26px sans-serif');
+        earnRow(G0, SH * 0.585);                     // 通关金币 + 看广告×2（正反馈时刻的自愿广告位）
+        fillRR(cx - 95, SH * 0.655, 190, 48, 14, '#22c55e');
+        txt(T('blockblast.nextLevel'), cx, SH * 0.655 + 24, '#fff', 'bold 16px sans-serif');
+        addHit(cx - 95, SH * 0.655, 190, 48, 'NEXT_LEVEL', {});
       } else {
         const unwin = s.unwinnable;
         txt(T(unwin ? 'blockblast.unwinnable' : 'blockblast.levelFail'), cx, SH * 0.34, '#fff', 'bold 24px sans-serif');
@@ -605,21 +629,34 @@
       return;                       // ⚠ 别再 restore：上面 FX.draw 之后已经 restore 过了
     }
 
-    // ── 结束浮层（无尽）──
+    // ── 结束浮层（无尽/每日/挑战）：结算不只是「你死了」，是下一局的动机 ──
     if (s.over) {
       drawDim('rgba(20,10,40,0.78)');
       const cx = L.cx, w = Math.min(L.playW - 40, 300);
-      txt(T('blockblast.gameOver'), cx, SH * 0.34, '#fff', 'bold 26px sans-serif');
-      txtLWrap(T('blockblast.noMoves'), cx - w / 2, SH * 0.43, w, PAL.sub, '13px sans-serif', 18);
-      txt(T('blockblast.finalScore', { n: s.score }), cx, SH * 0.53, '#ffe08a', 'bold 30px sans-serif');
-      if (s.score > G.best && s.score > 0) txt(T('blockblast.newBest'), cx, SH * 0.585, '#7ef2a0', 'bold 15px sans-serif');
-      txt(T('blockblast.seed', { s: s.seed }), cx, SH * 0.63, 'rgba(255,255,255,0.45)', '11px sans-serif');
-      fillRR(cx - 90, SH * 0.68, 180, 50, 14, '#22c55e');
-      txt(T('blockblast.restart'), cx, SH * 0.68 + 25, '#fff', 'bold 17px sans-serif');
-      addHit(cx - 90, SH * 0.68, 180, 50, 'RESTART', {});
-      fillRR(cx - 90, SH * 0.78, 180, 42, 12, 'rgba(255,255,255,0.16)');
-      txt(T('blockblast.menu'), cx, SH * 0.78 + 21, '#fff', '14px sans-serif');
-      addHit(cx - 90, SH * 0.78, 180, 42, 'MENU', {});
+      txt(T('blockblast.gameOver'), cx, SH * 0.29, '#fff', 'bold 26px sans-serif');
+      txtLWrap(T('blockblast.noMoves'), cx - w / 2, SH * 0.365, w, PAL.sub, '13px sans-serif', 18);
+      txt(T('blockblast.finalScore', { n: s.score }), cx, SH * 0.45, '#ffe08a', 'bold 30px sans-serif');
+      // ⚠ 用 G.newBestRun 标志，不能现比 score>best —— over 时 best 已被更新，现比永远是假
+      //   （老写法就是因此从没显示过「New Best!」）。没破纪录就把差距亮出来 = 重开的理由。
+      if (G.newBestRun) {
+        txt(T('blockblast.newBest'), cx, SH * 0.50, '#7ef2a0', 'bold 15px sans-serif');
+      } else if (!s.daily && !s.challenge && G.best > s.score) {
+        txt(T('blockblast.bestGap', { n: G.best - s.score }), cx, SH * 0.50, PAL.sub, '12px sans-serif');
+      }
+      const sweeps = s.stats.sweeps + s.stats.deeps + s.stats.perfects;
+      txt(T('blockblast.statLine', { a: s.stats.maxStreak, b: sweeps }), cx, SH * 0.54, PAL.sub, '12px sans-serif');
+      earnRow(G, SH * 0.572);                        // 得分换金币 + 看广告×2（无尽原来零产出）
+      txt(T('blockblast.seed', { s: s.seed }), cx, SH * 0.638, 'rgba(255,255,255,0.45)', '11px sans-serif');
+      // 种子挑战：同一条块流比分数 —— 只有「发牌不看棋盘」的游戏才能提供的分享
+      fillRR(cx - 95, SH * 0.663, 190, 38, 12, 'rgba(255,255,255,0.16)');
+      txt('\u{1F517} ' + T('blockblast.challenge'), cx, SH * 0.663 + 19, '#fff', '13px sans-serif');
+      addHit(cx - 95, SH * 0.663, 190, 38, 'SHARE_SEED', {});
+      fillRR(cx - 90, SH * 0.728, 180, 50, 14, '#22c55e');
+      txt(T('blockblast.restart'), cx, SH * 0.728 + 25, '#fff', 'bold 17px sans-serif');
+      addHit(cx - 90, SH * 0.728, 180, 50, 'RESTART', {});
+      fillRR(cx - 90, SH * 0.815, 180, 42, 12, 'rgba(255,255,255,0.16)');
+      txt(T('blockblast.menu'), cx, SH * 0.815 + 21, '#fff', '14px sans-serif');
+      addHit(cx - 90, SH * 0.815, 180, 42, 'MENU', {});
     }
   }
 

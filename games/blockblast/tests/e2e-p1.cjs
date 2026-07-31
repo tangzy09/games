@@ -150,11 +150,17 @@ const ok = (cond, msg) => { if (!cond) { console.error('✗ ' + msg); process.ex
   await page.waitForTimeout(400);
   await page.screenshot({ path: path.join(SHOT_DIR, 'p1-04-gameover.png') });
 
-  // 重开按钮（这个是 engine 的 hitTest 路径，验证拖拽层没把它抢掉）
+  // 重开按钮（这个是 engine 的 hitTest 路径，验证拖拽层没把它抢掉）。
+  // ⚠ 用 hitTest 扫按钮位置再真点，别写死坐标 —— 结算页排版一变，写死的坐标就点到别的按钮上。
   const btn = await page.evaluate(() => {
     const { SW, SH } = GameGlobal;
-    return { x: SW / 2, y: SH * 0.68 + 25 };
+    for (let y = 0; y < SH; y += 4) for (let x = 0; x < SW; x += 4) {
+      const h = hitTest(x, y);
+      if (h && h.action === 'RESTART') return { x, y };
+    }
+    return null;
   });
+  ok(!!btn, '结算页有「再来一局」按钮');
   await page.mouse.click(btn.x, btn.y);
   await page.waitForTimeout(150);
   const restarted = await page.evaluate(() => ({ over: G.s.over, score: G.s.score, fill: Core.fillCount(G.s.board) }));

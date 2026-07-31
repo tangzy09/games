@@ -102,7 +102,9 @@
       "candy": "Candy",
       "forest": "Forest",
       "ocean": "Ocean",
-      "sunset": "Sunset"
+      "sunset": "Sunset",
+      "neon": "Neon Night",
+      "sakura": "Sakura"
     },
     "coins": "{n}",
     "refresh": "New Pieces",
@@ -114,6 +116,13 @@
     "removeAdsDesc": "No interstitials, ever. Rewards stay — you just get them instantly.",
     "adsRemoved": "Ads removed",
     "notEnough": "Not enough coins",
-    "buy": "Buy"
+    "buy": "Buy",
+    "statLine": "Longest streak {a} · Sweeps {b}",
+    "bestGap": "{n} points to beat your best",
+    "double": "×2 coins",
+    "challenge": "Challenge a friend",
+    "challengeCopied": "Challenge link copied!",
+    "challengeRun": "Friend challenge — same pieces for everyone",
+    "shareText": "I scored {n} on this exact piece stream. Same seed, same pieces — beat me:"
   }
 }

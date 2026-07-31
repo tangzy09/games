@@ -76,6 +76,85 @@ const Core = require('../js/core.js');
   console.log(`test-shop: 经济闭环 OK（通关 +${perWin}，撤销 -${Shop.PRICE.undo}，换手 -${Shop.PRICE.refresh}）`);
 }
 
+// ════════ 无尽结算：得分换金币（score/100，封顶 100 —— 马拉松局不能变成刷币机）════════
+{
+  const w = Shop.emptyWallet();
+  assert.strictEqual(Shop.endlessCoins(0), 0);
+  assert.strictEqual(Shop.endlessCoins(99), 0, '不到 100 分没有币（白送的开局不产币）');
+  assert.strictEqual(Shop.endlessCoins(2971), 29, '中位局 2971 分 ≈ 29 币（和通关 20-50 同量级）');
+  assert.strictEqual(Shop.endlessCoins(999999), 100, '封顶 100');
+  const before = w.coins;
+  const n = Shop.earnEndless(w, 2971);
+  assert.strictEqual(n, 29);
+  assert.strictEqual(w.coins, before + 29);
+  Shop.earnDouble(w, n);                          // 看广告翻倍 = 把这笔再给一遍
+  assert.strictEqual(w.coins, before + 58);
+  console.log('test-shop: 无尽结算金币 OK');
+}
+
+// ════════ ⛔ 无尽转场插屏的四重护栏：首日零插屏 / 短局不出 / 距上次 ≥120s / 每 3 局最多 1 个 ════════
+{
+  const DAY = 24 * 3600 * 1000;
+  const now = 10 * DAY;                            // 固定时钟，测试不依赖真实时间
+  const okRun = 120 * 1000;                        // 一局 2 分钟（≥90s 门槛）
+  const w = Shop.emptyWallet();
+  w.installAt = now - 2 * DAY;                     // 装了两天的老玩家
+  w.runsSinceAd = 3;
+  assert(Shop.canShowEndlessInterstitial(w, okRun, now), '四个条件全满足 → 可以出');
+
+  // 每个护栏单独都能拦下
+  assert(!Shop.canShowEndlessInterstitial(Object.assign({}, w, { noAds: true }), okRun, now), '去广告 ⇒ 永不');
+  assert(!Shop.canShowEndlessInterstitial(Object.assign({}, w, { installAt: now - DAY / 2 }), okRun, now),
+    '⛔ 安装后 24h 内零插屏（首日体验 > 首日收入）');
+  assert(!Shop.canShowEndlessInterstitial(w, 30 * 1000, now), '⛔ 短局（<90s = 挫败局）不出');
+  assert(!Shop.canShowEndlessInterstitial(Object.assign({}, w, { lastAdAt: now - 60 * 1000 }), okRun, now),
+    '⛔ 距上次插屏不足 120s 不出');
+  assert(!Shop.canShowEndlessInterstitial(Object.assign({}, w, { runsSinceAd: 2 }), okRun, now), '⛔ 不满 3 局不出');
+
+  // 出过之后：计数与时钟都归位
+  Shop.noteEndlessAdShown(w, now);
+  assert.strictEqual(w.runsSinceAd, 0);
+  assert.strictEqual(w.lastAdAt, now);
+  assert(!Shop.canShowEndlessInterstitial(w, okRun, now + 1000), '刚出过 → 至少再等 3 局 + 120s');
+  Shop.noteEndlessRun(w); Shop.noteEndlessRun(w); Shop.noteEndlessRun(w);
+  assert(Shop.canShowEndlessInterstitial(w, okRun, now + 200 * 1000), '3 局 + 120s 之后才可能再出');
+  console.log('test-shop: 无尽插屏四重护栏 OK');
+}
+
+// ════════ 通关插屏也吃「首日 + 间隔」护栏（老签名不带时钟的调用仍然成立）════════
+{
+  const DAY = 24 * 3600 * 1000, now = 10 * DAY;
+  const w = Shop.emptyWallet();
+  w.winsSinceAd = 3;
+  assert(Shop.canShowInterstitial(w), 'installAt=0（老钱包）→ 不做首日判断，行为不变');
+  w.installAt = now - DAY / 2;
+  assert(!Shop.canShowInterstitial(w, now), '⛔ 首日通关也不出插屏');
+  w.installAt = now - 2 * DAY;
+  w.lastAdAt = now - 60 * 1000;
+  assert(!Shop.canShowInterstitial(w, now), '⛔ 距上次任何插屏不足 120s 不出（和无尽共用时钟）');
+  w.lastAdAt = now - 300 * 1000;
+  assert(Shop.canShowInterstitial(w, now), '护栏全过 → 可以出');
+  console.log('test-shop: 通关插屏护栏 OK');
+}
+
+// ════════ 金币皮肤：买 → 入手 + 扣款；重复买 / 钱不够都拒绝 ════════
+{
+  const Themes = require('../js/themes.js');
+  const paid = Themes.THEMES.filter(t => t.coins);
+  assert(paid.length >= 2, '至少 2 套金币皮肤（金币要有出口，不然「看广告领币」是个死广告位）');
+  const w = Shop.emptyWallet();
+  const t = paid[0];
+  assert(!Shop.buyTheme(w, t), '开局 50 币买不起（不是白送）');
+  w.coins = t.coins + 10;
+  assert(Shop.buyTheme(w, t), '钱够 → 买到');
+  assert.strictEqual(w.coins, 10, '扣款正确');
+  assert(w.themes.includes(t.id), '入手记录在钱包里');
+  assert(!Shop.buyTheme(w, t), '重复买拒绝（不重复扣款）');
+  assert(Themes.isUnlocked(t, 0, w.themes), '买了就解锁（与星星无关）');
+  assert(!Themes.isUnlocked(t, 999, []), '金币皮肤**不能**靠星星解锁（两条赛道分开）');
+  console.log('test-shop: 金币皮肤 OK');
+}
+
 // ════════ 换一手：块流是预生成的 ⇒ 换手只是跳过，**换不出更合意的块** ════════
 {
   const s = Core.newGame(2024);

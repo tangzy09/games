@@ -102,7 +102,9 @@
       "candy": "Doce",
       "forest": "Floresta",
       "ocean": "Oceano",
-      "sunset": "Pôr do sol"
+      "sunset": "Pôr do sol",
+      "neon": "Noite neon",
+      "sakura": "Sakura"
     },
     "coins": "{n}",
     "refresh": "Novas peças",
@@ -114,6 +116,13 @@
     "removeAdsDesc": "Sem anúncios intersticiais, nunca. As recompensas continuam — você recebe na hora.",
     "adsRemoved": "Anúncios removidos",
     "notEnough": "Moedas insuficientes",
-    "buy": "Comprar"
+    "buy": "Comprar",
+    "statLine": "Maior sequência {a} · Varridas {b}",
+    "bestGap": "Faltam {n} pontos para seu recorde",
+    "double": "Moedas ×2",
+    "challenge": "Desafie um amigo",
+    "challengeCopied": "Link do desafio copiado!",
+    "challengeRun": "Desafio de amigo: as mesmas peças para todos",
+    "shareText": "Fiz {n} pontos nesta sequência exata de peças. Mesma semente, mesmas peças — me supere:"
   }
 }
