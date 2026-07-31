@@ -113,6 +113,14 @@
     "fx_comet": "Cometa",
     "fx_confetti": "Confete",
     "dailyAiWon": "A IA cega venceu este jogo em {n} jogadas — você em {m}.",
-    "dailyAiLost": "Nossa IA cega não conseguiu vencer o jogo de hoje. Você conseguiu."
+    "dailyAiLost": "Nossa IA cega não conseguiu vencer o jogo de hoje. Você conseguiu.",
+    "hintNone": "Sem jogadas daqui — compre do monte ou desfaça.",
+    "reduceFx": "Reduzir movimento",
+    "reduceFxSub": "Pula a cascata de vitória e as animações das cartas.",
+    "autoFinish": "Terminar por mim",
+    "maxMove": "mover ≤{n}",
+    "timeMoves": "{t} · {m} jogadas",
+    "bestTime": "Vitória mais rápida",
+    "dailyMonth": "Jogos diários neste mês: {n} ✓"
   }
 }

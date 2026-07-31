@@ -59,6 +59,7 @@
 
   function update(dt) {
     updateSlides(dt);
+    updateFloats(dt);
     if (!running) return;
     const { SW, SH } = GameGlobal;
     const L = Layout.L;
@@ -135,6 +136,7 @@
    * ids 是**整叠**（supermove 一次滑好几张，它们保持相对偏移）。
    */
   function slide(ids, x0, y0, x1, y1, delay) {
+    if (root.G && root.G.reduceFx) return;                        // 减弱动态：牌即时到位
     if (!ids || !ids.length) return;
     if (Math.abs(x1 - x0) < 1 && Math.abs(y1 - y0) < 1) return;   // 没动就别演
     slides.push({ ids: ids.slice(), x0, y0, x1, y1, t: 0, dur: SLIDE_DUR, delay: delay || 0 });
@@ -168,6 +170,31 @@
     }
   }
 
+  // ── 浮动加分（+10 往上飘一下就没 —— 结算感的小料，不是常驻 UI）──
+  const floats = [];
+  const FLOAT_DUR = 0.8;
+  function float(text, x, y, color) {
+    if (root.G && root.G.reduceFx) return;
+    floats.push({ text, x, y, t: 0, color: color || '#ffd84d' });
+  }
+  function updateFloats(dt) {
+    for (let i = floats.length - 1; i >= 0; i--) {
+      floats[i].t += dt;
+      if (floats[i].t >= FLOAT_DUR) floats.splice(i, 1);
+    }
+  }
+  function drawFloats(ctx) {
+    for (const f of floats) {
+      const k = f.t / FLOAT_DUR;
+      ctx.globalAlpha = 1 - k * k;
+      ctx.fillStyle = f.color;
+      ctx.font = 'bold 14px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(f.text, f.x, f.y - k * 34);
+    }
+    ctx.globalAlpha = 1;
+  }
+
   /** 把拖尾层合成到主 canvas + 画滑动中的牌（render 每帧调一次，**最后**调）*/
   function draw(ctx) {
     if (trail) {
@@ -175,15 +202,17 @@
       ctx.drawImage(trail, 0, 0, SW, SH);
     }
     drawSlides(ctx);
+    drawFloats(ctx);
   }
 
-  const busy = () => running || slides.length > 0;
+  const busy = () => running || slides.length > 0 || floats.length > 0;
   function skip() { running = false; flying.length = 0; }
   function reset() {
     running = false; flying.length = 0;
     slides.length = 0; slideIds.clear();
+    floats.length = 0;
     if (tctx) tctx.clearRect(0, 0, GameGlobal.SW, GameGlobal.SH);
   }
 
-  root.FX = { startCascade, update, draw, busy, skip, reset, slide, isFlying, updateSlides };
+  root.FX = { startCascade, update, draw, busy, skip, reset, slide, isFlying, updateSlides, float };
 })(typeof self !== 'undefined' ? self : this);

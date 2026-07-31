@@ -113,6 +113,14 @@
     "fx_comet": "彗星",
     "fx_confetti": "紙吹雪",
     "dailyAiWon": "目隠しAIは {n} 手でクリア——あなたは {m} 手。",
-    "dailyAiLost": "目隠しAIは今日の一局に勝てませんでした。あなたは勝った。"
+    "dailyAiLost": "目隠しAIは今日の一局に勝てませんでした。あなたは勝った。",
+    "hintNone": "ここから打てる手がありません——山札をめくるか、戻してみて。",
+    "reduceFx": "動きを減らす",
+    "reduceFxSub": "勝利のカスケードとカードのアニメーションを省きます。",
+    "autoFinish": "自動で仕上げる",
+    "maxMove": "移動 ≤{n}",
+    "timeMoves": "{t}・{m} 手",
+    "bestTime": "最速クリア",
+    "dailyMonth": "今月のデイリー: {n} 日 ✓"
   }
 }

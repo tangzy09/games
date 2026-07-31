@@ -209,7 +209,8 @@
    *   空列排在有牌的列后面 —— 空列是稀缺资源，别被双击随手占掉；
    *   free cell 只当兜底（FreeCell 经典双击行为），同理。
    */
-  function autoDest(s, sel) {
+  /** 「选中这张/这叠牌」能走的全部合法落点（双击、拖拽吸附、落点高亮共用同一份口径） */
+  function destsFor(s, sel) {
     const topIdx = ti => s.tableau[ti].cards.length - 1;
     const match = m => {
       if (sel.p === 'w') return m.t === 'wf' || m.t === 'wt';
@@ -218,6 +219,10 @@
       if (m.t === 'tt') return m.ti === sel.ti && m.idx === sel.idx;
       return false;
     };
+    return rules(s).legalMoves(s).filter(match);
+  }
+
+  function autoDest(s, sel) {
     const rank = m => {
       if (m.t === 'tf' || m.t === 'wf' || m.t === 'cf') return 0;
       if (m.t === 'tc') return 3;
@@ -225,12 +230,22 @@
       return s.tableau[tj].cards.length ? 1 : 2;
     };
     let best = null, bestR = Infinity;
-    for (const m of rules(s).legalMoves(s)) {
-      if (!match(m)) continue;
+    for (const m of destsFor(s, sel)) {
       const r = rank(m);
       if (r < bestR) { best = m; bestR = r; }     // 同档取 legalMoves 的先后（列号小者）
     }
     return best;
+  }
+
+  /**
+   * 稳赢检测（Klondike）：牌堆/废牌堆空 + 全部明牌 ⇒ 可以一键走完。
+   * ⚠ 这只是**按钮的显示条件**；真正走之前仍用 Solver 实证拿解法 move list ——
+   *   「全明牌必胜」是民间定理，我们有求解器就不赌它。
+   */
+  function canAutoFinish(s) {
+    if (s.mode !== 'klondike' || s.won) return false;
+    if (s.stock.length || s.waste.length) return false;
+    return s.tableau.every(c => c.up === c.cards.length);
   }
 
   /** 一次 autoplay 能收的所有牌（安全判定见 rules.isSafeToAutoPlay）*/
@@ -257,7 +272,8 @@
     return out;
   }
 
-  const API = { SAVE_VERSION, newGame, apply, replay, undo, autoPlayMoves, autoDest, addScore, rules };
+  const API = { SAVE_VERSION, newGame, apply, replay, undo, autoPlayMoves,
+                autoDest, destsFor, canAutoFinish, addScore, rules };
   if (isNode) module.exports = API;
   else root.Core = API;
 })(typeof self !== 'undefined' ? self : this);

@@ -113,6 +113,14 @@
     "fx_comet": "彗星",
     "fx_confetti": "彩纸",
     "dailyAiWon": "盲打 AI 用 {n} 步赢下此局——你用了 {m} 步。",
-    "dailyAiLost": "盲打 AI 没能赢下今天这局——你做到了。"
+    "dailyAiLost": "盲打 AI 没能赢下今天这局——你做到了。",
+    "hintNone": "这个局面没有可走的一步——翻牌堆或撤销试试。",
+    "reduceFx": "减弱动态",
+    "reduceFxSub": "跳过胜利瀑布和滑牌动画。",
+    "autoFinish": "自动走完",
+    "maxMove": "可搬 ≤{n}",
+    "timeMoves": "{t} · {m} 步",
+    "bestTime": "最快胜局",
+    "dailyMonth": "本月每日挑战：{n} 天 ✓"
   }
 }

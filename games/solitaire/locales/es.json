@@ -113,6 +113,14 @@
     "fx_comet": "Cometa",
     "fx_confetti": "Confeti",
     "dailyAiWon": "La IA ciega ganó esta partida en {n} jugadas; tú en {m}.",
-    "dailyAiLost": "Nuestra IA ciega no pudo ganar la partida de hoy. Tú sí."
+    "dailyAiLost": "Nuestra IA ciega no pudo ganar la partida de hoy. Tú sí.",
+    "hintNone": "No hay jugadas desde aquí: roba del mazo o deshaz.",
+    "reduceFx": "Reducir movimiento",
+    "reduceFxSub": "Omite la cascada de victoria y las animaciones de cartas.",
+    "autoFinish": "Terminar por mí",
+    "maxMove": "mover ≤{n}",
+    "timeMoves": "{t} · {m} jugadas",
+    "bestTime": "Victoria más rápida",
+    "dailyMonth": "Partidas diarias este mes: {n} ✓"
   }
 }

@@ -17,6 +17,15 @@ root `CLAUDE.md`（引擎契约、部署铁律、git 纪律、iOS 流水线）�
 难度旋钮（easy/hard 池分档）/ 舒适模式（四色+大字+900ms 点击窗）/
 瀑布特效收藏（rainbow/comet/confetti，激励视频消耗端后段）/ 界面十语。
 E2E：`npm run test:sol:improve`。
+
+**体验包也已完成（2026-07-31，同批出包）**：
+提示可视化（此前是**哑按钮**：扣了 usedHint 却什么都不画；现在源黄框+落点绿虚线，
+且用 ai-blind 的 scoreMove 挑步，无步可走不扣统计）/
+稳赢一键走完（全明牌+牌堆空 ⇒ ✨按钮，解法来自 Solver **实证**，不赌「全明牌必胜」民间定理）/
+拖拽吸附（松手没压中 ⇒ 按距离吸最近**合法**落点）/ 拿牌时落点绿虚线高亮（destsFor 单一口径）/
+减弱动态开关（跳过瀑布/滑牌/浮字）/ 撤销反向滑牌 / 浮动加分 / 本局计时+步数（胜局屏+最快胜局统计，
+只累计 ≤30s 间隔）/ FreeCell supermove 容量角标 / 菜单每日日历（dailyHist 留 60 天）。
+E2E：`npm run test:sol:exp`。⚠ 撤销=按 seed 重放 ⇒ **手搓的 G.s 不可撤销**（测试里踩过）。
 **待办（需新出包 + TestFlight 验证）**：去广告 IAP 真接 StoreKit（3.1.2 四要素）、求好评弹窗（in-app-review 插件）。
 
 ⚠ **商店名里没有 `solitaire`，但 keywords 里有** —— 这不矛盾：

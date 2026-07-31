@@ -85,9 +85,9 @@
       // 舒适模式：放宽 tap 时长窗（手抖/关节炎用户按得慢,250ms 会把他们的点击当成「什么都没发生」）
       const tapMs = G.comfort ? 900 : TAP_MS;
       if (G.drag) {
-        // ── 拖拽落子 ──
+        // ── 拖拽落子（把松手点也交出去 —— 没压中目标时按距离吸附最近的合法落点）──
         const target = hitTest(x, y);
-        hooks.onDrop(G.drag, target);
+        hooks.onDrop(G.drag, target, { x, y });
         G.drag = null;
         G.pending = null;
       } else if (dist < TAP_DIST && dt < tapMs) {

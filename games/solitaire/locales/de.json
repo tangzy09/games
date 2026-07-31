@@ -113,6 +113,14 @@
     "fx_comet": "Komet",
     "fx_confetti": "Konfetti",
     "dailyAiWon": "Die blinde KI gewann diese Partie in {n} Zügen — du in {m}.",
-    "dailyAiLost": "Unsere blinde KI konnte die heutige Partie nicht gewinnen. Du schon."
+    "dailyAiLost": "Unsere blinde KI konnte die heutige Partie nicht gewinnen. Du schon.",
+    "hintNone": "Kein Zug möglich — ziehe vom Stapel oder nimm zurück.",
+    "reduceFx": "Bewegung reduzieren",
+    "reduceFxSub": "Überspringt Siegeskaskade und Kartenanimationen.",
+    "autoFinish": "Für mich beenden",
+    "maxMove": "Stapel ≤{n}",
+    "timeMoves": "{t} · {m} Züge",
+    "bestTime": "Schnellster Sieg",
+    "dailyMonth": "Tagespartien diesen Monat: {n} ✓"
   }
 }

@@ -15,8 +15,12 @@ const G = window.G = {
   fourColor: false,        // 四色牌（无障碍）
   bigText: false,
   comfort: false,          // 舒适模式：四色+大字+放宽点击判定（65+ 主力人群一键开）
+  reduceFx: false,         // 减弱动态：跳过瀑布/滑牌/浮字（晕动症/前庭敏感用户）
   difficulty: 'any',       // 发牌难度（'any'|'easy'|'hard'，池按盲打 AI 分档）——下一局生效
   noAds: false,
+  tAcc: 0,                 // 本局用时（ms，只累计两步操作间 ≤30s 的间隔——挂机不算）
+  tLast: 0,
+  dailyHist: {},           // 每日挑战完成史 {YYYYMMDD:1}（菜单日历用，只留最近 60 条）
   // ⚠ 双口径（DESIGN §4.5）：无限撤销会把总胜率架空 ⇒ 不分开记，统计就是假的
   stats: { played: 0, won: 0, cleanWon: 0, streak: 0, bestStreak: 0 },
   dailyDone: '',           // 今天的每日挑战完成了没（YYYYMMDD）
@@ -34,7 +38,7 @@ function saveRun() {
     const s = G.s;
     Platform.storage.set(K_RUN(), JSON.stringify({
       v: Core.SAVE_VERSION, seed: s.seed, drawCount: s.drawCount, moves: s.moves,
-      usedUndo: s.usedUndo, usedHint: s.usedHint,
+      usedUndo: s.usedUndo, usedHint: s.usedHint, tAcc: G.tAcc,
     }));
   } catch (e) {}
 }
@@ -48,6 +52,7 @@ function loadRun() {
     if (!s) return null;
     s.usedUndo = !!d.usedUndo; s.usedHint = !!d.usedHint;
     if (s.won) return null;
+    G.tAcc = d.tAcc || 0;                                  // 本局用时跟着存档走
     return s;
   } catch (e) { return null; }
 }
@@ -61,8 +66,8 @@ const todayId = () => {
 const saveOpts = () => {
   try {
     Platform.storage.set(K_OPT(), JSON.stringify({
-      fourColor: G.fourColor, bigText: G.bigText, comfort: G.comfort,
-      difficulty: G.difficulty, dailyDone: G.dailyDone, seenIntro: G.seenIntro,
+      fourColor: G.fourColor, bigText: G.bigText, comfort: G.comfort, reduceFx: G.reduceFx,
+      difficulty: G.difficulty, dailyDone: G.dailyDone, dailyHist: G.dailyHist, seenIntro: G.seenIntro,
     }));
   } catch (e) {}
 };
@@ -82,6 +87,7 @@ function newGame(drawCount, mode) {
   if (G.s && !G.s.won && G.s.moves.length > 0) G.stats.streak = 0;
   G.dailySeed = null;
   G.drag = G.pending = G.sel = G.hintMove = null;
+  G.tAcc = 0; G.tLast = Date.now();
   Prover.reset();
   Snd.deal();                                 // 洗牌声
   G.stats.played++;
@@ -159,11 +165,29 @@ const snapshot = s => ({
   foundations: s.foundations.map(f => f.slice()),
 });
 
+/** 计时：只累计两步操作之间 ≤30s 的间隔（放下手机去倒茶不算用时）*/
+function tick() {
+  const now = Date.now();
+  if (G.tLast) G.tAcc += Math.min(now - G.tLast, 30000);
+  G.tLast = now;
+}
+
 function doMove(m) {
   const before = snapshot(G.s);             // ⚠ 必须在 apply 之前
   const ev = Core.apply(G.s, m);
   if (!ev) { Snd.nope(); return false; }     // 非法落点：一声轻的低音，不惩罚玩家
+  tick();
   moveAnim(m, before);                      // ⚠ 必须在 apply 之后（目标坐标才对）
+  // 浮动加分（结算感）：收牌 +10，翻暗牌 +5 —— 和 core 的计分一致
+  for (const e of ev) {
+    if (e.t === 'toFoundation') {
+      const p = Layout.cardXY(G.s, { p: 'f', fi: e.fi });
+      FX.float('+10', p.x + Layout.L.cardW / 2, p.y + Layout.L.cardH / 2);
+    } else if (e.t === 'flip') {
+      const p = Layout.cardXY(G.s, { p: 't', ti: e.ti, i: G.s.tableau[e.ti].cards.length - 1 });
+      FX.float('+5', p.x + Layout.L.cardW / 2, p.y, '#7ef2a0');
+    }
+  }
   // 声音按**动作**分（纸牌的质感全在这里；此前全程静音）
   if (m.t === 'draw' || m.t === 'recycle') Snd.draw();
   else if (m.t === 'tf' || m.t === 'wf' || m.t === 'cf') Snd.found(G.s.foundations.reduce((a,f)=>a+f.length,0) % 8);
@@ -185,11 +209,21 @@ function onWin() {
   if (clean) G.stats.cleanWon++;                 // 双口径：零撤销零提示才算「clean」
   G.stats.streak = (G.stats.streak || 0) + 1;
   G.stats.bestStreak = Math.max(G.stats.bestStreak || 0, G.stats.streak);
+  tick();
+  // 最快胜局（速通玩家的口径；0 或异常小的用时不记 —— 恢复的旧档 tAcc 可能缺失）
+  if (G.tAcc > 3000 && (!G.stats.bestTime || G.tAcc < G.stats.bestTime)) G.stats.bestTime = G.tAcc;
   saveStats();
   clearRun();
 
   Money.earnWin(clean);                          // 金币（只能换外观，换不到任何优势）
-  if (G.dailySeed === s.seed) { G.dailyDone = todayId(); saveOpts(); }
+  if (G.dailySeed === s.seed) {
+    G.dailyDone = todayId();
+    G.dailyHist = G.dailyHist || {};
+    G.dailyHist[todayId()] = 1;
+    const ks = Object.keys(G.dailyHist);
+    if (ks.length > 60) ks.sort().slice(0, ks.length - 60).forEach(k => delete G.dailyHist[k]);
+    saveOpts();
+  }
 
   // ⛔ 插屏**只在赢局后**出，且每 3 局最多 1 个。**输局永远不出** ——
   //    刚输完还甩一脸广告，是这个品类最招恨的做法（微软的「12 连播」就是这么臭掉的）。
@@ -197,14 +231,17 @@ function onWin() {
   Money.noteWin(showAd);
   if (showAd) setTimeout(() => Ads.showInterstitial().finally(() => renderAll()), 1800);  // 让瀑布先跑
 
-  const L = Layout.L;
-  const cards = [];
-  for (let r = 12; r >= 0; r--) {              // K 先飞
-    for (let fi = 0; fi < 4; fi++) {
-      cards.push({ id: r * 4 + fi, x: L.foundX(fi), y: L.topY });
+  // 减弱动态：跳过瀑布，直接进结算（瀑布是产品的心脏，但晕动症用户的舒适优先）
+  if (!G.reduceFx) {
+    const L = Layout.L;
+    const cards = [];
+    for (let r = 12; r >= 0; r--) {              // K 先飞
+      for (let fi = 0; fi < 4; fi++) {
+        cards.push({ id: r * 4 + fi, x: L.foundX(fi), y: L.topY });
+      }
     }
+    FX.startCascade(cards);
   }
-  FX.startCascade(cards);
   Snd.win();
 }
 
@@ -301,11 +338,29 @@ function buildMove(sel, hit) {
   return null;
 }
 
-function onDrop(drag, target) {
-  if (!target) return renderAll();
+function onDrop(drag, target, at) {
   const sel = drag.from === 'w' ? { p: 'w' } : { p: 't', ti: drag.from, idx: drag.idx };
-  const m = buildMove(sel, target);
-  if (m) doMove(m); else renderAll();
+  if (target) {
+    const m = buildMove(sel, target);
+    if (m && doMove(m)) return;
+  }
+  // ⭐ 吸附：松手点没压中目标（落在列缝/略偏）⇒ 按距离找最近的**合法**落点。
+  //   手抖用户拖不准 —— 这比点击宽容度影响更大，跟舒适模式是同一批人（DESIGN §7.5）。
+  if (at) {
+    const L = Layout.L;
+    let best = null, bd = Infinity;
+    for (const mv of Core.destsFor(G.s, sel)) {
+      let px, py = null;
+      if (mv.t === 'tf' || mv.t === 'wf' || mv.t === 'cf') { px = L.foundX(mv.fi) + L.cardW / 2; py = L.topY + L.cardH / 2; }
+      else if (mv.t === 'tc') { px = L.cellX(mv.ci) + L.cardW / 2; py = L.topY + L.cardH / 2; }
+      else { px = L.colX(mv.t === 'wt' ? mv.ti : mv.tj) + L.cardW / 2; }
+      if (py != null && Math.abs(at.y - py) > L.cardH * 1.2) continue;   // 顶排目标要求 y 也在附近
+      const d = Math.abs(at.x - px) + (py != null ? Math.abs(at.y - py) * 0.5 : 0);
+      if (d < bd) { bd = d; best = mv; }
+    }
+    if (best && bd < L.cardW * 1.6 && doMove(best)) return;
+  }
+  renderAll();
 }
 
 function dispatch(action, data) {
@@ -430,19 +485,59 @@ function dispatch(action, data) {
     case 'PLAY': G.phase = 'PLAY'; break;
     case 'UNDO': {
       // ⚠ 撤销永远免费、永远不看广告（DESIGN §7.4：纸牌的基本人权）
+      const undone = s.moves[s.moves.length - 1];
+      const oldS = s;
       const back = Core.undo(s);
       // ⚠ 撤销**必须**作废旧结论：玩家看到「死局」后最可能做的就是撤销，
       //   结论还挂着「死局」= 对一个已经不同的局面撒谎。
-      if (back) { G.s = back; G.sel = null; Prover.reset(); saveRun(); Snd.undo(); }
+      if (back) {
+        G.s = back; G.sel = null; Prover.reset(); tick(); saveRun(); Snd.undo();
+        undoAnim(undone, oldS, back);            // 牌反向滑回去（瞬移回去比没动画更怪）
+      }
       break;
     }
     case 'HINT': {
       const ms = Core.rules(s).legalMoves(s).filter(m => m.t !== 'draw' && m.t !== 'recycle');
+      if (!ms.length) {
+        // 没有可走的一步 ⇒ 不该扣「零提示」（什么都没给玩家），指路去翻牌堆/撤销
+        G.hintMove = null;
+        G.toast = { msg: T('sol.hintNone'), until: Date.now() + 2200 };
+        setTimeout(renderAll, 2300);
+        break;
+      }
       G.s.usedHint = true;                       // 留痕（「零提示胜率」靠它）
-      G.hintMove = ms.length ? ms[0] : null;
-      if (!ms.length) G.hintMove = { t: 'none' };
+      // ⭐ 用盲打 AI 的打分挑「像好棋」的一步（翻暗牌>清列>收牌），不是 legalMoves[0] 随手一指。
+      //   FreeCell 的 AI 打分不适用（全明牌），按 收牌 > 搬牌 > 出格 > 进格 排。
+      let best = ms[0], bv = -Infinity;
+      for (const m of ms) {
+        const v = s.mode === 'freecell'
+          ? (m.t === 'cf' || m.t === 'tf' ? 100 : m.t === 'tt' ? 50 : m.t === 'ct' ? 30 : 10)
+          : AIBlind.scoreMove(s, m);
+        if (v > bv) { bv = v; best = m; }
+      }
+      G.hintMove = best;
       break;
     }
+    // ⭐ 稳赢一键走完：全明牌 + 牌堆空时出现。解法来自 Solver **实证**（不赌「全明牌必胜」的民间定理），
+    //   拿到 move list 后逐步错开滑动播完 —— 这就是「解法回放」在最自然场景的落地。
+    case 'FINISH': {
+      if (!Core.canAutoFinish(s)) break;
+      const sol = Solver.solve(Solver.clone(s), { maxNodes: 400000, timeoutMs: 4000 });
+      if (sol.result !== 'win') break;           // 证不出必胜就不动（全明牌局基本毫秒级出解）
+      tick();
+      sol.moves.forEach((m, i) => {
+        const before = snapshot(G.s);
+        if (!Core.apply(G.s, m)) return;
+        const orig = FX.slide;
+        FX.slide = (ids, x0, y0, x1, y1) => orig(ids, x0, y0, x1, y1, i * 0.05);
+        moveAnim(m, before);
+        FX.slide = orig;
+      });
+      Prover.reset(); saveRun();
+      if (G.s.won) onWin();
+      break;
+    }
+    case 'TOG_RFX': G.reduceFx = !G.reduceFx; saveOpts(); break;
     case 'AUTO': {
       const ms = Core.autoPlayMoves(s);
       // ⚠ 逐张**错开**滑（一堆牌同时瞬移，比没有动画还怪）
@@ -459,7 +554,7 @@ function dispatch(action, data) {
         void sn;
       });
       // ⚠ AUTO / UNDO 都**不经过 doMove()** ⇒ 得各自 reset（这就是当初漏掉的地方）
-      if (ms.length) { Prover.reset(); Snd.found(0); saveRun(); }
+      if (ms.length) { Prover.reset(); Snd.found(0); tick(); saveRun(); }
       if (G.s.won) onWin();
       break;
     }
@@ -467,6 +562,54 @@ function dispatch(action, data) {
     default: break;
   }
   renderAll();
+}
+
+/**
+ * 撤销的反向滑牌：把被撤销那步 m 的牌，从**旧状态的落点**滑回**新状态的源位置**。
+ * ⚠ 与 moveAnim 同一套坐标约定（cardXY），方向相反。recycle 整堆搬回不演。
+ */
+function undoAnim(m, oldS, newS) {
+  if (!m) return;
+  let ids = [], from = null, to = null;
+  if (m.t === 'draw') {
+    ids = [oldS.waste[oldS.waste.length - 1]];
+    from = Layout.cardXY(oldS, { p: 'w' });
+    to = Layout.cardXY(newS, { p: 'stock' });
+  } else if (m.t === 'tt') {
+    const col = newS.tableau[m.ti];
+    ids = col.cards.slice(m.idx);
+    from = Layout.cardXY(oldS, { p: 't', ti: m.tj, i: oldS.tableau[m.tj].cards.length - ids.length });
+    to = Layout.cardXY(newS, { p: 't', ti: m.ti, i: m.idx });
+  } else if (m.t === 'tf') {
+    const col = newS.tableau[m.ti];
+    ids = [col.cards[col.cards.length - 1]];
+    from = Layout.cardXY(oldS, { p: 'f', fi: m.fi });
+    to = Layout.cardXY(newS, { p: 't', ti: m.ti, i: col.cards.length - 1 });
+  } else if (m.t === 'wf') {
+    ids = [newS.waste[newS.waste.length - 1]];
+    from = Layout.cardXY(oldS, { p: 'f', fi: m.fi });
+    to = Layout.cardXY(newS, { p: 'w' });
+  } else if (m.t === 'wt') {
+    ids = [newS.waste[newS.waste.length - 1]];
+    from = Layout.cardXY(oldS, { p: 't', ti: m.ti, i: oldS.tableau[m.ti].cards.length - 1 });
+    to = Layout.cardXY(newS, { p: 'w' });
+  } else if (m.t === 'tc') {
+    const col = newS.tableau[m.ti];
+    ids = [col.cards[col.cards.length - 1]];
+    from = Layout.cardXY(oldS, { p: 'c', ci: m.ci });
+    to = Layout.cardXY(newS, { p: 't', ti: m.ti, i: col.cards.length - 1 });
+  } else if (m.t === 'ct') {
+    ids = [newS.free[m.ci]];
+    from = Layout.cardXY(oldS, { p: 't', ti: m.tj, i: oldS.tableau[m.tj].cards.length - 1 });
+    to = Layout.cardXY(newS, { p: 'c', ci: m.ci });
+  } else if (m.t === 'cf') {
+    ids = [newS.free[m.ci]];
+    from = Layout.cardXY(oldS, { p: 'f', fi: m.fi });
+    to = Layout.cardXY(newS, { p: 'c', ci: m.ci });
+  } else return;
+  if (ids.length && from && to && ids.every(id => id != null)) {
+    FX.slide(ids, from.x, from.y, to.x, to.y);
+  }
 }
 
 /** 解析分享链接（#d1-N / #d3-N / #fc-N）。命中就消费掉 hash，返回 {mode, draw, seed} */

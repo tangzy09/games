@@ -169,7 +169,28 @@
       y += hh + 8;
     });
 
-    y += 6;
+    // ── 每日挑战日历（本月）：连胜可视化，明天再来的钩子 ──
+    const hist = root.G.dailyHist || {};
+    const now = new Date();
+    const dim = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const dayKey = d => '' + now.getFullYear() + (now.getMonth() + 1) + d;
+    let done = 0;
+    for (let d = 1; d <= dim; d++) if (hist[dayKey(d)]) done++;
+    y += 4;
+    txtL(T('sol.dailyMonth', { n: done }), cx - w / 2, y + 6, PAL.sub, '11px sans-serif');
+    y += 16;
+    const cs = GameGlobal.SH >= 760 ? 16 : 12;               // 小屏缩格子，别把下面按钮挤出屏
+    for (let d = 1; d <= dim; d++) {
+      const gx = cx - w / 2 + ((d - 1) % 7) * (cs + 6);
+      const gy = y + Math.floor((d - 1) / 7) * (cs + 5);
+      fillRR(gx, gy, cs, cs, 4, hist[dayKey(d)] ? 'rgba(126,242,160,0.75)' : 'rgba(0,0,0,0.25)');
+      if (d === now.getDate()) {
+        ctx.strokeStyle = '#ffd84d'; ctx.lineWidth = 2;
+        Sprite.rr(ctx, gx, gy, cs, cs, 4); ctx.stroke();
+      }
+    }
+    y += Math.ceil(dim / 7) * (cs + 5) + 10;
+
     // ⛔ 首版**没有去广告 IAP**：宣称有内购却没接 StoreKit ⇒ 审核员点了直接生效、
     //    且在 ASC 里找不到 IAP 产品 ⇒ **2.1(b) 必被拒**。上线后的更新版再真接。
     //    （激励视频保留 —— 它不是 IAP，只换外观。）
@@ -198,6 +219,7 @@
       [T('sol.winRate'), rate + '%'],
       [T('sol.streak'), String(st.streak || 0)],
       [T('sol.bestStreak'), String(st.bestStreak || 0)],
+      [T('sol.bestTime'), st.bestTime ? fmtTime(st.bestTime) : '—'],
     ];
     rows.forEach(function (r) {
       fillRR(cx - w / 2, y, w, 34, 8, 'rgba(0,0,0,0.24)');
@@ -400,16 +422,20 @@
       y += h + 10;
     }
 
+    // ⚠ 小屏（SE 等）放不下全部说明文字 ⇒ 短屏藏副标题，保按钮全部可见可点
+    const subIf = t => GameGlobal.SH >= 760 ? t : '';
+
     // ⭐ 舒适模式放最上面：65+ 是本品类主力人群，这个开关就是给他们的（DESIGN §7.5）
-    toggle(T('sol.comfort'), T('sol.comfortSub'), !!G.comfort, 'TOG_COMFORT');
-    toggle(T('sol.fourColor'), T('sol.fourColorSub'), !!G.fourColor, 'TOG_4COLOR');
-    toggle(T('sol.bigText'), T('sol.bigTextSub'), !!G.bigText, 'TOG_BIGTEXT');
+    toggle(T('sol.comfort'), subIf(T('sol.comfortSub')), !!G.comfort, 'TOG_COMFORT');
+    toggle(T('sol.fourColor'), subIf(T('sol.fourColorSub')), !!G.fourColor, 'TOG_4COLOR');
+    toggle(T('sol.bigText'), subIf(T('sol.bigTextSub')), !!G.bigText, 'TOG_BIGTEXT');
+    toggle(T('sol.reduceFx'), subIf(T('sol.reduceFxSub')), !!G.reduceFx, 'TOG_RFX');
     toggle(T('sol.sound'), '', typeof AudioState === 'undefined' ? true : AudioState.sfxOn, 'TOG_SOUND');
 
     // 翻牌数（只对 Klondike 有意义）—— ⚠ 开局前属性，改了就换一局（否则「已验证可解」角标失效）
     if (G.s.mode !== 'freecell') {
       y += 6;
-      const lines = wrapLines(T('sol.drawSub'), w - 28, 3);
+      const lines = GameGlobal.SH >= 760 ? wrapLines(T('sol.drawSub'), w - 28, 3) : [];
       const h = 48 + lines.length * 13;
       fillRR(cx - w / 2, y, w, h, 10, 'rgba(0,0,0,0.26)');
       txtL(T('sol.drawMode'), cx - w / 2 + 14, y + 18, '#fff', 'bold 13px sans-serif');
@@ -426,7 +452,7 @@
 
       // ⭐ 难度旋钮（只对 Klondike 有意义 —— FreeCell 不用池）。
       //   分档依据 = 盲打 AI 赢不赢得了（玩家的真实体验），不是拍脑袋的数值。**下一局生效**。
-      const dLines = wrapLines(T('sol.diffSub'), w - 28, 3);
+      const dLines = GameGlobal.SH >= 760 ? wrapLines(T('sol.diffSub'), w - 28, 3) : [];
       const dh = 48 + dLines.length * 13;
       fillRR(cx - w / 2, y, w, dh, 10, 'rgba(0,0,0,0.26)');
       txtL(T('sol.difficulty'), cx - w / 2 + 14, y + 18, '#fff', 'bold 13px sans-serif');
@@ -544,6 +570,31 @@
       }
     }
 
+    // ── 拿着牌时把合法落点描出来（拖拽或选中都算）──
+    //    新手学习成本直降；FreeCell 的 supermove 张数限制也从「莫名放不下」变成「一眼看懂」。
+    const held = G.drag
+      ? (G.drag.from === 'w' ? { p: 'w' } : { p: 't', ti: G.drag.from, idx: G.drag.idx })
+      : G.sel;
+    if (held && !s.won) {
+      for (const mv of Core.destsFor(s, held)) {
+        let p;
+        if (mv.t === 'tf' || mv.t === 'wf' || mv.t === 'cf') p = { x: L.foundX(mv.fi), y: L.topY };
+        else if (mv.t === 'tc') p = { x: L.cellX(mv.ci), y: L.topY };
+        else {
+          const tj = mv.t === 'wt' ? mv.ti : mv.tj;
+          const col = s.tableau[tj];
+          p = Layout.cardXY(s, { p: 't', ti: tj, i: col.cards.length ? col.cards.length - 1 : 0 });
+        }
+        ctx.save();
+        ctx.strokeStyle = 'rgba(126,242,160,0.85)'; ctx.lineWidth = 3; ctx.setLineDash([5, 4]);
+        Sprite.rr(ctx, p.x + 1, p.y + 1, L.cardW - 2, L.cardH - 2, L.cardW * 0.09);
+        ctx.stroke(); ctx.restore();
+      }
+    }
+
+    // ── 提示可视化：源牌黄框 + 落点绿虚线框（点了提示必须看得见东西）──
+    if (G.hintMove && !s.won) drawHintMove(s, L, G.hintMove);
+
     // ── 拖拽中的牌 ──
     if (G.drag) {
       const d = G.drag;
@@ -562,7 +613,8 @@
     //   FreeCell 显示的是**难度**（solver 求解节点数），那才是它真正的信息。
     const verified = !fc && Pool.isVerified(s.drawCount, s.seed);
     const diff = fc ? null : Pool.difficultyOf(s.drawCount, s.seed);
-    const badge = fc ? T('sol.freecell')
+    // FreeCell 角标带 supermove 容量（(空格+1)×2^空列 —— 行家都在心算这个数）
+    const badge = fc ? T('sol.freecell') + ' · ' + T('sol.maxMove', { n: RulesF.maxMove(s, false) })
                 : (verified ? T('sol.verified') : T('sol.unverified'))
                   + (diff ? ' · ' + T('sol.' + diff) : '');
     // ⚠ 角标必须**左对齐**排在分数右边，绝不能贴右上角 —— 那里被 DOM 控制栏（语言按钮）压着，点不动。
@@ -607,6 +659,11 @@
       }
       addHit(L.playX + 8, L.proveY, L.playW - 16 - (P.result === 'dead' && P.deadFrom != null ? 124 : 0),
              L.proveH, 'PROVE', {});
+    } else if (Core.canAutoFinish(s)) {
+      // ⭐ 稳赢收尾：全明牌 + 牌堆空 ⇒ 剩下的整理不用手磨,solver 播完直接接瀑布
+      fillRR(L.playX + 8, L.proveY, L.playW - 16, L.proveH, 10, 'rgba(126,242,160,0.25)');
+      txt('✨ ' + T('sol.autoFinish'), L.cx, L.proveY + L.proveH / 2, '#7ef2a0', 'bold 14px sans-serif');
+      addHit(L.playX + 8, L.proveY, L.playW - 16, L.proveH, 'FINISH', {});
     } else {
       fillRR(L.playX + 8, L.proveY, L.playW - 16, L.proveH, 10, 'rgba(255,255,255,0.14)');
       txt('🔍 ' + T('sol.prove'), L.cx, L.proveY + L.proveH / 2, '#fff', 'bold 14px sans-serif');
@@ -641,6 +698,8 @@
       drawDim('rgba(0,40,20,0.72)');
       txt(T('sol.youWin'), L.cx, SH * 0.34, '#fff', 'bold 30px sans-serif');
       txt(T('sol.finalScore', { n: s.score }), L.cx, SH * 0.42, '#ffd84d', 'bold 22px sans-serif');
+      txt(T('sol.timeMoves', { t: fmtTime(root.G.tAcc), m: s.moves.length }),
+          L.cx, SH * 0.452, PAL.sub, '11px sans-serif');
       const clean = !s.usedUndo && !s.usedHint;
       txt(clean ? T('sol.cleanWin') : T('sol.withHelp'), L.cx, SH * 0.48,
           clean ? '#7ef2a0' : PAL.sub, '13px sans-serif');
@@ -662,6 +721,35 @@
       addHit(L.cx - 90, SH * 0.56 + 56, 180, 40, 'SHARE', {});
     }
     drawToast();
+  }
+
+  const fmtTime = ms => {
+    const t = Math.max(0, Math.round(ms / 1000));
+    return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
+  };
+
+  /** 提示的源/落点框（与 moveAnim 同一套 cardXY 坐标约定）*/
+  function drawHintMove(s, L, m) {
+    const box = (p, color, dash) => {
+      if (!p) return;
+      ctx.save();
+      ctx.strokeStyle = color; ctx.lineWidth = 3;
+      if (dash) ctx.setLineDash([6, 4]);
+      Sprite.rr(ctx, p.x + 1, p.y + 1, L.cardW - 2, L.cardH - 2, L.cardW * 0.09);
+      ctx.stroke(); ctx.restore();
+    };
+    const land = tj => Layout.cardXY(s, { p: 't', ti: tj, i: s.tableau[tj].cards.length });
+    let src = null, dst = null;
+    if (m.t === 'tt') { src = Layout.cardXY(s, { p: 't', ti: m.ti, i: m.idx }); dst = land(m.tj); }
+    else if (m.t === 'tf') { src = Layout.cardXY(s, { p: 't', ti: m.ti, i: s.tableau[m.ti].cards.length - 1 }); dst = { x: L.foundX(m.fi), y: L.topY }; }
+    else if (m.t === 'wf') { src = Layout.cardXY(s, { p: 'w' }); dst = { x: L.foundX(m.fi), y: L.topY }; }
+    else if (m.t === 'wt') { src = Layout.cardXY(s, { p: 'w' }); dst = land(m.ti); }
+    else if (m.t === 'tc') { src = Layout.cardXY(s, { p: 't', ti: m.ti, i: s.tableau[m.ti].cards.length - 1 }); dst = { x: L.cellX(m.ci), y: L.topY }; }
+    else if (m.t === 'ct') { src = Layout.cardXY(s, { p: 'c', ci: m.ci }); dst = land(m.tj); }
+    else if (m.t === 'cf') { src = Layout.cardXY(s, { p: 'c', ci: m.ci }); dst = { x: L.foundX(m.fi), y: L.topY }; }
+    else if (m.t === 'ft') { src = { x: L.foundX(m.fi), y: L.topY }; dst = land(m.ti); }
+    box(src, '#ffd84d');
+    box(dst, '#7ef2a0', true);
   }
 
   /** 轻提示（分享已复制等）—— 谁在最后画谁在最上面 */

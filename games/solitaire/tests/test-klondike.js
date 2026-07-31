@@ -252,3 +252,30 @@ const S = 0, H = 1, C = 2, D = 3;
   assert(n3 && n3.t === 'cf' && n3.ci === 1 && n3.fi === H, '格子里的 A ⇒ 收 foundation');
   console.log('test-klondike: autoDest（FreeCell）OK');
 }
+
+// ════════ destsFor / canAutoFinish（落点高亮·拖拽吸附·一键走完的地基）════════
+{
+  const empty7 = () => Array.from({ length: 7 }, () => ({ cards: [], up: 0 }));
+
+  // destsFor：6♥ 的落点 = 两个黑 7 都要列出来（高亮要全，autoDest 只是在它上面挑一个）
+  const s = Core.newGame(21, 3);
+  s.tableau = empty7();
+  s.stock = []; s.waste = [card(5, H)];
+  s.tableau[1] = { cards: [card(6, S)], up: 1 };
+  s.tableau[4] = { cards: [card(6, C)], up: 1 };
+  const ds = Core.destsFor(s, { p: 'w' });
+  assert.strictEqual(ds.length, 2, '两个合法落点都要列出来');
+  assert(ds.every(m => m.t === 'wt'), '都是 waste→tableau');
+
+  // canAutoFinish：全明牌 + 牌堆空 ⇒ true；有暗牌/牌堆有牌 ⇒ false
+  const f = Core.newGame(22, 3);
+  f.tableau = empty7();
+  f.stock = []; f.waste = [];
+  f.tableau[0] = { cards: [card(12, S)], up: 1 };
+  assert(Core.canAutoFinish(f), '全明牌 + 空牌堆 ⇒ 可一键走完');
+  f.tableau[0].up = 0;
+  assert(!Core.canAutoFinish(f), '有暗牌 ⇒ 不行');
+  f.tableau[0].up = 1; f.stock = [card(1, H)];
+  assert(!Core.canAutoFinish(f), '牌堆还有牌 ⇒ 不行');
+  console.log('test-klondike: destsFor/canAutoFinish OK');
+}

@@ -113,6 +113,14 @@
     "fx_comet": "Comet",
     "fx_confetti": "Confetti",
     "dailyAiWon": "The blind AI won this deal in {n} moves — you took {m}.",
-    "dailyAiLost": "Our blind AI could not win today's deal. You did."
+    "dailyAiLost": "Our blind AI could not win today's deal. You did.",
+    "hintNone": "No moves from here — draw from the stock, or undo.",
+    "reduceFx": "Reduce motion",
+    "reduceFxSub": "Skip the victory cascade and card animations.",
+    "autoFinish": "Finish for me",
+    "maxMove": "move ≤{n}",
+    "timeMoves": "{t} · {m} moves",
+    "bestTime": "Fastest win",
+    "dailyMonth": "Daily deals this month: {n} ✓"
   }
 }

@@ -25,6 +25,7 @@
     "test:sol:intro": "node games/solitaire/tests/e2e-intro.cjs",
     "test:sol:set": "node games/solitaire/tests/e2e-settings.cjs",
     "test:sol:slide": "node games/solitaire/tests/e2e-slide.cjs",
-    "test:sol:improve": "node games/solitaire/tests/e2e-improve.cjs"
+    "test:sol:improve": "node games/solitaire/tests/e2e-improve.cjs",
+    "test:sol:exp": "node games/solitaire/tests/e2e-exp.cjs"
   }
 }
