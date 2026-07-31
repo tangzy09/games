@@ -113,9 +113,14 @@
     const st = Pool.stats(s.drawCount);
     txt(st ? T('sol.fairPool', { n: st.total }) : '—', cx, infoY + 51, PAL.sub, '10px sans-serif');
 
-    fillRR(cx - 70, SH - 70, 140, 44, 12, 'rgba(255,255,255,0.20)');
-    txt('‹ ' + T('sol.back'), cx, SH - 48, '#fff', '14px sans-serif');
-    addHit(cx - 70, SH - 70, 140, 44, 'PLAY', {});
+    // 底部双按钮：返回 + 分享此局（「你行你上」是纸牌玩家真实的社交冲动 —— 零后端的传播机制）
+    fillRR(cx - 150, SH - 70, 140, 44, 12, 'rgba(255,255,255,0.20)');
+    txt('‹ ' + T('sol.back'), cx - 80, SH - 48, '#fff', '14px sans-serif');
+    addHit(cx - 150, SH - 70, 140, 44, 'PLAY', {});
+    fillRR(cx + 10, SH - 70, 140, 44, 12, 'rgba(126,242,160,0.22)');
+    txt('📣 ' + T('sol.share'), cx + 80, SH - 48, '#7ef2a0', '13px sans-serif');
+    addHit(cx + 10, SH - 70, 140, 44, 'SHARE', {});
+    drawToast();
   }
 
   /** 页面通用背景 + 返回按钮 */
@@ -144,8 +149,11 @@
     txt(T('sol.coins', { n: Money.coins }), cx, y, '#ffd84d', 'bold 15px sans-serif');
     y += 26;
 
+    // 每日挑战：完成过今天的就亮 ✓（成就感 + 明天再来的钩子）
+    const d0 = new Date();
+    const doneToday = root.G.dailyDone === ('' + d0.getFullYear() + (d0.getMonth() + 1) + d0.getDate());
     const items = [
-      ['📅 ' + T('sol.daily'), T('sol.dailySub'), 'DAILY'],
+      ['📅 ' + T('sol.daily'), doneToday ? T('sol.dailyDone') : T('sol.dailySub'), 'DAILY'],
       ['📊 ' + T('sol.stats'), '', 'STATS'],
       ['🎴 ' + T('sol.collection'), '', 'SHOP'],
       ['⚖ ' + T('sol.fair'), T('sol.fairTitle'), 'FAIR'],
@@ -262,6 +270,29 @@
     });
     y += 76;
 
+    // ⭐ 瀑布特效 —— 贴着产品灵魂的收藏品（瀑布是玩家记了三十年的画面）。
+    //   也是收集曲线的后段：牌背+桌布几十局就毕业，激励视频的消耗端不能断（§7.2.1）。
+    txtL(T('sol.cascades'), cx - w / 2, y, '#fff', 'bold 13px sans-serif');
+    y += 16;
+    const fxY = y;
+    const FX_EMO = { classic: '🃏', rainbow: '🌈', comet: '☄️', confetti: '🎉' };
+    Money.FXS.forEach(function (it, i) {
+      const x = cx - w / 2 + i * (tw + 6);
+      const own = Money.owns('fx', it.id);
+      const on = Money.state.fx === it.id;
+      const gg = ctx.createLinearGradient(x, fxY, x, fxY + 54);
+      gg.addColorStop(0, '#1e293b'); gg.addColorStop(1, '#0f172a');
+      fillRR(x, fxY, tw, 54, 7, gg);
+      txt(FX_EMO[it.id] || '✨', x + tw / 2, fxY + (own ? 27 : 16), '#fff', '18px sans-serif');
+      if (!own) {
+        fillRR(x + tw / 2 - 17, fxY + 30, 34, 18, 9, 'rgba(0,0,0,0.75)');
+        txt(String(it.cost), x + tw / 2, fxY + 39, '#ffd84d', 'bold 11px sans-serif');
+      }
+      if (on) { ctx.strokeStyle = '#7ef2a0'; ctx.lineWidth = 3; Sprite.rr(ctx, x, fxY, tw, 54, 7); ctx.stroke(); }
+      addHit(x, fxY, tw, 54, 'PICK_FX', { id: it.id });
+    });
+    y += 76;
+
     if (!Money.noAds) {
       fillRR(cx - w / 2, y, w, 42, 10, 'rgba(255,255,255,0.14)');
       txt('▶ ' + T('sol.watchAd') + '  ' + T('sol.watchAdSub'), cx, y + 21, '#fff', '12px sans-serif');
@@ -369,6 +400,8 @@
       y += h + 10;
     }
 
+    // ⭐ 舒适模式放最上面：65+ 是本品类主力人群，这个开关就是给他们的（DESIGN §7.5）
+    toggle(T('sol.comfort'), T('sol.comfortSub'), !!G.comfort, 'TOG_COMFORT');
     toggle(T('sol.fourColor'), T('sol.fourColorSub'), !!G.fourColor, 'TOG_4COLOR');
     toggle(T('sol.bigText'), T('sol.bigTextSub'), !!G.bigText, 'TOG_BIGTEXT');
     toggle(T('sol.sound'), '', typeof AudioState === 'undefined' ? true : AudioState.sfxOn, 'TOG_SOUND');
@@ -388,6 +421,23 @@
         if (!on) addHit(bx, y + 6, 66, 26, 'SET_DRAW', { n: d[0] });
       });
       lines.forEach((ln, i) =>
+        txtL(ln, cx - w / 2 + 14, y + 42 + i * 13, 'rgba(255,255,255,0.55)', '10px sans-serif'));
+      y += h + 10;
+
+      // ⭐ 难度旋钮（只对 Klondike 有意义 —— FreeCell 不用池）。
+      //   分档依据 = 盲打 AI 赢不赢得了（玩家的真实体验），不是拍脑袋的数值。**下一局生效**。
+      const dLines = wrapLines(T('sol.diffSub'), w - 28, 3);
+      const dh = 48 + dLines.length * 13;
+      fillRR(cx - w / 2, y, w, dh, 10, 'rgba(0,0,0,0.26)');
+      txtL(T('sol.difficulty'), cx - w / 2 + 14, y + 18, '#fff', 'bold 13px sans-serif');
+      [['any', 'diffAny'], ['easy', 'easy'], ['hard', 'hard']].forEach(function (d, i) {
+        const bx = cx + w / 2 - 14 - (3 - i) * 62 + 4;
+        const on = (G.difficulty || 'any') === d[0];
+        fillRR(bx, y + 6, 56, 26, 8, on ? '#22c55e' : 'rgba(255,255,255,0.16)');
+        txt(T('sol.' + d[1]), bx + 28, y + 19, '#fff', 'bold 11px sans-serif');
+        if (!on) addHit(bx, y + 6, 56, 26, 'SET_DIFF', { d: d[0] });
+      });
+      dLines.forEach((ln, i) =>
         txtL(ln, cx - w / 2 + 14, y + 42 + i * 13, 'rgba(255,255,255,0.55)', '10px sans-serif'));
     }
   }
@@ -594,10 +644,35 @@
       const clean = !s.usedUndo && !s.usedHint;
       txt(clean ? T('sol.cleanWin') : T('sol.withHelp'), L.cx, SH * 0.48,
           clean ? '#7ef2a0' : PAL.sub, '13px sans-serif');
+      // ⭐ 每日挑战：盲打 AI 战绩对比（同一副牌、同样看不见暗牌 —— 它输你赢是真本事）
+      if (G.dailySeed === s.seed && G.dailyAI && G.dailyAI.seed === s.seed) {
+        const ai = G.dailyAI;
+        const line = ai.won ? T('sol.dailyAiWon', { n: ai.moves, m: s.moves.length })
+                            : T('sol.dailyAiLost');
+        ctx.font = '12px sans-serif';
+        wrapLines(line, Math.min(L.playW - 40, 360), 2).forEach((ln, i) =>
+          txt(ln, L.cx, SH * 0.52 + i * 16, '#ffd84d', '12px sans-serif'));
+      }
       fillRR(L.cx - 90, SH * 0.56, 180, 48, 12, '#22c55e');
       txt(T('sol.newGame'), L.cx, SH * 0.56 + 24, '#fff', 'bold 16px sans-serif');
       addHit(L.cx - 90, SH * 0.56, 180, 48, 'NEW', {});
+      // 挑战朋友：把刚赢的这局甩出去（同 seed 同规则,对面输了没得赖）
+      fillRR(L.cx - 90, SH * 0.56 + 56, 180, 40, 12, 'rgba(255,255,255,0.18)');
+      txt('📣 ' + T('sol.challenge'), L.cx, SH * 0.56 + 76, '#fff', '13px sans-serif');
+      addHit(L.cx - 90, SH * 0.56 + 56, 180, 40, 'SHARE', {});
     }
+    drawToast();
+  }
+
+  /** 轻提示（分享已复制等）—— 谁在最后画谁在最上面 */
+  function drawToast() {
+    const t = root.G.toast;
+    if (!t || Date.now() > t.until) return;
+    const { SW, SH } = GameGlobal;
+    ctx.font = '12px sans-serif';
+    const tw = Math.min(SW - 40, ctx.measureText(t.msg).width + 36);
+    fillRR(SW / 2 - tw / 2, SH - 132, tw, 36, 18, 'rgba(0,0,0,0.80)');
+    txt(t.msg, SW / 2, SH - 114, '#fff', '12px sans-serif');
   }
 
   root.Render = { renderAll, renderIntro, renderFair, renderMenu, renderStats, renderShop, renderSettings, PAL };

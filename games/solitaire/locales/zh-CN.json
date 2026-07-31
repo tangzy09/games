@@ -97,6 +97,22 @@
     "draw3": "翻 3 张",
     "drawSub": "翻 1 张宽松得多——我们的盲打 AI 能赢 32% 的翻一局，翻三局只有 7.6%。改这个会开始新的一局。",
     "on": "开",
-    "off": "关"
+    "off": "关",
+    "share": "分享此局",
+    "challenge": "挑战朋友",
+    "copied": "链接已复制 ✓",
+    "shareText": "第 #{n} 局你能赢吗？同一副牌、同样的规则：",
+    "comfort": "舒适模式",
+    "comfortSub": "四色牌 + 大字号 + 放宽点击判定，一键全开。",
+    "difficulty": "难度",
+    "diffAny": "混合",
+    "diffSub": "简单 = 连盲打 AI 都能赢的局；困难 = 有解、但盲打 AI 赢不了。下一局生效。",
+    "cascades": "胜利瀑布",
+    "fx_classic": "经典",
+    "fx_rainbow": "彩虹",
+    "fx_comet": "彗星",
+    "fx_confetti": "彩纸",
+    "dailyAiWon": "盲打 AI 用 {n} 步赢下此局——你用了 {m} 步。",
+    "dailyAiLost": "盲打 AI 没能赢下今天这局——你做到了。"
   }
 }

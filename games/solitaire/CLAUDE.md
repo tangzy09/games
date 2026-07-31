@@ -5,11 +5,19 @@ root `CLAUDE.md`（引擎契约、部署铁律、git 纪律、iOS 流水线）�
 
 **规格是权威**：`DESIGN.md`（改核心前必查；调研 + 红队驱动，数值靠 `tools/sim-blind.js` 校准）。
 
-## 当前状态（2026-07-13）
+## 当前状态（2026-07-30）
 
 **已提交 App Store 审核**（2026-07-14）。商店名 **`Fair Deal: Patience & Cards`**
 （中文「公平发牌：接龙与空当接龙」），Apple ID `6790861224`，Bundle `com.aispeeds.solitaireproven`。
 线上 <https://cards.ai-speeds.com>。
+
+**1.0.1 改良包已完成（2026-07-30，待审核通过后随下次出包上线）**：
+双击自动落点 / seed 分享链接（`#d1-N`/`#d3-N`/`#fc-N`，boot + hashchange 双路径）/
+每日挑战盲打 AI 对比（`js/ai-blind.js`，与 sim-blind **同一份** AI —— 别改出两套）/
+难度旋钮（easy/hard 池分档）/ 舒适模式（四色+大字+900ms 点击窗）/
+瀑布特效收藏（rainbow/comet/confetti，激励视频消耗端后段）/ 界面十语。
+E2E：`npm run test:sol:improve`。
+**待办（需新出包 + TestFlight 验证）**：去广告 IAP 真接 StoreKit（3.1.2 四要素）、求好评弹窗（in-app-review 插件）。
 
 ⚠ **商店名里没有 `solitaire`，但 keywords 里有** —— 这不矛盾：
 `solitaire` 是几百年的**公有品类**（和 sudoku/chess 一样），进 keywords **完全合规**；

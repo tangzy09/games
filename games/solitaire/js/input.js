@@ -82,13 +82,15 @@
       const dt = Date.now() - (downAt || 0);
       const dist = downPos ? Math.hypot(x - downPos.x, y - downPos.y) : 999;
 
+      // 舒适模式：放宽 tap 时长窗（手抖/关节炎用户按得慢,250ms 会把他们的点击当成「什么都没发生」）
+      const tapMs = G.comfort ? 900 : TAP_MS;
       if (G.drag) {
         // ── 拖拽落子 ──
         const target = hitTest(x, y);
         hooks.onDrop(G.drag, target);
         G.drag = null;
         G.pending = null;
-      } else if (dist < TAP_DIST && dt < TAP_MS) {
+      } else if (dist < TAP_DIST && dt < tapMs) {
         // ── tap（点击移动 / 选中）──
         const h = hitTest(x, y);
         hooks.onTap(h, downHit);

@@ -14,10 +14,14 @@ const G = window.G = {
   hintMove: null,
   fourColor: false,        // 四色牌（无障碍）
   bigText: false,
+  comfort: false,          // 舒适模式：四色+大字+放宽点击判定（65+ 主力人群一键开）
+  difficulty: 'any',       // 发牌难度（'any'|'easy'|'hard'，池按盲打 AI 分档）——下一局生效
   noAds: false,
   // ⚠ 双口径（DESIGN §4.5）：无限撤销会把总胜率架空 ⇒ 不分开记，统计就是假的
   stats: { played: 0, won: 0, cleanWon: 0, streak: 0, bestStreak: 0 },
   dailyDone: '',           // 今天的每日挑战完成了没（YYYYMMDD）
+  dailyAI: null,           // 今天这局盲打 AI 的战绩 {seed, won, moves}（确定性,不存档,进每日时现算）
+  toast: null,             // 轻提示 {msg, until}（分享复制成功等）
 };
 
 const K_RUN = () => CFG.key('run');
@@ -57,7 +61,8 @@ const todayId = () => {
 const saveOpts = () => {
   try {
     Platform.storage.set(K_OPT(), JSON.stringify({
-      fourColor: G.fourColor, bigText: G.bigText, dailyDone: G.dailyDone, seenIntro: G.seenIntro,
+      fourColor: G.fourColor, bigText: G.bigText, comfort: G.comfort,
+      difficulty: G.difficulty, dailyDone: G.dailyDone, seenIntro: G.seenIntro,
     }));
   } catch (e) {}
 };
@@ -68,10 +73,10 @@ function newGame(drawCount, mode) {
   // ⭐ Klondike：只发**已验证可解**的牌局（池里取）。
   //    FreeCell：**不需要池** —— 本来就 ~100% 可解（32000 局里只有 #11982 无解），
   //    直接用微软局号随机取一个（这样玩家可以对照经典局号）。
+  const pooled = md === 'freecell' ? null : Pool.pick(draw, G.difficulty || 'any');
   const seed = md === 'freecell'
     ? (1 + Math.floor(Math.random() * 32000))
-    : (Pool.pick(draw, G.difficulty || 'any') != null
-        ? Pool.pick(draw, G.difficulty || 'any') : Deal.randomSeed());
+    : (pooled != null ? pooled : Deal.randomSeed());
   G.s = Core.newGame(seed, draw, md);
   // 换局 = 放弃了上一局 ⇒ 连胜断（没打完就换，不能算赢）
   if (G.s && !G.s.won && G.s.moves.length > 0) G.stats.streak = 0;
@@ -325,6 +330,19 @@ function dispatch(action, data) {
     case 'TOG_4COLOR': G.fourColor = !G.fourColor; Sprite.ensure(0, 0); saveOpts(); break;
     case 'TOG_BIGTEXT': G.bigText = !G.bigText; Sprite.ensure(0, 0); saveOpts(); break;
     case 'TOG_SOUND': Sfx.toggle(); break;
+    // 舒适模式 = 四色 + 大字 + 放宽点击判定（input.js 读 G.comfort）。
+    // 开 = 三件一起开；关 = 只关判定放宽，四色/大字保持玩家手动状态（别替他关掉看得清的牌面）。
+    case 'TOG_COMFORT': {
+      G.comfort = !G.comfort;
+      if (G.comfort) { G.fourColor = true; G.bigText = true; Sprite.ensure(0, 0); }
+      saveOpts();
+      break;
+    }
+    // 发牌难度（分档 = 盲打 AI 赢不赢得了，不是拍脑袋）。**下一局生效**，不动当前局。
+    case 'SET_DIFF': {
+      if (data && data.d) { G.difficulty = data.d; saveOpts(); }
+      break;
+    }
 
     // 翻牌数：**开局前属性**，改了必须换一局（否则「已验证可解」角标就是假的 ——
     // draw-1 和 draw-3 是两个不同的可解性问题，池也是分开建的）
@@ -342,6 +360,14 @@ function dispatch(action, data) {
         G.drag = G.sel = G.hintMove = null;
         Prover.reset(); FX.reset(); clearRun();
         G.phase = 'PLAY';
+        // ⭐ 盲打 AI 打同一局（确定性、不透视、几十毫秒）——赢局结算时对比战绩。
+        //   它就是公平页基线里那个 AI（js/ai-blind.js 与 sim-blind.js 同一份），不可作弊。
+        G.dailyAI = null;
+        const draw = G.s.drawCount;
+        setTimeout(() => {
+          const r = AIBlind.playBlind(seed, draw, 1200);
+          G.dailyAI = { seed, won: r.won, moves: r.moves };
+        }, 80);
       }
       break;
     }
@@ -365,6 +391,30 @@ function dispatch(action, data) {
       const id = data.id;
       if (Money.owns('table', id)) Money.equip('table', id);
       else Money.buy('table', id);
+      break;
+    }
+    case 'PICK_FX': {
+      const id = data.id;
+      if (Money.owns('fx', id)) Money.equip('fx', id);
+      else Money.buy('fx', id);
+      break;
+    }
+    // ⭐ 分享此局：牌局 = 一个 seed ⇒ 一条 URL 就是完整挑战（零后端）。
+    //   FreeCell 用微软局号（老玩家的接头暗号），Klondike 用自家 seed（draw 模式进链接 ——
+    //   draw-1/draw-3 是两个不同的可解性问题，丢了它「同一局」就是假的）。
+    case 'SHARE': {
+      const tag = (s.mode === 'freecell' ? 'fc' : 'd' + s.drawCount) + '-' + s.seed;
+      const base = location.protocol.indexOf('http') === 0
+        ? location.origin + location.pathname : 'https://cards.ai-speeds.com/';
+      const msg = T('sol.shareText', { n: s.seed }) + ' ' + base + '#' + tag;
+      const toast = () => {
+        G.toast = { msg: T('sol.copied'), until: Date.now() + 1600 };
+        renderAll();
+        setTimeout(renderAll, 1700);
+      };
+      if (navigator.share) navigator.share({ text: msg }).catch(() => {});
+      else if (navigator.clipboard && navigator.clipboard.writeText)
+        navigator.clipboard.writeText(msg).then(toast).catch(() => {});
       break;
     }
     // ⭐ 「这局还有解吗？」—— 永远免费、永远不看广告（它是产品的灵魂，不是道具）
@@ -419,6 +469,18 @@ function dispatch(action, data) {
   renderAll();
 }
 
+/** 解析分享链接（#d1-N / #d3-N / #fc-N）。命中就消费掉 hash，返回 {mode, draw, seed} */
+function dealFromHash() {
+  const m = /^#(d1|d3|fc)-(\d+)$/.exec(location.hash || '');
+  if (!m) return null;
+  try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+  if (m[1] === 'fc') {
+    const n = +m[2];
+    return (n >= 1 && n <= 32000) ? { mode: 'freecell', draw: 3, seed: n } : null;
+  }
+  return { mode: 'klondike', draw: m[1] === 'd1' ? 1 : 3, seed: (+m[2]) >>> 0 };
+}
+
 // ── 主循环（只在瀑布/拖拽时逐帧重画）──
 let last = 0;
 function loop(ts) {
@@ -451,8 +513,12 @@ async function boot() {
   if (!Money.noAds) Ads.showBanner();
 
   await Pool.load();                                   // ⭐ 先加载可解池（决定发什么牌）
-  const resumed = loadRun();
-  if (resumed) G.s = resumed;
+  // ⭐ 分享链接进来（#d1-N / #d3-N / #fc-N）⇒ 直接开那一局（朋友挑战同一副牌）。
+  //   消费掉 hash（否则之后每次刷新都困在这一局里）。
+  const linked = dealFromHash();
+  const resumed = linked ? null : loadRun();
+  if (linked) { G.s = Core.newGame(linked.seed, linked.draw, linked.mode); clearRun(); }
+  else if (resumed) G.s = resumed;
   else { const sd = Pool.pick(3, 'any'); G.s = Core.newGame(sd != null ? sd : Deal.randomSeed(), 3); }
 
   // ⭐ 第一次打开 → 先给首启一屏（App Store 4.3(a) 的主要防线：差异必须在头 5 秒撞到脸上）
@@ -465,6 +531,17 @@ async function boot() {
   // 点一下跳过瀑布
   document.getElementById(CFG.canvasId).addEventListener('pointerdown', () => { if (FX.busy()) FX.skip(); });
 
+  // 分享链接贴进**已开着的**标签页 = 同文档导航,不会重新 boot ⇒ 靠 hashchange 接住
+  window.addEventListener('hashchange', () => {
+    const l = dealFromHash();
+    if (!l) return;
+    G.s = Core.newGame(l.seed, l.draw, l.mode);
+    G.dailySeed = null;
+    G.drag = G.sel = G.hintMove = null;
+    Prover.reset(); FX.reset(); clearRun();
+    G.phase = 'PLAY';
+    renderAll();
+  });
   window.addEventListener('resize', () => { initCanvas(); FX.reset(); renderAll(); });
   Controls.render();
   renderAll();

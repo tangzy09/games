@@ -28,8 +28,10 @@
     coins: 0,                            // 只能靠赢局/看广告赚，**不能买**（不做押注经济）
     ownedBacks: ['classic'],             // 已解锁的牌背
     ownedTables: ['felt'],               // 已解锁的桌布
+    ownedFx: ['classic'],                // 已解锁的瀑布特效
     back: 'classic',
     table: 'felt',
+    fx: 'classic',
   };
 
   function load() {
@@ -76,22 +78,36 @@
     { id: 'wood',    cost: 100 },
     { id: 'rose',    cost: 150 },
   ];
+  // 瀑布特效（贴着产品灵魂的收藏品 —— 瀑布是玩家记了三十年的画面,比多一张牌背值钱）。
+  // 定价比牌背高:它是收集曲线的后段,防止几十局就毕业、激励视频那条腿断掉(§7.2.1)。
+  const FXS = [
+    { id: 'classic',  cost: 0 },
+    { id: 'rainbow',  cost: 150 },
+    { id: 'comet',    cost: 220 },
+    { id: 'confetti', cost: 300 },
+  ];
 
-  const owns = (kind, id) => (kind === 'back' ? state.ownedBacks : state.ownedTables).includes(id);
-  const itemsOf = kind => (kind === 'back' ? BACKS : TABLES);
+  const KINDS = {
+    back:  { list: BACKS,  owned: () => state.ownedBacks,  get cur() { return state.back; },  set cur(v) { state.back = v; } },
+    table: { list: TABLES, owned: () => state.ownedTables, get cur() { return state.table; }, set cur(v) { state.table = v; } },
+    fx:    { list: FXS,    owned: () => state.ownedFx,     get cur() { return state.fx; },    set cur(v) { state.fx = v; } },
+  };
+
+  const owns = (kind, id) => KINDS[kind].owned().includes(id);
+  const itemsOf = kind => KINDS[kind].list;
 
   function buy(kind, id) {
     const item = itemsOf(kind).find(x => x.id === id);
     if (!item || owns(kind, id) || state.coins < item.cost) return false;
     state.coins -= item.cost;
-    (kind === 'back' ? state.ownedBacks : state.ownedTables).push(id);
+    KINDS[kind].owned().push(id);
     equip(kind, id);
     save();
     return true;
   }
   function equip(kind, id) {
     if (!owns(kind, id)) return false;
-    if (kind === 'back') state.back = id; else state.table = id;
+    KINDS[kind].cur = id;
     save();
     return true;
   }
@@ -102,7 +118,7 @@
     load, save, state,
     canShowInterstitial, noteWin,
     earnWin, earnAd,
-    BACKS, TABLES, owns, itemsOf, buy, equip, buyNoAds,
+    BACKS, TABLES, FXS, owns, itemsOf, buy, equip, buyNoAds,
     get coins() { return state.coins; },
     get noAds() { return state.noAds; },
   };

@@ -97,6 +97,22 @@
     "draw3": "Draw 3",
     "drawSub": "Draw 1 is far more forgiving — our blind AI wins 32% of draw-1 deals vs 7.6% of draw-3. Changing this starts a new deal.",
     "on": "On",
-    "off": "Off"
+    "off": "Off",
+    "share": "Share this deal",
+    "challenge": "Challenge a friend",
+    "copied": "Link copied ✓",
+    "shareText": "Can you beat deal #{n}? Same cards, same rules:",
+    "comfort": "Comfort mode",
+    "comfortSub": "Four-colour deck + large text + relaxed tap timing, in one switch.",
+    "difficulty": "Difficulty",
+    "diffAny": "Mixed",
+    "diffSub": "Easy = deals even our blind AI wins. Hard = solvable, but the blind AI can't win it. Takes effect from the next deal.",
+    "cascades": "Victory cascades",
+    "fx_classic": "Classic",
+    "fx_rainbow": "Rainbow",
+    "fx_comet": "Comet",
+    "fx_confetti": "Confetti",
+    "dailyAiWon": "The blind AI won this deal in {n} moves — you took {m}.",
+    "dailyAiLost": "Our blind AI could not win today's deal. You did."
   }
 }

@@ -16,6 +16,7 @@
   let trail = null, tctx = null;      // 持久拖尾层（永不清）
   const flying = [];                  // 正在飞的牌
   let running = false;
+  let style = 'classic';              // 瀑布特效（收藏品,开局时从 Money 取一次,不逐帧查）
 
   const GRAVITY = 1400;               // px/s²
   const BOUNCE = 0.85;                // ⚠ 经典阻尼：0.85（弹得够久，但会停）
@@ -42,6 +43,7 @@
     tctx.clearRect(0, 0, GameGlobal.SW, GameGlobal.SH);
     flying.length = 0;
     running = true;
+    style = (typeof Money !== 'undefined' && Money.state.fx) || 'classic';
 
     // 从 foundation 一张张弹出（倒序：K 先飞）
     cards.forEach((c, i) => {
@@ -81,8 +83,24 @@
       }
 
       // ⭐ 把这一帧的牌**盖进拖尾层**（永不清）—— 这就是那条累积的彩虹轨迹
+      // 特效样式只改「怎么盖」：发光/彩带都进 trail,主循环结构不动。
+      // ⚠ shadowBlur 有真实开销,只在瀑布期间生效且可点击跳过,别把它搬进每帧渲染。
       const sp = Sprite.face(f.id);
+      if (style === 'rainbow') {
+        tctx.shadowColor = 'hsl(' + ((f.id * 29 + f.t * 120) % 360) + ',90%,60%)';
+        tctx.shadowBlur = 12;
+      } else if (style === 'comet') {
+        tctx.shadowColor = 'rgba(255,200,60,0.9)';
+        tctx.shadowBlur = 16;
+      }
       tctx.drawImage(sp, f.x, f.y, L.cardW, L.cardH);
+      tctx.shadowBlur = 0;
+      if (style === 'confetti') {
+        for (let k = 0; k < 2; k++) {
+          tctx.fillStyle = 'hsl(' + ((Math.random() * 360) | 0) + ',85%,62%)';
+          tctx.fillRect(f.x + Math.random() * L.cardW, f.y + Math.random() * L.cardH, 3, 3);
+        }
+      }
 
       // 飞出屏幕两侧 ⇒ 收工
       if (f.x < -L.cardW * 2 || f.x > SW + L.cardW * 2) f.alive = false;
