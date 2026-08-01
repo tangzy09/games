@@ -231,6 +231,9 @@
       ['📅 ' + T('sol.daily'), sub760(dailySub), 'DAILY'],
       ['👼 ' + T('sol.gallery'), sub760(T('sol.galleryProgress', { n: root.G.angels, m: Angels.total() || 500 })), 'GALLERY'],
       ['📊 ' + T('sol.stats'), '', 'STATS'],
+      ['🎓 ' + T('sol.lessons'),
+       sub760(T('sol.lessonsProg', { n: Object.keys(root.G.lessonsDone || {}).length, m: 4 })), 'LESSON'],
+      ['🔍 ' + T('sol.insight'), '', 'INSIGHT'],
       ['🏆 ' + T('sol.achievements'), '', 'ACH'],
       ['🎴 ' + T('sol.collection'), '', 'SHOP'],
       ['⚖ ' + T('sol.fair'), sub760(T('sol.fairTitle')), 'FAIR'],
@@ -575,6 +578,53 @@
     }
   }
 
+  /**
+   * 🔍 我的弱点 —— 把求解器变成教练（没有竞品能做，因为他们没有求解器）。
+   * ⛔ 措辞死线：只陈述「哪类走法之后常常就没解了」，**绝不说「你走错了」**——
+   *   盲打时那一步往往是信息上不可避免的（DESIGN §2.1）。
+   */
+  function renderInsight() {
+    const L = page('🔍 ' + T('sol.insight'));
+    const G = root.G;
+    const cx = L.cx, w = Math.min(L.playW - 40, 380);
+    let y = GameGlobal.safeTop + 58;
+
+    ctx.font = '11px sans-serif';
+    wrapLines(T('sol.insightIntro'), w, 3).forEach((ln, i) =>
+      txtL(ln, cx - w / 2, y + i * 15, PAL.sub, '11px sans-serif'));
+    y += 52;
+
+    const ins = G.insight || {};
+    const rows = [['tf', 'insTf'], ['tt', 'insTt'], ['wf', 'insWf'], ['wt', 'insWt'], ['ft', 'insFt']]
+      .map(([k, key]) => ({ k, key, n: ins[k] || 0 }))
+      .sort((a, b) => b.n - a.n);
+    const total = rows.reduce((a, r) => a + r.n, 0);
+
+    if (!total) {
+      fillRR(cx - w / 2, y, w, 60, 10, 'rgba(0,0,0,0.24)');
+      ctx.font = '11px sans-serif';
+      wrapLines(T('sol.insightEmpty'), w - 28, 3).forEach((ln, i) =>
+        txtL(ln, cx - w / 2 + 14, y + 20 + i * 15, PAL.sub, '11px sans-serif'));
+      y += 70;
+    } else {
+      rows.forEach(function (r) {
+        if (!r.n) return;
+        const pct = Math.round(r.n / total * 100);
+        fillRR(cx - w / 2, y, w, 40, 8, 'rgba(0,0,0,0.24)');
+        fillRR(cx - w / 2, y, w * (r.n / total), 40, 8, 'rgba(255,216,77,0.16)');
+        ctx.font = '11px sans-serif';
+        txtL(wrapLines(T('sol.' + r.key), w - 90, 1)[0], cx - w / 2 + 12, y + 20, '#fff', '11px sans-serif');
+        txtR(r.n + '  ' + pct + '%', cx + w / 2 - 12, y + 20, '#ffd84d', 'bold 11px sans-serif');
+        y += 46;
+      });
+    }
+    // 妙手总数（正向的那一半 —— 别只报坏消息）
+    y += 4;
+    fillRR(cx - w / 2, y, w, 44, 10, 'rgba(126,242,160,0.16)');
+    txtL('✨ ' + T('sol.brilliantTotal'), cx - w / 2 + 12, y + 22, '#7ef2a0', 'bold 12px sans-serif');
+    txtR(String((G.stats && G.stats.brilliantAll) || 0), cx + w / 2 - 12, y + 22, '#7ef2a0', 'bold 15px sans-serif');
+  }
+
   /** ❓ 怎么玩：Klondike / draw 模式 / FreeCell supermove / 证明器 / 免费三件套 */
   function renderHelp() {
     const L = page(T('sol.help'));
@@ -652,9 +702,15 @@
     });
 
     y += 8;
-    fillRR(cx - 90, y, 180, 50, 13, '#22c55e');
-    txt(T('sol.introGo'), cx, y + 25, '#fff', 'bold 16px sans-serif');
-    addHit(cx - 90, y, 180, 50, 'INTRO_GO', {});
+    // ⭐ 教学即留存：第一屏就给第 1 课（一分钟学会 + 立刻赢一局 = 最强的 D1 钩子）
+    fillRR(cx - 100, y, 200, 46, 13, '#22c55e');
+    txt('🎓 ' + T('sol.introLesson'), cx, y + 23, '#fff', 'bold 15px sans-serif');
+    addHit(cx - 100, y, 200, 46, 'INTRO_LESSON', {});
+    y += 54;
+    fillRR(cx - 90, y, 180, 40, 12, 'rgba(255,255,255,0.18)');
+    txt(T('sol.introGo'), cx, y + 20, '#fff', '14px sans-serif');
+    addHit(cx - 90, y, 180, 40, 'INTRO_GO', {});
+    y -= 14;
     y += 60;
     txt(T('sol.introFair') + ' ›', cx, y + 12, 'rgba(255,255,255,0.65)', '12px sans-serif');
     addHit(cx - 80, y, 160, 30, 'INTRO_FAIR', {});
@@ -720,22 +776,50 @@
         txtL(ln, cx - w / 2 + 14, y + 42 + i * 13, 'rgba(255,255,255,0.55)', '10px sans-serif'));
       y += h + 10;
 
-      // ⭐ 难度旋钮（只对 Klondike 有意义 —— FreeCell 不用池）。
-      //   分档依据 = 盲打 AI 赢不赢得了（玩家的真实体验），不是拍脑袋的数值。**下一局生效**。
-      const dLines = GameGlobal.SH >= 760 ? wrapLines(T('sol.diffSub'), w - 28, 3) : [];
-      const dh = 48 + dLines.length * 13;
+      // ⭐ 难度**明面阶梯**（取代原来的「混合/简单/困难」三个下拉项）：
+      //   每一档是真实存在的难度差（翻牌数 × 池分档），且**每一档都只发已验证可解的局**——
+      //   难度上去的是「找到解有多难」，不是「有没有解」。未解锁的档显示还差几胜。
+      const unlocked = diffUnlocked();
+      const dh = 62;
       fillRR(cx - w / 2, y, w, dh, 10, 'rgba(0,0,0,0.26)');
-      txtL(T('sol.difficulty'), cx - w / 2 + 14, y + 18, '#fff', 'bold 13px sans-serif');
-      [['any', 'diffAny'], ['easy', 'easy'], ['hard', 'hard']].forEach(function (d, i) {
-        const bx = cx + w / 2 - 14 - (3 - i) * 62 + 4;
-        const on = (G.difficulty || 'any') === d[0];
-        fillRR(bx, y + 6, 56, 26, 8, on ? '#22c55e' : 'rgba(255,255,255,0.16)');
-        txt(T('sol.' + d[1]), bx + 28, y + 19, '#fff', 'bold 11px sans-serif');
-        if (!on) addHit(bx, y + 6, 56, 26, 'SET_DIFF', { d: d[0] });
+      txtL(T('sol.difficulty'), cx - w / 2 + 14, y + 16, '#fff', 'bold 13px sans-serif');
+      txtR(T('sol.diffLvOf', { n: G.diffLv || 1 }), cx + w / 2 - 14, y + 16, '#ffd84d', 'bold 12px sans-serif');
+      const stepW = Math.floor((w - 28 - 4 * 6) / 5);
+      DIFF_LADDER.forEach(function (d, i) {
+        const bx = cx - w / 2 + 14 + i * (stepW + 6);
+        const on = (G.diffLv || 1) === d.lv;
+        const locked = d.lv > unlocked;
+        fillRR(bx, y + 26, stepW, 26, 7,
+               on ? '#22c55e' : locked ? 'rgba(0,0,0,0.30)' : 'rgba(255,255,255,0.16)');
+        txt(locked ? '🔒' : String(d.lv), bx + stepW / 2, y + 39,
+            locked ? 'rgba(255,255,255,0.45)' : '#fff', 'bold 12px sans-serif');
+        if (!on && !locked) addHit(bx, y + 26, stepW, 26, 'SET_LV', { lv: d.lv });
       });
-      dLines.forEach((ln, i) =>
-        txtL(ln, cx - w / 2 + 14, y + 42 + i * 13, 'rgba(255,255,255,0.55)', '10px sans-serif'));
-      y += dh + 10;
+      const nextLad = DIFF_LADDER.find(d => d.lv > unlocked);
+      txtL(nextLad ? T('sol.diffNext', { n: Math.max(0, nextLad.need - (G.stats.won || 0)), lv: nextLad.lv })
+                   : T('sol.diffAllOpen'),
+           cx - w / 2 + 14, y + 58, 'rgba(255,255,255,0.55)', '10px sans-serif');
+      y += dh + 14;
+    }
+
+    // ⭐ Spider 花色档（1/2/4）——它不进可解池，难度就是规则本身给的
+    if (G.s.mode === 'spider') {
+      const sh = GameGlobal.SH >= 760 ? 60 : 44;
+      fillRR(cx - w / 2, y, w, sh, 10, 'rgba(0,0,0,0.26)');
+      txtL(T('sol.spSuits'), cx - w / 2 + 14, y + 18, '#fff', 'bold 13px sans-serif');
+      [1, 2, 4].forEach(function (n, i) {
+        const bx = cx + w / 2 - 14 - (3 - i) * 62 + 4;
+        const on = (G.spiderSuits || 1) === n;
+        fillRR(bx, y + 6, 56, 26, 8, on ? '#22c55e' : 'rgba(255,255,255,0.16)');
+        txt(T('sol.spSuit' + n), bx + 28, y + 19, '#fff', 'bold 11px sans-serif');
+        if (!on) addHit(bx, y + 6, 56, 26, 'SET_SUITS', { n });
+      });
+      if (GameGlobal.SH >= 760) {
+        ctx.font = '10px sans-serif';
+        wrapLines(T('sol.spSuitSub'), w - 28, 2).forEach((ln, i) =>
+          txtL(ln, cx - w / 2 + 14, y + 40 + i * 13, 'rgba(255,255,255,0.55)', '10px sans-serif'));
+      }
+      y += sh + 10;
     }
 
     // #️⃣ 局号直输 + ❓ 怎么玩（半宽双钮一行 —— 小屏也塞得下）
@@ -757,13 +841,15 @@
     if (ph === 'STATS') return renderStats();
     if (ph === 'ACH') return renderAch();
     if (ph === 'HELP') return renderHelp();
+    if (ph === 'INSIGHT') return renderInsight();
     if (ph === 'GALLERY') return renderGallery();
     if (ph === 'SHOP') return renderShop();
     clearHits();
     const G = root.G;
     const s = G.s;
     const fc = s.mode === 'freecell';
-    const L = Layout.layout({ noBanner: G.noAds, cols: fc ? 8 : 7 });
+    const sp = s.mode === 'spider';                       // ⭐ 第三种玩法：10 列、两副牌
+    const L = Layout.layout({ noBanner: G.noAds, cols: sp ? 10 : fc ? 8 : 7 });
     Sprite.ensure(L.cardW, L.cardH, G.fourColor, G.bigText);
 
     const { SW, SH } = GameGlobal;
@@ -771,7 +857,30 @@
     Sprite.drawTable(ctx, 0, 0, SW, SH, Money.state.table);   // 桌布（图片款 cover，渐变兜底）
 
     // ── 顶排 ──
-    if (fc) {
+    if (sp) {
+      // 左：剩余发牌堆（每叠 = 一次 10 张，点它发牌）；右：已完成的 8 组
+      const rounds = Math.ceil(s.stock.length / 10);
+      for (let r = 0; r < rounds; r++) {
+        const x = L.stockX + r * Math.round(L.cardW * 0.26);
+        ctx.drawImage(Sprite.back(), x, L.topY, L.cardW * 0.9, L.cardH * 0.9);
+      }
+      if (rounds) {
+        addHit(L.stockX, L.topY, L.cardW + rounds * Math.round(L.cardW * 0.26), L.cardH, 'STOCK', {});
+      } else {
+        drawSlot(L.stockX, L.topY, L.cardW * 0.9, L.cardH * 0.9);
+      }
+      // 完成组：靠右排开（8 组）
+      for (let k = 0; k < 8; k++) {
+        const x = L.playX + L.playW - L.gap - (8 - k) * Math.round(L.cardW * 0.42);
+        if (k < s.foundations.length) {
+          ctx.drawImage(Sprite.face(s.foundations[k][0]), x, L.topY, L.cardW * 0.62, L.cardH * 0.62);
+        } else {
+          ctx.save(); ctx.globalAlpha = 0.25;
+          drawSlot(x, L.topY, L.cardW * 0.62, L.cardH * 0.62);
+          ctx.restore();
+        }
+      }
+    } else if (fc) {
       // FreeCell：4 个 free cell（左）+ 4 个 foundation（右）。没有牌堆。
       for (let ci = 0; ci < 4; ci++) {
         const x = L.cellX(ci);
@@ -792,7 +901,7 @@
     if (!fc) addHit(L.stockX, L.topY, L.cardW, L.cardH, 'STOCK', {});
 
     // waste（draw-3 时露出最后 3 张的一角）
-    if (!fc && s.waste.length) {
+    if (!fc && !sp && s.waste.length) {
       const show = Math.min(s.drawCount === 1 ? 1 : 3, s.waste.length);
       const fan = Math.round(L.cardW * 0.22);
       for (let k = 0; k < show; k++) {
@@ -802,12 +911,14 @@
         if (!FX.isFlying(id)) ctx.drawImage(Sprite.face(id), x, L.topY, L.cardW, L.cardH);
         if (k === show - 1) addHit(x, L.topY, L.cardW, L.cardH, 'WASTE', {});   // 只有顶牌可点
       }
-    } else if (!fc) {
+    } else if (!fc && !sp) {
       drawSlot(L.wasteX, L.topY, L.cardW, L.cardH);
     }
 
-    // foundations
-    for (let fi = 0; fi < 4; fi++) {
+    // foundations（⚠ 只有 Klondike/FreeCell 有 4 门花色；
+    //   Spider 的 s.foundations 是「已完成的 0..8 组」，形状完全不同，已在顶排分支画过 ⇒ 整段跳过。
+    //   忘了这条 ⇒ s.foundations[fi] 是 undefined，一进 Spider 就白屏。）
+    for (let fi = 0; !sp && fi < 4; fi++) {
       const x = L.foundX(fi);
       const f = s.foundations[fi];
       const ftop = f.length ? f[f.length - 1] : null;
@@ -836,6 +947,10 @@
       const off = L.fitOffsets(nDown, col.up);
 
       if (!col.cards.length) {
+        // Spider 的「先填满空列才能发牌」提示期间，把空列高亮出来（别让玩家自己找）
+        if (sp && G.spWarnUntil > Date.now()) {
+          fillRR(x, L.tabY, L.cardW, L.cardH, L.cardW * 0.09, 'rgba(255,216,77,0.30)');
+        }
         drawSlot(x, L.tabY, L.cardW, L.cardH);
         addHit(x, L.tabY, L.cardW, L.cardH, 'TAB', { ti, idx: 0 });
         continue;
@@ -910,7 +1025,8 @@
     iconBtn(L.playX + 8, '‹', 'MENU');
     iconBtn(L.playX + 46, '⚙', 'SET');
     iconBtn(L.playX + 84, '🎨', 'SHOP');
-    const verified = !fc && Pool.isVerified(s.drawCount, s.seed);
+    // ⚠ Spider 不进可解池 ⇒ 绝不打「✓ 有解」（打了就是系统性撒谎，措辞死线同理）
+    const verified = !fc && !sp && Pool.isVerified(s.drawCount, s.seed);
     // 分数胶囊 = 本轮连关累计(含当前关进行分×倍率);点开公平页（✓=已验证可解,措辞死线不变）
     const shown = (G.runScore || 0) + Math.round(s.score * Math.min(G.stage || 1, 5));
     const pillW = 150;
@@ -924,16 +1040,46 @@
     const mult = Math.min(G.stage || 1, 5);
     txtL(T('sol.stage') + ' ' + (G.stage || 1) + (mult > 1 ? ' ×' + mult : ''),
          L.playX + 8, r2y, PAL.sub, 'bold 11px sans-serif');
-    const badge2 = fc ? T('sol.freecell') + ' ≤' + RulesF.maxMove(s, false) : '#' + s.seed;
+    const badge2 = sp ? T('sol.spider') + ' ' + s.drawCount + '♠ · ' + s.foundations.length + '/8'
+                  : fc ? T('sol.freecell') + ' ≤' + RulesF.maxMove(s, false)
+                  : '#' + s.seed;
     txt(badge2, L.cx, r2y, PAL.sub, '11px sans-serif');
     const liveMs = G.tAcc + (G.tLast && !s.won ? Math.min(Date.now() - G.tLast, 30000) : 0);
     txtR(s.moves.length + ' · ' + fmtTime(liveMs),
          L.playX + L.playW - 8, r2y, PAL.sub, 'bold 11px sans-serif');
 
+    // ⭐ Spider 不给「还有解吗」——104 张状态空间远超 solver，给了就是假承诺。
+    //   那条版面改成「剩余发牌次数 / 先填满空列」的状态提示。
+    if (sp) {
+      const rounds = Math.ceil(s.stock.length / 10);
+      const empty = RulesS.hasEmptyCol(s);
+      const warn = empty && rounds > 0;
+      fillRR(L.playX + 8, L.proveY, L.playW - 16, L.proveH, 10,
+             warn ? 'rgba(255,216,77,0.22)' : 'rgba(255,255,255,0.10)');
+      txt(warn ? '⚠ ' + T('sol.spFillFirst')
+               : rounds ? T('sol.spDealsLeft', { n: rounds })
+                        : T('sol.spNoStock'),
+          L.cx, L.proveY + L.proveH / 2, warn ? '#ffd84d' : PAL.sub, 'bold 12px sans-serif');
+      if (rounds && !empty) addHit(L.playX + 8, L.proveY, L.playW - 16, L.proveH, 'STOCK', {});
+    }
     // ══ ⭐ 「这局还有解吗？」条 —— 本作唯一没有竞品有的按钮，也是 4.3(a) 的正面回答 ══
     //    它永远免费、永远不看广告：这是产品的灵魂，不是道具（变现红线 §7.4）。
     const P = Prover.st;
-    if (P.phase === 'proving') {
+    // ⭐ 教学局：这一行整条让给教学横幅（「还差几步」+ 退出）。
+    //   ⚠ 它和证明条/「一键走完」是**同一块地皮**——分开画会重叠成一团（验图抓出过一次）。
+    //   教学局也**不给「一键走完」**：那等于替玩家把课上了。
+    if (G.lesson) {
+      const remain = Math.max(0, G.lessonNeed - (s.moves.length - (G.lessonBase || 0)));
+      fillRR(L.playX + 8, L.proveY, L.playW - 16, L.proveH, 10, 'rgba(126,242,160,0.22)');
+      txt(T('sol.lessonBar', { n: G.lesson, k: remain }), L.cx - 26, L.proveY + L.proveH / 2,
+          '#7ef2a0', 'bold 12px sans-serif');
+      const qx = L.playX + L.playW - 8 - 54;
+      fillRR(qx, L.proveY + 6, 48, L.proveH - 12, 8, 'rgba(255,255,255,0.18)');
+      txt(T('sol.lessonQuit'), qx + 24, L.proveY + L.proveH / 2, '#fff', '10px sans-serif');
+      addHit(qx, L.proveY + 6, 48, L.proveH - 12, 'LESSON_QUIT', {});
+    }
+    else if (sp) { /* Spider 无证明器（见上） */ }
+    else if (P.phase === 'proving') {
       // 「正在证明…」—— 这个动画很重要：它让人相信**真的在算**（也确实在算）
       fillRR(L.playX + 8, L.proveY, L.playW - 16, L.proveH, 10, 'rgba(255,216,77,0.18)');
       const dots = '.'.repeat(1 + (Math.floor(Date.now() / 300) % 3));
@@ -987,7 +1133,12 @@
 
     // ── 底部大圆钮（照竞品排版;⛔ 撤销/提示**永远免费无限**,绝不学它的限量道具）──
     //   MODE(切玩法)移到菜单标题旁的 chip —— 工具条只留高频四件
-    const tools = [
+    const tools = sp ? [
+      ['↺', T('sol.undo'), 'UNDO', s.moves.length > 0],
+      ['💡', T('sol.hint'), 'HINT', true],
+      ['🂠', T('sol.spDeal'), 'STOCK', s.stock.length > 0],   // Spider 用发牌代替「自动收牌」
+      ['🔄', T('sol.newGame'), 'NEW', true],
+    ] : [
       ['↺', T('sol.undo'), 'UNDO', s.moves.length > 0],
       ['💡', T('sol.hint'), 'HINT', true],
       ['⤴', T('sol.auto'), 'AUTO', true],
@@ -1012,7 +1163,21 @@
       txt(T('sol.adSlot'), SW / 2, L.bannerY + L.bannerH / 2, 'rgba(255,255,255,0.30)', '11px sans-serif');
     }
 
-    // ── 赢局浮层 ──
+    // ── 赢局浮层（教学局单独一套：不谈分数金币排行，只谈「这一课学会了」）──
+    if (s.won && !FX.busy() && G.lesson) {
+      drawDim('rgba(0,40,20,0.80)');
+      txt('✅', L.cx, SH * 0.32, '#fff', '52px sans-serif');
+      txt(T('sol.lessonDone', { n: G.lesson }), L.cx, SH * 0.42, '#fff', 'bold 20px sans-serif');
+      ctx.font = '12px sans-serif';
+      wrapLines(T('sol.lesson' + G.lesson + 'Tip'), Math.min(L.playW - 60, 340), 3)
+        .forEach((ln, i) => txt(ln, L.cx, SH * 0.48 + i * 17, PAL.sub, '12px sans-serif'));
+      const more = G.lesson < 4;
+      fillRR(L.cx - 100, SH * 0.60, 200, 46, 12, '#22c55e');
+      txt(more ? T('sol.lessonNext') : T('sol.lessonAllDone'), L.cx, SH * 0.60 + 23, '#fff', 'bold 15px sans-serif');
+      addHit(L.cx - 100, SH * 0.60, 200, 46, more ? 'LESSON_NEXT' : 'LESSON_QUIT', {});
+      drawToast();
+      return;
+    }
     if (s.won && !FX.busy()) {
       drawDim('rgba(0,40,20,0.72)');
       let wy = SH * 0.28;

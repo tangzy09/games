@@ -15,8 +15,9 @@
   const Deal = isNode ? require('./deal.js') : root.Deal;
   const R = isNode ? require('./rules-klondike.js') : root.RulesK;
   const RF = isNode ? require('./rules-freecell.js') : root.RulesF;
+  const RS = isNode ? require('./rules-spider.js') : root.RulesS;
   /** 按模式取规则模块（新增模式只在这里加一行）*/
-  const rules = s => (s.mode === 'freecell' ? RF : R);
+  const rules = s => (s.mode === 'freecell' ? RF : s.mode === 'spider' ? RS : R);
 
   const SAVE_VERSION = 1;
   const { rankOf } = Cards;
@@ -36,6 +37,23 @@
         stock: [], waste: [],                  // FreeCell 没有牌堆（留空，保持 state 形状统一）
         foundations: [[], [], [], []],
         moves: [], score: 0, recycles: 0, won: false,
+        usedUndo: false, usedHint: false, usedSolver: false, usedJoker: false,
+      };
+    }
+    // ⭐ Spider：104 张两副牌、10 列、1/2/4 花色三档难度。
+    //   计分是**微软口径**：起始 500、每步 −1、每完成一组 +100（与另两种玩法不同，别统一）。
+    if (mode === 'spider') {
+      const sp = RS.deal(seed, drawCount);          // ⚠ drawCount 位复用成 suits（1/2/4）
+      return {
+        v: SAVE_VERSION, mode: 'spider',
+        seed: seed >>> 0,
+        drawCount: drawCount === 1 ? 1 : drawCount === 2 ? 2 : 4,   // = suits
+        tableau: sp.tableau.map(c => ({ cards: c.cards.slice(), up: c.up })),
+        stock: sp.stock.slice(),
+        waste: [],                                   // Spider 没有 waste（保持 state 形状统一）
+        free: null,
+        foundations: [],                             // 已完成的 8 组（不是 4 门花色）
+        moves: [], score: 500, recycles: 0, won: false,
         usedUndo: false, usedHint: false, usedSolver: false, usedJoker: false,
       };
     }
@@ -77,6 +95,13 @@
       if (!fev) return null;
       if (rec) s.moves.push(m);
       return fev;
+    }
+    // Spider 同理（move 类型：tt / deal10；含两个复合动作，见 rules-spider.js）
+    if (s.mode === 'spider') {
+      const sev = RS.apply(s, m);
+      if (!sev) return null;
+      if (rec) s.moves.push(m);
+      return sev;
     }
     const ev = [];
 

@@ -25,6 +25,13 @@
         // 证明是死局 ⇒ 点亮 🃏 救场入口（诚实答案永远免费;救场是可选的额外出路）
         if (st.result === 'dead' && root.G && root.G.s && root.G.s.mode !== 'freecell') {
           root.G.jokerOffer = Date.now() + 15000;
+          // ⭐ 「我的弱点」：把**致命的那一步**的类型计入统计（deadFrom 已由二分证明）。
+          //   ⛔ 措辞死线照旧：统计只陈述「哪类走法之后常常没解」，**绝不说「你走错了」**——
+          //     盲打时那一步往往是信息上不可避免的。
+          if (st.deadFrom != null && root.noteWeak) {
+            const mv = root.G.s.moves[st.deadFrom - 1];
+            if (mv && mv.t) root.noteWeak(mv.t);
+          }
         }
         if (root.renderAll) root.renderAll();
       };

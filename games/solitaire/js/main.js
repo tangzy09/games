@@ -30,6 +30,15 @@ const G = window.G = {
   galPage: 0,              // 图鉴当前页
   galView: null,           // 图鉴大图查看中的索引（null=网格）
   shopTab: 'back',         // 收藏页当前签（back|table|fx —— 牌背 19 款后单页放不下了）
+  spiderSuits: 1,          // Spider 花色档 1/2/4（新手默认 1 花色——4 花色人类胜率 <10%）
+  lesson: 0,               // 正在上的课（0=不在教学中）
+  lessonNeed: 0,           // 这一课还差几步赢（由 solver 证明）
+  lessonsDone: {},         // 已完成的课 {id:1}
+  diffLv: 1,               // ⭐ 难度阶梯 1..5（明面进度,代替原来的三个下拉项）
+  diffBest: 1,             // 打通过的最高档
+  brilliant: 0,            // 本局妙手数（走出盲打 AI 打分最高的那步）
+  insight: {},             // 「我的弱点」计数器 {move 类型: 次数}
+  spWarnUntil: 0,          // 「先填满空列」提示期间高亮空列
   achPage: 0,              // 成就页当前页（18 项后单页放不下）
   jokers: 0,               // 🃏 万能牌数量（本局有效,看广告获得,上限 3;Klondike 专属救场）
   jokerOffer: 0,           // 「拿万能牌」入口的展示截止时间戳（卡死检测/死局判定时点亮）
@@ -91,6 +100,8 @@ const saveOpts = () => {
       fourColor: G.fourColor, bigText: G.bigText, comfort: G.comfort, reduceFx: G.reduceFx,
       difficulty: G.difficulty, dailyDone: G.dailyDone, dailyHist: G.dailyHist,
       badges: G.badges, ach: G.ach, angels: G.angels, seenIntro: G.seenIntro,
+      spiderSuits: G.spiderSuits, diffLv: G.diffLv, diffBest: G.diffBest, insight: G.insight,
+      lessonsDone: G.lessonsDone,
       stage: G.stage, runScore: G.runScore, dayScore: G.dayScore, dayId: G.dayId,
       xp: G.xp, avatarFile: G.avatarFile,
     }));
@@ -99,18 +110,24 @@ const saveOpts = () => {
 
 function newGame(drawCount, mode) {
   const md = mode || (G.s ? G.s.mode : 'klondike');
-  const draw = drawCount || (G.s ? G.s.drawCount : 3);
   // ⭐ Klondike：只发**已验证可解**的牌局（池里取）。
   //    FreeCell：**不需要池** —— 本来就 ~100% 可解（32000 局里只有 #11982 无解），
   //    直接用微软局号随机取一个（这样玩家可以对照经典局号）。
   // ⭐ 首 3 局必发 easy 池（盲打 AI 都能赢的局）：首次会话有没有赢过一局强烈预测 D1 留存。
   //   之后回到玩家自选难度。
-  const wantDiff = G.stats.played < 3 ? 'easy' : (G.difficulty || 'any');
-  const pooled = md === 'freecell' ? null : Pool.pick(draw, wantDiff);
+  // 阶梯决定「翻几张 + 从哪个池发牌」；首 3 局仍强制 easy（D1 留存）
+  const lad = diffAt(G.diffLv);
+  const wantDiff = G.stats.played < 3 ? 'easy' : lad.pool;
+  // ⚠ draw 必须在**套用阶梯默认值之后**再定：先算 draw 再改 drawCount = 阶梯的翻牌数永远不生效
+  //   （「换一局」走的正是这条无参路径，改良包 E2E 抓出来的）
+  const draw = drawCount || (md === 'klondike' ? lad.draw : (G.s ? G.s.drawCount : 3));
+  // ⚠ Spider **不进可解池**（104 张状态空间远超 solver 能力；DESIGN 明说它兑现不了「已验证可解」）
+  const pooled = (md === 'freecell' || md === 'spider') ? null : Pool.pick(draw, wantDiff);
   const seed = md === 'freecell'
     ? (1 + Math.floor(Math.random() * 32000))
     : (pooled != null ? pooled : Deal.randomSeed());
-  G.s = Core.newGame(seed, draw, md);
+  // Spider 的 drawCount 位复用成花色档（1/2/4）
+  G.s = Core.newGame(seed, md === 'spider' ? (G.spiderSuits || 1) : draw, md);
   // 换局 = 放弃了上一局 ⇒ 连胜断（没打完就换，不能算赢）
   if (G.s && !G.s.won && G.s.moves.length > 0) G.stats.streak = 0;
   // 蜜月期结束的那一盘把横幅亮出来（前 30 盘连横幅都没有 —— 首因效应和评分关键期）
@@ -122,7 +139,8 @@ function newGame(drawCount, mode) {
   G.drag = G.pending = G.sel = G.hintMove = null;
   G.tAcc = 0; G.tLast = Date.now();
   G.jokers = 0; G.jokerOffer = 0;             // 🃏 是本局资产,换局清零
-  G.comboN = 0;
+  G.comboN = 0; G.brilliant = 0;
+  G.lesson = 0; G.lessonNeed = 0; G.lessonBase = 0;   // 普通局 ⇒ 退出教学态
   Prover.reset();
   Snd.deal();                                 // 洗牌声
   G.stats.played++;
@@ -246,9 +264,30 @@ function tick() {
 
 function doMove(m) {
   const before = snapshot(G.s);             // ⚠ 必须在 apply 之前
+  // ⭐ 妙手判定也必须在 apply **之前**：这时 G.s 还是走之前的局面。
+  //   判据 = 这一步正好是盲打 AI 打分最高的那步（scoreMove 是纯函数，零额外开销）。
+  //   ⚠ 只对 Klondike 判：FreeCell 全明牌靠规划、Spider 的 AI 打分口径不适用。
+  let wasBest = false;
+  if (G.s.mode === 'klondike' && m.t !== 'draw' && m.t !== 'recycle') {
+    try {
+      const cand = RulesK.legalMoves(G.s).filter(x => x.t !== 'draw' && x.t !== 'recycle');
+      if (cand.length > 1) {
+        let bv = -Infinity, bm = null;
+        for (const c of cand) {
+          const v = AIBlind.scoreMove(G.s, c);
+          if (v > bv) { bv = v; bm = c; }
+        }
+        wasBest = !!bm && JSON.stringify(bm) === JSON.stringify(m);
+      }
+    } catch (e) {}
+  }
   const ev = Core.apply(G.s, m);
   if (!ev) { Snd.nope(); return false; }     // 非法落点：一声轻的低音，不惩罚玩家
   tick();
+  if (wasBest) {                            // ✨ 即时正反馈（不打断，只是一个浮字）
+    G.brilliant++;
+    FX.float('✨', Layout.L.cx, Layout.L.tabY - 6, '#ffd84d');
+  }
   moveAnim(m, before);                      // ⚠ 必须在 apply 之后（目标坐标才对）
   // 浮动加分（结算感）：收牌 +10，翻暗牌 +5 —— 和 core 的计分一致
   for (const e of ev) {
@@ -291,6 +330,14 @@ function doMove(m) {
 /** ⭐ 赢局 → 纸牌瀑布（产品的心脏） */
 function onWin() {
   const s = G.s;
+  // ⭐ 教学局:赢了只记「这一课学会了」——**必须在任何统计之前 return**。
+  //   教学局是 solver 替玩家走到「差 N 步」的局面,把它计进胜率/连胜/锦标赛 = 战绩是假的。
+  if (G.lesson) {
+    G.lessonsDone = G.lessonsDone || {};
+    G.lessonsDone[G.lesson] = 1;
+    saveOpts(); clearRun();
+    return;
+  }
   const clean = !s.usedUndo && !s.usedHint && !s.usedJoker;
   G.stats.won++;
   if (clean) G.stats.cleanWon++;                 // 双口径：零撤销零提示才算「clean」
@@ -303,6 +350,8 @@ function onWin() {
   clearRun();
 
   if (s.mode === 'freecell') G.stats.fcWon = (G.stats.fcWon || 0) + 1;
+  if (s.mode === 'spider') G.stats.spWon = (G.stats.spWon || 0) + 1;
+  G.stats.brilliantAll = (G.stats.brilliantAll || 0) + (G.brilliant || 0);   // ✨ 妙手累计
   // ⭐ 连关结算:本关得分 × 倍率(min(stage,5)) 计入本轮/当日锦标赛/XP
   const mult = Math.min(G.stage, 5);
   G.lastStageScore = s.score * mult;
@@ -382,6 +431,21 @@ function onTap(hit, cardHit) {
   if (!hit) { G.sel = null; return renderAll(); }
 
   if (hit.action === 'STOCK') {
+    if (s.mode === 'spider') {
+      // ⚠ 「有空列不许发牌」不是死锁，但点了没反应 = 经典的「这是不是 bug」投诉
+      //   ⇒ 必须给明确反馈（DESIGN §1.4）。
+      if (!s.stock.length) {
+        G.toast = { msg: T('sol.spNoStock'), until: Date.now() + 1800 };
+        setTimeout(renderAll, 1900); return renderAll();
+      }
+      if (RulesS.hasEmptyCol(s)) {
+        G.toast = { msg: T('sol.spFillFirst'), until: Date.now() + 2200 };
+        G.spWarnUntil = Date.now() + 2200;      // 同时高亮空列
+        setTimeout(renderAll, 2300); return renderAll();
+      }
+      doMove({ t: 'deal10' });
+      return;
+    }
     doMove(s.stock.length ? { t: 'draw' } : { t: 'recycle' });
     return;
   }
@@ -525,8 +589,9 @@ function dispatch(action, data) {
       }
       break;
     }
-    case 'MODE': {                             // 切模式 = 换一局（模式是开局前属性）
-      const next = s.mode === 'freecell' ? 'klondike' : 'freecell';
+    case 'MODE': {                             // 切玩法 = 换一局（玩法是开局前属性）
+      // ⭐ 三合一轮转：Klondike → FreeCell → Spider → Klondike
+      const next = s.mode === 'klondike' ? 'freecell' : s.mode === 'freecell' ? 'spider' : 'klondike';
       G.stage = 1; G.runScore = 0;             // 换玩法 = 新一轮连关
       newGame(undefined, next);
       goPhase('PLAY');                         // 入口在菜单 chip,切完回牌桌
@@ -536,6 +601,7 @@ function dispatch(action, data) {
     case 'MENU': goPhase('MENU'); break;
     // 首启一屏（4.3(a) 防线）：看过一次就不再出现
     case 'INTRO_GO': G.phase = 'PLAY'; G.seenIntro = 1; saveOpts(); break;
+    case 'INTRO_LESSON': G.seenIntro = 1; saveOpts(); dispatch('LESSON', { id: 1 }); break;
     case 'INTRO_FAIR': G.phase = 'FAIR'; G.seenIntro = 1; saveOpts(); break;
     case 'STATS': goPhase('STATS'); break;
     case 'ACH': goPhase('ACH'); break;
@@ -667,10 +733,57 @@ function dispatch(action, data) {
       break;
     }
     // 发牌难度（分档 = 盲打 AI 赢不赢得了，不是拍脑袋）。**下一局生效**，不动当前局。
-    case 'SET_DIFF': {
+    case 'SET_SUITS': {                       // Spider 花色档（换档 = 换一局）
+      if (data && data.n && data.n !== G.spiderSuits) {
+        G.spiderSuits = data.n;
+        saveOpts();
+        if (G.s.mode === 'spider') { G.stage = 1; G.runScore = 0; newGame(undefined, 'spider'); }
+      }
+      break;
+    }
+    case 'SET_DIFF': {                         // 旧口径（保留兼容，E2E 仍在用）
       if (data && data.d) { G.difficulty = data.d; saveOpts(); }
       break;
     }
+    case 'SET_LV': {                           // ⭐ 难度阶梯：只能选已解锁的档
+      const lv = data && data.lv;
+      if (lv >= 1 && lv <= 5 && lv <= diffUnlocked()) {
+        G.diffLv = lv;
+        G.diffBest = Math.max(G.diffBest || 1, lv);
+        saveOpts();
+        newGame(diffAt(lv).draw, 'klondike');
+        goPhase('PLAY');
+      }
+      break;
+    }
+    case 'INSIGHT': goPhase('INSIGHT'); break;
+    // ⭐ 互动教学：solver 现场出题（可解池取 seed → 解出来 → 退回「差 N 步」）
+    case 'LESSON': {
+      const id = (data && data.id) || 1;
+      const seeds = [];
+      for (let i = 0; i < 8; i++) { const sd = Pool.pick(1, 'easy'); if (sd != null) seeds.push(sd); }
+      if (!seeds.length) seeds.push(1, 2, 3, 4, 5);
+      const built = Lessons.buildFrom(id, seeds);
+      if (!built) { G.toast = { msg: T('sol.lessonFail'), until: Date.now() + 2000 };
+                    setTimeout(renderAll, 2100); break; }
+      G.s = built.state;
+      G.lesson = id; G.lessonNeed = built.need;
+      G.lessonBase = built.state.moves.length;   // solver 替玩家走到这里；玩家自己的步数从这儿算
+      G.dailySeed = null;
+      G.drag = G.sel = G.hintMove = null;
+      G.tAcc = 0; G.tLast = Date.now(); G.jokers = 0; G.comboN = 0; G.brilliant = 0;
+      Prover.reset(); FX.reset(); clearRun();
+      goPhase('PLAY');
+      dealAnim();
+      break;
+    }
+    case 'LESSON_NEXT': {                      // 上一课通关后接着上下一课
+      const nx = (G.lesson || 0) + 1;
+      if (nx <= Lessons.LESSONS.length) dispatch('LESSON', { id: nx });
+      else { G.lesson = 0; newGame(); }
+      break;
+    }
+    case 'LESSON_QUIT': { G.lesson = 0; newGame(); break; }
 
     // 翻牌数：**开局前属性**，改了必须换一局（否则「已验证可解」角标就是假的 ——
     // draw-1 和 draw-3 是两个不同的可解性问题，池也是分开建的）
@@ -829,6 +942,7 @@ function dispatch(action, data) {
     // ⭐ 稳赢一键走完：全明牌 + 牌堆空时出现。解法来自 Solver **实证**（不赌「全明牌必胜」的民间定理），
     //   拿到 move list 后逐步错开滑动播完 —— 这就是「解法回放」在最自然场景的落地。
     case 'FINISH': {
+      if (G.lesson) break;                     // ⛔ 教学局不给「一键走完」——那等于替玩家把课上了
       if (!Core.canAutoFinish(s)) break;
       const sol = Solver.solve(Solver.clone(s), { maxNodes: 400000, timeoutMs: 4000 });
       if (sol.result !== 'win') break;           // 证不出必胜就不动（全明牌局基本毫秒级出解）
@@ -984,6 +1098,31 @@ function dayKeyAgo(days) {
 function canMakeup() {
   const h = G.dailyHist || {};
   return !h[dayKeyAgo(1)] && !!h[dayKeyAgo(2)];
+}
+
+// ══ ⭐ 难度阶梯（明面进度，代替「混合/简单/困难」三个下拉项）══
+//  每一档都是**真实存在的难度差**，不是拍脑袋的标签：翻 1 张 vs 翻 3 张是两个不同的
+//  可解性问题（盲打 AI 32.3% vs 7.6%），easy/hard 池的分档依据也是「盲打 AI 赢不赢得了」。
+//  ⛔ 每一档**都只发已验证可解的局** —— 难度上去的是「找到解有多难」，不是「有没有解」。
+const DIFF_LADDER = [
+  { lv: 1, draw: 1, pool: 'easy', need: 0 },
+  { lv: 2, draw: 1, pool: 'any',  need: 2 },
+  { lv: 3, draw: 3, pool: 'easy', need: 5 },
+  { lv: 4, draw: 3, pool: 'any',  need: 9 },
+  { lv: 5, draw: 3, pool: 'hard', need: 14 },   // 有解、但盲打 AI 赢不了的局
+];
+const diffAt = lv => DIFF_LADDER[Math.max(0, Math.min(4, (lv || 1) - 1))];
+/** 已解锁到第几档（按累计胜局；最高档也必须可赢——池里全是已验证可解局）*/
+function diffUnlocked() {
+  let n = 1;
+  for (const d of DIFF_LADDER) if ((G.stats.won || 0) >= d.need) n = d.lv;
+  return n;
+}
+/** 记一次「弱点」：走到这一步之后局面从有解变无解（由证明器定位）*/
+function noteWeak(kind) {
+  G.insight = G.insight || {};
+  G.insight[kind] = (G.insight[kind] || 0) + 1;
+  saveOpts();
 }
 
 // ══ 🏆 每日锦标赛（零后端伪社交:100 名确定性对手,同一天全球同一场）══

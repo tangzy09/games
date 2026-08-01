@@ -13,7 +13,7 @@
     "test:block:e2e": "node games/blockblast/tests/e2e-p1.cjs && node games/blockblast/tests/e2e-p2.cjs && node games/blockblast/tests/e2e-p3.cjs && node games/blockblast/tests/e2e-p4.cjs",
     "sim:block": "node games/blockblast/tools/sim.js",
     "verify:levels": "node games/blockblast/tools/verify-levels.js",
-    "test:sol": "node games/solitaire/tests/test-klondike.js",
+    "test:sol": "node games/solitaire/tests/test-klondike.js && node games/solitaire/tests/test-spider.js",
     "test:sol:e2e": "node games/solitaire/tests/e2e-p1.cjs",
     "sim:sol": "node games/solitaire/tools/sim-blind.js",
     "test:sol:pool": "node games/solitaire/tools/test-prover.js",
@@ -31,6 +31,8 @@
     "test:sol:angels": "node games/solitaire/tests/e2e-angels.cjs",
     "test:sol:exp2": "node games/solitaire/tests/e2e-exp2.cjs",
     "test:sol:exp3": "node games/solitaire/tests/e2e-exp3.cjs",
-    "test:sol:exp4": "node games/solitaire/tests/e2e-exp4.cjs"
+    "test:sol:exp4": "node games/solitaire/tests/e2e-exp4.cjs",
+    "test:sol:coach": "node games/solitaire/tests/e2e-coach.cjs",
+    "test:sol:spider": "node games/solitaire/tests/e2e-spider.cjs"
   }
 }

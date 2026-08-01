@@ -89,6 +89,31 @@ Klondike 专属、本局上限 3、真卡死/prover 判死才点亮入口。⚠ 
 ⛔ **没抄的**：竞品的提示/撤销是限量道具(9/10 次)——撞「永远免费」红线,这是差异化资产,永远不学。
 E2E：`npm run test:sol:exp4`。
 
+**五期·把求解器变成教练（2026-07-31，用户点名四件）**：
+**① Spider 蜘蛛纸牌**（`js/rules-spider.js`，三合一的第三块）——104 张 = **8 份**×13
+（⚠ id 编码 `copy*52+rank*4+suit`，copy 0..7，1 花色档要 8 份同花；单测抓出过「只有 26 张」）、
+10 列、叠放不看花色但**搬动必须同花**、发 10 张是复合动作（有空列**拒发** + toast + 高亮空列，
+微软规则）、凑齐 K→A 同花自动移走 +100、微软计分 500 起步每步 −1。
+⛔ **Spider 绝不打「✓ 已验证可解」角标**（104 张状态空间超出 solver 能力，打了就是系统性撒谎）。
+测试：`npm run test:sol:spider`（E2E）+ `test-spider.js`（已挂进 `npm test`）。
+**② 难度明面阶梯**（5 档取代「混合/简单/困难」三个下拉项）：档位 = 翻牌数 × 池分档，
+按累计胜局解锁（0/2/5/9/14），⛔ **每一档都只发已验证可解的局**——难的是「找到解有多难」，
+不是「有没有解」（E2E 连发 6 局逐局验 `Pool.isVerified`）。
+**③ 妙手 ✨ + 「我的弱点」页**：妙手判定=这步正好是盲打 AI 打分最高的那步（`scoreMove`，
+⚠ **必须在 `Core.apply` 之前**算，那时 `G.s` 才是走之前的局面）；弱点页把证明器二分出的
+**致命那一步**按类型统计。⛔ 措辞死线照旧：**只陈述「哪类走法之后常常没解」，绝不说「你走错了」**
+（E2E 有零指责词断言）。
+**④ 互动教学 4 课**（`js/lessons.js`）——**不手工设计关卡，用求解器自动出题**：
+可解池取 seed → solver 解出完整 move list → 重放到「差 N 步」→ 玩家自己走完（倒着教）。
+课程 = 收牌/翻暗牌/用牌堆/空列放 K（差 2/4/6/8 步）。首启第一屏第一个按钮就是「一分钟学会」。
+⛔ 两条红线：**教学局当场必须可完成**（剩下的 N 步已被证明能赢，E2E 复算）；
+**教学局不计入胜率/连胜/锦标赛**（`onWin` 开头就 return——它是 solver 摆好的残局，
+计进战绩=战绩是假的）。教学局也不给「一键走完」（那等于替玩家把课上了）。
+E2E：`npm run test:sol:coach`（含**负例**：走一步非最优 ⇒ 妙手计数不动，防「每步都算妙手」的退化实现）。
+⚠ 教学横幅与证明条/「一键走完」是**同一块地皮**，分开画会重叠成一团（验图抓出，已改成同一条 if 链）。
+⚠ 顺带修了一个真 bug：`newGame` 里 `draw` 在套用阶梯默认值**之前**就算好了 ⇒
+「换一局」路径上阶梯的翻牌数永远不生效（改良包 E2E 抓出）。
+
 **高级桌布（2026-07-31，同管线）**：`assets/tables/{walnut,bamboo,velvet,marble}.jpg`
 （540×960，`Sprite.drawTable` 全屏 cover + 商店小图共用；bamboo 原图太亮，后处理压暗到 55%——
 **桌布必须偏暗**，否则白牌/白字浮不出来）。
@@ -253,6 +278,8 @@ npm run test:sol:e2e        # E2E（真实鼠标；含纸牌瀑布）
 node games/solitaire/tests/e2e-p2p3.cjs      # 可解池 + 证明器 + 公平页
 node games/solitaire/tests/e2e-freecell.cjs  # FreeCell
 node games/solitaire/tests/e2e-p5p6.cjs      # 菜单/收藏 + ⭐变现红线（写成测试）
+npm run test:sol:spider     # Spider（三合一第三块）
+npm run test:sol:coach      # ⭐ 求解器当教练：难度阶梯 / 妙手 / 我的弱点 / 互动教学
 node games/solitaire/tools/test-freecell.js  # ⭐ 微软局号地面真值（#11982 必须无解）
 node games/solitaire/tools/test-prover.js    # ⭐ 证明器不许对已知有解的局说「死局」
 node games/solitaire/tools/measure-deadlock.js 40 3 blind   # 那个 45% 是怎么来的

@@ -20,7 +20,7 @@
     const playW = Math.min(SW, PLAY_MAX);
     const playX = Math.round((SW - playW) / 2);
 
-    // 列数随模式变：Klondike 7 列，FreeCell 8 列（Spider 将来 10 列）
+    // 列数随玩法变：Klondike 7 / FreeCell 8 / **Spider 10**（10 列最窄，牌角横排的价值在这最大）
     const cols = (opts && opts.cols) || 7;
     const gap = Math.max(3, Math.round(playW * 0.014));
     const cardW = Math.floor((playW - gap * (cols + 1)) / cols);

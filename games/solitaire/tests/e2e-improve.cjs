@@ -75,15 +75,18 @@ async function click(page, action, dm){
   ok(await page.evaluate(()=>G.comfort===true&&G.fourColor===true&&G.bigText===true),
      '⭐ 舒适模式一键把四色牌+大字号一起打开（65+ 主力人群）');
 
-  // ── ⑤ 难度旋钮：easy 生效于下一局，且发的还是已验证可解局 ──
-  ok(await click(page,'SET_DIFF',{d:'easy'}), '「简单」可点');
+  // ── ⑤ 难度**明面阶梯**（已取代原来的「混合/简单/困难」三个下拉项）：
+  //     选档 = 换翻牌数 + 换池，且**每一档都只发已验证可解的局**。
+  await page.evaluate(()=>{ G.stats.won=10; G.stats.played=20; dispatch('SET'); });
   await page.waitForTimeout(120);
-  ok(await page.evaluate(()=>G.difficulty==='easy'), '难度选择生效');
+  ok(await click(page,'SET_LV',{lv:3}), '难度阶梯第 3 档可点（已解锁）');
+  await page.waitForTimeout(200);
+  ok(await page.evaluate(()=>G.diffLv===3&&G.s.drawCount===3), '⭐ 选档立刻换局（第 3 档 = 翻 3 张 · easy 池）');
   await page.evaluate(()=>dispatch('NEW'));
-  await page.waitForTimeout(150);
+  await page.waitForTimeout(200);
   st=await page.evaluate(()=>({v:Pool.isVerified(G.s.drawCount,G.s.seed),
-    d:Pool.difficultyOf(G.s.drawCount,G.s.seed)}));
-  ok(st.v&&st.d==='easy', `⭐ 下一局真的从 easy 池发牌（难度=${st.d}，已验证可解）`);
+    d:Pool.difficultyOf(G.s.drawCount,G.s.seed),draw:G.s.drawCount}));
+  ok(st.v&&st.d==='easy'&&st.draw===3, `⭐ 「换一局」也照阶梯发（翻 ${st.draw} 张 · 难度=${st.d} · 已验证可解）`);
 
   // ── ⑥ 瀑布收藏：金币买 → 装备 ──
   await page.evaluate(()=>{Money.state.coins=1000;Money.save();dispatch('SHOP');});
@@ -109,7 +112,7 @@ async function click(page, action, dm){
   await page.reload();
   await page.waitForFunction(()=>window.G&&window.G.s);
   await page.waitForTimeout(250);
-  ok(await page.evaluate(()=>G.difficulty==='easy'&&G.comfort===true), '难度/舒适模式持久化');
+  ok(await page.evaluate(()=>G.diffLv===3&&G.comfort===true), '难度档/舒适模式持久化');
 
   ok(errs.length===0, '全程零 error'+(errs.length?': '+errs.join(' | '):''));
   await browser.close(); srv.close();
