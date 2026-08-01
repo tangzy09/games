@@ -36,6 +36,7 @@
     "test:sol:spider": "node games/solitaire/tests/e2e-spider.cjs",
     "test:sol:home": "node games/solitaire/tests/e2e-home.cjs",
     "test:sol:boost": "node games/solitaire/tests/e2e-boost.cjs",
-    "test:share": "node tools/test-share-links.cjs"
+    "test:share": "node tools/test-share-links.cjs",
+    "test:block:home": "node games/blockblast/tests/e2e-home.cjs"
   }
 }

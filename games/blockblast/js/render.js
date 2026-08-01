@@ -197,6 +197,142 @@
   }
 
   /** 主菜单 + 关卡地图（关卡是「审核员 5 秒能看见」的外壳之一，也是进度感的载体）*/
+  /**
+   * 🏠 主界面 —— 启动落点，也是这个游戏的门面。
+   *
+   * ⭐ 为什么单独做一屏：原来的 MENU 一屏塞了**章节页签 + 30 关网格 + 宝箱 + 每日 + 无尽 +
+   *   四个 tab + 三个小钮 + 目标条**，功能全但一眼看过去是「设置页」不是游戏。
+   *   HOME 只留**门面**（主视觉 / 一个主按钮 / 六个带角标的入口），
+   *   MENU 原样保留成「关卡地图」，从 HOME 的「关卡」格子进 —— 一样也没少。
+   *
+   * ⚠ 布局用「先量后画」：canvas 没有 flex/gap，固定块高度先算出来、把富余高度平摊进间隙，
+   *   否则高屏底部一大片死白（solitaire 实锤）。
+   * ⛔ 整屏起点 = safeTop + ctrlH：主视觉是最宽的一块，只躲刘海会顶到右上角引擎语言下拉。
+   */
+  function renderHome() {
+    clearHits();
+    layout();
+    const { SW, SH } = GameGlobal;
+    const G = root.G;
+    const grad = ctx.createLinearGradient(0, 0, SW, SH);
+    grad.addColorStop(0, PAL.bg1); grad.addColorStop(1, PAL.bg2);
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, SW, SH);
+
+    const cx = L.cx, w = Math.min(L.playW - 36, 360);
+    const tall = SH >= 760;
+
+    // ── 先量 ──
+    const hs = Math.min(w * 0.58, SH * (tall ? 0.225 : 0.205));
+    const ch = tall ? 50 : 42;            // 收集卡
+    const bh = tall ? 52 : 44;            // 主按钮
+    const dh = tall ? 40 : 34;            // 每日
+    const gh = tall ? 46 : 40;            // 入口格
+    const sh2 = tall ? 38 : 32;           // 底部小钮
+    const titleH = tall ? 34 : 27, tagH = tall ? 28 : 22;
+    const fixed = hs + 10 + titleH + tagH + ch + bh + dh + 3 * gh + 2 * 8 + sh2;
+    const GAPS = 7, base = tall ? 12 : 7;
+    const top0 = GameGlobal.safeTop + GameGlobal.ctrlH + (tall ? 6 : 2);
+    const slack = SH - top0 - 12 - fixed - GAPS * base;
+    const gap = base + Math.max(0, Math.min(22, slack / GAPS));
+    let y = top0;
+
+    // ── 👼 hero：玩家**最近解锁的那张**天使（是「我的收藏」，不是装饰画）──
+    const got = G.wallet.angels | 0, totA = Shop.ANGELS.total;
+    const hx = cx - hs / 2;
+    fillRR(hx - 5, y - 5, hs + 10, hs + 10, 22, 'rgba(255,255,255,0.88)');
+    if (got > 0) {
+      drawAngel(got - 1, hx, y, hs, hs, 18);
+    } else {
+      // 还没解锁 ⇒ 回退画一小片方块（零素材依赖，绝不空着）
+      fillRR(hx, y, hs, hs, 18, 'rgba(255,255,255,0.92)');
+      const q = hs / 4.6, ox = hx + hs / 2 - q * 1.5, oy = y + hs / 2 - q * 1.5;
+      [[0, 0], [1, 0], [2, 1], [0, 1], [1, 2], [2, 2]].forEach((p, i) => {
+        fillRR(ox + p[0] * q + 3, oy + p[1] * q + 3, q - 6, q - 6, 5, COLORS[i % COLORS.length]);
+      });
+    }
+    addHit(hx, y, hs, hs, 'PAGE_ANG', {});        // 点大图 = 进天使图鉴
+    y += hs + gap;
+
+    // ── 标题 + 一句话卖点（「出块序列开局前就定死」= 这个产品的全部差异化）──
+    txt(T('blockblast.title'), cx, y + (tall ? 14 : 12), '#fff', 'bold ' + (tall ? 30 : 25) + 'px sans-serif');
+    y += titleH;
+    // ⚠ 标题居中 ⇒ tagline 也必须居中（txtLWrap 是**左**对齐的，混用一眼就不齐）
+    ctx.font = '11px sans-serif';                 // ⚠ wrapLines 按当前 font 量宽
+    wrapLines(T('blockblast.tagline'), w - 10, 2)
+      .forEach((ln, i) => txt(ln, cx, y + 8 + i * 14, PAL.sub, '11px sans-serif'));
+    y += tagH + gap - base;
+
+    // ── 收集进度卡（天使 n/500 + 条 + 星星/金币）──
+    fillRR(cx - w / 2, y, w, ch, 11, 'rgba(0,0,0,0.26)');
+    txtL('\u{1F47C} ' + T('blockblast.angelsGot', { n: got, m: totA }),
+         cx - w / 2 + 12, y + 15, '#fff', 'bold 12px sans-serif');
+    txtR((got / totA * 100).toFixed(1) + '%', cx + w / 2 - 12, y + 15, PAL.accent, 'bold 12px sans-serif');
+    fillRR(cx - w / 2 + 12, y + 25, w - 24, 7, 4, 'rgba(255,255,255,0.16)');
+    if (got) fillRR(cx - w / 2 + 12, y + 25, Math.max(4, (w - 24) * got / totA), 7, 4, PAL.accent);
+    if (tall) {
+      const stars = Object.values(G.progress).reduce((a, v) => a + v, 0);
+      txtL('\u2605 ' + stars, cx - w / 2 + 12, y + 42, 'rgba(255,255,255,0.65)', '10px sans-serif');
+      txtR('\u{1FA99} ' + G.wallet.coins, cx + w / 2 - 12, y + 42, PAL.accent, 'bold 10px sans-serif');
+    }
+    y += ch + gap;
+
+    // ── ▶ 主按钮：**智能续继**（无尽局没打完 ⇒ 接着打，别把人扔回新局）──
+    const rs = resumableScore();
+    fillRR(cx - 105, y, 210, bh, 14, rs !== null ? '#f59e0b' : '#22c55e');
+    txt(rs !== null ? T('blockblast.continueRun') + '  ' + rs : T('blockblast.homePlay'),
+        cx, y + bh / 2, '#fff', 'bold ' + (tall ? 18 : 16) + 'px sans-serif');
+    addHit(cx - 105, y, 210, bh, 'PLAY_ENDLESS', {});
+    y += bh + Math.min(gap, 14);
+
+    // ── 📅 每日谜题（回访钩子：连续天数摆在按钮上）──
+    const doneToday = Daily.playedToday(G.profile, new Date());
+    const st0 = G.profile.dailyStreak | 0;
+    fillRR(cx - 105, y, 210, dh, 11, doneToday ? 'rgba(255,255,255,0.18)' : '#ffd84d');
+    txt((doneToday ? '\u2713 ' : '\u{1F4C5} ') + T('blockblast.daily') + (st0 ? '  \u{1F525}' + st0 : ''),
+        cx, y + dh / 2, doneToday ? '#fff' : '#3a2a00', 'bold 13px sans-serif');
+    addHit(cx - 105, y, 210, dh, 'PLAY_DAILY', {});
+    y += dh + gap;
+
+    // ── 2×3 入口网格：每格挂一个「你在这儿有多少东西」的角标 ──
+    const stars = Object.values(G.progress).reduce((a, v) => a + v, 0);
+    const qd = Quests.status(G.profile, Daily.dayNo(new Date())).filter(q => q.done).length;
+    const skinN = Themes.THEMES.filter(t =>
+      Themes.isUnlocked(t, 0, G.wallet.skins || [], G.wallet.gamesPlayed)).length;
+    const cells = [
+      ['\u{1F3AE}', T('blockblast.levels'), '\u2605' + stars, 'MENU'],
+      ['\u{1F47C}', T('blockblast.angels'), String(got), 'PAGE_ANG'],
+      ['\u{1F3C6}', T('blockblast.achievements'), G.profile.unlocked.length + '/' + Achievements.total(), 'PAGE_ACH'],
+      ['\u{1F4CB}', T('blockblast.quests'), qd + '/3', 'PAGE_QUESTS'],
+      ['\u{1F3A8}', T('blockblast.skins'), skinN + '/' + Themes.THEMES.length, 'PAGE_SKIN'],
+      ['\u{1F4CA}', T('blockblast.stats'), '', 'PAGE_STATS'],
+    ];
+    const gw = (w - 8) / 2;
+    cells.forEach(function (c2, i) {
+      const bx = cx - w / 2 + (i % 2) * (gw + 8), by = y + Math.floor(i / 2) * (gh + 8);
+      fillRR(bx, by, gw, gh, 10, 'rgba(0,0,0,0.26)');
+      txt(c2[0], bx + 22, by + gh / 2, '#fff', '17px sans-serif');
+      ctx.font = 'bold 11px sans-serif';           // ⚠ 量宽前必须设 font（截断的老坑）
+      txtL(c2[1], bx + 40, by + gh / 2, '#fff', 'bold 11px sans-serif');
+      if (c2[2]) txtR(c2[2], bx + gw - 10, by + gh / 2, PAL.accent, 'bold 11px sans-serif');
+      addHit(bx, by, gw, gh, c2[3], {});
+    });
+    y += 3 * gh + 2 * 8 + gap;
+
+    // ── 底部四钮：⚠ **纯图标认不出来**（15px emoji），一律配一行小字 ──
+    const sw = (w - 24) / 4;
+    [['\u{1FA99}', T('blockblast.shop'), 'PAGE_SHOP'],
+     ['\u{1F48E}', T('blockblast.codex'), 'PAGE_DEX'],
+     ['\u2696\ufe0f', T('blockblast.fair'), 'PAGE_FAIR'],
+     ['\u2699', T('blockblast.settings'), 'PAGE_SET']].forEach(function (b, i) {
+      const bx = cx - w / 2 + i * (sw + 8);
+      fillRR(bx, y, sw, sh2, 10, 'rgba(255,255,255,0.14)');
+      txt(b[0], bx + sw / 2, y + sh2 / 2 - 6, '#fff', '14px sans-serif');
+      ctx.font = '8px sans-serif';
+      txt(b[1], bx + sw / 2, y + sh2 - 8, 'rgba(255,255,255,0.72)', '8px sans-serif');
+      addHit(bx, y, sw, sh2, b[2], {});
+    });
+  }
+
   function renderMenu() {
     clearHits();
     layout();
@@ -856,6 +992,7 @@
 
   function renderAll() {
     const G0 = root.G;
+    if (G0.phase === 'HOME') return renderHome();
     if (G0.phase === 'MENU') return renderMenu();
     if (G0.phase === 'ACH') return renderAchievements();
     if (G0.phase === 'SKIN') return renderSkins();

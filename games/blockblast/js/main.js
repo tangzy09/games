@@ -513,6 +513,7 @@ function dispatch(action, data) {
       break;
     }
     case 'MENU': G.phase = 'MENU'; break;
+    case 'HOME': G.phase = 'HOME'; break;
     case 'PLAY_DAILY': startDaily(new Date(), false); break;
     case 'PAGE_CAL': G.phase = 'CAL'; break;
     case 'PLAY_DAILY_AT': {
@@ -738,7 +739,7 @@ async function boot() {
   const resumed = qseed === null ? loadRun() : null;
   if (qseed !== null) startChallenge(qseed);
   else if (resumed) { G.s = resumed; G.phase = 'PLAYING'; G.runStartAt = Date.now(); }
-  else { G.s = Core.newGame(Dealer.randomSeed()); G.phase = 'MENU'; }   // 起手在菜单
+  else { G.s = Core.newGame(Dealer.randomSeed()); G.phase = 'HOME'; }   // ⭐ 起手在主界面
 
   Input.bind({ onAction: dispatch });                      // 只处理浮层按钮（棋盘/托盘不注册 hit）
   Drag.bind(document.getElementById(CFG.canvasId), { onPlace, onChange: renderAll });

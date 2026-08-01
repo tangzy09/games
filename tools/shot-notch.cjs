@@ -7,7 +7,8 @@ const ROOT=path.resolve(__dirname,'..'), PORT=8179, SHOT='C:/tmp/notch-check';
 const MIME={'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.webp':'image/webp','.png':'image/png','.jpg':'image/jpeg','.wav':'audio/wav'};
 // 每项可以是游戏名，也可以是 {id, extras:[{label, js}]} —— extras 用来多截几屏
 // （有独立主界面/菜单的游戏，光截牌桌是查不出那些页的刘海问题的）。
-const GAMES=['minesweeper','snake','abyssshoot','blockblast',
+const GAMES=['minesweeper','snake','abyssshoot',
+  {id:'blockblast', extras:[{label:'home', js:"G.phase='HOME'; renderAll();"}]},
   {id:'solitaire', extras:[{label:'home', js:"G.seenIntro=1; G.phase='HOME'; renderAll();"}]}];
 
 function serve(){return new Promise((res,rej)=>{const srv=http.createServer((q,r)=>{

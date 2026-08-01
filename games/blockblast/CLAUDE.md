@@ -17,6 +17,16 @@
   - **IAP `cubeblast_noads` 封存不提交**（ASC id 6796603142 元数据齐全 READY_TO_SUBMIT，放着；将来要上：随版提交 + 从 git 历史 b6c19aa 取回 `js/iap.js` + RC dashboard 建 app）。商店页「Remove Ads」按钮已撤（假按钮伤信任）；`wallet.noAds` 历史开关继续兑现不收回。**RevenueCat 不再需要 ⇒ 出包零手工步。**
   - **Game Center**：bundle 能力已开，榜 `cubeblast.endless.best` / `cubeblast.daily.best` 已建；CI 钩子 `tools/ios-extra.sh` 注入 entitlement（codemagic 模板加了通用钩子：游戏目录有 `tools/ios-extra.sh` 就跑）。⚠ 新依赖 `@openforge/capacitor-game-connect@^1.1` 首次云端构建盯 npm/pod 两步。
 
+- **🏠 主界面（2026-08-01）**：新 `HOME` phase = **启动落点/门面**。原来的 MENU 一屏塞了
+  章节页签 + 30 关网格 + 宝箱 + 每日 + 无尽 + 四个 tab + 三个小钮 + 目标条 —— 功能全，
+  但一眼看过去像设置页。现在 **HOME 只留门面**（天使 hero + 一个主按钮 + 六个带角标的入口），
+  **MENU 原样保留成「关卡地图」**，从 HOME 的「关卡」格子进，功能一样没少。
+  构成：hero（玩家最近解锁的天使；零解锁时回退画彩色方块）→ 标题 + 「出块序列开局前就定死」→
+  收集卡（天使 n/500 + 条 + ★星星 + 金币）→ **智能续继主按钮**（无尽局没打完 ⇒「继续 4321」）→
+  每日谜题（带 🔥streak）→ 2×3 入口（关卡★n / 天使 n / 成就 n/38 / 任务 n/3 / 皮肤 n/16 / 统计）→
+  底部四钮（商店/图鉴/公平/设置，**图标配文字** —— 15px 纯 emoji 认不出来）。
+  ⚠ 导航变了：`e2e-p2` 的「起手在菜单」断言已改成钉新策略（起手在 HOME → 点「关卡」进地图）。
+  E2E：`npm run test:block:home`；`tools/shot-notch.cjs` 已加 `blockblast-home` 一屏。
 - **玩法**：无尽模式 + **30 关 / 3 章节**（糖果瀑布/深海矿脉/翡翠林地，章末宝箱 150/200/300 币）+ 每日谜题（**日历页可补玩过去 7 天**，补玩不计 streak）+ 38 成就 + **16 皮肤（4 星星 + 2 金币 + 10 盘数白送 2~40 盘阶梯）** + **水晶图鉴**（5 种水晶）+ **天使画廊 500 张收集**（素材=language-study「大头萌天使」词图均匀抽样 `assets/angels/a001-500.webp` 24.5MB；顺序解锁、钱包只存一个数 `wallet.angels`；每盘+1/通关+2/破纪录再+1；render 有 LRU 64 张图缓存防低端机爆内存）+ 撤销/换一手道具 + 种子挑战。
 - **拼块自带水晶（1.0.1，DESIGN §6 的另一半）**：第三章引入 `pieceCrystals: {every, kind, goal}` —— 驮不驮由 `Core.pieceCrystalAt(s, pieceIdx)` 纯函数决定（只看 seed+序号，公平承诺不破；撤销回滚同一块驮同一颗）。⛔ 带它的关**最多 1 颗石块**（2 颗会造行列双封死格 → 软锁死，validate 拦）。goal 别贪：首版 goal5+gap5 把 30 关打到 46% 通关率（verify 拦下），goal 2-3 才是甜区。
 - **1.0.1 体验批（2026-07-31，web 已上线）**：⑧「无尽」按钮有未完局时=**继续**（原来一点就静默毁档）；⑨死亡序列（回放最后3手→逐块红色扫盘证明「都放不下」，点击跳过）兑现 DESIGN §2「失败可归因」；⑩濒死心跳(fill≥75%)/streak宽限橙闪/非法拖拽虚线描边/SWEEP·通关重震动——§8 欠的全还了；⑪关卡模式补迷你下一手预览；⑫设置页（预览开关=硬核模式、粒子开关=减弱动态）；⑬前2关首步指引（算出可消行的落点，托盘+落点脉冲高亮）；⑭成就分页（原来矮屏后半看不见）；⑮toast 防重叠排队。E2E 新增：继续/分页/设置持久化断言；p2/p4「造死局留孤格」彩票测试改全满盘（真踩响过）。
@@ -65,6 +75,7 @@ stream(seed, i) -> piece      // 第 i 块是什么，完全由 (seed, i) 决定
 ```bash
 npm run test:block        # 单测（pieces/dealer/core/levels/meta/shop）
 npm run test:block:e2e    # 四个 E2E（P1 玩法 / P2 关卡 / P3 元层 / P4 广告红线）
+npm run test:block:home   # 🏠 主界面（启动落点 / 智能续继 / 入口角标 / 刘海）
 npm run sim:block         # 手感回归基线：mid 中位落子 ~143 / 中位分 ~2971 / SWEEP 局 ~23.7%
 npm run verify:levels     # 20 关通关率（<80% 不许进包）
 node games/blockblast/tools/capture-shots.cjs   # App Store 截图（24 张）
