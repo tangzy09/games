@@ -229,6 +229,74 @@ const DRAW_MOVES = [3, 5, 5, 1, 6, 3, 2, 5, 1, 3, 5, 4, 4, 4, 2, 6, 5, 4, 6, 3, 
 }
 
 // ─────────────────────────────────────────
+// 3.7 ⭐ 「预判败招」剪枝的三条分支，用**独立可推导的性质**逐条钉死（P1 Task 5）
+//     solver 内部有一张 threatMask（「哪些空格落下去就成四」）驱动三种剪枝，它的失败模式是
+//     **静默给错分数**。这里不去碰那个内部函数（solver 的 API 只有 solve/scoreAll），改为
+//     拿 B.isWinningMove 当**独立预言机**，直接压那三条分支的可观测后果：
+//       A 对手有 ≥2 个可落制胜点、我方无当场制胜手 ⇒ 精确分必须正好 = -(41-n)（堵不完）
+//       B 对手恰好 1 个可落制胜点 t ⇒ best 必须只有 t（别的列全是 -(41-n)，见 3.5）
+//       C 我落 c 之后对手能当场赢（对手的制胜点在 c 列 h+1 行）⇒ scoreAll[c] 必须 = -(41-n)
+//     ⇒ threatMask 只要在**真正被查到的那两行**（h[c] 与 h[c]+1）错一位，这里就红。
+// ⚠ 用 flipped（turn 翻一下）来问「对手能在哪儿当场赢」：这是唯一不依赖 solver 内部的问法。
+// ─────────────────────────────────────────
+{
+  const rnd = mulberry32(0x7A1E);
+  let nA = 0, nB = 0, nC = 0, scanned = 0;
+  for (let i = 0; i < 1200; i++) {
+    const bd = randomPosition(rnd, CELLS - (5 + (i % 14)), i % 3 !== 0);
+    if (R.winningMoves(bd).length) continue;                 // 我方能当场赢 ⇒ 三条分支都不适用
+    scanned++;
+    const flipped = B.clone(bd); flipped.turn ^= 1;
+    const opWin = R.winningMoves(flipped);                   // 对手的**可落**制胜点
+    const loseNow = -(CELLS - 1 - bd.n);                     // = -(41-n)，本节点分数的下确界
+    const tag = 'mv=[' + B.toMoves(bd).join(',') + '] n=' + bd.n;
+
+    // ⚠ 分数 = loseNow 时**每一列都等于 loseNow**（它是本节点的下确界，max 取到它 ⇒ 全体都是它）
+    //   ⇒ best 必须是**全部**合法列。这条不是补丁，是 best 语义（并列最优全返回）在这里的必然。
+    const allTied = ms => assert.deepStrictEqual(ms.best, R.moves(bd),
+      '已经必败到底 ⇒ 每一列同分 ⇒ best 必须是全部合法列：' + tag);
+
+    if (opWin.length >= 2) {
+      const r = S.solve(bd);
+      assert.strictEqual(r.score, loseNow,
+        'A：对手有 ' + opWin.length + ' 个可落制胜点，堵不完 ⇒ 精确分必须 = ' + loseNow + '：' + tag);
+      allTied(r);
+      nA++;
+      continue;
+    }
+    if (opWin.length === 1) {
+      const r = S.solve(bd);
+      // ⛔ 别写成「必须只推荐堵它」：**堵了也照样输**时（堵完对手在同一列上方成四），
+      //    堵与不堵同为 loseNow，best 按语义要把全部列都返回。初版这条断言就是这么写错的，
+      //    --deep 语料第一个 27 手局面当场抓到（expected [2] / actual [2,4,5,0,6]）。
+      if (r.score > loseNow) {
+        assert.deepStrictEqual(r.best, [opWin[0]],
+          'B：对手只有一个可落制胜点、且堵了确实更好 ⇒ 必须只推荐堵它：' + tag);
+      } else {
+        assert.strictEqual(r.score, loseNow, 'B：分数只可能是 loseNow 或更好：' + tag);
+        allTied(r);
+      }
+      nB++;
+      continue;
+    }
+    // opWin.length === 0：逐列查「落下去会不会把胜利递给对手」
+    const sa = S.scoreAll(bd);
+    for (const c of R.moves(bd)) {
+      const after = B.play(bd, c);                           // 落完轮到对手
+      if (R.winningMoves(after).length) {
+        assert.strictEqual(sa[c], loseNow,
+          'C：落 c' + c + ' 之后对手当场成四 ⇒ 该列必须正好 = ' + loseNow + '：' + tag);
+        nC++;
+      }
+    }
+  }
+  assert.ok(nA >= 20 && nB >= 20 && nC >= 20,
+    '三条分支都得被真正压到（实得 A=' + nA + ' B=' + nB + ' C=' + nC + '）—— 生成器被人动过了');
+  console.log('test-solver: ⭐ 预判败招剪枝三分支 OK —— 扫 ' + scanned + ' 个局面，'
+    + 'A(堵不完)=' + nA + ' B(唯一强堵)=' + nB + ' C(送头列)=' + nC);
+}
+
+// ─────────────────────────────────────────
 // 4. ⭐⭐ 大规模对拍：solve/scoreAll vs 朴素参考求解器，**精确分数逐位相同**
 // ─────────────────────────────────────────
 // r = 剩余空格数。⭐ 必须**同时**压两头：
@@ -332,9 +400,19 @@ const CORPUS = DEEP ? CORPUS_DEEP : CORPUS_SHALLOW;
   //   · 上界放松 `CELLS-1-n`      ⇒ 结果逐位不变、节点 **1.31×**
   //   · fail-high 的 `>=` 写成 `>` ⇒ 结果逐位不变、节点 **7.30×**
   // 两者都躲过了全部正确性断言（它们确实不改答案），只有这条能拦。
-  // ⚠ 上限只在**变松**时才该改：加置换表 / 更好的 move ordering 会让它降，那一律通过。
-  //   要调高之前先想清楚是不是剪枝坏了。
-  const NODE_CEILING = DEEP ? 12500 : 62000;
+  // ⚠⚠ **上限只许往下改，不许往上改。** 加置换表 / 更好的 move ordering / 更强的剪枝只会
+  //   让它降 —— 降了就**必须当场把上限收到新的实际水平**，否则这条门禁只是「通过」而不再
+  //   拦得住任何东西（一条永远满足的断言等于删掉的断言）。要调高之前先想清楚是不是剪枝坏了。
+  //   历史水位（同一份语料，逐次收紧）：
+  //     Task 4（裸 αβ）                    浅块 54,038 / 深块 10,516  ⇒ 上限 62,000 / 12,500
+  //     Task 5（置换表+预判败招+空窗+排序） 浅块 37,013 / 深块  3,753  ⇒ 上限 38,900 /  3,950
+  // ⚠ 这个数与 solver.js 的 TT_SIZE **绑定**（表大小变了，命中率变了，节点数就变）。
+  //   调整 TT_SIZE 后必须重新量这两个数并同步这里，别只把上限往上抬。
+  //   （留约 5% 余量只为无害重构；这个数是**确定性**的，语料由固定 PRNG 生成、搜索全同步，
+  //    不是计时，零 flaky —— 所以余量不需要大。）
+  // ⚠ 浅块只降到 1.46×，而同一批代码在 18 手档的墙钟是 209× —— 别拿这个比值判断优化有没有
+  //   效：r ≤ 12 的残局本来就搜不了几个节点，剪枝的收益全在更深的局面上（那是 bench 的活）。
+  const NODE_CEILING = DEEP ? 3950 : 38900;
   assert.ok(solverNodes <= NODE_CEILING,
     '剪枝退化：solver 共访问 ' + solverNodes + ' 节点，超过上限 ' + NODE_CEILING
     + '（结果可能仍然全对——这条专门拦「只变慢不算错」）');
