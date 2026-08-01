@@ -6,18 +6,19 @@
   "ads": {
     "simWatch": "【广告模拟】观看激励视频？",
     "simInterstitial": "【广告模拟】插屏广告",
-    "revive": "📺 复活 · {n} 条命 + {s} 秒无敌",
+    "revive": "复活",
     "rescue": "📺 AI 救场 30s",
     "gal3": "看广告 → {n} 张天使",
     "daily2": "看广告 → 再来 {n} 张",
     "left": "今日还剩 {n} 次",
-    "boost": "开局礼包 ×{n}",
-    "boostGot": "获得增益！",
+    "boost": "全部增益",
+    "boostGot": "全部增益到手！",
     "quest": "看广告 → 直接完成一个任务",
     "repair": "看广告 → 恢复 {n} 天连续",
     "double": "广告 → +{n} 张天使",
     "skin": "看广告 → 解锁一款皮肤",
-    "reviveGot": "+{n} 条命 · {s} 秒无敌"
+    "reviveGot": "+{n} 条命 · {s} 秒无敌",
+    "boostSub": "+{n} 条命 · {s} 秒无敌"
   },
   "snake": {
     "score": "分数",

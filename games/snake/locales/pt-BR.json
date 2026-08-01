@@ -6,18 +6,19 @@
   "ads": {
     "simWatch": "[Simulação de anúncio] Assistir a um anúncio premiado?",
     "simInterstitial": "[Simulação de anúncio] Anúncio intersticial",
-    "revive": "📺 Reviver — {n} vidas + {s}s invencível",
+    "revive": "Reviver",
     "rescue": "📺 IA 30s",
     "gal3": "Ver anúncio → {n} anjos",
     "daily2": "Ver anúncio → mais {n} anjos",
     "left": "Restam {n} hoje",
-    "boost": "Turbo ×{n}",
-    "boostGot": "Bônus ativos!",
+    "boost": "Todos os poderes",
+    "boostGot": "Todos os poderes!",
     "quest": "Ver anúncio → concluir uma missão",
     "repair": "Ver anúncio → recuperar sequência de {n} dias",
     "double": "Anúncio → +{n} anjos",
     "skin": "Ver anúncio → desbloquear uma skin",
-    "reviveGot": "+{n} vidas · {s}s invencível"
+    "reviveGot": "+{n} vidas · {s}s invencível",
+    "boostSub": "+{n} vidas · {s}s invencível"
   },
   "snake": {
     "score": "Pontos",

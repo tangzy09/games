@@ -31,7 +31,8 @@ async function main() {
   const R = await page.evaluate(() => ({ ...AD_REWARD }));
   const C = await page.evaluate(() => ({ ...AD_CAPS }));
   console.log('奖励表', JSON.stringify(R), '额度表', JSON.stringify(C));
-  assert(R.gal >= 5 && R.daily >= 3 && R.boost >= 3 && R.double >= 3, '奖励额度够厚(用户要求「一定要丰厚」)');
+  assert(R.gal >= 5 && R.daily >= 3 && R.double >= 3 && R.boostLives >= 10 && R.boostGhostSec >= 30,
+    '奖励额度够厚(用户要求「一定要丰厚」;开局礼包已改成「全部增益」+ 命/无敌)');
 
   // —— 位①图鉴 +N 张 ——
   {
@@ -96,8 +97,7 @@ async function main() {
     const pool = await page.evaluate(() => BOOST_POOL.slice());
     assert(!pool.includes('scissors') && !pool.includes('demon'),
       '⛔ 礼包池不含空签/负面果(scissors 开局无效、demon 提速是负面)');
-    assert(pool.length >= (await page.evaluate(() => AD_REWARD.boost)),
-      '池子够大 ⇒ 四个增益保证不重样');
+    assert(pool.length >= 6, '池子够大 ⇒ 「全部增益」真的是一大把(不是两三个)');
     await page.evaluate(() => dispatch('AD_BOOST'));
     await sleep(500);
     const after = await page.evaluate(() => ({
@@ -109,6 +109,15 @@ async function main() {
       || after.score > before.score || after.rev > before.rev;
     assert(changed, '开局礼包真的改了局面(拿到了实打实的增益)');
     assert(after.used === 1, '开局礼包扣 1 次额度');
+    // ⭐ 2026-08-01 用户拍板:礼包 = **全部**有益增益 + 10 条命 + 30 秒无敌(不再是随机 4 个)
+    const full = await page.evaluate(() => ({
+      shield: window.G.run.effects.shield,
+      ghost: Math.round((window.G.run.effects.ghostUntil - (window.G.nowMs || 0)) / 1000),
+      on: ['slowUntil','trailUntil','magnetUntil'].filter(k => window.G.run.effects[k] > (window.G.nowMs || 0)).length,
+    }));
+    assert(full.shield >= 10, `礼包给足命数(${full.shield})`);
+    assert(full.ghost >= 29, `礼包给足无敌时长(${full.ghost}s)`);
+    assert(full.on === 3, `池子里的持续型增益**全部**生效(${full.on}/3)`);
   }
 
   // —— 位④任务加速:直接完成一个今日任务并发奖 ——
@@ -132,7 +141,12 @@ async function main() {
 
   // —— 位⑤复活:救场必须给足(护盾+穿身),否则复活即再死 ——
   {
-    await page.evaluate(() => { dispatch('START'); });
+    // ⚠ 上一节的开局礼包刚发了 10 条命 + 30 秒无敌 ⇒ 不清掉就撞不死，这一节永远超时
+    await page.evaluate(() => {
+      window.G.run.effects.shield = 0;
+      window.G.run.effects.ghostUntil = 0;
+      dispatch('START');
+    });
     let ph = 'PLAYING';
     for (let i = 0; i < 40 && ph !== 'DEAD'; i++) { await sleep(400); ph = await page.evaluate(() => window.G.phase); }
     assert(ph === 'DEAD', '撞墙死亡(准备测复活)');

@@ -5,6 +5,7 @@ var G = {
   phase: 'LOADING',        // LOADING | READY | PLAYING | PAUSED | DEAD | LEVEL_DONE
   run: null, cyc: null, aiMem: null,
   img: null, imgList: [], imgPos: 0,
+  eatToneStep: 0, eatToneAt: null,   // 连吃音阶的级数/上次吃的时刻（纯表现层，不进存档）
   imgFull: false,          // LEVEL_DONE 时点图全屏欣赏中
   save: null, tracker: null, saveKey: null,   // P2b:存档 + 单局成就 tracker
   revivesThisLevel: 0,                        // P3a:复活广告位,每局(每张图)限 2 次
@@ -58,7 +59,9 @@ function dispatch(action) {
       dispatch('AI_TOGGLE');
       break;
     case 'AD_BOOST':
-      // 🎁 开局礼包(新类别:局内增益):看广告 → 本关立刻获得 3 个随机特殊果效果。
+      // 🎁 开局礼包(局内增益):看广告 → **把所有有益增益一次全给** + 10 条命 + 30 秒无敌
+      //   (2026-08-01 用户拍板,取代原来的「随机 4 个不重样」——满配比抽奖爽得多,
+      //    而且不用赌运气;额度 4 次/天照旧护住长线)。
       //   复用 core 的 applyFruit,不新增机制;⛔ 只给增益,不碰星级/成就/纪录。
       if ((G.phase === 'READY' || G.phase === 'PLAYING') && adQuotaLeft('boost') > 0) {
         Ads.showRewarded().then(ok => {
@@ -66,14 +69,15 @@ function dispatch(action) {
           adUse('boost');
           // ⛔ 池子不能是「全部果子」:scissors 开局蛇长才 3,减身是**空签**(看完广告什么也没得到);
           //    demon 提速 50% 对刚开局的人是负面;meteor/gift 是场上机制不是即时增益。
-          //    奖励要丰厚 ⇒ 只发真增益,而且**四个不重样**(4 个同款远不如 4 种不同的爽)。
-          const pool = BOOST_POOL.slice();
+          //    ⇒ BOOST_POOL 就是「有益」的白名单,全给。
           const got = [];
-          for (let i = 0; i < AD_REWARD.boost && pool.length; i++) {
-            const t = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+          for (const t of BOOST_POOL) {
             Core.applyFruit(G.run, t, G.nowMs || 0, {});
             got.push(Fruits.FRUITS[t].emoji);
           }
+          // 再叠上救场那两样(同复活口径):「命」保撞墙、「无敌」穿身,两个一起才算真的满配
+          G.run.effects.shield += AD_REWARD.boostLives;
+          G.run.effects.ghostUntil = (G.nowMs || 0) + AD_REWARD.boostGhostSec * 1000;
           showBoostToast(got);
           Sfx.play('special'); Haptics.medium();
           renderAll();
@@ -339,7 +343,11 @@ const BOOST_POOL = ['heart', 'halo', 'trail', 'magnet', 'feather', 'twin', 'gold
 // 每次给多少：**奖励要一次见效**（+1 张没人看广告，+8 张才动手）
 // ⚠ 改激励视频的奖励数值**只动这张表**（reviveLives/reviveGhostSec 是 2026-08-01 用户加厚的：
 //   「复活 + 30 秒无敌 + 10 条命，而且要提示出来」——奖励看不见等于没给）
-const AD_REWARD = { gal: 8, daily: 5, boost: 4, double: 3, reviveLives: 10, reviveGhostSec: 30 };
+// ⚠ 开局礼包已改成「**全部**有益增益」(BOOST_POOL 全发) ⇒ 没有「发几个」这个数了，
+//   只剩附赠的命/无敌两项（boostLives/boostGhostSec，与复活同口径）。
+const AD_REWARD = { gal: 8, daily: 5, double: 3,
+                    reviveLives: 10, reviveGhostSec: 30,
+                    boostLives: 10, boostGhostSec: 30 };
 function adQuotaLeft(kind) {
   if (!G.save) return 0;
   const a = G.save.ads, today = ymd(Date.now());
@@ -794,12 +802,57 @@ function showReviveToast() {
   setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 500); }, 3000);
 }
 
+// ══ 连续吃果的音阶（2026-08-01 用户点名：「连续吃到果子音效更好、有连贯性，最多 20 个然后重复」）══
+// 固定一个 eat.wav 听 200 次只有噪音感；改成**每吃一颗升一级的上行音阶**，
+// 连吃越久越高越爽，断了从头来 —— 一条听得见的连击反馈。
+// ⚠ 走 WebAudio 实时合成（本作零外部音源的老规矩，同 tools/gen-sfx.js）；
+//   不支持/被拦就回退原来的 eat.wav，绝不静音。
+const TONE_STEPS = 20;                     // 20 级封顶，然后从头（用户定；再高就刺耳了）
+const TONE_SCALE = [0, 2, 4, 5, 7, 9, 11]; // 大调音阶 ⇒ 20 级 ≈ 3 个八度，怎么连都协和
+let toneCtx = null;
+function eatTone(step) {
+  if (!Sfx.on) return false;
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return false;
+    if (!toneCtx) toneCtx = new AC();
+    if (toneCtx.state === 'suspended') toneCtx.resume();
+    const i = ((step % TONE_STEPS) + TONE_STEPS) % TONE_STEPS;
+    const semis = TONE_SCALE[i % TONE_SCALE.length] + 12 * Math.floor(i / TONE_SCALE.length);
+    const f = 261.63 * Math.pow(2, semis / 12);        // C4 起
+    const t = toneCtx.currentTime;
+    const g = toneCtx.createGain();                    // 短促的音乐盒式衰减
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.22, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.34);
+    g.connect(toneCtx.destination);
+    for (const [type, mul, vol] of [['triangle', 1, 1], ['sine', 2, 0.32]]) {
+      const o = toneCtx.createOscillator();
+      o.type = type; o.frequency.setValueAtTime(f * mul, t);
+      const og = toneCtx.createGain(); og.gain.value = vol;
+      o.connect(og); og.connect(g);
+      o.start(t); o.stop(t + 0.36);
+    }
+    return true;
+  } catch (e) { return false; }
+}
+/** 吃到果子：按「连续」推进音阶（⚠ 用表现层自己的计数器 —— core 的 combo 超时不清零，
+ *  拿它当音高会导致音阶一路只升不降；这里断了就回 0，与玩家听感一致）*/
+function playEatTone(nowMs) {
+  const gap = nowMs - (G.eatToneAt == null ? -1e9 : G.eatToneAt);
+  G.eatToneStep = gap <= Core.COMBO_WINDOW_MS ? (G.eatToneStep || 0) + 1 : 0;
+  G.eatToneAt = nowMs;
+  if (!eatTone(G.eatToneStep)) Sfx.play('eat');
+}
+
 function showBoostToast(emojis) {
   const host = document.getElementById('toasts');
   if (!host) return;
   const el = document.createElement('div');
   el.className = 'set-banner';
-  el.innerHTML = `<span class="sb-emo">🎁</span><span>${T('ads.boostGot')} ${emojis.join(' ')}</span>`;
+  // 拿到了什么必须写清楚：全部增益的 emoji 一排 + 附赠的命/无敌（HUD 上还有 💖×n / 😇秒 兜底）
+  el.innerHTML = `<span class="sb-emo">🎁</span><span>${T('ads.boostGot')} ${emojis.join(' ')}<br>`
+    + `${T('ads.boostSub', { n: AD_REWARD.boostLives, s: AD_REWARD.boostGhostSec })}</span>`;
   host.appendChild(el);
   setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 500); }, 2600);
 }
@@ -1104,7 +1157,7 @@ function tick(nowMs, interval) {
   // 爽感 FX:事件都发生在蛇头,粒子/飘字落头格(render 层函数,墙钟计时)
   const h = run.snake[0];
   if (ev.some(e => e.t === 'apple')) {
-    Sfx.play('eat');
+    playEatTone(nowMs);                       // 连吃一路升调（20 级后从头），断了回第一级
     fxBurst(h.x, h.y, PAL.apple, 7);
     if (scoreDelta > 0) fxPop(h.x, h.y, '+' + scoreDelta, PAL.accent);
     if (run.combo >= 2) fxPop(h.x, h.y - 0.5, '×' + run.combo, PAL.accent2);   // 连击飘字

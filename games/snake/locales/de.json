@@ -6,18 +6,19 @@
   "ads": {
     "simWatch": "[Werbe-Simulation] Belohnungsvideo ansehen?",
     "simInterstitial": "[Werbe-Simulation] Interstitial-Werbung",
-    "revive": "📺 Wiederbeleben — {n} Leben + {s}s unbesiegbar",
+    "revive": "Wiederbeleben",
     "rescue": "📺 KI 30s",
     "gal3": "Werbung → {n} Engel",
     "daily2": "Werbung → {n} Engel mehr",
     "left": "Heute noch {n}",
-    "boost": "Boost ×{n}",
-    "boostGot": "Power-ups!",
+    "boost": "Alle Power-ups",
+    "boostGot": "Alle Power-ups!",
     "quest": "Werbung → eine Aufgabe abschließen",
     "repair": "Werbung → {n}-Tage-Serie retten",
     "double": "Werbung → +{n} Engel",
     "skin": "Werbung → einen Skin freischalten",
-    "reviveGot": "+{n} Leben · {s}s unbesiegbar"
+    "reviveGot": "+{n} Leben · {s}s unbesiegbar",
+    "boostSub": "+{n} Leben · {s}s unbesiegbar"
   },
   "snake": {
     "score": "Punkte",

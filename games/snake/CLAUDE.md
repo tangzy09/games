@@ -66,6 +66,18 @@ node games/snake/tools/gen-items.cjs     # Flux schnell 生成 13 道具 → C:\
 - **吃到果实随机揭 9 格**(`APPLE_REVEAL`,`onAppleEaten` → `revealRandom`):揭图是本作核心爽点,从「一步一格」提到「一果九格」,整关时长与收集节奏大幅提速。走 `s.rand()` ⇒ 同种子可复现(AI 回归/快照续玩都依赖这条)。
 - **特殊果永远在场**:开局即生成,吃掉**立刻补下一个**(`ensureSpecial`),**永不过期**——旧的「4~6 苹果刷一个 + 8s 过期」整套作废。⚠ `expiresAt` 保留字段但填 `Number.MAX_SAFE_INTEGER`:① render 的「快过期闪烁」判据因此永假;② **别改回 `Infinity`**——当局快照走 JSON,`Infinity` 会变 `null`,`null - now` 是负数 ⇒ 特殊果会一直闪。
 
+## ⭐ 音效：连吃果子的上行音阶（2026-08-01 用户点名）
+
+固定一个 `eat.wav` 听两百遍只剩噪音感。改成 **每连吃一颗升一级的上行音阶**：
+`playEatTone()` + `eatTone(step)`（main.js）用 **WebAudio 实时合成**（本作零外部音源的老规矩，
+同 `tools/gen-sfx.js`）—— 三角波主音 + 二倍频正弦泛音 + 音乐盒式指数衰减。
+
+- **音阶 = 大调 7 音 × 3 个八度，20 级封顶后从头**（用户定；再高就刺耳）。大调 ⇒ 怎么连都协和。
+- ⚠ **音高不能挂 `run.combo`**：core 的 combo **超时不清零**（只是不再自增），拿它当音高会
+  一路只升不降。表现层自己数 `G.eatToneStep`（间隔超过 `Core.COMBO_WINDOW_MS` 就回 0），
+  与玩家「连不上了」的听感一致。纯表现层，不进存档、不碰计分。
+- WebAudio 不可用/被拦 ⇒ **回退原来的 `eat.wav`**，绝不静音。
+
 ## 存档(storage.js)—— 两个真实踩过的坑
 
 - **保守合并的开放 map 陷阱**:`defaults().stats` 里 `specials{}`/`skinClears{}` 是**空对象**,merge 靠「空 default 透传」保住存档里的动态 key。**若给它们塞非空默认值(如 `{cloud:0}`),会退回逐 key 递归、每次 load 清空动态 key**(24 个特殊果成就进度全丢,曾是 Critical)。加新的动态 map 字段务必保持空默认。
@@ -83,6 +95,7 @@ node games/snake/tools/gen-items.cjs     # Flux schnell 生成 13 道具 → C:\
 
 ## 玩法/美术/无障碍升级(2026-07 一轮,均已 node+E2E 验)
 
+- **浮层卡 `drawOverlay`**(暂停/死亡/过关共用):⛔ **按钮宽度别写死** —— 复活按钮加上「10 条命 + 30 秒无敌」之后，文字直接冲出那颗 180px 的药丸、📺 还落在按钮外面（实拍）。带奖励说明的按钮**拆两行**（大字说是什么、小字说给多少），卡片高度按真实按钮高度累加，卡片加投影浮起来。🏠 角标与星级带换成**共享 UI 图标**（引擎的 `makeUIArt`）。⚠ 包装函数必须叫 `uiArt` —— main.js 里已经有一个 DOM 版 `uiIcon`，重名会 `SyntaxError: Identifier 'uiIcon' has already been declared`、**整页白屏**（实踩）。
 - **爽感 FX**(render.js `FX`/`fx*`,纯前端墙钟,不进 core/存档):吃果/连击/护盾/接流星 → 粒子迸发 + `+分`/`×连击` 飘字 + 震屏;过关 `fxCelebrate` = 流光扫过成图 + 星光 + 棋盘回弹(`fxBoardTransform` 围绕棋盘中心 scale+shake,结算浮层延迟 0.8s)。main tick 按 `run.events` 在蛇头坐标触发。
 - **道具 sprite**(`itemSprite`/`preloadItems`,render.js):苹果+12 特殊果+流星的 emoji 换成本机 **Flux schnell** 生成的可爱贴纸(`assets/items/*.png`,256² 透明),sprite 优先、未加载回退 emoji/圆(零破坏)。管线 `tools/gen-items.cjs`(ComfyUI)+`cut-items.py`(transparent_background 抠图),改风格才重跑。
 - **每日天使**(`claimDaily`,main.js):每天领一张未解锁天使进图鉴(按日期稳定选、防刷)+ 连续天数 `daily.giftStreak`;主界面 🎁 可领时金色脉动。streak 相邻天判定用 `Math.round(日差)`(夏令时安全,同 achievements)。
@@ -112,7 +125,7 @@ node games/snake/tools/gen-items.cjs     # Flux schnell 生成 13 道具 → C:\
 | **过关结算屏**(「下一张」下方) | **+3 张天使** | 收集 | 每关 1 次(`G.doubledThisLevel`) |
 | 图鉴页 | **+8 张天使** | 收集 | 6 次/天(= 每天最多 +48 张) |
 | 每日礼物弹窗 | **+5 张天使** | 收集 | 1 次/天(礼物本身每天一次) |
-| **开局礼包**(READY 屏,🎁 与 AI 键并排,按钮标 `×4`) | **4 个不重样的真增益**立刻生效(护盾/光环/磁力/圣光…) | **局内增益** | 4 次/天 |
+| **开局礼包**(READY 屏,🎁 与 AI 键并排) | **BOOST_POOL 里的有益增益全给** + **10 条命 + 30 秒无敌**(2026-08-01 用户拍板,取代原来的「随机 4 个」——满配比抽奖爽,也不用赌运气) | **局内增益** | 4 次/天 |
 | **皮肤解锁**(皮肤面板顶部) | **永久解锁下一款未解锁皮肤**(写进 `save.skins`) | **外观** | 1 次/天 |
 | **任务面板** | **直接完成一个今日任务**(含其 3 张奖励) | **任务进度** | 2 次/天 |
 | **streak 补签**(每日礼物弹窗,仅断签当天出现) | 把 giftStreak 接回 `prev+1` | **习惯保护** | 恰好漏 1 天时 |
