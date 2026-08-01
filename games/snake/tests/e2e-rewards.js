@@ -83,14 +83,31 @@ async function main() {
     assert(kept.used === 1, '当日额度计数跨重载保留(否则刷新页面=额度归零)');
   }
 
-  // —— 位③开局礼包:READY 屏拿 N 个随机特殊果效果 ——
+  // —— 位③开局礼包:READY 屏拿 N 个**不重样的真增益** ——
+  // ⛔ 这里断言的是「没有空签」:曾经池子是全部果子,能抽到 scissors(开局蛇长 3,减身什么也没发生)
+  //    ⇒ 看完广告 run 状态一点没变。奖励里出现空签比不给还伤。
   {
-    const before = await page.evaluate(() => ({ phase: window.G.phase, eff: JSON.stringify(window.G.run.effects) }));
+    const before = await page.evaluate(() => ({
+      phase: window.G.phase, eff: JSON.stringify(window.G.run.effects),
+      apples: window.G.run.extraApples.length, score: window.G.run.score,
+      rev: window.G.run.revealedCount,
+    }));
     assert(before.phase === 'READY', `sanity: 重载后在 READY(got ${before.phase})`);
+    const pool = await page.evaluate(() => BOOST_POOL.slice());
+    assert(!pool.includes('scissors') && !pool.includes('demon'),
+      '⛔ 礼包池不含空签/负面果(scissors 开局无效、demon 提速是负面)');
+    assert(pool.length >= (await page.evaluate(() => AD_REWARD.boost)),
+      '池子够大 ⇒ 四个增益保证不重样');
     await page.evaluate(() => dispatch('AD_BOOST'));
     await sleep(500);
-    const after = await page.evaluate(() => ({ eff: JSON.stringify(window.G.run.effects), used: window.G.save.ads.boost }));
-    assert(after.eff !== before.eff, '开局礼包真的改了 run.effects(拿到增益)');
+    const after = await page.evaluate(() => ({
+      eff: JSON.stringify(window.G.run.effects), used: window.G.save.ads.boost,
+      apples: window.G.run.extraApples.length, score: window.G.run.score,
+      rev: window.G.run.revealedCount,
+    }));
+    const changed = after.eff !== before.eff || after.apples > before.apples
+      || after.score > before.score || after.rev > before.rev;
+    assert(changed, '开局礼包真的改了局面(拿到了实打实的增益)');
     assert(after.used === 1, '开局礼包扣 1 次额度');
   }
 

@@ -103,7 +103,7 @@ node games/snake/tools/gen-items.cjs     # Flux schnell 生成 13 道具 → C:\
 | **过关结算屏**(「下一张」下方) | **+3 张天使** | 收集 | 每关 1 次(`G.doubledThisLevel`) |
 | 图鉴页 | **+8 张天使** | 收集 | 6 次/天(= 每天最多 +48 张) |
 | 每日礼物弹窗 | **+5 张天使** | 收集 | 1 次/天(礼物本身每天一次) |
-| **开局礼包**(READY 屏,🎁 与 AI 键并排,按钮标 `×4`) | **4 个随机特殊果效果**立刻生效(护盾/光环/磁力…) | **局内增益** | 4 次/天 |
+| **开局礼包**(READY 屏,🎁 与 AI 键并排,按钮标 `×4`) | **4 个不重样的真增益**立刻生效(护盾/光环/磁力/圣光…) | **局内增益** | 4 次/天 |
 | **皮肤解锁**(皮肤面板顶部) | **永久解锁下一款未解锁皮肤**(写进 `save.skins`) | **外观** | 1 次/天 |
 | **任务面板** | **直接完成一个今日任务**(含其 3 张奖励) | **任务进度** | 2 次/天 |
 | **streak 补签**(每日礼物弹窗,仅断签当天出现) | 把 giftStreak 接回 `prev+1` | **习惯保护** | 恰好漏 1 天时 |
@@ -117,6 +117,7 @@ node games/snake/tools/gen-items.cjs     # Flux schnell 生成 13 道具 → C:\
 - **额度是设计不是抠门**:奖励给厚了就必须有 `save.ads{day,gal,boost,quest,skin}` 每日额度,否则一天几十条广告能把 500 张图鉴刷穿、当天毕业,长线直接没了。额度跨天自动清零,UI 上明写「今日还剩 N 次」。
   ⚠ **跨天重置必须按 `AD_CAPS` 全量清**(`for (const k of Object.keys(AD_CAPS)) a[k]=0`)——手写清哪几个 key 必漏(`skin` 上限 1 ⇒ 漏了就是「一辈子只能广告解锁一款皮肤」,实锤 bug)。
 - **拒绝广告 ⇒ 零发放且不扣额度**(`tests/e2e-rewards.js` 逐位钉死)。发放口统一在 `grantAngels(n)`,广告入口统一走 `dispatch('AD_*')`(便于冒烟直调)。
+- ⛔ **奖励池里不许有空签**(`BOOST_POOL`):礼包原来从「全部果子」抽,能抽到 `scissors`(开局蛇长才 3,减身什么也没发生)和 `demon`(提速 50% 对刚开局是负面)——**看完广告局面一点没变,比不给还伤**。池子只放真增益,且 `splice` 抽取保证四个不重样(4 个同款远不如 4 种不同的爽)。`e2e-rewards` 里钉死了「池子不含 scissors/demon」+「局面确实变了」。
 - **`save.skins` 与统计解锁条件并列**:`themes.themeUnlocked(key, save)` 满足任一即解锁。`skins` 是数组(闭合字段)⇒ 必须在 `defaults()` 里,否则 merge 丢(见存档两坑)。
 - ⚠ **AI 改免费后原「看广告换救场」收入位没了** —— 上面六个位是补缺口,且全部落在**玩家主动打开收集/任务界面**或**正反馈时刻**,转化高于逼着看的位置。
   - **每日任务**(`js/quests.js`):日期串确定性生成 3 个轻任务(苹果/过关/揭格/特殊果/单局连击/零死亡),进度**挂既有 core 事件流**(`Ach.accumulate` 旁边),**完成即自动发奖不做「领取」按钮**;snake 无金币经济 ⇒ 奖励 = **直接解锁 1 张天使图**(与每日礼物同一种货币)。主界面 📋 显 x/3,面板带进度条。
@@ -127,6 +128,22 @@ node games/snake/tools/gen-items.cjs     # Flux schnell 生成 13 道具 → C:\
   - ⚠ 两个新原生插件(`in-app-review` / `local-notifications`)**要新二进制才生效**,web 端全静默 no-op。**1.0.1 正在审核中 ⇒ 这批随 1.0.2 出**(出包前先 bump package.json 到 1.0.2)。
 - **10 语 UI**(`GAME_CONFIG.languages`=引擎十语默认集 zh-CN/en/es/hi/bn/pt-BR/ru/ja/pa/de):加语言=加 `locales/<code>.json`,零改逻辑。主界面 🌐 弹语言菜单(`openLangMenu`,10 语循环按钮太烂);顶栏引擎语言下拉被 `#home` 盖住,故主界面自带一个。App Store 语言栏(`CFBundleLocalizations`)由 codemagic **从 `GAME_CONFIG.languages` 动态注入**(自动映射 zh-Hans/pt-BR),不虚报。
 - **意见反馈**(`js/feedback-client.js`,drop-in):`FB_CONFIG.app="angel-snake"` → 共享 hub `feedback.ai-speeds.com/api/feedback`(EC2 systemd `feedback-hub`,面板 `/admin`,**后端零改**)。表单已粉彩重样式 + 接 snake 的 `T()`/`I18N.lang`(内置中英随语言切,其余回退英文)。主界面 💬 入口,boot `Feedback.flushQueue()` 补发离线队列;诊断静默附版本/平台/语言/`__lastError`。改后端要单独 `systemctl restart feedback-hub`(见 app-ratings-feedback skill)。
+
+## 视觉打磨(2026-08-01,「把页面做得生动好看些」批)
+
+DOM 层的所有页面 + 游戏主画面的下半屏。**零玩法/经济改动**,断言全部沿用旧的。
+
+- **主界面**:`#home::before` 四团慢飘的极光(18s alternate)· 主视觉 `.hero-wrap::before` 转动的 conic 光环 + 5.5s 起伏 · 标题渐变文字 · Play 按钮高光扫过 · 进度条加百分比 + 流光 · 六个入口配彩色圆图标 + **数量角标**(空按钮不给人点进去的理由)。
+- **图鉴**:25 集从「一行字」改成 **缩略图 + 进度条 + 集齐转金 👑**。⚠ 封面必须取该集**已解锁**的第一张(拿未解锁的当封面=提前剧透);`loading=lazy decoding=async`(25 张 512² 同步解码会卡开面板那一下)。
+- **成就**:顶部总进度 x/120 · 解锁行金卡 · 未解锁配细进度条。⚠ 进度条**放在 `.ach-item` 外面**——E2E 按 `.ach-item` 计数(必须恰好 100)。
+- **皮肤**:五条色带 → **canvas 画的真盘面缩略预览**(`skinPreviewURL`,复用 `themes.js` 的 `texture(m,px,pc)` 契约)+ 锁定款的解锁进度条。揭开区用**中性暖色渐变**而不是主题色——底下的天使图不随皮肤变。
+- **统计**:16 格按语义四色分组(收集/战绩/受挫/习惯)。⚠ 图标做**角标水印**不占行——这页的价值就是「一屏摆完」,每格加一行就要多滚两屏。
+- **任务**:每个类型自己的图标(`Q_ICON`);任务行加 `.qrow` 类,否则会套上成就那套「灰掉」的锁定样式,图标全成灰的。
+- **面板**:顶部粉彩色带 + 标题竖条 · 入场淡入/弹起 · 背景 `backdrop-filter: blur(4px)` · 粉色滚动条。
+- **游戏主画面**:方形盘面在高屏必然留白 ⇒ `drawFooterArt()` 画主题化的**云海 + 星光**(确定性散列,禁 `Math.random`,不接 hit,`renderAll` 里最先画)。⚠ 渐变必须与填充矩形**同起点**,否则顶边已经 35% 不透明、横切出一道硬边。
+- ⛔ **减弱动态**:`syncMotionClass()` 是 `G.reduceMotion`(canvas 侧)↔ `body.rm`(DOM 侧)的**唯一同步点**,`boot`/`toggleMotion` 都要调。CSS 兜底 `body.rm *,::before,::after { animation:none!important }` ⇒ **新加任何装饰动画自动被管住**,不会漏掉晕动症玩家。回归脚本见下。
+
+**验收工具**:`node games/snake/tools/shot-ui.cjs` 一次截全部 9 个 DOM 界面到 `C:/tmp/snake/ui/`(自动造进度数据,空页看不出排版好坏)。改样式后跑它 + `tools/shot-notch.cjs`。
 
 ## 项目状态(上架)
 

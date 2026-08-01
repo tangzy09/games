@@ -10,16 +10,22 @@ const IS_TOUCH = typeof navigator !== 'undefined' && (navigator.maxTouchPoints >
 let PAL = THEMES.cloud.pal;
 function applyThemePal(key) { PAL = (THEMES[key] || THEMES.cloud).pal; }
 
-const Layout = { bx:0, by:0, bsize:0, cell:0, btnRescue:null, btnPause:null };
+const Layout = { bx:0, by:0, bsize:0, cell:0, btnRescue:null, btnPause:null, footY:0 };
 let bgLayer = null, maskLayer = null, layerPx = 0;
 
 function layoutBoard() {
-  const { SW, SH, safeTop } = GameGlobal;
+  const { SW, SH, safeTop, safeBottom } = GameGlobal;
   const hudH = 54, btnH = 78;
   const size = Math.floor(Math.min(SW - 16, SH - safeTop - hudH - btnH - 20));
   Layout.bsize = size; Layout.cell = size / G.run.cols;
   Layout.bx = Math.floor((SW - size) / 2);
-  Layout.by = safeTop + hudH;
+  // 高屏(盘面被宽度卡住)下半屏会空一大片。只往下挪一点点(留 22% 空隙),
+  // 剩下的空白交给 drawFooterArt() 的云海装饰——挪太多会让盘面和顶栏断开、更难看。
+  const top0 = safeTop + hudH;
+  const blockH = size + 14 + 52;
+  const slack = Math.max(0, (SH - (safeBottom || 0) - 10) - top0 - blockH);
+  Layout.by = top0 + Math.round(Math.min(slack, 28) * 0.5);
+  Layout.footY = top0 + Math.round(Math.min(slack, 28) * 0.5) + blockH + 6;   // 云海起始 y
   const byy = Layout.by + size + 14;
   Layout.btnRescue = { x: Layout.bx, y: byy, w: size, h: 52 };   // AI 救场:整宽(已去掉 AI 代打)
   Layout.btnPause  = { x: Layout.bx + size - 40, y: safeTop + 8, w: 40, h: 36 };
@@ -171,6 +177,7 @@ function renderAll() {
   clearHits();
   const { SW, SH, safeTop } = GameGlobal;
   ctx.fillStyle = PAL.bg; ctx.fillRect(0, 0, SW, SH);
+  drawFooterArt();          // 先画,永远在盘面/按钮之下(纯装饰,不抢内容)
   drawHud(safeTop);
   drawBoardArea();
   drawButtons();
@@ -375,6 +382,52 @@ function drawSnake() {
     ctx.fillStyle = '#fff';
     ctx.beginPath(); ctx.arc(ox - cell * 0.03, oy - cell * 0.03, cell * 0.035, 0, Math.PI * 2); ctx.fill();   // catchlight
   }
+}
+
+// 底部云海装饰:方形盘面在高屏上必然在下半屏留白,与其空着不如画点跟主题走的东西。
+// 纯装饰、不接 hit、确定性(格坐标散列,禁 Math.random)——换肤自动跟着变色。
+function drawFooterArt() {
+  const { SW, SH } = GameGlobal;
+  const y0 = Layout.footY || 0;
+  const h = SH - y0;
+  if (h < 56) return;                       // 矮屏本来就不空,别硬塞
+  ctx.save();
+  // 从透明渐入,避免云海在按钮下方「突然出现一道边」
+  // ⚠ 渐变必须跟填充矩形**同起点**:从 y0 起渐变却从 y0+0.35h 起填,顶边已经 35% 不透明
+  //   ⇒ 会横着切出一道明显的硬边(实测踩过)。
+  const gy = y0 + h * 0.3;
+  const g = ctx.createLinearGradient(0, gy, 0, SH);
+  g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, PAL.cloud);
+  ctx.globalAlpha = 0.4; ctx.fillStyle = g; ctx.fillRect(0, gy, SW, SH - gy);
+  // 三排大小不一的云:越靠下越大越实,做出「往下沉」的空气感
+  const rows = [
+    { cy: y0 + h * 0.58, r: h * 0.20, n: 4, a: 0.26, c: PAL.cloudEdge },
+    { cy: y0 + h * 0.82, r: h * 0.26, n: 3, a: 0.38, c: PAL.cloud },
+    { cy: y0 + h * 1.06, r: h * 0.34, n: 4, a: 0.55, c: PAL.cloud },
+  ];
+  rows.forEach((row, ri) => {
+    ctx.globalAlpha = row.a;
+    ctx.fillStyle = row.c;
+    for (let i = 0; i < row.n; i++) {
+      const hsh = ((i + 1) * 73856093 ^ (ri + 1) * 19349663) >>> 0;
+      const cx = SW * ((i + 0.5) / row.n) + ((hsh % 40) - 20);
+      const rr = row.r * (0.72 + (hsh % 7) / 12);
+      ctx.beginPath();
+      ctx.arc(cx - rr * 0.6, row.cy, rr * 0.62, 0, Math.PI * 2);
+      ctx.arc(cx, row.cy - rr * 0.22, rr * 0.82, 0, Math.PI * 2);
+      ctx.arc(cx + rr * 0.66, row.cy, rr * 0.58, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+  // 几点星光:位置由散列定死,不闪不动(闪的东西在游戏区下方会抢注意力)
+  ctx.globalAlpha = 0.5; ctx.fillStyle = PAL.glow || '#fff59d';
+  for (let i = 0; i < 7; i++) {
+    const hsh = ((i + 3) * 2654435761) >>> 0;
+    const sx = (hsh % SW), sy = y0 + h * 0.15 + (hsh >> 9) % Math.max(1, Math.floor(h * 0.6));
+    const s = 1.5 + (hsh % 3);
+    ctx.beginPath(); ctx.arc(sx, sy, s, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
 }
 
 function drawButtons() {

@@ -60,10 +60,13 @@ function dispatch(action) {
         Ads.showRewarded().then(ok => {
           if (!ok) return;
           adUse('boost');
-          const pool = Object.keys(Fruits.FRUITS).filter(k => k !== 'gift' && k !== 'meteor');
+          // ⛔ 池子不能是「全部果子」:scissors 开局蛇长才 3,减身是**空签**(看完广告什么也没得到);
+          //    demon 提速 50% 对刚开局的人是负面;meteor/gift 是场上机制不是即时增益。
+          //    奖励要丰厚 ⇒ 只发真增益,而且**四个不重样**(4 个同款远不如 4 种不同的爽)。
+          const pool = BOOST_POOL.slice();
           const got = [];
-          for (let i = 0; i < AD_REWARD.boost; i++) {
-            const t = pool[Math.floor(Math.random() * pool.length)];
+          for (let i = 0; i < AD_REWARD.boost && pool.length; i++) {
+            const t = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
             Core.applyFruit(G.run, t, G.nowMs || 0, {});
             got.push(Fruits.FRUITS[t].emoji);
           }
@@ -231,18 +234,27 @@ function renderAchTab(tab) {
   const body = document.getElementById('panel-body');
   const got = new Set(G.save.ach.unlocked);
   const defs = tab === 'run' ? Ach.RUN_ACHS : Ach.CUM_DEFS;
-  body.innerHTML = defs.map(d => {
+  const nGot = defs.filter(d => got.has(d.id)).length;
+  // 顶部总进度:120 个成就里「我拿了几个」是这一页唯一真正想知道的数,原来得自己数
+  // 头部标题用**页签名**(单局/累计),不用面板标题——否则和上方大标题一字不差地重复一遍
+  const head = `<div class="ach-head">
+    <div class="t"><span>🏅 ${T(tab === 'run' ? 'achui.tabRun' : 'achui.tabCum')}</span><b>${nGot}/${defs.length}</b></div>
+    <div class="b"><i style="width:${((nGot / defs.length) * 100).toFixed(1)}%"></i></div></div>`;
+  body.innerHTML = head + defs.map(d => {
     const has = got.has(d.id);
-    let pg = '';
+    let pg = '', bar = '';
     if (tab === 'cum') {
       const info = Ach.tierInfo(d.id);
       const cur = Math.min(Ach.getCounter(G.save, info.counter), info.threshold);
       // div 折算(time 族毫秒 → 小时),其余族 div=1 原样
       pg = T('achui.progress', { cur: Math.floor(cur / info.div), max: Math.round(info.threshold / info.div) });
+      // 细进度条只给未解锁的:拿到了就该看金卡,不该再看进度
+      // ⚠ 放在 .ach-item **外面**是刻意的——E2E 按 .ach-item 计数(必须恰好 100)
+      if (!has) bar = `<div class="ach-pg"><i style="width:${((cur / info.threshold) * 100).toFixed(0)}%"></i></div>`;
     }
     return `<div class="ach-item${has ? ' got' : ''}">
       <span class="medal">🏅</span><span class="nm">${T('ach.' + d.id)}</span>
-      <span class="pg">${pg}</span></div>`;
+      <span class="pg">${pg}</span></div>${bar}`;
   }).join('');
 }
 
@@ -259,18 +271,35 @@ function openGallery() {
   renderGalSets();
   if (G.phase === 'PLAYING') dispatch('PAUSE');       // 看图鉴时暂停
 }
-// 一级视图:25 集列表(集名 + 解锁进度)+ 顶部「看广告 +3 张」(自愿、纯增益)
+// 25 集的行:缩略图(该集第一张已解锁的图)+ 进度条 + 集齐转金。
+// ⚠ 缩略图用该集**已解锁**的第一张——拿未解锁的图当封面等于提前剧透,收集感就没了。
+// ⚠ loading=lazy + decoding=async:25 张 512² 全同步解码会在低端机上卡住开面板那一下。
+function galSetRowsHTML() {
+  const got = new Set(G.save.gallery.unlocked);
+  return ((G.manifest && G.manifest.sets) || []).map((s, i) => {
+    const pg = Gallery.setProgress(G.save, s);
+    const full = pg >= s.images.length;
+    const cover = s.images.find(f => got.has(f));
+    const pct = Math.max(0, (pg / s.images.length) * 100);
+    return `<div class="gal-set${full ? ' full' : ''}" data-i="${i}">
+      ${cover
+        ? `<img class="th" src="assets/angels/${cover}" loading="lazy" decoding="async" alt="">`
+        : `<span class="th lock">🔒</span>`}
+      <span class="mid">
+        <span class="nm">${T('gal.' + s.key)}
+          <span class="pg">${T('gal.progress', { cur: pg, max: s.images.length })}</span></span>
+        <span class="gb"><i style="width:${pct.toFixed(0)}%"></i></span>
+      </span></div>`;
+  }).join('');
+}
+// 一级视图:25 集列表(缩略图 + 解锁进度)+ 顶部「看广告 +N 张」(自愿、纯增益)
 function renderGalSets() {
   const body = document.getElementById('panel-body');
   const done = (G.save.gallery.unlocked.length >= ((G.imgList && G.imgList.length) || 500));
   const left = adQuotaLeft('gal');
   body.innerHTML =
     (done || !left ? '' : `<button class="gal-ad" id="gal-ad" type="button">📺 ${T('ads.gal3', { n: AD_REWARD.gal })}<small>${T('ads.left', { n: left })}</small></button>`) +
-    ((G.manifest && G.manifest.sets) || []).map((s, i) => {
-      const pg = Gallery.setProgress(G.save, s);
-      return `<div class="gal-set" data-i="${i}"><span>${T('gal.' + s.key)}</span>
-        <span class="pg">${T('gal.progress', { cur: pg, max: s.images.length })}</span></div>`;
-    }).join('');
+    galSetRowsHTML();
   const ad = document.getElementById('gal-ad');
   // ⭐ 收集加速位:全场意愿最高的激励视频(玩家正盯着自己的收集进度)。走统一 dispatch,冒烟可测。
   if (ad) ad.onclick = () => { ad.disabled = true; dispatch('AD_GALLERY'); };
@@ -283,6 +312,9 @@ function renderGalSets() {
 // ⭐ 奖励给得厚 ⇒ 必须有额度,否则一天几十条广告就把 500 张图鉴刷穿、当天毕业(长线没了)。
 //   额度本身也是设计:每天上限 = 25 张图鉴 + 3 次开局礼包 + 1 次任务加速,已经非常大方。
 const AD_CAPS = { gal: 6, boost: 4, quest: 2, skin: 1 };
+// 🎁 开局礼包的抽奖池:**只放开局就爽得到的增益**。排除 scissors(开局蛇长 3,减身=空签)、
+// demon(提速对刚开局是负面)、meteor/gift(场上机制,不是即时增益)。
+const BOOST_POOL = ['heart', 'halo', 'trail', 'magnet', 'feather', 'twin', 'gold', 'cloud'];
 // 每次给多少：**奖励要一次见效**（+1 张没人看广告，+8 张才动手）
 const AD_REWARD = { gal: 8, daily: 5, boost: 4, double: 3 };
 function adQuotaLeft(kind) {
@@ -400,6 +432,46 @@ function openSkins() {
   renderSkinsBody();
   if (G.phase === 'PLAYING') dispatch('PAUSE');
 }
+// 皮肤缩略预览:五条色带看不出「换了皮肤盘面长什么样」,直接画一小块真盘面——
+// 云层(含该主题的确定性纹理)+ 已揭开的洞 + 蛇 + 苹果,全部走主题自己的调色板。
+// ⚠ 复用 themes.js 的 texture(m,px,pc) 契约(this=主题对象),别在这里重抄一份纹理。
+function skinPreviewURL(key) {
+  const t = Themes.THEMES[key], P = t.pal;
+  const S = 132, C = 22;                                   // 画布边长 / 格宽 ⇒ 6×6 格
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = S;
+  const x = cv.getContext('2d');
+  // 底 = 揭开后露出的**天使图**(不随主题变——主题只换云层/蛇/道具),用暖色渐变示意
+  const gr = x.createLinearGradient(0, 0, S, S);
+  gr.addColorStop(0, '#ffe3f0'); gr.addColorStop(0.5, '#fff0d8'); gr.addColorStop(1, '#e8ddff');
+  x.fillStyle = gr; x.fillRect(0, 0, S, S);
+  x.fillStyle = P.cloud; x.fillRect(0, 0, S, S);           // 云层盖住
+  t.texture(x, S, C);                                      // 主题纹理(星点/糖纸格/羽毛…)
+  // 揭开的通道(蛇走过的路):挖掉云层露出底图
+  x.save();
+  x.beginPath();
+  [[1,3],[2,3],[3,3],[3,2],[4,2],[1,4],[2,4]].forEach(([cx, cy]) => x.rect(cx*C, cy*C, C, C));
+  x.clip(); x.fillStyle = gr; x.fillRect(0, 0, S, S);
+  x.restore();
+  // 蛇身:圆头圆尾的连续管体(画成一条粗线,不是一串圆点——断开的圆点看着像别的东西)
+  const seg = [[1,4],[2,4],[2,3],[3,3],[3,2]];
+  x.strokeStyle = P.snake; x.lineWidth = C * 0.78;
+  x.lineJoin = x.lineCap = 'round';
+  x.beginPath();
+  seg.forEach(([cx, cy], i) => x[i ? 'lineTo' : 'moveTo'](cx*C + C/2, cy*C + C/2));
+  x.stroke();
+  const [hx, hy] = seg[seg.length - 1];
+  x.strokeStyle = P.glow; x.lineWidth = 2;
+  x.beginPath(); x.ellipse(hx*C + C/2, hy*C + C*0.16, C*0.3, C*0.12, 0, 0, Math.PI*2); x.stroke();
+  x.fillStyle = P.eye;
+  x.beginPath(); x.arc(hx*C + C*0.62, hy*C + C*0.46, C*0.09, 0, Math.PI*2); x.fill();
+  // 苹果(放在蛇头前方的已揭格里)
+  x.fillStyle = P.apple;
+  x.beginPath(); x.arc(4*C + C/2, 2*C + C/2, C*0.3, 0, Math.PI*2); x.fill();
+  x.fillStyle = P.leaf;
+  x.fillRect(4*C + C/2 - 1.5, 2*C + C*0.14, 3, C*0.16);
+  return cv.toDataURL();
+}
 function renderSkinsBody() {
   const body = document.getElementById('panel-body');
   if (!body) return;
@@ -411,13 +483,16 @@ function renderSkinsBody() {
     + Themes.THEME_ORDER.map(k => {
     const t = Themes.THEMES[k];
     const un = Themes.themeUnlocked(k, G.save);
-    const sw = ['bg', 'cloud', 'snake', 'accent', 'accent2']
-      .map(c => `<i style="background:${t.pal[c]}"></i>`).join('');
-    let tip = '';
-    if (!un) tip = t.unlock.stat === 'setsDone' ? T('skins.needSet') : T('skins.needLevels', { n: t.unlock.n });
-    else if (k === cur) tip = '✓';
+    let tip = '', prog = '';
+    if (!un) {
+      tip = t.unlock.stat === 'setsDone' ? T('skins.needSet') : T('skins.needLevels', { n: t.unlock.n });
+      // 锁着的皮肤给进度条:「还差 2 关」比「需要 5 关」更拉得动人
+      const cur2 = t.unlock.stat.split('.').reduce((o, kk) => (o || {})[kk], G.save.stats) || 0;
+      prog = `<span class="skin-pg"><i style="width:${Math.min(100, (cur2 / t.unlock.n) * 100).toFixed(0)}%"></i></span>`;
+    } else if (k === cur) tip = '✓';
     return `<div class="skin-card${k === cur ? ' on' : ''}${un ? '' : ' locked'}" data-k="${k}">
-      <span class="skin-sw">${sw}</span><span class="skin-nm">${T('skins.' + k)}</span>
+      <img class="skin-sw" src="${skinPreviewURL(k)}" alt="">
+      <span class="skin-mid"><span class="skin-nm">${T('skins.' + k)}</span>${prog}</span>
       <span class="skin-tip">${tip}</span></div>`;
   }).join('');
   body.querySelectorAll('.skin-card:not(.locked)').forEach(el => {
@@ -438,9 +513,15 @@ function computeReduceMotion() {
   if (pref != null) return !!pref;
   try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; }
 }
+// 减弱动态要同时管住 **CSS 装饰动画**(极光/浮动/流光/入场):canvas 侧看 G.reduceMotion,
+// DOM 侧看 body.rm —— 这个函数是两者唯一的同步点,任何改 reduceMotion 的地方都要调它。
+function syncMotionClass() {
+  if (document.body) document.body.classList.toggle('rm', !!G.reduceMotion);
+}
 function toggleMotion() {
   const next = !computeReduceMotion();
   G.save.settings.reduceMotion = next; G.reduceMotion = next; persist();
+  syncMotionClass();
 }
 // 下一个待解锁皮肤 + 进度(null=全解锁)
 function nextSkinHint() {
@@ -459,7 +540,8 @@ function homeProgressHTML() {
   const skin = nextSkinHint();
   const pct = Math.max(2, (got / total) * 100);
   return `<div class="home-prog">
-    <div class="hp-top"><span>🖼️ ${T('home.collected', { n: got, total })}</span></div>
+    <div class="hp-top"><span>🖼️ ${T('home.collected', { n: got, total })}</span>
+      <span class="pct">${((got / total) * 100).toFixed(1)}%</span></div>
     <div class="hp-bar"><i style="width:${pct.toFixed(1)}%"></i></div>
     ${skin ? `<div class="hp-skin">🎨 ${T('home.nextSkin', { name: skin.name })} · ${skin.bySet ? T('skins.needSet') : skin.cur + '/' + skin.need}</div>` : ''}
   </div>`;
@@ -474,8 +556,12 @@ function openHome() {
   if (G.phase === 'PAUSED') { playLabel = T('home.resume'); playAct = 'RESUME'; }
   else if (G.phase === 'DEAD') { playLabel = T('snake.respawn'); playAct = 'RESPAWN'; }
   else if (G.phase === 'LEVEL_DONE') { playLabel = T('snake.next'); playAct = 'NEXT'; }
+  // 菜单角标:每个入口都带一个「你在这儿有多少东西」的数字——空按钮不给人点进去的理由
+  const qDone = questDoneCount();
+  const achGot = G.save.ach.unlocked.length;
+  const skinGot = Themes.THEME_ORDER.filter(k => Themes.themeUnlocked(k, G.save)).length;
   home.innerHTML =
-    `<img class="home-hero" src="assets/angels/${HERO_ANGEL}" alt="">
+    `<div class="hero-wrap"><img class="home-hero" src="assets/angels/${HERO_ANGEL}" alt=""></div>
      <div class="home-title">Angel Snake</div>
      <div class="home-tag">${T('home.tag')}</div>
      ${homeProgressHTML()}
@@ -483,12 +569,12 @@ function openHome() {
      <button class="home-daily${dailyClaimable() ? ' ready' : ''}" id="home-daily" type="button">
        🎁 ${dailyClaimable() ? T('daily.claim') : T('daily.streak', { n: (G.save.daily && G.save.daily.giftStreak) || 0 })}</button>
      <div class="home-menu">
-       <button class="home-btn" id="home-quests" type="button"><span class="ico">📋</span>${T('q.title')} ${questDoneCount()}/3</button>
-       <button class="home-btn" id="home-ach" type="button"><span class="ico">🏅</span>${T('menu.achievements')}</button>
-       <button class="home-btn" id="home-gal" type="button"><span class="ico">🖼️</span>${T('menu.gallery')}</button>
-       <button class="home-btn" id="home-skin" type="button"><span class="ico">🎨</span>${T('menu.skins')}</button>
-       <button class="home-btn" id="home-stats" type="button"><span class="ico">📊</span>${T('stats.title')}</button>
-       <button class="home-btn" id="home-howto" type="button"><span class="ico">❓</span>${T('howto.title')}</button>
+       <button class="home-btn${qDone < 3 ? ' todo' : ''}" id="home-quests" type="button"><span class="ico">📋</span><span class="lb">${T('q.title')}</span><span class="bdg">${qDone}/3</span></button>
+       <button class="home-btn" id="home-ach" type="button"><span class="ico">🏅</span><span class="lb">${T('menu.achievements')}</span><span class="bdg">${achGot}</span></button>
+       <button class="home-btn" id="home-gal" type="button"><span class="ico">🖼️</span><span class="lb">${T('menu.gallery')}</span><span class="bdg">${G.save.gallery.unlocked.length}</span></button>
+       <button class="home-btn" id="home-skin" type="button"><span class="ico">🎨</span><span class="lb">${T('menu.skins')}</span><span class="bdg">${skinGot}/${Themes.THEME_ORDER.length}</span></button>
+       <button class="home-btn" id="home-stats" type="button"><span class="ico">📊</span><span class="lb">${T('stats.title')}</span></button>
+       <button class="home-btn" id="home-howto" type="button"><span class="ico">❓</span><span class="lb">${T('howto.title')}</span></button>
      </div>
      <div class="home-foot">
        <button id="home-lang" class="wide" type="button" title="${T('lang.toggle')}">🌐 ${I18N.NATIVE[I18N.lang] || I18N.lang}</button>
@@ -578,6 +664,8 @@ function showBoostToast(emojis) {
 function questDoneCount() {
   try { return Quests.status(G.save, ymd(Date.now())).filter(q => q.done).length; } catch (e) { return 0; }
 }
+// 每个任务类型自己的图标:三行同一个 📋 看不出差别,换成对应的果子/格子/连击更好读
+const Q_ICON = { apples: '🍎', levels: '🖼️', cells: '🔓', special: '✨', combo: '⚡', noDeath: '🛡️' };
 function openQuests() {
   const panel = document.getElementById('panel');
   document.getElementById('panel-title').textContent = T('q.title');
@@ -587,8 +675,9 @@ function openQuests() {
     `<div class="q-sub">${T('q.reward', { n: Quests.REWARD_ANGELS })}<br>${T('q.bonusHint', { n: Quests.ALLDONE_BONUS })}</div>` +
     list.map(q => {
       const pct = Math.min(100, (q.prog / q.target) * 100).toFixed(0);
-      return `<div class="ach-item${q.done ? ' got' : ''}">
-          <span class="medal">${q.done ? '✅' : '📋'}</span>
+      // qrow:任务图标表达的是「任务类型」不是「拿没拿到」⇒ 不能套成就那套灰掉的样式
+      return `<div class="ach-item qrow${q.done ? ' got' : ''}">
+          <span class="medal">${q.done ? '✅' : (Q_ICON[q.t] || '📋')}</span>
           <span class="nm">${T('q.' + q.t, { n: q.target })}</span>
           <span class="pg">${q.done ? '✓' : q.prog + '/' + q.target}</span>
         </div>
@@ -615,19 +704,22 @@ function openStats() {
   const s = G.save.stats, g = G.save.gallery;
   const total = (G.imgList && G.imgList.length) || 500;
   const hrs = (s.playtimeMs / 3600000);
+  // [key, 值, 图标, 分组]。分组只影响配色:col=收集 ply=战绩 hrd=受挫 hab=习惯
+  // ——16 个同色数字扫下来像账单,分了组眼睛才抓得住重点。
   const cells = [
-    ['levels', s.levelsCleared | 0], ['imgs', (g.unlocked.length | 0) + '/' + total],
-    ['sets', s.setsDone | 0], ['score', s.totalScore | 0],
-    ['apples', s.apples | 0], ['cells', s.cellsRevealed | 0],
-    ['steps', s.steps | 0], ['combo', s.maxCombo | 0],
-    ['len', s.maxLen | 0], ['noDeath', s.noDeathClears | 0],
-    ['deaths', s.deaths | 0], ['saves', s.shieldSaves | 0],
-    ['streak', s.streakDays | 0], ['gift', (G.save.daily && G.save.daily.giftStreak) || 0],
-    ['time', (hrs >= 1 ? hrs.toFixed(1) + 'h' : Math.round(s.playtimeMs / 60000) + 'm')],
-    ['stars', Object.values(g.stars || {}).reduce((a, v) => a + (v | 0), 0)],
+    ['levels', s.levelsCleared | 0, '🖼️', 'col'], ['imgs', (g.unlocked.length | 0) + '/' + total, '👼', 'col'],
+    ['sets', s.setsDone | 0, '👑', 'col'], ['stars', Object.values(g.stars || {}).reduce((a, v) => a + (v | 0), 0), '⭐', 'col'],
+    ['score', s.totalScore | 0, '🏆', 'ply'], ['combo', s.maxCombo | 0, '⚡', 'ply'],
+    ['len', s.maxLen | 0, '🐍', 'ply'], ['noDeath', s.noDeathClears | 0, '✨', 'ply'],
+    ['apples', s.apples | 0, '🍎', 'ply'], ['cells', s.cellsRevealed | 0, '🔓', 'ply'],
+    ['steps', s.steps | 0, '👣', 'ply'],
+    ['deaths', s.deaths | 0, '💥', 'hrd'], ['saves', s.shieldSaves | 0, '🛡️', 'hrd'],
+    ['streak', s.streakDays | 0, '🔥', 'hab'], ['gift', (G.save.daily && G.save.daily.giftStreak) || 0, '🎁', 'hab'],
+    ['time', (hrs >= 1 ? hrs.toFixed(1) + 'h' : Math.round(s.playtimeMs / 60000) + 'm'), '⏱️', 'hab'],
   ];
   document.getElementById('panel-body').innerHTML = `<div class="st-grid">` +
-    cells.map(([k, v]) => `<div class="st-cell"><b>${v}</b><span>${T('stats.' + k)}</span></div>`).join('') +
+    cells.map(([k, v, ic, c]) =>
+      `<div class="st-cell c-${c}"><div class="ic">${ic}</div><b>${v}</b><span>${T('stats.' + k)}</span></div>`).join('') +
     `</div>`;
   document.getElementById('panel-close').onclick = () => {
     panel.classList.add('hidden');
@@ -900,6 +992,7 @@ async function boot() {
     G.saveKey = CFG.key('save');
     G.save = Storage.load(Platform.storage, G.saveKey);
     G.reduceMotion = computeReduceMotion();   // 减弱动态:显式设置优先,否则跟随系统
+    syncMotionClass();                        // 同步给 CSS(body.rm 关掉全部装饰动画)
     G.aiOn = !!G.save.settings.aiOn;          // AI 代打开关跨会话保持(玩家的显式选择)
     if (typeof preloadItems === 'function') preloadItems();   // 预载道具 sprite,防首次出现时 emoji 闪一下
     if (typeof Feedback !== 'undefined') Feedback.flushQueue();   // 补发离线的反馈队列

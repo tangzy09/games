@@ -22,14 +22,30 @@ body { background: #fdf3f7; }
 .gal-ad:disabled, .daily-ad:disabled { opacity: .55; }
 .gal-ad small { display: block; font: 400 11px sans-serif; opacity: .85; margin-top: 2px; }
 /* 每日任务:进度条 + 说明行(复用 .ach-item 的行样式,只补这三条) */
-.q-bar { height: 7px; border-radius: 4px; background: #f6ecf4; margin: 0 8px 12px; overflow: hidden; }
+.q-bar { height: 7px; border-radius: 4px; background: #f6ecf4; margin: -2px 12px 12px; overflow: hidden; }
 .q-bar i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, #f7a8c8, #d6336c); }
 .q-sub, .q-all { font: 500 12px sans-serif; color: #b39ddb; text-align: center; padding: 6px 0 10px; }
-/* 统计页:两列数据格 */
-.st-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; padding-top: 6px; }
-.st-cell { background: #fff6fb; border-radius: 12px; padding: 10px 6px; text-align: center; }
-.st-cell b { display: block; font: 700 17px sans-serif; color: #d6336c; }
-.st-cell span { font: 500 11px sans-serif; color: #b39ddb; }
+/* 任务行的图标是「任务类型」(🍎/⚡/🔓),不是成就徽章 ⇒ 不套灰掉的锁定样式 */
+.ach-item.qrow .medal { filter: none; background: #fdf1f8; }
+.ach-item.qrow .nm { color: #7a5c72; }
+/* 统计页:两列数据格。16 个同色数字扫过去像账单 ⇒ 加图标 + 按语义分四色 */
+.st-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; padding-top: 6px; }
+.st-cell { position: relative; background: #fff6fb; border-radius: 14px; padding: 11px 8px 10px;
+  text-align: center; box-shadow: inset 0 0 0 1px rgba(255,255,255,.9); overflow: hidden; }
+/* 图标做**角标水印**而不是独占一行——这一页的价值在于「16 项一屏摆出来」(沉没成本可视化),
+   给每格加一行就要多滚两屏,视觉是好看了,页面的作用反而没了 */
+.st-cell .ic { position: absolute; right: 7px; top: 5px; font-size: 15px; opacity: .55; }
+.st-cell b { display: block; font: 800 19px sans-serif; color: #d6336c; letter-spacing: -.3px; }
+.st-cell span { font: 500 11px sans-serif; color: #a992b6; }
+/* 四类:收集(粉)/战绩(紫)/受挫(灰粉)/习惯(金) —— 一眼分组,不用读标签 */
+.st-cell.c-col { background: linear-gradient(160deg, #fff2f8, #ffe8f3); }
+.st-cell.c-col b { color: #d6336c; }
+.st-cell.c-ply { background: linear-gradient(160deg, #f4f0ff, #ece5ff); }
+.st-cell.c-ply b { color: #6f4fb5; }
+.st-cell.c-hrd { background: linear-gradient(160deg, #f6f4f6, #efe9ef); }
+.st-cell.c-hrd b { color: #8d7a8c; }
+.st-cell.c-hab { background: linear-gradient(160deg, #fff8e8, #fff0cf); }
+.st-cell.c-hab b { color: #c08a10; }
 .ach-toast { background: #fff; color: #7a5c72; border-radius: 14px; padding: 10px 18px;
   font: 600 14px/1.2 sans-serif; box-shadow: 0 6px 20px rgba(183,142,180,.35);
   animation: toastIn .3s ease; }
@@ -38,40 +54,92 @@ body { background: #fdf3f7; }
 
 /* 成就墙浮层(DOM:120 徽章滚动列表) */
 .hidden { display: none !important; }
-#panel { position: fixed; inset: 0; background: rgba(122,92,114,.45); z-index: 20;
-  display: flex; align-items: center; justify-content: center; }
+#panel { position: fixed; inset: 0; background: rgba(122,92,114,.42); z-index: 20;
+  display: flex; align-items: center; justify-content: center;
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
 #panel-card { background: #fff; border-radius: 22px; width: min(92vw, 420px); height: min(80vh, 640px);
   display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 12px 40px rgba(0,0,0,.18); }
+/* 卡片顶部一道粉彩色带 + 标题左侧竖条:白底大面板不至于「一片死白」 */
 #panel-head { display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 18px; font: 800 18px sans-serif; color: #7a5c72; }
-#panel-close { border: 0; background: #f6d5e5; border-radius: 10px; width: 32px; height: 32px; font-size: 14px; }
+  padding: 15px 18px 13px; font: 800 18px sans-serif; color: #7a5c72;
+  background: linear-gradient(180deg, #fff6fb, #fff);
+  border-bottom: 1px solid #fbe6f2; }
+#panel-title { position: relative; padding-left: 12px; }
+#panel-title::before { content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+  width: 4px; height: 18px; border-radius: 3px; background: linear-gradient(#f489b6, #d6336c); }
+#panel-close { border: 0; background: #f6d5e5; border-radius: 10px; width: 32px; height: 32px; font-size: 14px;
+  color: #a85d7a; transition: background .15s, transform .1s; }
+#panel-close:active { transform: scale(.92); background: #efc0d9; }
 #panel-tabs { display: flex; gap: 8px; padding: 0 18px 10px; }
 .ptab { flex: 1; border: 0; border-radius: 12px; padding: 8px 0; font: 600 14px sans-serif;
   background: #f6d5e5; color: #7a5c72; }
 .ptab.on { background: #e79cc2; color: #fff; }
 #panel-body { flex: 1; overflow-y: auto; padding: 6px 14px 18px; }
-.ach-item { display: flex; align-items: center; gap: 10px; padding: 8px 6px;
-  border-bottom: 1px solid #f6d5e5; }
-.ach-item .medal { font-size: 22px; filter: grayscale(1) opacity(.35); }
-.ach-item.got .medal { filter: none; }
-.ach-item .nm { font: 600 14px sans-serif; color: #7a5c72; }
-.ach-item.got .nm { color: #d6336c; }
+/* 成就行:解锁的做成金色卡片(一眼看出「我拿到了哪些」),未解锁的留白 + 细进度条 */
+.ach-item { display: flex; align-items: center; gap: 10px; padding: 9px 10px;
+  border-radius: 13px; margin-bottom: 2px; }
+.ach-item .medal { font-size: 22px; filter: grayscale(1) opacity(.3); flex: none;
+  width: 34px; height: 34px; border-radius: 11px; background: #f7f2f6;
+  display: grid; place-items: center; }
+.ach-item.got .medal { filter: none; background: linear-gradient(#fff2cc, #ffe08a);
+  box-shadow: 0 2px 8px rgba(214,160,40,.28); }
+.ach-item .nm { font: 600 14px sans-serif; color: #9b8394; }
+.ach-item.got { background: linear-gradient(90deg, #fffaf0, #fff5e2); }
+.ach-item.got .nm { color: #a06a12; font-weight: 700; }
 .ach-item .pg { margin-left: auto; font: 500 12px sans-serif; color: #b39ddb; white-space: nowrap; }
+.ach-item.got .pg { color: #c9a227; }
+/* 成就页顶部总进度(x/120) */
+.ach-head { display: flex; flex-direction: column; gap: 6px; padding: 4px 8px 12px; }
+.ach-head .t { display: flex; align-items: baseline; font: 700 13px sans-serif; color: #a85d7a; }
+.ach-head .t b { margin-left: auto; font: 800 15px sans-serif; color: #d6336c; }
+.ach-head .b { height: 9px; border-radius: 5px; background: #f6ecf4; overflow: hidden; }
+.ach-head .b i { display: block; height: 100%; border-radius: 5px;
+  background: linear-gradient(90deg, #ffd36e, #f489b6); transition: width .4s; }
+/* 未解锁成就的细进度条(挨着行,不进 .ach-item ⇒ 不影响 E2E 的计数断言) */
+.ach-pg { height: 5px; border-radius: 3px; background: #f7f0f6; margin: 0 12px 8px; overflow: hidden; }
+.ach-pg i { display: block; height: 100%; border-radius: 3px;
+  background: linear-gradient(90deg, #f7c8dd, #e79cc2); }
 
 /* 皮肤面板 */
 .skin-card { display: flex; align-items: center; gap: 12px; padding: 12px 10px;
-  border: 2px solid transparent; border-radius: 14px; margin-bottom: 8px; }
-.skin-card.on { border-color: #e79cc2; }
-.skin-card.locked { opacity: .55; }
-.skin-sw { width: 56px; height: 36px; border-radius: 10px; display: flex; overflow: hidden; }
-.skin-sw i { flex: 1; }
-.skin-nm { font: 600 14px sans-serif; color: #7a5c72; }
-.skin-tip { margin-left: auto; font: 500 12px sans-serif; color: #7a5c72; opacity: .8; }
+  border: 2px solid transparent; border-radius: 16px; margin-bottom: 8px;
+  background: #fffafd; transition: transform .1s, box-shadow .15s; }
+.skin-card:not(.locked):active { transform: scale(.985); }
+.skin-card.on { border-color: #e79cc2; background: linear-gradient(90deg, #fff4fa, #ffeaf4);
+  box-shadow: 0 4px 14px rgba(231,156,194,.3); }
+.skin-card.locked { opacity: .6; }
+/* 缩略预览是一张真盘面(canvas → dataURL),不是色带 */
+.skin-sw { flex: none; width: 62px; height: 62px; border-radius: 14px; object-fit: cover;
+  box-shadow: 0 3px 10px rgba(183,142,180,.3), inset 0 0 0 2px rgba(255,255,255,.85); }
+.skin-card.locked .skin-sw { filter: grayscale(.7) brightness(.94); }
+.skin-mid { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.skin-nm { font: 700 14px sans-serif; color: #7a5c72; }
+.skin-card.on .skin-nm { color: #d6336c; }
+.skin-pg { height: 6px; border-radius: 4px; background: #f2ebf1; overflow: hidden; }
+.skin-pg i { display: block; height: 100%; border-radius: 4px;
+  background: linear-gradient(90deg, #f7c8dd, #e79cc2); }
+.skin-tip { flex: none; font: 500 12px sans-serif; color: #7a5c72; opacity: .8; text-align: right; }
 
-/* 图鉴 */
-.gal-set { display: flex; align-items: center; gap: 10px; padding: 10px 8px;
-  border-bottom: 1px solid #f6d5e5; font: 600 14px sans-serif; color: #7a5c72; }
-.gal-set .pg { margin-left: auto; font-weight: 500; font-size: 12px; color: #b39ddb; }
+/* 图鉴:25 集列表。收集游戏的门面 ⇒ 每集带一张已解锁的缩略图 + 进度条,别只放一行字 */
+.gal-set { display: flex; align-items: center; gap: 12px; padding: 9px 8px;
+  border-radius: 14px; margin-bottom: 4px; font: 600 14px sans-serif; color: #7a5c72;
+  transition: background .15s, transform .1s; }
+.gal-set:active { transform: scale(.985); background: #fdf3f8; }
+.gal-set .th { flex: none; width: 46px; height: 46px; border-radius: 12px; object-fit: cover;
+  background: #f6ecf4; box-shadow: 0 3px 10px rgba(183,142,180,.28); }
+.gal-set .th.lock { display: grid; place-items: center; font-size: 18px; opacity: .5;
+  box-shadow: none; }
+.gal-set .mid { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.gal-set .nm { display: flex; align-items: baseline; gap: 6px; }
+.gal-set .pg { margin-left: auto; font-weight: 600; font-size: 12px; color: #b39ddb; white-space: nowrap; }
+.gal-set .gb { height: 6px; border-radius: 4px; background: #f6ecf4; overflow: hidden; }
+.gal-set .gb i { display: block; height: 100%; border-radius: 4px;
+  background: linear-gradient(90deg, #f7a8c8, #d6336c); transition: width .4s; }
+/* 集齐:整行转金 + 右上角小皇冠,给「差 3 张就集齐」一个明确的目标物 */
+.gal-set.full { background: linear-gradient(90deg, #fffaf0, #fff3dc); }
+.gal-set.full .pg { color: #c9a227; }
+.gal-set.full .gb i { background: linear-gradient(90deg, #ffd36e, #f0a500); }
+.gal-set.full .nm::after { content: '👑'; font-size: 13px; }
 .gal-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding-top: 8px; }
 .gal-grid img { width: 100%; aspect-ratio: 1; border-radius: 10px; object-fit: cover; }
 .gal-grid img.locked { filter: grayscale(1) brightness(.35); }
@@ -83,31 +151,90 @@ body { background: #fdf3f7; }
 
 /* ============ 主界面(启动/暂停 hub;DOM 浮层,不改 phase 机) ============ */
 #home { position: fixed; inset: 0; z-index: 20; display: flex;
-  flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  flex-direction: column; align-items: center; justify-content: center; gap: 13px;
   padding: calc(env(safe-area-inset-top) + 20px) 24px calc(env(safe-area-inset-bottom) + 24px);
   background:
     radial-gradient(120% 80% at 50% 0%, #fff6fb 0%, #fbe6f2 42%, #f6d5e5 100%);
   overflow-y: auto; }
-#home .home-hero { width: min(58vw, 232px); aspect-ratio: 1; border-radius: 28px;
+/* 柔光极光层:四团慢慢飘的彩雾,把「一块死粉」变成有空气感的天空。
+   ⚠ 绝对定位的伪元素会盖住未定位的子元素 ⇒ 必须 z-index:0 + 子元素 z-index:1 */
+#home::before { content: ''; position: absolute; inset: -10%; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(closest-side at 20% 18%, rgba(255,255,255,.95), transparent 72%),
+    radial-gradient(closest-side at 84% 12%, rgba(255,205,235,.85), transparent 72%),
+    radial-gradient(closest-side at 10% 76%, rgba(206,186,255,.55), transparent 72%),
+    radial-gradient(closest-side at 90% 74%, rgba(255,226,168,.6), transparent 72%);
+  background-size: 62% 48%, 54% 42%, 58% 46%, 50% 40%;
+  background-repeat: no-repeat;
+  animation: homeAura 18s ease-in-out infinite alternate; }
+@keyframes homeAura {
+  0%   { background-position: 20% 18%, 84% 12%, 10% 76%, 90% 74%; }
+  100% { background-position: 32% 26%, 70% 22%, 22% 66%, 78% 62%; }
+}
+#home > * { position: relative; z-index: 1; }
+
+/* 主视觉:光环托底 + 轻轻起伏(点题「天使」) */
+#home .hero-wrap { position: relative; width: min(58vw, 232px); aspect-ratio: 1;
+  display: grid; place-items: center; animation: heroFloat 5.5s ease-in-out infinite; }
+#home .hero-wrap::before { content: ''; position: absolute; inset: -18%; border-radius: 50%;
+  background: conic-gradient(from 0deg, #ffd66e, #ff9ec4, #b39ddb, #8ecfff, #ffd66e);
+  filter: blur(20px); opacity: .85; animation: heroHalo 11s linear infinite; }
+#home .home-hero { position: relative; width: 100%; height: 100%; border-radius: 28px;
   object-fit: cover; box-shadow: 0 14px 40px rgba(214,51,108,.28);
   border: 5px solid #fff; }
-#home .home-title { font: 900 30px/1 sans-serif; color: #d6336c; letter-spacing: .5px;
-  text-shadow: 0 2px 0 #fff; margin-top: 4px; }
+@keyframes heroFloat { 0%,100% { transform: translateY(0) rotate(-.5deg); } 50% { transform: translateY(-8px) rotate(.5deg); } }
+@keyframes heroHalo  { to { transform: rotate(360deg); } }
+
+#home .home-title { font: 900 31px/1 sans-serif; letter-spacing: .5px; margin-top: 6px;
+  background: linear-gradient(180deg, #ff8fc4 0%, #d6336c 62%, #b3245a 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 2px 0 #fff) drop-shadow(0 6px 14px rgba(214,51,108,.22)); }
 #home .home-tag { font: 600 14px sans-serif; color: #a85d7a; margin-top: -4px; text-align: center; }
-#home .home-play { border: 0; border-radius: 999px; padding: 15px 66px; margin-top: 6px;
-  font: 800 20px sans-serif; color: #fff; background: linear-gradient(#f489b6, #e3629d);
-  box-shadow: 0 8px 22px rgba(214,51,108,.4); }
-#home .home-play:active { transform: translateY(1px); }
-#home .home-menu { display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+
+#home .home-play { position: relative; overflow: hidden; border: 0; border-radius: 999px;
+  padding: 15px 66px; margin-top: 6px;
+  font: 800 20px sans-serif; color: #fff; background: linear-gradient(#f9a0c6, #e3629d);
+  box-shadow: 0 8px 22px rgba(214,51,108,.4), inset 0 1px 0 rgba(255,255,255,.55);
+  transition: transform .1s, box-shadow .15s; }
+#home .home-play:active { transform: translateY(2px) scale(.985); box-shadow: 0 4px 12px rgba(214,51,108,.4); }
+/* 高光扫过:告诉眼睛「这是主按钮,点这里」 */
+#home .home-play::after { content: ''; position: absolute; top: 0; left: -55%; width: 38%; height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255,255,255,.6), transparent);
+  animation: sheen 3.6s ease-in-out infinite; }
+@keyframes sheen { 0% { left: -55%; } 58%, 100% { left: 125%; } }
+
+#home .home-menu { display: grid; grid-template-columns: 1fr 1fr; gap: 11px;
   width: min(88vw, 340px); margin-top: 6px; }
-#home .home-btn { display: flex; align-items: center; justify-content: center; gap: 8px;
-  border: 0; border-radius: 16px; padding: 15px 8px; background: #fff;
-  font: 700 15px sans-serif; color: #7a5c72; box-shadow: 0 5px 16px rgba(183,142,180,.28); }
-#home .home-btn .ico { font-size: 20px; }
-#home .home-btn:active { transform: translateY(1px); }
-#home .home-foot { display: flex; gap: 10px; margin-top: 2px; }
-#home .home-foot button { border: 0; background: rgba(255,255,255,.7); border-radius: 12px;
-  width: 42px; height: 42px; font-size: 18px; color: #a85d7a; }
+/* 图标做成彩色圆片:六个白方块一字排开太像设置页,加了色片才像游戏 */
+/* ⚠ 六个入口的译名长短差很多(德/俄尤其长):标签必须能缩、能省略,
+   否则「Daily Quests」这种两词标题会换行把卡片撑高、六格参差不齐。 */
+#home .home-btn { display: flex; align-items: center; justify-content: flex-start; gap: 9px;
+  border: 0; border-radius: 16px; padding: 11px 11px; background: #fff; text-align: left;
+  font: 700 13.5px/1.15 sans-serif; color: #7a5c72; box-shadow: 0 5px 16px rgba(183,142,180,.28);
+  transition: transform .1s, box-shadow .15s; min-width: 0; }
+/* 允许折到两行(省略号比换行更难读),用 min-height 保证六格等高、不参差 */
+#home .home-btn { min-height: 58px; }
+#home .home-btn .lb { flex: 1; min-width: 0; overflow: hidden;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+#home .home-btn .bdg { flex: none; }
+#home .home-btn .ico { flex: none; width: 34px; height: 34px; border-radius: 12px;
+  display: grid; place-items: center; font-size: 18px; background: #fdeaf4; }
+#home #home-quests .ico { background: #fff0d6; }
+#home #home-ach    .ico { background: #fdeaf4; }
+#home #home-gal    .ico { background: #e8f3ff; }
+#home #home-skin   .ico { background: #eee6ff; }
+#home #home-stats  .ico { background: #e2f7ec; }
+#home #home-howto  .ico { background: #fff0d6; }
+#home .home-btn:active { transform: translateY(2px); box-shadow: 0 2px 8px rgba(183,142,180,.28); }
+/* 任务未做完时角标提醒(数据由 JS 加 .todo 类) */
+#home .home-btn .bdg { margin-left: auto; font: 700 12px sans-serif; color: #b39ddb; }
+#home .home-btn.todo .bdg { color: #fff; background: #ff9800; border-radius: 999px; padding: 2px 8px; }
+
+#home .home-foot { display: flex; gap: 9px; margin-top: 2px; flex-wrap: wrap; justify-content: center; }
+#home .home-foot button { border: 0; background: rgba(255,255,255,.78); border-radius: 13px;
+  width: 42px; height: 42px; font-size: 18px; color: #a85d7a;
+  box-shadow: 0 3px 10px rgba(183,142,180,.2); transition: transform .1s; }
+#home .home-foot button:active { transform: scale(.92); }
 
 /* 说明面板:图文行 */
 .howto-row { display: flex; align-items: flex-start; gap: 12px; padding: 11px 4px;
@@ -163,13 +290,21 @@ body { background: #fdf3f7; }
 .bonus-banner.out { opacity: 0; transition: opacity .5s; }
 
 /* 主界面收集进度 + 里程碑 */
-#home .home-prog { width: min(88vw, 340px); background: rgba(255,255,255,.72);
+#home .home-prog { width: min(88vw, 340px); background: rgba(255,255,255,.86);
   border-radius: 16px; padding: 12px 16px; margin-top: 2px;
-  display: flex; flex-direction: column; gap: 7px; box-shadow: 0 4px 14px rgba(183,142,180,.22); }
-#home .hp-top { font: 700 14px sans-serif; color: #a85d7a; }
-#home .hp-bar { height: 10px; border-radius: 6px; background: #f6d5e5; overflow: hidden; }
+  display: flex; flex-direction: column; gap: 7px;
+  box-shadow: 0 4px 14px rgba(183,142,180,.22), inset 0 1px 0 #fff; }
+#home .hp-top { display: flex; align-items: baseline; gap: 6px;
+  font: 700 14px sans-serif; color: #a85d7a; }
+#home .hp-top .pct { margin-left: auto; font: 800 13px sans-serif; color: #d6336c; }
+#home .hp-bar { position: relative; height: 11px; border-radius: 6px; background: #f6d5e5; overflow: hidden; }
 #home .hp-bar i { display: block; height: 100%; border-radius: 6px;
-  background: linear-gradient(90deg, #f489b6, #e3629d); transition: width .4s; }
+  background: linear-gradient(90deg, #ffc46b, #f489b6 45%, #e3629d); transition: width .4s; }
+/* 进度条上的流光:静态条看着像「卡住了」,流光让它显得还在长 */
+#home .hp-bar::after { content: ''; position: absolute; inset: 0; border-radius: 6px;
+  background: linear-gradient(100deg, transparent 40%, rgba(255,255,255,.65) 50%, transparent 60%);
+  background-size: 260% 100%; animation: barFlow 2.8s linear infinite; }
+@keyframes barFlow { from { background-position: 140% 0; } to { background-position: -60% 0; } }
 #home .hp-skin { font: 600 12px sans-serif; color: #a85d7a; opacity: .85; }
 
 /* 主界面语言按钮(有文字,需自适应宽度) */
@@ -183,6 +318,39 @@ body { background: #fdf3f7; }
 .howto-fruit img { width: 40px; height: 40px; flex: none; object-fit: contain; }
 .howto-fruit .tx { font: 500 13px/1.4 sans-serif; color: #7a5c72; }
 .howto-fruit .tx b { color: #d6336c; }
+
+/* ============ 视觉打磨:入场动画 / 滚动条 / 减弱动态总开关 ============ */
+/* 浮层入场:直接 display 出来太生硬,给一个 0.2s 的淡入+弹起 */
+#panel:not(.hidden) { animation: layerIn .18s ease; }
+#panel-card { animation: cardIn .3s cubic-bezier(.2,1.25,.4,1); }
+#lightbox:not(.hidden) { animation: layerIn .18s ease; }
+#home:not(.hidden) { animation: layerIn .2s ease; }
+@keyframes layerIn { from { opacity: 0; } }
+@keyframes cardIn { from { transform: translateY(16px) scale(.96); opacity: 0; } }
+/* 面板列表逐项浮现(只给前 12 项排延迟,再多就没人看得见了) */
+#panel-body .ach-item, #panel-body .gal-set, #panel-body .skin-card, #panel-body .st-cell {
+  animation: itemIn .26s ease backwards; }
+#panel-body > *:nth-child(1)  { animation-delay: .00s; }
+#panel-body > *:nth-child(2)  { animation-delay: .02s; }
+#panel-body > *:nth-child(3)  { animation-delay: .04s; }
+#panel-body > *:nth-child(4)  { animation-delay: .06s; }
+#panel-body > *:nth-child(5)  { animation-delay: .08s; }
+#panel-body > *:nth-child(6)  { animation-delay: .10s; }
+@keyframes itemIn { from { transform: translateY(8px); opacity: 0; } }
+/* 滚动条:默认灰条在粉彩里很刺眼 */
+#panel-body::-webkit-scrollbar, .lang-card::-webkit-scrollbar { width: 6px; }
+#panel-body::-webkit-scrollbar-thumb, .lang-card::-webkit-scrollbar-thumb {
+  background: #f0c8de; border-radius: 3px; }
+#panel-body::-webkit-scrollbar-track { background: transparent; }
+
+/* ⛔ 减弱动态(body.rm,由 main.js 跟 G.reduceMotion 同步)+ 系统偏好:
+   一律关掉**所有**装饰动画。新加动画必须落在这条兜底里,否则晕动症玩家会被漏掉。 */
+body.rm *, body.rm *::before, body.rm *::after {
+  animation: none !important; transition: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  #home::before, #home .hero-wrap, #home .home-play::after, #home .hp-bar::after,
+  #home .home-daily.ready { animation: none !important; }
+}
 
 /* 语言选择菜单(主界面 🌐 弹出,复用 #lightbox 容器) */
 .lang-card { background: #fff; border-radius: 20px; padding: 12px; width: min(80vw, 300px);
