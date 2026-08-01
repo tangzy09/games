@@ -81,7 +81,9 @@
     "streak": "{n}-day streak 🔥",
     "newAngel": "New angel unlocked!",
     "allCollected": "All angels collected!",
-    "ok": "Lovely!"
+    "ok": "Lovely!",
+    "reward": "Day {d} streak reward: +{n} angels!",
+    "rewardBadge": "{n}-day reward"
   },
   "set": {
     "complete": "Set complete!"
@@ -309,5 +311,32 @@
     "start": "AI play",
     "stop": "Stop AI",
     "on": "AI playing"
+  },
+  "lvl": {
+    "t1": "Fledgling",
+    "t2": "Wanderer",
+    "t3": "Skywalker",
+    "t4": "Halo Bearer",
+    "t5": "Archangel",
+    "t6": "Seraph",
+    "lv": "Lv {n}",
+    "next": "{n} to next level"
+  },
+  "ladder": {
+    "title": "Angel Ladder",
+    "sub": "Twenty angels of the choir, ranked by lifetime score. Pass them one by one.",
+    "you": "You",
+    "beaten": "{n} / {m} passed",
+    "next": "{n} more to pass {name}",
+    "passed": "Passed {name}!",
+    "top": "You have passed every angel of the choir."
+  },
+  "goal": {
+    "title": "Next up",
+    "quests": "Today's quests {n}/{m}",
+    "streak": "{n} more days → +{a} angels",
+    "set": "{n} more to finish this set",
+    "ladder": "{n} points to pass {name}",
+    "level": "{n} points to level {l}"
   }
 }

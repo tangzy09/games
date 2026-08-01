@@ -81,7 +81,9 @@
     "streak": "Sequência de {n} dias 🔥",
     "newAngel": "Novo anjo desbloqueado!",
     "allCollected": "Todos os anjos coletados!",
-    "ok": "Que lindo!"
+    "ok": "Que lindo!",
+    "reward": "Recompensa de {d} dias: +{n} anjos!",
+    "rewardBadge": "prêmio de {n} dias"
   },
   "set": {
     "complete": "Coleção completa!"
@@ -309,5 +311,32 @@
     "start": "IA joga",
     "stop": "Parar IA",
     "on": "IA jogando"
+  },
+  "lvl": {
+    "t1": "Penugem",
+    "t2": "Andarilho",
+    "t3": "Anda-céu",
+    "t4": "Porta-luz",
+    "t5": "Arcanjo",
+    "t6": "Serafim",
+    "lv": "Nv {n}",
+    "next": "{n} para o próximo nível"
+  },
+  "ladder": {
+    "title": "Escada dos anjos",
+    "sub": "Vinte anjos do coro, ordenados pela pontuação total. Ultrapasse um a um.",
+    "you": "Você",
+    "beaten": "{n} / {m} ultrapassados",
+    "next": "mais {n} para passar {name}",
+    "passed": "Você passou {name}!",
+    "top": "Você ultrapassou todos os anjos do coro."
+  },
+  "goal": {
+    "title": "A seguir",
+    "quests": "Missões de hoje {n}/{m}",
+    "streak": "mais {n} dias → +{a} anjos",
+    "set": "mais {n} para fechar esta série",
+    "ladder": "{n} pontos para passar {name}",
+    "level": "{n} pontos para o nível {l}"
   }
 }

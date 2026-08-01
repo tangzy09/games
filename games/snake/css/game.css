@@ -29,14 +29,10 @@ body { background: #fdf3f7; }
 .ach-item.qrow .medal { opacity: 1; background: #fdf1f8; }
 .ach-item.qrow .nm { color: #7a5c72; }
 
-/* ── 天使风格 UI 图标(tools/gen-ui-icons.cjs 生成的 assets/ui/*.webp)──
-   ⚠ 图标自带留白 ⇒ 在 34~36px 的圆片里要放到 ~88% 才不显小。
-   img 的 alt 是对应 emoji:图缺了浏览器直接显示 emoji(天然回退)。 */
-.uic { width: 88%; height: 88%; object-fit: contain; display: block; }
-.uic.inl { width: 1.35em; height: 1.35em; display: inline-block; vertical-align: -.32em; }
+/* ── 共享 UI 图标(engine/ui-icons.js + engine/assets/ui/)的 snake 专属调整 ──
+   `.uic` / `.uic.inl` / `.uic.fill` 的基础样式在 **engine/engine.css**,别在这里重复。 */
 /* ⚠ 图标是「浅色 + 白描边」的贴纸风,压在深色/彩色按钮上会糊成一团白 ⇒ 补一层投影脱开底色 */
 #home .home-daily .uic { filter: drop-shadow(0 1px 2px rgba(160,90,30,.45)); }
-#home .home-btn .ico .uic { width: 100%; height: 100%; }   /* 入口图标撑满色片,最显眼 */
 /* 统计页:两列数据格。16 个同色数字扫过去像账单 ⇒ 加图标 + 按语义分四色 */
 .st-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; padding-top: 6px; }
 .st-cell { position: relative; background: #fff6fb; border-radius: 14px; padding: 11px 8px 10px;
@@ -150,10 +146,10 @@ body { background: #fdf3f7; }
 .gal-set.full { background: linear-gradient(90deg, #fffaf0, #fff3dc); }
 .gal-set.full .pg { color: #c9a227; }
 .gal-set.full .gb i { background: linear-gradient(90deg, #ffd36e, #f0a500); }
-/* ⚠ 皇冠用 background-image 不是 content:'👑' —— CSS 的 content 塞不进图片资源,
-   而这里要跟其余 UI 用同一套 Flux 生成的图标(风格统一)。 */
-.gal-set.full .nm::after { content: ''; width: 15px; height: 15px; flex: none; align-self: center;
-  background: url('../assets/ui/set-crown.webp') center/contain no-repeat; }
+/* ⚠ 皇冠不再走 CSS 的 url():图标搬进了**引擎共享库**,而 engine 相对路径在
+   「网页版(games/x/css/)」和「iOS 包(www/css/)」下不一样,css 里写死必错一边。
+   改成由 JS 用 UIIcon.img() 渲一个 <img class="crown">(运行时算路径,两边都对)。 */
+.gal-set.full .nm .crown { width: 15px; height: 15px; flex: none; align-self: center; }
 .gal-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding-top: 8px; }
 .gal-grid img { width: 100%; aspect-ratio: 1; border-radius: 10px; object-fit: cover; }
 .gal-grid img.locked { filter: grayscale(1) brightness(.35); }
@@ -476,3 +472,57 @@ body.rm *, body.rm *::before, body.rm *::after {
 .lang-opt { border: 0; border-radius: 12px; padding: 13px 16px; text-align: center;
   font: 700 16px sans-serif; color: #7a5c72; background: #f6d5e5; }
 .lang-opt.on { background: #e79cc2; color: #fff; }
+
+/* ═══ 粘度层（2026-08-01）：档案头 / 下一个目标 / 天使榜 ═══
+   ⚠ 追加在文件末尾 —— 另一个会话同期在改这个文件，追加是零冲突的改法。 */
+
+/* 👤 档案头：头像 + 称号 Lv + XP 条 */
+.home-prof{display:flex;align-items:center;gap:10px;
+  width:min(88vw,340px);box-sizing:border-box;      /* ⚠ 与 .home-prog 同宽，否则三张卡不齐 */
+  background:rgba(255,255,255,.62);border-radius:16px;padding:8px 12px;
+  box-shadow:0 2px 10px rgba(180,120,180,.15)}
+.home-prof .pf-face{width:38px;height:38px;border-radius:50%;overflow:hidden;flex:0 0 38px;
+  display:flex;align-items:center;justify-content:center;font-size:20px;background:rgba(255,255,255,.8)}
+.home-prof .pf-face img{width:100%;height:100%;object-fit:cover}
+.home-prof .pf-mid{flex:1;min-width:0}
+.home-prof .pf-top{display:flex;align-items:baseline;gap:6px;font-size:13px;color:#7a4a7a}
+.home-prof .pf-top b{font-weight:700}
+.home-prof .pf-lv{font-size:11px;color:#b07ab0}
+.home-prof .pf-bar{height:6px;border-radius:3px;background:rgba(180,120,180,.22);margin-top:5px;overflow:hidden}
+.home-prof .pf-bar i{display:block;height:100%;border-radius:3px;
+  background:linear-gradient(90deg,#ffd36e,#ff9ec7)}
+.home-prof .pf-xp{font-size:10px;color:#b07ab0;flex:0 0 auto}
+
+/* ⭐ 「下一个目标」条：打开就看见的短期目标，点击直达 */
+.home-goal{display:block;width:min(88vw,340px);box-sizing:border-box;padding:8px 12px;
+  border:0;border-radius:14px;text-align:left;cursor:pointer;
+  background:linear-gradient(90deg,rgba(255,211,110,.35),rgba(255,158,199,.30))}
+.home-goal .hg-t{display:block;font-size:10px;color:#a06a9a;letter-spacing:.04em}
+.home-goal .hg-b{display:block;font-size:13px;font-weight:700;color:#6d3f6d;margin-top:2px}
+.home-goal:active{transform:scale(.985)}
+
+/* 菜单里跨两列的格子（天使榜） */
+.home-menu .home-btn.full{grid-column:1/-1}
+
+/* 🪜 天使榜 */
+.ld-head{font-size:12px;color:#8a5a8a;padding:2px 4px 6px;line-height:1.5}
+.ld-sum{font-size:12px;font-weight:700;color:#6d3f6d;padding:0 4px 10px}
+.ld-list{display:flex;flex-direction:column-reverse;gap:6px}
+.ld-row{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:12px;
+  background:rgba(255,255,255,.55);font-size:13px;color:#6d3f6d}
+.ld-row.passed{opacity:.62}
+.ld-row.me{background:linear-gradient(90deg,rgba(255,211,110,.55),rgba(255,158,199,.45));
+  font-weight:700;box-shadow:0 2px 10px rgba(220,140,190,.25)}
+.ld-row .ld-n{flex:0 0 22px;text-align:right;font-size:11px;color:#b07ab0}
+.ld-row .ld-face{width:28px;height:28px;border-radius:50%;overflow:hidden;flex:0 0 28px;
+  display:flex;align-items:center;justify-content:center;font-size:16px;background:rgba(255,255,255,.75)}
+.ld-row .ld-face img{width:100%;height:100%;object-fit:cover}
+.ld-row .ld-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ld-row .ld-sc{flex:0 0 auto;font-variant-numeric:tabular-nums;font-size:12px}
+
+/* ⛔ 主界面内容超一屏时的两个 flexbox 陷阱（2026-08-01 加档案头/目标条后实拍抓出）：
+   ① flex 子元素默认 flex-shrink:1 ⇒ 内容一多，**主按钮被压扁**（看着像被下面那个按钮盖住）；
+   ② justify-content:center 在溢出时会把**顶部内容顶到滚动区之外**，怎么滚都看不到。
+   safe center = 放得下就居中、放不下退回顶部对齐（老浏览器忽略这一行，回退到上面的 center）。 */
+#home > * { flex-shrink: 0; }
+#home { justify-content: safe center; }

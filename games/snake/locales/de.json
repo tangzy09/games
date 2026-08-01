@@ -81,7 +81,9 @@
     "streak": "{n} Tage in Folge 🔥",
     "newAngel": "Neuer Engel freigeschaltet!",
     "allCollected": "Alle Engel gesammelt!",
-    "ok": "Wunderbar!"
+    "ok": "Wunderbar!",
+    "reward": "Belohnung für {d} Tage: +{n} Engel!",
+    "rewardBadge": "{n}-Tage-Belohnung"
   },
   "set": {
     "complete": "Set komplett!"
@@ -309,5 +311,32 @@
     "start": "KI spielt",
     "stop": "KI stoppen",
     "on": "KI spielt"
+  },
+  "lvl": {
+    "t1": "Flaumfeder",
+    "t2": "Wanderer",
+    "t3": "Himmelsläufer",
+    "t4": "Lichtträger",
+    "t5": "Erzengel",
+    "t6": "Seraph",
+    "lv": "Lv {n}",
+    "next": "noch {n} bis zum nächsten Level"
+  },
+  "ladder": {
+    "title": "Engel-Rangliste",
+    "sub": "Zwanzig Engel des Chors, nach Gesamtpunkten sortiert. Zieh an ihnen vorbei.",
+    "you": "Du",
+    "beaten": "{n} / {m} überholt",
+    "next": "noch {n}, um {name} zu überholen",
+    "passed": "{name} überholt!",
+    "top": "Du hast jeden Engel des Chors überholt."
+  },
+  "goal": {
+    "title": "Als Nächstes",
+    "quests": "Heutige Aufgaben {n}/{m}",
+    "streak": "noch {n} Tage → +{a} Engel",
+    "set": "noch {n} bis dieses Set voll ist",
+    "ladder": "noch {n} Punkte für {name}",
+    "level": "noch {n} Punkte bis Level {l}"
   }
 }

@@ -153,23 +153,26 @@ DOM 层的所有页面 + 游戏主画面的下半屏。**零玩法/经济改动*
 
 **验收工具**:`node games/snake/tools/shot-ui.cjs` 一次截全部 9 个 DOM 界面到 `C:/tmp/snake/ui/`(自动造进度数据,空页看不出排版好坏)。改样式后跑它 + `tools/shot-notch.cjs`。
 
-## 天使风格 UI 图标(assets/ui/,本机 Flux 生成)
+## UI 图标 —— ⛔ 用**全仓共享库**,不在 snake 下放第二份
 
-emoji 是系统字体、每个平台长得都不一样,和游戏世界观也没关系。16 个显眼位置换成自制图标:
+emoji 是系统字体、每个平台长得都不一样,和游戏世界观也没关系。显眼位置全换成自制图标:
 主界面六个入口 · 成就徽章两档(金翼星章 / 灰石章,120 行共用)· 每日任务六个类型 · 每日礼物 · 集齐皇冠。
 
+**素材和 API 都在引擎层**(见 root `CLAUDE.md` 共用件表):`engine/assets/ui/*.webp` + `engine/ui-icons.js`。
+snake 只是调用方:`index.html` 里加载 `engine/ui-icons.js`,`main.js` 的 `uiIcon(name, cls)` 是对 `UIIcon.img()` 的一层薄包装,`boot` 里 `await UIIcon.load()` 取回退 emoji 表。
+
 ```bash
-node games/snake/tools/gen-ui-icons.cjs [名字过滤]   # ComfyUI+Flux schnell → C:/tmp/snake/ui-icons/raw
-cd C:/tmp/snake/ui-icons && C:/ComfyUI/venv/Scripts/python.exe cut-ui-icons.py   # 抠透明+裁正方+192 webp
-cp C:/tmp/snake/ui-icons/cut/*.webp games/snake/assets/ui/                        # 全套 196KB
+node tools/gen-ui-icons.cjs [名字过滤]     # 仓库级生成器,已有成品自动跳过
+node tools/check-ui-icons.cjs             # 全仓一致性(引用可解析 / manifest 齐 / 无第二份目录)
 ```
 
-- **回退**:`uiIcon(name, emoji)` 生成的 `<img>` 把 **emoji 填进 `alt`** ⇒ 图缺了浏览器直接显示 emoji,**零 JS 的天然回退**(同引擎 `makeArt` 的思路:换图不改码,丢图不白屏)。
+- **回退**:`UIIcon.img()` 生成的 `<img>` 把 **emoji 填进 `alt`**(取自共享库的 `manifest.json`)⇒ 图缺了浏览器直接显示 emoji,**零 JS 的天然回退**(同引擎 `makeArt` 的思路:换图不改码,丢图不白屏)。
+- ⚠ **CSS 里不能 `url(../../engine/assets/ui/...)`**:css 文件在「网页版 `games/snake/css/`」和「iOS 包 `www/css/`」下相对 engine 的深度不一样,写死必错一边。集齐皇冠因此从 `::after{background:url()}` 改成 JS 渲一个 `<img class="crown">`。
 - ⛔ **判据只有一个:缩到 34px 还认得出**。第一版三张全糊了(淡粉水晶柱几乎看不见 / 米色卷轴一团 / 画框里的天使只剩紫方块)——图标必须**主体色和背景拉开 + 剪影简单**,prompt 里写 `bold saturated colors` / `strong contrast` / `thick outline`。**验收要做「三尺寸对照表」**(192/62/34 并排,见 `C:/tmp/snake/ui-icons/sheet.py`),只看 1024 原图必定误判。
 - ⚠ 未解锁成就**不要**给同一张图套 `filter: grayscale` —— 两档各生成一张(金/灰)才好看,套滤镜是一团脏灰。
 - ⚠ 浅色贴纸风图标压在深色/彩色按钮上会糊成一团白 ⇒ 补 `drop-shadow` 脱开底色(每日礼物的金色按钮实踩)。
 - ⚠ CSS 里要图标用 `background-image`,`content:'👑'` 塞不进图片资源(集齐皇冠)。
-- **回归**:`tests/test-ui-icons.js` 静态查「代码引用的名字都有文件 / css 引用的都有文件 / 没有没人用的孤儿图 / 单张 <40KB」。**名字拼错不会报错**(退回 emoji 而已),功能测试和 E2E 都抓不到,只能靠这条。已挂进 `npm run test:snake`(顺带把一直漏在外面的 `test-quests` 也补进去了)。
+- **回归**:`tools/check-ui-icons.cjs`(仓库级,扫全部游戏)静态查「引用的图标名都在库里 / manifest 与文件一一对应 / 没有游戏私建第二份 `assets/ui/` / 单张 <40KB」。**名字拼错不会报错**(退回 emoji 而已),功能测试和 E2E 都抓不到,只能靠这条。已挂进 `npm test`(顺带把一直漏在外面的 `test-quests` 也补进 `test:snake` 了)。
 
 ## 项目状态(上架)
 
@@ -181,3 +184,32 @@ cp C:/tmp/snake/ui-icons/cut/*.webp games/snake/assets/ui/                      
 - **界面已 10 语**(zh-CN/en/es/hi/bn/pt-BR/ru/ja/pa/de);**意见反馈已接生产 hub**。
 - **1.0.2 待出包**(2026-07-31 全仓元游戏对齐批,见上节):插屏闸门下调 + 每日任务 + 统计页 + 求好评 + 推送提醒。⚠ 出包前 bump package.json 到 `1.0.2`(与 ASC 版本一字不差,否则 build 挂不上)。
 - 未做(候选):P3b 游戏门户铺量、Android 打包、BGM、静态分数榜(见 casual-game-meta §4.4)。
+
+## 粘度层（2026-08-01，`js/meta.js` + 十语）
+
+对齐 solitaire/blockblast 的元游戏件，**全部由既有计数器驱动，零新玩法、零新埋点**：
+
+- **等级 / 称号 / XP 条**：`xp = stats.totalScore`（现成），六档称号（初翎→炽天使）。
+  曲线锚在已校准的成就档上：1 万分 ≈ 13 级、500 万分 ≈ 34 级（单测钉住这两个区间）。
+  主界面档案头 = 头像（最近解锁的天使）+ 称号 + Lv + XP 条。
+- **天使榜**（零后端伪社交）：20 个**预设角色**按累计得分排名，你插在中间。
+  ⛔ 文案红线：它们是**游戏角色**（唱诗班的天使），**绝不称「玩家」**（单测 + E2E 双钉）。
+  进度**零存档** —— `beatenCount(totalScore)` 现算。分数按幂律铺：**前两档几关内必超**
+  （即时爽点），尾档 300 万 ≤ 成就顶档 500 万（**榜尾必须可达**，不可达是坏设计）。
+  ⚠ 打开榜要**自动滚到「你」那一行** —— 让人手动滚半屏找自己 = 把爽点藏起来（实拍抓出）。
+- **连续奖励阶梯** 3/7/14/30 天（+3/+8/+15/+30 张天使）：单纯数天数没有动机，
+  「熬到第 7 天有 8 张」才有。⛔ **补签必须把已领水位 `daily.rewarded` 一起恢复** ——
+  只接回天数会让「故意断签 → 补签 → 次日重拿 7 天档」变成可复现的刷奖套路
+  （blockblast code review 抓到过同款，单测 + E2E 各有一条回归钉死）。
+- **「下一个目标」条**：主界面常驻一行，按优先级取最近的一个未完成奖励
+  （今日任务 > 差 ≤2 天的连续档 > 差 ≤3 张的这一集 > 榜上够得着的下一位 > 升级）。
+  零新系统，纯查询既有状态；点击直达对应面板。
+
+⚠ **主界面加内容时的两个 flexbox 陷阱**（加完档案头/目标条实拍抓出）：
+① flex 子元素默认 `flex-shrink:1` ⇒ 内容一多**主按钮被压扁**（看着像被下面那个按钮盖住）；
+② `justify-content:center` 在溢出时把**顶部内容顶到滚动区之外**，怎么滚都看不到。
+修法两行：`#home > *{flex-shrink:0}` + `#home{justify-content:safe center}`。
+⚠ 新卡片的宽度必须写成和 `.home-prog` 一样的 `min(88vw,340px)`，否则三张卡三个宽度。
+
+测试：`node games/snake/tests/test-meta.js`（12 组，已挂进 `npm test`）+
+`npm run test:snake:meta`（DOM 接线 E2E）。

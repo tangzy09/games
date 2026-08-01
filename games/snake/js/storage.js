@@ -15,7 +15,10 @@ function defaults() {
     settings: { theme: 'cloud', reduceMotion: null, remind: false, aiOn: false },
     // ⚠ stars 是「开放 map」(动态 key=图片名),默认值必须保持空对象 {}(见 merge 注释)
     gallery: { unlocked: [], imgPos: 0, stars: {} },  // unlocked: 图片文件名列表;stars: {文件名:1-3}
-    daily: { lastGiftDay: '', giftStreak: 0 },       // 每日天使礼物:领取日(YYYY-MM-DD)+ 连续天数
+    // rewarded = 连续奖励阶梯已领到哪几档(meta.js STREAK_REWARDS 的 key)。
+    // ⛔ 断签清零时它也清零,但**补签接回连续时必须一起恢复** —— 否则
+    //    「故意断签 → 补签 → 次日重拿 7 天档」是可复现的刷奖套路(test-meta 有回归)。
+    daily: { lastGiftDay: '', giftStreak: 0, rewarded: [] },
     ach: { unlocked: [] },
     // 每日任务:day=YYYY-MM-DD;⚠ prog 是「开放 map」(动态 key=任务序号),默认必须空对象
     quests: { day: '', prog: {}, done: [] },

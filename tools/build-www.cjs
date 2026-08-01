@@ -54,4 +54,14 @@ if (out.includes('../../engine/')) throw new Error('engine path rewrite failed')
 for (const f of ['engine/canvas.js', 'js/main.js', 'locales/en.json']) {
   if (!fs.existsSync(path.join(WWW, f))) throw new Error('missing in www: ' + f);
 }
+// 共享 UI 图标库(engine/assets/ui/)必须整份进包 —— 它是 engine 的一部分,靠上面那次
+// copyDir(engine) 自动带上。⚠ 但页面里的图标路径是**运行时**由 engine/ui-icons.js
+// 从脚本标签反推的(网页 ../../engine/ vs 包内 engine/),路径错了不会报错、只会满屏
+// 退回 emoji ⇒ 这里把「库在不在」钉死,少一层静默失败。
+if (fs.existsSync(path.join(ROOT, 'engine', 'assets', 'ui'))) {
+  const uiDir = path.join(WWW, 'engine', 'assets', 'ui');
+  if (!fs.existsSync(path.join(uiDir, 'manifest.json'))) throw new Error('missing in www: engine/assets/ui/manifest.json');
+  const n = fs.readdirSync(uiDir).filter(f => f.endsWith('.webp')).length;
+  if (n < 10) throw new Error('engine/assets/ui 只拷进 ' + n + ' 张,像是没拷全');
+}
 console.log('www assembled OK (' + path.basename(GAME) + '):', fs.readdirSync(WWW).join(', '));

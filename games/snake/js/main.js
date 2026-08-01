@@ -238,7 +238,7 @@ function renderAchTab(tab) {
   // 顶部总进度:120 个成就里「我拿了几个」是这一页唯一真正想知道的数,原来得自己数
   // 头部标题用**页签名**(单局/累计),不用面板标题——否则和上方大标题一字不差地重复一遍
   const head = `<div class="ach-head">
-    <div class="t"><span>${uiIcon('ach-gold', '🏅', 'inl')} ${T(tab === 'run' ? 'achui.tabRun' : 'achui.tabCum')}</span><b>${nGot}/${defs.length}</b></div>
+    <div class="t"><span>${uiIcon('badge-gold', 'inl')} ${T(tab === 'run' ? 'achui.tabRun' : 'achui.tabCum')}</span><b>${nGot}/${defs.length}</b></div>
     <div class="b"><i style="width:${((nGot / defs.length) * 100).toFixed(1)}%"></i></div></div>`;
   body.innerHTML = head + defs.map(d => {
     const has = got.has(d.id);
@@ -254,7 +254,7 @@ function renderAchTab(tab) {
     }
     // 徽章两档各有自己的图(金翼星章 / 灰石章)——比给同一张图套 grayscale 滤镜好看得多
     return `<div class="ach-item${has ? ' got' : ''}">
-      <span class="medal">${uiIcon(has ? 'ach-gold' : 'ach-locked', '🏅')}</span><span class="nm">${T('ach.' + d.id)}</span>
+      <span class="medal">${uiIcon(has ? 'badge-gold' : 'badge-locked')}</span><span class="nm">${T('ach.' + d.id)}</span>
       <span class="pg">${pg}</span></div>${bar}`;
   }).join('');
 }
@@ -287,7 +287,7 @@ function galSetRowsHTML() {
         ? `<img class="th" src="assets/angels/${cover}" loading="lazy" decoding="async" alt="">`
         : `<span class="th lock">🔒</span>`}
       <span class="mid">
-        <span class="nm">${T('gal.' + s.key)}
+        <span class="nm">${T('gal.' + s.key)}${full ? uiIcon('crown', 'crown') : ''}
           <span class="pg">${T('gal.progress', { cur: pg, max: s.images.length })}</span></span>
         <span class="gb"><i style="width:${pct.toFixed(0)}%"></i></span>
       </span></div>`;
@@ -541,6 +541,42 @@ function nextSkinHint() {
   return null;
 }
 // 主界面收集进度块:X/500 天使 + 进度条 + 下一皮肤里程碑
+/** 👤 档案头：头像 + 称号 Lv + XP 条。xp = 历史累计得分（现成计数器，零新埋点）*/
+function homeProfileHTML() {
+  const xp = G.save.stats.totalScore | 0;
+  const p = Meta.levelProgress(xp);
+  const face = G.save.gallery.unlocked[G.save.gallery.unlocked.length - 1];
+  return `<div class="home-prof">
+    <div class="pf-face">${face ? `<img src="assets/angels/${face}" alt="">` : '⭐'}</div>
+    <div class="pf-mid">
+      <div class="pf-top"><b>${T('lvl.' + Meta.titleKey(p.level))}</b>
+        <span class="pf-lv">${T('lvl.lv', { n: p.level })}</span></div>
+      <div class="pf-bar"><i style="width:${(p.pct * 100).toFixed(1)}%"></i></div>
+    </div>
+    <div class="pf-xp">${p.cur}/${p.span}</div>
+  </div>`;
+}
+
+/**
+ * ⭐ 「下一个目标」条：把散落各处的系统串成**打开即见的一句话**（点击直达）。
+ * 零新系统 —— 纯查询既有状态（任务/连续/图鉴集/榜/等级）。
+ */
+function homeGoalHTML() {
+  const s = G.save.stats;
+  const g = Meta.nextGoal({
+    totalScore: s.totalScore | 0,
+    questDone: questDoneCount(), questTotal: 3,
+    streakDays: (G.save.daily && G.save.daily.giftStreak) || 0,
+    galleryGot: G.save.gallery.unlocked.length,
+    galleryTotal: (G.imgList && G.imgList.length) || 500,
+    setSize: 25,
+  });
+  if (!g) return '';
+  return `<button class="home-goal" id="home-goal" data-act="${g.act}" type="button">
+    <span class="hg-t">${T('goal.title')}</span>
+    <span class="hg-b">${T('goal.' + g.key, g.params)}</span></button>`;
+}
+
 function homeProgressHTML() {
   const total = (G.imgList && G.imgList.length) || 500;
   const got = G.save.gallery.unlocked.length;
@@ -550,7 +586,7 @@ function homeProgressHTML() {
     <div class="hp-top"><span>🖼️ ${T('home.collected', { n: got, total })}</span>
       <span class="pct">${((got / total) * 100).toFixed(1)}%</span></div>
     <div class="hp-bar"><i style="width:${pct.toFixed(1)}%"></i></div>
-    ${skin ? `<div class="hp-skin">${uiIcon('menu-skins', '🎨', 'inl')} ${T('home.nextSkin', { name: skin.name })} · ${skin.bySet ? T('skins.needSet') : skin.cur + '/' + skin.need}</div>` : ''}
+    ${skin ? `<div class="hp-skin">${uiIcon('palette', 'inl')} ${T('home.nextSkin', { name: skin.name })} · ${skin.bySet ? T('skins.needSet') : skin.cur + '/' + skin.need}</div>` : ''}
   </div>`;
 }
 function openHome() {
@@ -571,17 +607,20 @@ function openHome() {
     `<div class="hero-wrap"><img class="home-hero" src="assets/angels/${HERO_ANGEL}" alt=""></div>
      <div class="home-title">Angel Snake</div>
      <div class="home-tag">${T('home.tag')}</div>
+     ${homeProfileHTML()}
      ${homeProgressHTML()}
+     ${homeGoalHTML()}
      <button class="home-play" id="home-play" type="button">${playLabel}</button>
      <button class="home-daily${dailyClaimable() ? ' ready' : ''}" id="home-daily" type="button">
-       ${uiIcon('daily-gift', '🎁', 'inl')} ${dailyClaimable() ? T('daily.claim') : T('daily.streak', { n: (G.save.daily && G.save.daily.giftStreak) || 0 })}</button>
+       ${uiIcon('gift', 'inl')} ${dailyClaimable() ? T('daily.claim') : T('daily.streak', { n: (G.save.daily && G.save.daily.giftStreak) || 0 })}</button>
      <div class="home-menu">
-       <button class="home-btn${qDone < 3 ? ' todo' : ''}" id="home-quests" type="button"><span class="ico">${uiIcon('menu-quests', '📋')}</span><span class="lb">${T('q.title')}</span><span class="bdg">${qDone}/3</span></button>
-       <button class="home-btn" id="home-ach" type="button"><span class="ico">${uiIcon('menu-ach', '🏅')}</span><span class="lb">${T('menu.achievements')}</span><span class="bdg">${achGot}</span></button>
-       <button class="home-btn" id="home-gal" type="button"><span class="ico">${uiIcon('menu-gallery', '🖼️')}</span><span class="lb">${T('menu.gallery')}</span><span class="bdg">${G.save.gallery.unlocked.length}</span></button>
-       <button class="home-btn" id="home-skin" type="button"><span class="ico">${uiIcon('menu-skins', '🎨')}</span><span class="lb">${T('menu.skins')}</span><span class="bdg">${skinGot}/${Themes.THEME_ORDER.length}</span></button>
-       <button class="home-btn" id="home-stats" type="button"><span class="ico">${uiIcon('menu-stats', '📊')}</span><span class="lb">${T('stats.title')}</span></button>
-       <button class="home-btn" id="home-howto" type="button"><span class="ico">${uiIcon('menu-howto', '❓')}</span><span class="lb">${T('howto.title')}</span></button>
+       <button class="home-btn${qDone < 3 ? ' todo' : ''}" id="home-quests" type="button"><span class="ico">${uiIcon('scroll', 'fill')}</span><span class="lb">${T('q.title')}</span><span class="bdg">${qDone}/3</span></button>
+       <button class="home-btn" id="home-ach" type="button"><span class="ico">${uiIcon('medal', 'fill')}</span><span class="lb">${T('menu.achievements')}</span><span class="bdg">${achGot}</span></button>
+       <button class="home-btn" id="home-gal" type="button"><span class="ico">${uiIcon('frame', 'fill')}</span><span class="lb">${T('menu.gallery')}</span><span class="bdg">${G.save.gallery.unlocked.length}</span></button>
+       <button class="home-btn" id="home-skin" type="button"><span class="ico">${uiIcon('palette', 'fill')}</span><span class="lb">${T('menu.skins')}</span><span class="bdg">${skinGot}/${Themes.THEME_ORDER.length}</span></button>
+       <button class="home-btn" id="home-stats" type="button"><span class="ico">${uiIcon('chart', 'fill')}</span><span class="lb">${T('stats.title')}</span></button>
+       <button class="home-btn full" id="home-ladder" type="button"><span class="ico">${uiIcon('crown', 'fill')}</span><span class="lb">${T('ladder.title')}</span><span class="bdg">${Meta.beatenCount(G.save.stats.totalScore | 0)}/${Meta.LADDER.length}</span></button>
+       <button class="home-btn" id="home-howto" type="button"><span class="ico">${uiIcon('book', 'fill')}</span><span class="lb">${T('howto.title')}</span></button>
      </div>
      <div class="home-foot">
        <button id="home-lang" class="wide" type="button" title="${T('lang.toggle')}">🌐 ${I18N.NATIVE[I18N.lang] || I18N.lang}</button>
@@ -601,6 +640,10 @@ function openHome() {
   $('home-skin').onclick = () => openSkins();
   $('home-stats').onclick = () => openStats();
   $('home-howto').onclick = () => openHowTo();
+  $('home-ladder').onclick = () => openLadder();
+  const gb = $('home-goal');
+  if (gb) gb.onclick = () => ({ quests: openQuests, daily: claimDaily, gallery: openGallery,
+                                ladder: openLadder, stats: openStats }[gb.dataset.act] || openQuests)();
   const rb = $('home-remind');
   if (rb) rb.onclick = () => {                            // 每日提醒开关(原生才显示)
     G.save.settings.remind = !G.save.settings.remind;
@@ -633,6 +676,52 @@ function openLangMenu() {
     lb.classList.add('hidden');
     I18N.setLang(b.dataset.l).then(() => openHome());   // 切完重渲主界面(新语言)
   });
+}
+
+/**
+ * 🪜 天使榜 —— 零后端的「别人」：20 个**预设角色**按累计得分排名，你插在中间。
+ * ⛔ 文案红线：它们是**游戏角色**（唱诗班的天使），**绝不称「玩家」** —— 既要虚构
+ *   又要暗示真人就是伪造（test-meta 里有断言钉死名字）。进度**零存档**，由累计分推导。
+ */
+function openLadder() {
+  const panel = document.getElementById('panel');
+  document.getElementById('panel-title').textContent = T('ladder.title');
+  document.getElementById('panel-tabs').innerHTML = '';
+  const xp = G.save.stats.totalScore | 0;
+  const beaten = Meta.beatenCount(xp);
+  const next = Meta.nextTarget(xp);
+  const rows = Meta.LADDER.map((g, i) => ({ g, i, passed: xp > g.score }));
+  // 你插在「已超过的最后一位」和「下一个目标」之间 —— 一眼看清自己在梯子的哪一格
+  const list = [];
+  rows.forEach((r, i) => {
+    if (i === beaten) list.push({ me: true });
+    list.push(r);
+  });
+  if (beaten >= rows.length) list.push({ me: true });
+  const img = i => (G.imgList && G.imgList[i]) ? `<img src="assets/angels/${G.imgList[i]}" alt="">` : '👼';
+  document.getElementById('panel-body').innerHTML =
+    `<div class="ld-head">${T('ladder.sub')}</div>
+     <div class="ld-sum">${T('ladder.beaten', { n: beaten, m: rows.length })}${
+       next ? ` · ${T('ladder.next', { n: next.score - xp, name: next.name })}` : ` · ${T('ladder.top')}`}</div>
+     <div class="ld-list">` +
+    list.map(r => r.me
+      ? `<div class="ld-row me"><span class="ld-n">–</span><span class="ld-face">🐍</span>
+           <span class="ld-name">${T('ladder.you')}</span><span class="ld-sc">${xp}</span></div>`
+      : `<div class="ld-row${r.passed ? ' passed' : ''}"><span class="ld-n">${rows.length - r.i}</span>
+           <span class="ld-face">${img(r.g.img)}</span>
+           <span class="ld-name">${r.g.name}</span><span class="ld-sc">${r.g.score}</span></div>`
+    ).join('') + `</div>`;
+  document.getElementById('panel-close').onclick = () => {
+    panel.classList.add('hidden');
+    if (G.phase === 'PAUSED') renderAll();
+  };
+  panel.classList.remove('hidden');
+  // ⭐ 打开就滚到「你」那一行 —— 榜的全部意义是看自己在哪一格，
+  //   让人先手动滚半屏去找自己，等于把爽点藏起来（实拍抓出）。
+  const me = panel.querySelector('.ld-row.me');
+  if (me && me.scrollIntoView) {
+    try { me.scrollIntoView({ block: 'center' }); } catch (e) { me.scrollIntoView(); }
+  }
 }
 
 // ——玩法说明——(图文行,复用 #panel)
@@ -671,16 +760,14 @@ function showBoostToast(emojis) {
 function questDoneCount() {
   try { return Quests.status(G.save, ymd(Date.now())).filter(q => q.done).length; } catch (e) { return 0; }
 }
-// 每个任务类型自己的图标:三行同一个 📋 看不出差别,换成对应的果子/格子/连击更好读
-const Q_ICON = { apples: '🍎', levels: '🖼️', cells: '🔓', special: '✨', combo: '⚡', noDeath: '🛡️' };
+// 每个任务类型 → 共享图标名。三行同一个图标看不出差别,换成对应的果子/格子/连击更好读。
+const Q_ICON = { apples: 'apple', levels: 'picture-done', cells: 'key', special: 'sparkle', combo: 'bolt', noDeath: 'shield-heart' };
 /**
- * 天使风格的 UI 图标(本机 Flux 生成,assets/ui/*.webp,见 tools/gen-ui-icons.cjs)。
- * ⚠ `alt` 填对应 emoji ⇒ **图缺了浏览器直接显示 emoji**,零 JS 的天然回退
- *   (与引擎 makeArt 的「缺图回退」同一个思路:换图不改码,丢图不白屏)。
+ * UI 图标 = **全仓共享库** `engine/assets/ui/`(见 engine/ui-icons.js + tools/gen-ui-icons.cjs)。
+ * ⛔ 别在 games/snake/assets/ 下再放一份:这些图(星星/奖杯/锁/关闭…)每个游戏都要。
+ * 回退 emoji 由共享库的 manifest.json 提供,调用点不用再各写一遍。
  */
-function uiIcon(name, emoji, cls) {
-  return `<img class="uic${cls ? ' ' + cls : ''}" src="assets/ui/${name}.webp" alt="${emoji}" decoding="async">`;
-}
+function uiIcon(name, cls) { return UIIcon.img(name, { cls }); }
 function openQuests() {
   const panel = document.getElementById('panel');
   document.getElementById('panel-title').textContent = T('q.title');
@@ -692,7 +779,7 @@ function openQuests() {
       const pct = Math.min(100, (q.prog / q.target) * 100).toFixed(0);
       // qrow:任务图标表达的是「任务类型」不是「拿没拿到」⇒ 不能套成就那套灰掉的样式
       return `<div class="ach-item qrow${q.done ? ' got' : ''}">
-          <span class="medal">${q.done ? '✅' : uiIcon('q-' + q.t, Q_ICON[q.t] || '📋')}</span>
+          <span class="medal">${q.done ? '✅' : uiIcon(Q_ICON[q.t] || 'scroll')}</span>
           <span class="nm">${T('q.' + q.t, { n: q.target })}</span>
           <span class="pg">${q.done ? '✓' : q.prog + '/' + q.target}</span>
         </div>
@@ -777,6 +864,23 @@ function claimDaily() {
     newly = Ach.checkCum(G.save).unlocked;
     if (G.save.stats.setsDone > setsBefore) setTimeout(showSetComplete, 400);   // 每日礼物也可能集齐
   }
+  // ⭐ 连续奖励阶梯 3/7/14/30：单纯数天数没有动机，「熬到第 7 天有 8 张」才有。
+  //   断签时 streak 回 1，水位也跟着清（补签会把两者一起恢复，见 REPAIR）。
+  if (!adjacent) d.rewarded = [];
+  const due = Meta.dueRewards(d.giftStreak, d.rewarded);
+  if (due.length) {
+    d.rewarded = (d.rewarded || []).concat(due.map(r => r.key));
+    const extra = due.reduce((a, r) => a + r.angels, 0);
+    G.streakBonus = { n: extra, d: due[due.length - 1].days };
+    for (let i = 0; i < extra; i++) {
+      const a2 = dailyPickAngel();
+      if (!a2) break;
+      Gallery.recordUnlock(G.save, a2);
+    }
+    Gallery.updateSetsDone(G.save, G.manifest);
+    G.save.stats.distinctImgs = G.save.gallery.unlocked.length;
+    newly = newly.concat(Ach.checkCum(G.save).unlocked);
+  } else { G.streakBonus = null; }
   persist();
   Notify.reschedule(G.save, false);          // 今天领过了 ⇒ 撤掉今晚那枪 streak 提醒(绝不放空炮)
   Sfx.play('special'); Haptics.light();
@@ -814,6 +918,11 @@ function showDailyGift(file, streak) {
       fix.disabled = false;
       if (!okAd || !G.repairOffer) return;
       G.save.daily.giftStreak = G.repairOffer + 1;
+      // ⛔ **水位跟着 streak 一起恢复**：断签把 rewarded 清空了，若只接回天数，
+      //   下一次打卡会把 3/7/14 档**再发一遍** ⇒「故意断签→补签」= 可复现的刷奖套路。
+      //   （test-meta 里有一条回归专门钉这个。）
+      G.save.daily.rewarded = Meta.STREAK_REWARDS
+        .filter(r => G.save.daily.giftStreak >= r.days).map(r => r.key);
       G.repairOffer = null;
       persist();
       fix.remove();
@@ -1008,6 +1117,10 @@ async function boot() {
     G.save = Storage.load(Platform.storage, G.saveKey);
     G.reduceMotion = computeReduceMotion();   // 减弱动态:显式设置优先,否则跟随系统
     syncMotionClass();                        // 同步给 CSS(body.rm 关掉全部装饰动画)
+    // 共享图标库的回退 emoji 表。⚠ **不要 await**:它只用来填 <img alt>(丢图时的兜底),
+    // 挡在启动路径上会给后面的 locale fetch 多推一个网络往返 —— 刚好把它推进「E2E 首次
+    // 加载后立刻 reload」的窗口里,locale 请求被 abort、boot 报 Failed to fetch(实锤)。
+    UIIcon.load();
     G.aiOn = !!G.save.settings.aiOn;          // AI 代打开关跨会话保持(玩家的显式选择)
     if (typeof preloadItems === 'function') preloadItems();   // 预载道具 sprite,防首次出现时 emoji 闪一下
     if (typeof Feedback !== 'undefined') Feedback.flushQueue();   // 补发离线的反馈队列

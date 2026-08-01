@@ -81,7 +81,9 @@
     "streak": "Racha de {n} días 🔥",
     "newAngel": "¡Nuevo ángel desbloqueado!",
     "allCollected": "¡Todos los ángeles reunidos!",
-    "ok": "¡Precioso!"
+    "ok": "¡Precioso!",
+    "reward": "Recompensa de {d} días: ¡+{n} ángeles!",
+    "rewardBadge": "premio de {n} días"
   },
   "set": {
     "complete": "¡Colección completa!"
@@ -309,5 +311,32 @@
     "start": "Juega la IA",
     "stop": "Parar IA",
     "on": "IA jugando"
+  },
+  "lvl": {
+    "t1": "Plumón",
+    "t2": "Errante",
+    "t3": "Cielero",
+    "t4": "Portaluz",
+    "t5": "Arcángel",
+    "t6": "Serafín",
+    "lv": "Nv {n}",
+    "next": "{n} para el siguiente nivel"
+  },
+  "ladder": {
+    "title": "Escalera de ángeles",
+    "sub": "Veinte ángeles del coro, ordenados por puntuación total. Supéralos uno a uno.",
+    "you": "Tú",
+    "beaten": "{n} / {m} superados",
+    "next": "{n} más para superar a {name}",
+    "passed": "¡Superaste a {name}!",
+    "top": "Has superado a todos los ángeles del coro."
+  },
+  "goal": {
+    "title": "Lo siguiente",
+    "quests": "Misiones de hoy {n}/{m}",
+    "streak": "{n} días más → +{a} ángeles",
+    "set": "{n} más para completar esta serie",
+    "ladder": "{n} puntos para superar a {name}",
+    "level": "{n} puntos para el nivel {l}"
   }
 }
