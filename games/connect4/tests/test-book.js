@@ -193,6 +193,20 @@ function backupFromBook(root, N, bk) {
   assert.strictEqual(BOOK.tryParse(junk), null);
   assert.deepStrictEqual(S.solve(probe), truth, '库损坏时 solve 必须一位不变');
 
+  // ⛔⛔ **规则集不符必须被拒**（P1 code review 实锤 I2）：Pop Out 与 classic 的 key 空间
+  //   大量重叠、分数却完全不同 ⇒ 装错文件不崩、不报错，只是**整本给错分数**。
+  //   ⚠ 注意它**解析得开**（格式合法、校验和对）—— 拦它的只能是 install 里那一道 ruleset 校验。
+  const popout = BOOK.encode({ ply: 10, keys: [12345, 67890], scores: [2, -3], srcHash: 0, ruleset: BOOK.RULESET_POPOUT });
+  const pbk = BOOK.tryParse(popout);
+  assert.ok(pbk !== null, '前提：这份 popout 库在格式上是合法的（所以只能靠 ruleset 拦）');
+  assert.strictEqual(pbk.ruleset, BOOK.RULESET_POPOUT);
+  assert.strictEqual(BOOK.install(pbk), false, '⛔ popout 的库必须被 classic 拒装');
+  assert.strictEqual(BOOK.status().state, 'failed');
+  assert.deepStrictEqual(S.solve(probe), truth, '被拒之后求解器必须完全没被装上东西');
+  assert.strictEqual(BOOK.install(pbk, BOOK.RULESET_POPOUT), true, '明说要 popout 时才许装');
+  BOOK.uninstall();
+  assert.deepStrictEqual(S.solve(probe), truth);
+
   // ⛔ setBook 对形状不对的东西必须**当场抛**：一个「装上了但没生效」的库最难查
   assert.throws(() => S.setBook({ ply: 0, get: () => 1 }), /ply/);
   assert.throws(() => S.setBook({ ply: 10 }), /get/);
@@ -289,8 +303,11 @@ if (!fs.existsSync(BOOK_PATH)) {
   const raw = fs.readFileSync(BOOK_PATH);
   const bk = BOOK.parse(new Uint8Array(raw.buffer, raw.byteOffset, raw.length));
   const N = bk.ply;
+  // ⛔ 进包的这一份必须是 classic：装错规则集不崩、只是整本给错分数（见 §2 那段）
+  assert.strictEqual(bk.ruleset, BOOK.RULESET_CLASSIC,
+    '⛔ ' + path.basename(BOOK_PATH) + ' 的规则集是 ' + bk.ruleset + '，不是 classic(0)');
   console.log('test-book §4: ' + path.basename(BOOK_PATH) + '  ply=' + N + '  ' + num(bk.count) +
-    ' 条  ' + (raw.length / 1048576).toFixed(2) + ' MiB');
+    ' 条  ' + (raw.length / 1048576).toFixed(2) + ' MiB  ruleset=classic');
 
   // ─ a. 完整性：条目集合 == 枚举出来的清单，逐条 ─
   const t0 = ms();
@@ -328,8 +345,18 @@ if (!fs.existsSync(BOOK_PATH)) {
   // ─ c. ⭐⭐ 拿库当叶子纯回溯 ⇒ 空盘七列必须等于 Allis 1988 ─
   // ⛔ 期望值来自 1988 年的外部文献（DESIGN §2.2），红了**不许改这里**。
   // ⚠ 全宽回溯，零剪枝、零搜索：每个 ply<N 的局面只算一次（按 keyOf 记忆化）。
-  //   ⇒ 它检验的是**库的内容**，不是求解器 —— 库里任何一条被搜索用到的记录错了，
-  //     这七个数极难还正好对上。
+  //
+  // ⛔⛔ **它抓什么、不抓什么，说清楚**（P1 code review 实测，⛔ 别把这段改回从前那句
+  //   「任何一条记录错了这七个数都极难对上」—— 那是一张这条断言**拿不到的证书**）：
+  //     · 单条篡改（保奇偶 + 修好校验和）30 次 ⇒ §4c 抓到 **0 次**
+  //     · 污染 0.1% / 1% / 5% ⇒ §4c **全部漏网**，七列照样 [-3,-1,0,2,0,-1,-3]
+  //     · 要到约 **20%** 才翻
+  //   原因是结构性的、不是实现不好：minimax 只取每层的 max，稀疏的叶子误差绝大多数
+  //   被别的分支盖住 ⇒ **它是「整本库跟当前这版求解器不是一路货」的门禁**（系统性偏移、
+  //   混血库、错版本、错规则集），**不是逐条门禁**。
+  // ⇒ 逐条那一层压在两处：**§4d 的抽样与现场求解逐个一致** + 文件校验和（抓字节损坏）。
+  //   ⛔ **改小 §4d 的样本 = 直接拆掉逐条防线**，别以为「反正 §4c 兜着」。
+  //   （生成侧还有一条更硬的：gen-book 的 manifest 会比 srcHash，从源头堵死混血库。）
   // ⭐ 用的是 §3 刚刚拿「现场 scoreAll」验证过的**同一个** backupFromBook —— 顺序不能倒。
   const t1 = ms();
   const bu = backupFromBook(B.newBoard(), N, bk);
@@ -353,10 +380,17 @@ if (!fs.existsSync(BOOK_PATH)) {
   const order = [];
   for (let i = 0; i < bk.count; i++) order.push(i);
   for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); const t = order[i]; order[i] = order[j]; order[j] = t; }
+  // ⭐ **下限与预算脱钩**（P1 code review 实锤）：预算只许**加码**，不许把样本压到下限以下。
+  //   ⛔ 原来只判预算、底线写 `>= 3`，意味着**慢机器上悄悄退化到 5 条也照样全绿** ——
+  //     而 §4c 结构上抓不到稀疏错误（见上），逐条防线全靠这里。
+  //   ⚠ 数量级要有自知之明：18 条 / 634,338 ≈ 0.003%，对「影响 1% 条目」的求解器 bug
+  //     检出率只有约 17%。这是 `test:c4` 要秒级跑完的代价 ——
+  //     **深查是 `npm run verify:c4book`（400 条 / 约 3 分钟），进包前必跑那个。**
+  const MIN_SAMPLE = 15;
   const t2 = ms();
   let checked = 0, worst = 0;
   for (const idx of order) {
-    if (SAMPLE_K > 0 ? checked >= SAMPLE_K : (ms() - t2) > BUDGET_MS) break;
+    if (SAMPLE_K > 0 ? checked >= SAMPLE_K : (checked >= MIN_SAMPLE && (ms() - t2) > BUDGET_MS)) break;
     const e = bk.at(idx);
     const bd = GEN.decodeKey(e.key);
     GEN.assertLegal(bd, e.key);
@@ -372,7 +406,8 @@ if (!fs.existsSync(BOOK_PATH)) {
   console.log('test-book §4d: ⭐ 抽样 ' + num(checked) + ' 条与现场求解逐个一致（' +
     ((ms() - t2) / 1000).toFixed(1) + 's，单条最慢 ' + (worst / 1000).toFixed(2) + 's）OK' +
     (SAMPLE_K > 0 ? '' : '  ⚠ 默认只跑 ' + BUDGET_MS + 'ms 预算，深查用 `npm run verify:c4book`'));
-  assert.ok(checked >= 3, '抽样数太少（' + checked + '），预算给太紧了');
+  assert.ok(checked >= MIN_SAMPLE, '抽样数只有 ' + checked + ' < ' + MIN_SAMPLE +
+    ' —— 逐条防线被削掉了（§4c 结构上抓不到稀疏错误，见上面那段 ⛔）');
 
   // ─ e. 源码哈希：只提示，不判红（判据是上面四条）─
   const now = GEN.srcHash();

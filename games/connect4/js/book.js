@@ -186,9 +186,25 @@
   // ⛔ 'failed' **不是错误弹窗**，是「这局慢一点」——游戏照常可玩，绝不许因此拦住玩家。
   function status() { return { state: _state, ply: _book ? _book.ply : 0, count: _book ? _book.count : 0, error: _fail }; }
 
-  /** 装进求解器（唯一入口）。@returns true = 装上了 */
-  function install(bk) {
+  /**
+   * 装进求解器（唯一入口）。@returns true = 装上了；false = 拒了（`status().error` 说为什么）
+   * @param expect 期望的规则集，默认 classic
+   * ⛔⛔ **必须校验 ruleset**（P1 Task 7 code review 实锤）：DESIGN §9.2 写明 classic / popout
+   *   **各一份**，而两者的 key 空间**大量重叠、分数却不同**（Pop Out 能把底子弹出去，同一个
+   *   盘面的真值完全是另一回事）。头里的 ruleset 字节以前只写不查 ⇒ 把 popout 的库交给
+   *   classic 求解器会**照单全收**：不崩、不报错，只是**整本给错分数**——正是本文件第一纪律
+   *   要挡的东西。⚠ 装错文件不是假想：两份库同目录、同扩展名、名字只差几个字母。
+   */
+  function install(bk, expect) {
     if (!bk) return false;
+    const want = expect === undefined ? RULESET_CLASSIC : expect;
+    if (bk.ruleset !== want) {
+      _book = null; _state = 'failed';
+      _fail = '开局库的规则集是 ' + bk.ruleset + '，这里要的是 ' + want + '（0=classic / 1=popout）—— 拒装';
+      S.setBook(null);
+      if (typeof console !== 'undefined') console.warn('[book] ' + _fail);
+      return false;
+    }
     S.setBook(bk);
     _book = bk; _state = 'ready'; _fail = '';
     return true;
@@ -198,8 +214,13 @@
   /**
    * ⭐ web 懒加载：**永不抛、永不 reject**，失败只是 resolve(false)。
    * 首屏不要 await 它 —— 让玩家先落子，库到位后自然变快（DESIGN §9.2）。
+   * @param expect 期望的规则集（默认 classic），见 install
+   * ⚠ **同一时刻只许有一个 load 在飞**：`_state`/`_fail`/`_book` 是模块级单例，两个并发的
+   *   load 会互相踩状态（后发先至时 `state` 会停在先完成那个的结果上）。今天的调用方只有
+   *   「首屏起一次」这一处，所以不加锁；⛔ 将来真要支持切库/重试，就得在这里排队，
+   *   别指望「反正都是同一个文件」——失败路径的 `_fail` 会串。
    */
-  function load(url) {
+  function load(url, expect) {
     _state = 'loading'; _fail = '';
     return Promise.resolve()
       .then(() => fetch(url))
@@ -210,7 +231,7 @@
       .then(buf => {
         const bk = tryParse(new Uint8Array(buf));
         if (!bk) throw new Error(_fail || '解析失败');
-        install(bk);
+        if (!install(bk, expect)) throw new Error(_fail || '装载被拒');
         return true;
       })
       .catch(e => {
@@ -221,8 +242,12 @@
       });
   }
 
-  /** Node 侧同步加载（tools / tests 用）。同样**不抛**：@returns 库对象或 null */
-  function loadFileSync(p) {
+  /** Node 侧同步加载（tools / tests 用）。同样**不抛**：@returns 库对象或 null
+   *  ⚠⚠ **成功即 `install()` 进求解器** —— 名字只说「读」，但它有副作用：调用之后
+   *     `S.solve/scoreAll` 立刻开始吃这本库。要「只读不装」请直接用 `parse`/`tryParse`。
+   *     （门禁里拿它读完库去跟**现场求解**比对时，必须先 `uninstall()`，否则是同义反复。）
+   *  ⚠ ruleset 不符会被 install 拒掉 ⇒ 返回 null、state='failed'。 */
+  function loadFileSync(p, expect) {
     if (!inNode) throw new Error('loadFileSync 只在 Node 里可用');
     _state = 'loading'; _fail = '';
     let buf;
@@ -230,7 +255,7 @@
     catch (e) { _state = 'failed'; _fail = String(e && e.message || e); return null; }
     const bk = tryParse(new Uint8Array(buf.buffer, buf.byteOffset, buf.length));
     if (!bk) { _state = 'failed'; return null; }
-    install(bk);
+    if (!install(bk, expect)) return null;
     return bk;
   }
 

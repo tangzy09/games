@@ -75,41 +75,67 @@ const hasFlag = f => process.argv.includes('--' + f);
 // ═══════════════════════════════════════════════════════════
 
 /** 数值集合（开放寻址 + Float64Array）。⚠ 用 Set<number> 也对，但 63 万条要吃上百 MB，
- *  而这里每条只要 8 字节。key 恒 > 0 ⇒ 0 可以当空槽。 */
+ *  而这里每条只要 8 字节。key 恒 > 0 ⇒ 0 可以当空槽。
+ *
+ * ⛔⛔ **必须自动扩容**（P1 Task 7 code review 实锤）：线性探测的表一旦装满，
+ *   `for(;;)` 既找不到空槽也找不到自己 ⇒ **永远转圈**：不报错、不退出、不越界，
+ *   除了 CPU 100% 没有任何痕迹。旧版给 `enumerateFrontier` 写死 `1<<22` 槽，
+ *   于是 `--count-only --ply=12`（**而这正是它的默认档**）跑满 300 秒零输出，
+ *   而 ply 11 只要 1.7 秒 —— 看起来像「12 就是很慢」，其实是死循环。
+ *   ⇒ 装到一半就翻倍重排；再加一条「真满了就抛」的守卫，把哑的死循环换成响的崩。
+ * ⚠ capHint 现在只是**初始**容量（省几次重排），给小了不再有正确性后果。 */
 function keySet(capHint) {
   let bits = 4;
-  while ((1 << bits) < capHint * 2) bits++;
-  const n = 1 << bits, mask = n - 1;
-  const t = new Float64Array(n);
+  while (bits < 30 && (1 << bits) < capHint * 2) bits++;
+  let n = 1 << bits, mask = n - 1, limit = n >> 1;
+  let t = new Float64Array(n);
   let size = 0;
-  function slot(k) {
-    // key 有 49 位，拆成两半再混：直接 `k % n` 会因为低位只编码第 0 列而严重聚簇。
+  // key 有 49 位，拆成两半再混：直接 `k % n` 会因为低位只编码第 0 列而严重聚簇。
+  function slot(k, m) {
     const lo = k % 16777216, hi = (k - lo) / 16777216;
     let x = (Math.imul(lo, 0x9E3779B1) ^ Math.imul(hi, 0x85EBCA6B)) >>> 0;
     x ^= x >>> 15; x = Math.imul(x, 0x2545F491) >>> 0; x ^= x >>> 13;
-    return x & mask;
+    return x & m;
+  }
+  function grow() {
+    if (bits >= 30) throw new Error('keySet 到顶了（2^30 槽 / 已 ' + size + ' 条）：这个 ply 用这套内存表装不下');
+    const old = t, oldN = n;
+    bits++; n = 1 << bits; mask = n - 1; limit = n >> 1;
+    t = new Float64Array(n);
+    for (let i = 0; i < oldN; i++) {
+      const k = old[i];
+      if (k === 0) continue;
+      let j = slot(k, mask);
+      while (t[j] !== 0) j = (j + 1) & mask;
+      t[j] = k;
+    }
   }
   return {
     /** @returns true = 这次是新加进来的 */
     add(k) {
-      let i = slot(k);
-      for (;;) {
+      if (size >= limit) grow();
+      let i = slot(k, mask);
+      for (let probe = 0; probe <= mask; probe++) {
         const v = t[i];
         if (v === 0) { t[i] = k; size++; return true; }
         if (v === k) return false;
         i = (i + 1) & mask;
       }
+      // ⛔ 走到这里说明表真的满了（扩容逻辑出过错）—— 抛，绝不许静默转圈
+      throw new Error('keySet 装满了（' + n + ' 槽 / ' + size + ' 条），线性探测已绕完一圈');
     },
     has(k) {
-      let i = slot(k);
-      for (;;) {
+      let i = slot(k, mask);
+      for (let probe = 0; probe <= mask; probe++) {
         const v = t[i];
         if (v === 0) return false;
         if (v === k) return true;
         i = (i + 1) & mask;
       }
+      return false;
     },
-    get size() { return size; }
+    get size() { return size; },
+    get slots() { return n; }
   };
 }
 
@@ -121,7 +147,9 @@ function keySet(capHint) {
  * @returns { keys: Float64Array（DFS 序）, visited: 展开过的浅层局面数 }
  */
 function enumerateFrontier(N, onProgress) {
-  const seen = keySet(1 << 22);
+  // ⚠ 只是**初始**容量（装到一半会自动翻倍，见 keySet 抬头那条 ⛔）：ply 每深一手局面约 ×2.6，
+  //   给个随 N 走的起点只是省几次重排，给小了不再有正确性后果。
+  const seen = keySet(N <= 10 ? (1 << 21) : (1 << 21) * Math.pow(2, Math.min(N - 10, 8)));
   const out = [];
   const sb = B.searchBoard(B.newBoard());
   let visited = 0;
@@ -284,7 +312,13 @@ function main() {
   const STOP_AFTER = Number(argOf('stop-after', 0));   // 秒；>0 = 只跑这么久（探吞吐用）
   const PARTS = OUT + '.parts';
 
-  if (!Number.isInteger(N) || N < 1 || N > 20) throw new Error('--ply 必须是 1..20 的整数');
+  // ⛔ 三个参数都要校验，不只 --ply：`--workers=abc` ⇒ `Number('abc')` = NaN ⇒
+  //   起 worker 的 `for (i < NaN)` 一次都不进 ⇒ **退出码 0、零输出、零报错**，
+  //   看起来像「跑完了」，实际一个局面都没算（P1 code review 实锤）。
+  if (!Number.isInteger(N) || N < 1 || N > 20) throw new Error('--ply 必须是 1..20 的整数，收到 ' + argOf('ply', ''));
+  if (!Number.isInteger(WORKERS) || WORKERS < 1 || WORKERS > 256) throw new Error('--workers 必须是 1..256 的整数，收到 ' + argOf('workers', ''));
+  if (!Number.isInteger(BLOCK) || BLOCK < 1) throw new Error('--block 必须是正整数，收到 ' + argOf('block', ''));
+  if (!Number.isFinite(STOP_AFTER) || STOP_AFTER < 0) throw new Error('--stop-after 必须是非负数，收到 ' + argOf('stop-after', ''));
 
   console.log('gen-book：classic / ply=' + N + ' / workers=' + WORKERS + ' / block=' + BLOCK);
   console.log('输出 ' + OUT);
@@ -307,16 +341,28 @@ function main() {
     kh = Math.imul(kh ^ lo, 0x01000193) >>> 0;
     kh = Math.imul(kh ^ hi, 0x01000193) >>> 0;
   }
-  const manifest = { ply: N, count: M, block: BLOCK, keyHash: kh, format: BOOK.FORMAT };
+  // ⛔⛔ **srcHash 必须进 manifest**（P1 Task 7 code review 实锤的 Critical）：
+  //   keyHash 只保住「**算哪些局面**没变」，完全保不住「**用哪版求解器算的**没变」。
+  //   而「几小时的生成中途改代码、然后接着续跑」正是本工具设计出来鼓励的用法 ——
+  //   评审员往 solver 注入一个符号 bug 再续跑，gen-book **一声没吭**接着算，断点目录里
+  //   同时躺着两版求解器的分数（36 个块奇偶正常 / 3 个块奇偶反常），拼出一本**混血库**。
+  //   ⚠ 那次的 bug 恰好破坏奇偶、被 test-book §4b 兜住了；但**保持奇偶**的求解器 bug
+  //     （比如某类局面 nWin 差 2）在 <5% 污染率下会同时躲过 §4b、§4c 和 §4d 的抽样 ——
+  //     混血库是**没有任何下游门禁能保证抓到**的，只能在这里堵死。
+  //   ⇒ 源码一动就拒绝续跑（要么改回去，要么 --clean 重来）。宁可重跑三小时，不许拼。
+  const manifest = { ply: N, count: M, block: BLOCK, keyHash: kh, format: BOOK.FORMAT, srcHash: srcHash() };
 
   if (hasFlag('clean') && fs.existsSync(PARTS)) fs.rmSync(PARTS, { recursive: true });
   fs.mkdirSync(PARTS, { recursive: true });
   if (fs.existsSync(manifestPath)) {
     const old = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-    for (const f of ['ply', 'count', 'block', 'keyHash', 'format']) {
+    for (const f of ['ply', 'count', 'block', 'keyHash', 'format', 'srcHash']) {
       if (old[f] !== manifest[f]) {
-        throw new Error('断点数据与本次不匹配（' + f + '：' + old[f] + ' ≠ ' + manifest[f] +
-          '）。局面清单变了就不能续跑 —— 用 --clean 重来。');
+        throw new Error('断点数据与本次不匹配（' + f + '：' + old[f] + ' ≠ ' + manifest[f] + '）。' +
+          (f === 'srcHash'
+            ? '⛔ solver/bitboard/rules 的源码变了 —— 续跑会把**两版求解器**的分数拼进同一个文件，' +
+              '而「保持奇偶」的那类 bug 没有任何下游门禁挡得住。要么把源码改回去，要么 --clean 从头重来。'
+            : '局面清单变了就不能续跑 —— 用 --clean 重来。'));
       }
     }
   } else {
