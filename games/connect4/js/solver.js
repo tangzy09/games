@@ -182,7 +182,33 @@
     if (!keepTable) ttOverflow = true;
   }
 
+  // ⭐ ─── 开局库（Task 7，DESIGN §2.1 / §9.2）───
+  // 默认**没有库** ⇒ 本文件的行为与 Task 6 定稿版逐位相同（tests 的节点数上限门禁、
+  // DESIGN §10 的地面真值都在无库状态下跑，装库不影响它们）。
+  // 契约：`{ ply: 整数手数, get(key) -> 分数 | undefined }`，key 就是本文件 keyOf 的输出
+  // （**已镜像归一**）。分数是「该局面轮走方视角的精确分」，与本文件的分数约定完全一致。
+  // ⛔ 运行时装库的唯一入口；⛔ gen-book 生成期间绝不许装（会拿自己的输出喂自己）。
+  // ⚠ bookPly 单独存一个数：热路径上 `n === bookPly` 是一次 SMI 比较，
+  //   写成 `book !== null && n === book.ply` 会在每个节点上多一次属性读。
+  //   ⇒ 没库时 bookPly = -1，而 n ≥ 0，比较恒假。
+  let book = null, bookPly = -1;
+  /** @param b 库对象或 null（卸载）。⛔ 形状不对就当场抛错 —— 一个「装上了但其实没生效」
+   *  的库会让运行时静默地慢下去（然后被读成「求解器变慢了」），比崩掉难查得多。 */
+  function setBook(b) {
+    if (b === null || b === undefined) { book = null; bookPly = -1; return; }
+    if (!Number.isInteger(b.ply) || b.ply < 1 || b.ply > B.CELLS) {
+      throw new Error('开局库的 ply 必须是 1..' + B.CELLS + ' 的整数，收到 ' + String(b.ply));
+    }
+    if (typeof b.get !== 'function') throw new Error('开局库必须提供 get(key) 函数');
+    book = b; bookPly = b.ply;
+  }
+
   /** 局面的无损 key（推导见上），**取自身与左右镜像的较小者**。
+   *  ⭐ **已导出**（Task 7）：开局库的键就是它，三处（gen-book 写 / book.js 读 / 下面 negamax 查）
+   *     共用这**一个**定义。⚠ 因为它归一了镜像，库里一条记录同时服务一个局面和它的镜像
+   *     ⇒ 库直接小一半；也因此库里**只许存分数、不许存着法**（着法跨镜像要翻列号）。
+   *  ⚠ 它编码了 (子力分布 + 列高 + 轮走方)，不编码手数列表 ⇒ 走法顺序不同但局面相同的两局
+   *     共用一条记录（这正是我们要的）。
    *  `me[c] + (1 << h[c])` 是 `me[c] + mask[c] + 1` 的等价形式，少一次数组读与一次或运算 ——
    *  两种写法在深度 ≤ 10 的全部局面上逐位相同（穷举验证过）。
    *
@@ -366,6 +392,24 @@
       if (r < B.H && ((_tMe[c] >>> r) & 1)) return B.CELLS - n;
     }
 
+    // ─── ⭐ 开局库探查（Task 7）───
+    // 位置：**在当场制胜扫描之后**。两个理由，都不是风格问题：
+    //   1) 库里因此不必收「轮走方一手连四」的局面（ply 10 少 22%、ply 8 少 15%），
+    //      而它们本来就 0 成本；
+    //   2) 与置换表探查分开：TT 那次在最前面（命中就连 threatMask 都省了），库这次晚一点点，
+    //      多付一次 threatMask —— 但 n === bookPly 的节点在一次搜索里只占很小一撮，无所谓。
+    // ⭐ **为什么在任何窗口下返回它都合法**：库里存的是 exactScore 的输出 = 这个局面的**真分数**，
+    //    与窗口、与谁来查、与调用历史都无关（和置换表的 F_EXACT 同一个道理，见 keyOf 那段的 ⭐）。
+    //    key 也用同一个 keyOf ⇒ **镜像归一天然对齐**，库直接小一半，且不需要翻列号
+    //    （库里不存着法，只存一个分数 —— 存了着法才必须跟着镜像翻，那是静默错的入口）。
+    // ⛔ **查不到就必须继续正常搜索，绝不许编一个值**：库缺失/残缺/版本不符时游戏只是变慢，
+    //    不许变错（DESIGN §9.2）。`book.get` 返回 undefined 就是「不知道」。
+    // ⛔ 也别顺手把它 ttPut 进置换表：白占槽位，而库查本来就是 O(1)。
+    if (n === bookPly) {
+      const bv = book.get(key);
+      if (bv !== undefined) return bv;
+    }
+
     // 上界：不能当场赢 ⇒ 最早 nWin = n+3 ⇒ CELLS+1-(n+3) = CELLS-2-n。**但必须夹到 ≥ 0**，
     // 推导与实锤见文件头「上界 max」一节 —— n = CELLS-1 时裸公式给 -1，会凭空造出 +1。
     let max = B.CELLS - 2 - n;
@@ -516,9 +560,12 @@
    *    静默变小、零报错。而 nodes 将来喂的是诚实分档 AI 的搜索预算和 gen-book.js
    *    的进度 —— 错了没有任何一处会响。计数器只许有一个开关。
    * @param sb 非终局的 searchBoard（由调用方 B.searchBoard 出来，本函数不再复制）
-   * @returns { cols: [{c, score}], nodes }
+   * @param scoreOnly true = 只算**局面自身**的一个精确分（scoreOf / gen-book 用），
+   *        不把每一列都精确化。⭐ 两条出口共用这**同一个**闸口，正是上面那条 ⛔ 的要求：
+   *        别为 scoreOf 另写一个 `_nodes = 0`，第二个重置点就是那条静默 bug 的入口。
+   * @returns { cols: [{c, score}] | null, score: number | undefined, nodes }
    */
-  function analyze(sb) {
+  function analyze(sb, scoreOnly) {
     _nodes = 0;
     // ⛔ **置换表的清空必须和 _nodes 的重置绑在这同一个闸口上**，理由与计数器同源但更硬：
     //    表里存的是「局面 → 分数」的纯函数关系，key 又是无损的 ⇒ 跨次调用复用其实**不会
@@ -531,6 +578,13 @@
     // ⭐ setKeepTable(true) 时**故意不清**（离线 gen-book 专用，见那里的说明）——
     //    但表还没分配的话仍要走一次 ttReset 去分配。
     if (!keepTable || ttQ === null) ttReset();
+    if (scoreOnly) {
+      // ⚠ `+ 0` 把 exactScore 可能返回的 `-0` 洗成 `+0`（那边的 ⚠ 说得很清楚：清洗只有
+      //   调用点做）。⛔ 别照 rootScores 写成 `0 - exactScore(sb)` —— 那是**取反**，
+      //   rootScores 需要取反（它要的是父节点视角），这里不需要（要的就是本局面的分数），
+      //   写错了整本开局库的符号全反，而门禁之外没有任何一处会报错。
+      return { cols: null, score: exactScore(sb) + 0, nodes: _nodes };
+    }
     const cols = rootScores(sb);
     return { cols: cols, nodes: _nodes };
   }
@@ -594,13 +648,36 @@
     return out;
   }
 
+  /**
+   * ⭐ 局面**自身**的精确分数（当前行棋方视角，约定见文件头）。开局库生成器的主力入口。
+   * @param bd 普通盘或搜索盘皆可；**绝不会被修改**
+   * @returns { score, nodes }
+   * ⚠ **它与 solve().score 恒等，但便宜得多**：solve/scoreAll 走 rootScores，把**每一列**
+   *   都精确化（提示/精准度/妙手判定一列都不能少）；本函数只要一个数，αβ 可以在兄弟列之间
+   *   自由剪枝。实测比值见 tools/gen-book.js 抬头 —— 这个差价乘上几十万个局面，
+   *   就是「跑一夜」与「跑一周」的区别。
+   * ⛔ **已终局的局面直接抛错**，不像 solve 那样返回 0：solve 返回 0 时还配着 `best: []`
+   *   这个能被下游看见的信号，而一个光秃秃的 0 与「和棋」完全无法区分 —— 开局库里混进一条
+   *   「终局局面 = 和棋」是最标准的静默谎言。调用方自己先查 R.terminal。
+   */
+  function scoreOf(bd) {
+    if (R.terminal(bd) !== null) {
+      throw new Error('scoreOf：已终局的局面没有「当前方的分数」，先自己查 R.terminal');
+    }
+    const a = analyze(B.searchBoard(bd), true);
+    return { score: a.score, nodes: a.nodes };
+  }
+
   // 与 rules-classic.js 同样冻结：不在热路径上（只是属性读取），零代价，却能挡住
   // `S.solve = () => ({score:0,best:[3]})` 这类把真值整个换掉的误用 —— 求解器被悄悄
   // 替换掉，上面每一层仍会「正常工作」，正是本文件最怕的失败模式。
-  // ⚠ setKeepTable 是**离线专用**的第三个导出（Task 7 gen-book），默认关、行为与不导出时
+  // ⚠ setKeepTable 是**离线专用**的导出（Task 7 gen-book），默认关、行为与不导出时
   //   完全一致。⛔ 运行时（Worker/UI）永远不许调它：一旦打开，nodes 就不再是「只由局面决定」
   //   的量，而 DESIGN §10 的节点数上限门禁与 AI 分档的搜索预算都读 nodes。
-  const API = Object.freeze({ solve, scoreAll, setKeepTable });
+  // ⚠ keyOf 导出出去**只为了让开局库与置换表共用同一个 key 定义**（gen-book 写、book.js 读、
+  //   negamax 查，三处必须逐位一致）。⛔ 别在别处再抄一份「差不多的」key 函数：两份定义漂移
+  //   之后，库会安静地按错 key 命中——那正是「库说谎」的标准剧本（Task 7 门禁的由来）。
+  const API = Object.freeze({ solve, scoreAll, scoreOf, keyOf, setKeepTable, setBook });
   // ⚠ 浏览器侧按 root.Bitboard / root.RulesClassic 取依赖 ⇒ index.html 里
   //   bitboard.js → rules-classic.js → solver.js 的**脚本顺序不能乱**（乱了是
   //   「B is undefined」当场炸，响的，不是静默错，但仍别踩）。
