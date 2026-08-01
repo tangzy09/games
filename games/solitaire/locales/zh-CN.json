@@ -232,6 +232,9 @@
     "insWf": "翻牌 → 收牌堆",
     "insWt": "翻牌 → 列",
     "insFt": "收牌堆 → 拿回来",
-    "brilliantTotal": "妙手次数"
+    "brilliantTotal": "妙手次数",
+    "homeTag": "每一局都存在解法——而且我们能证明给你看。",
+    "homePlay": "开始",
+    "homeResume": "继续这一局"
   }
 }

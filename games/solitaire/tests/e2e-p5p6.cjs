@@ -42,8 +42,10 @@ async function click(page, action, dm){
   await page.evaluate(() => { if (G.phase === 'INTRO') dispatch('INTRO_GO'); });
   await page.waitForTimeout(80);
 
-  // ── 菜单 ──
-  ok(await click(page,'MENU'), '「菜单」入口可点');
+  // ── 菜单（真实路径已变：PLAY 的 '‹' 回 🏠 主界面，MENU 在主界面的「⋯ 更多」里）──
+  ok(await click(page,'HOME'), "PLAY 顶栏 '‹' 回主界面");
+  await page.waitForTimeout(300);
+  ok(await click(page,'MENU'), '主界面「⋯ 更多」进菜单');
   await page.waitForTimeout(150);
   ok(await page.evaluate(()=>G.phase==='MENU'), '进入菜单');
   await page.screenshot({path:path.join(SHOT,'p5-01-menu.png')});
@@ -55,7 +57,8 @@ async function click(page, action, dm){
   await click(page,'PLAY'); await page.waitForTimeout(100);
 
   // ── 收藏 + 看广告赚币 + 买牌背 ──
-  await click(page,'MENU'); await page.waitForTimeout(100);
+  await click(page,'HOME'); await page.waitForTimeout(250);
+  await click(page,'MENU'); await page.waitForTimeout(150);
   ok(await click(page,'SHOP'), '收藏可进');
   await page.waitForTimeout(120);
   await page.screenshot({path:path.join(SHOT,'p5-03-shop.png')});

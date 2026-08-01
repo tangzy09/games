@@ -33,6 +33,7 @@
     "test:sol:exp3": "node games/solitaire/tests/e2e-exp3.cjs",
     "test:sol:exp4": "node games/solitaire/tests/e2e-exp4.cjs",
     "test:sol:coach": "node games/solitaire/tests/e2e-coach.cjs",
-    "test:sol:spider": "node games/solitaire/tests/e2e-spider.cjs"
+    "test:sol:spider": "node games/solitaire/tests/e2e-spider.cjs",
+    "test:sol:home": "node games/solitaire/tests/e2e-home.cjs"
   }
 }

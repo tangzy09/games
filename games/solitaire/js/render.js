@@ -136,6 +136,147 @@
     return L;
   }
 
+  /**
+   * 🏠 主界面 —— 启动的第一屏（首启除外，那里是第 1 课）。照 snake 的天使主页做的纸牌版。
+   *
+   * ⭐ 为什么值得单独做一屏：主界面是**每次回访的必经之路**。把「你在这儿攒了多少东西」
+   *   摆在脸上（天使 n/500、教学 n/4、成就 n/18、连续天数），比任何弹窗都更能把人拉回来——
+   *   **空按钮不给人点进去的理由**（snake 实锤：每个入口都挂一个数字角标）。
+   * ⚠ hero 用**玩家最近解锁的那张天使**，不是固定图：它是「我的收藏」，不是装饰画。
+   *   没有解锁过 / 素材没加载 ⇒ 回退画四花色（零素材依赖，绝不空着 —— 引擎美术回退的老规矩）。
+   */
+  function renderHome() {
+    clearHits();
+    const L = Layout.layout({ noBanner: true });
+    const { SW, SH } = GameGlobal;
+    const G0 = root.G;
+    Sprite.drawTable(ctx, 0, 0, SW, SH, Money.state.table);
+    drawDim('rgba(0,0,0,0.30)');                  // 压暗一层，白字/卡片才浮得出来
+    const cx = L.cx, w = Math.min(L.playW - 36, 360);
+    const tall = SH >= 760;
+
+    // ⭐ 先量后画：canvas 不会滚动，屏幕高一截就在底部留一大片死白。
+    //   固定块高度是可算的 ⇒ 把富余高度**平摊进 7 个间隙**，任何机型都刚好填满。
+    const hs = Math.min(w * 0.60, SH * (tall ? 0.235 : 0.215));
+    const ch = tall ? 50 : 42;                    // 收集进度卡
+    const bh = tall ? 52 : 44;                    // 主按钮
+    const dh = tall ? 40 : 34;                    // 每日
+    const gh = tall ? 46 : 40;                    // 菜单格
+    const sh2 = tall ? 38 : 32;                   // 底部小钮
+    const titleH = tall ? 34 : 27, tagH = tall ? 30 : 24;
+    const fixed = hs + 10 + titleH + tagH + ch + bh + dh + 3 * gh + 2 * 8 + sh2;
+    const GAPS = 7, base = tall ? 12 : 7;
+    // ⛔ 右上角是引擎 DOM 控制栏（#controls: safeTop+8，高 ctrlH）的地盘 —— canvas 画到那儿
+    //   会被盖住且点不动。hero 是整屏最宽的一块 ⇒ **整体起在 ctrlH 之下**，从根上避开。
+    const top0 = GameGlobal.safeTop + GameGlobal.ctrlH + (tall ? 6 : 2);
+    const slack = SH - top0 - 12 - fixed - GAPS * base;
+    const gap = base + Math.max(0, Math.min(22, slack / GAPS));
+    let y = top0;
+    const hx = cx - hs / 2;
+    const file = G0.angels > 0 ? Angels.fileAt(G0.angels - 1) : null;
+    const im = file ? Angels.img(file) : null;
+    fillRR(hx - 5, y - 5, hs + 10, hs + 10, 22, 'rgba(255,255,255,0.88)');
+    if (im) {
+      ctx.save();
+      Sprite.rr(ctx, hx, y, hs, hs, 18); ctx.clip();
+      const sc = Math.max(hs / im.width, hs / im.height);
+      ctx.drawImage(im, hx + (hs - im.width * sc) / 2, y + (hs - im.height * sc) / 2,
+                    im.width * sc, im.height * sc);
+      ctx.restore();
+    } else {
+      fillRR(hx, y, hs, hs, 18, '#f4f7f5');
+      const q = hs / 2;
+      [['\u2660', '#1b1b1b'], ['\u2665', '#d33344'], ['\u2663', '#177a3a'], ['\u2666', '#2166c9']]
+        .forEach((sv, i) => txt(sv[0], hx + q * (0.5 + (i % 2)), y + q * (0.5 + Math.floor(i / 2)),
+                                sv[1], Math.round(q * 0.62) + 'px sans-serif'));
+    }
+    addHit(hx, y, hs, hs, 'GALLERY', {});         // 点大图 = 进图鉴
+    y += hs + gap;
+
+    // ── 标题 + 一句话卖点（这一句就是产品的整个差异化）──
+    txt('Fair Deal', cx, y + (tall ? 14 : 12), '#ffd84d', 'bold ' + (tall ? 30 : 25) + 'px sans-serif');
+    y += titleH;
+    ctx.font = '11px sans-serif';               // ⚠ 同上：wrapLines 之前必设 font
+    wrapLines(T('sol.homeTag'), w - 10, 2).forEach((ln, i) =>
+      txt(ln, cx, y + 8 + i * 14, PAL.sub, '11px sans-serif'));
+    y += tagH + gap - base;
+
+    // ── 收集进度卡（天使 n/500 + 百分比 + 条）──
+    const tot = Angels.total() || 500;
+    const got = Math.min(G0.angels || 0, tot);
+    fillRR(cx - w / 2, y, w, ch, 11, 'rgba(0,0,0,0.34)');
+    txtL('\ud83d\uddbc\ufe0f ' + T('sol.galleryProgress', { n: got, m: tot }),
+         cx - w / 2 + 12, y + 15, '#fff', 'bold 12px sans-serif');
+    txtR((got / tot * 100).toFixed(1) + '%', cx + w / 2 - 12, y + 15, '#ffd84d', 'bold 12px sans-serif');
+    fillRR(cx - w / 2 + 12, y + 25, w - 24, 7, 4, 'rgba(255,255,255,0.16)');
+    if (got) fillRR(cx - w / 2 + 12, y + 25, Math.max(4, (w - 24) * got / tot), 7, 4, '#ffd84d');
+    if (tall) {
+      const lvl = levelOf(G0.xp || 0);
+      txtL(T('sol.' + levelTitleKey(lvl)) + ' \u00b7 ' + T('sol.lvl', { n: lvl }),
+           cx - w / 2 + 12, y + 42, 'rgba(255,255,255,0.6)', '10px sans-serif');
+      txtR(T('sol.coins', { n: Money.coins }), cx + w / 2 - 12, y + 42, '#ffd84d', 'bold 10px sans-serif');
+    }
+    y += ch + gap;
+
+    // ── ▶ 主按钮：**智能续继**（局中未完 ⇒ 继续这一局，别把人扔回新局）──
+    const resuming = G0.s && !G0.s.won && G0.s.moves.length > 0;
+    fillRR(cx - 105, y, 210, bh, 14, '#22c55e');
+    txt(resuming ? T('sol.homeResume') : T('sol.homePlay'), cx, y + bh / 2, '#fff',
+        'bold ' + (tall ? 18 : 16) + 'px sans-serif');
+    addHit(cx - 105, y, 210, bh, 'HOME_PLAY', {});
+    y += bh + Math.min(gap, 14);
+
+    // ── 🎁 每日挑战（回访钩子：连续天数就摆在按钮上）──
+    const doneToday = G0.dailyDone === todayId();
+    const days = dailyStreakDays();
+    fillRR(cx - 105, y, 210, dh, 11, doneToday ? 'rgba(255,255,255,0.18)' : '#ffd84d');
+    txt((doneToday ? '\u2713 ' : '\ud83d\udcc5 ') + T('sol.daily')
+        + (days ? '  \ud83d\udd25' + days : ''),
+        cx, y + dh / 2, doneToday ? '#fff' : '#3a2a00', 'bold 13px sans-serif');
+    addHit(cx - 105, y, 210, dh, 'DAILY', {});
+    y += dh + gap;
+
+    // ── 2×3 菜单网格：每格都挂一个「你在这儿有多少东西」的角标 ──
+    const lessN = Object.keys(G0.lessonsDone || {}).length;
+    const achN = Object.keys(G0.ach || {}).length;
+    const cells = [
+      ['\ud83c\udf93', T('sol.lessons'), lessN + '/4', 'LESSON'],
+      ['\ud83d\udc7c', T('sol.gallery'), got + '', 'GALLERY'],
+      ['\ud83c\udfc6', T('sol.achievements'), achN + '', 'ACH'],
+      ['\ud83c\udfb4', T('sol.collection'), '', 'SHOP'],
+      ['\ud83d\udcca', T('sol.stats'), '', 'STATS'],
+      ['\u2699', T('sol.settings'), '', 'SET'],
+    ];
+    const gw = (w - 8) / 2;
+    cells.forEach(function (c, i) {
+      const bx = cx - w / 2 + (i % 2) * (gw + 8), by = y + Math.floor(i / 2) * (gh + 8);
+      fillRR(bx, by, gw, gh, 10, 'rgba(0,0,0,0.34)');
+      txt(c[0], bx + 22, by + gh / 2, '#fff', '17px sans-serif');
+      ctx.font = 'bold 11px sans-serif';          // ⚠ wrapLines 按当前 font 量宽，必须先设回来
+      txtL(wrapLines(c[1], gw - 62, 1)[0], bx + 40, by + gh / 2, '#fff', 'bold 11px sans-serif');
+      if (c[2]) txtR(c[2], bx + gw - 10, by + gh / 2, '#ffd84d', 'bold 11px sans-serif');
+      addHit(bx, by, gw, gh, c[3], {});
+    });
+    y += 3 * gh + 2 * 8 + gap;
+
+    // ── 底部小钮：更多 / 公平页 / 怎么玩 / 减弱动态 ──
+    const sw = (w - 24) / 4;
+    // \u26a0 **\u7eaf\u56fe\u6807\u94ae\u5fc5\u987b\u914d\u6587\u5b57**\uff1a\u7f29\u5230 15px \u7684 emoji \u8ba4\u4e0d\u51fa\u6765\uff08\u9a8c\u56fe\u5b9e\u9524\uff1a\u2696 \u770b\u7740\u50cf\u4e24\u4e2a\u5c0f\u4eba\uff09\u3002
+    //   \u56db\u4e2a\u683c\u5b50\u5404 ~84px\uff0c\u56fe\u6807\u5728\u4e0a\u30018px \u5c0f\u5b57\u5728\u4e0b\uff0c\u521a\u597d\u653e\u5f97\u4e0b\u3002
+    [['\u22ef', T('sol.menu'), 'MENU'], ['\u2696\ufe0f', T('sol.fair'), 'FAIR'],
+     ['\u2753', T('sol.help'), 'HELP'],
+     [G0.reduceFx ? '\ud83c\udf43' : '\u2728', T('sol.reduceFx'), 'TOG_RFX']].forEach(function (b, i) {
+      const bx = cx - w / 2 + i * (sw + 8);
+      fillRR(bx, y, sw, sh2, 10, 'rgba(255,255,255,0.14)');
+      txt(b[0], bx + sw / 2, y + sh2 / 2 - 6, '#fff', '14px sans-serif');
+      ctx.font = '8px sans-serif';                // \u26a0 wrapLines \u6309\u5f53\u524d font \u91cf\u5bbd
+      txt(wrapLines(b[1], sw - 6, 1)[0], bx + sw / 2, y + sh2 - 8,
+          'rgba(255,255,255,0.72)', '8px sans-serif');
+      addHit(bx, y, sw, sh2, b[2], {});
+    });
+    drawToast();
+  }
+
   /** 菜单：档案头 / 每日锦标赛 / 每日 / 图鉴 / 统计 / 成就 / 收藏 / 公平 / 设置 */
   function renderMenu() {
     const L = page(T('sol.menu'));
@@ -837,6 +978,7 @@
     if (ph === 'SET') return renderSettings();
     if (ph === 'INTRO') return renderIntro();
     if (ph === 'FAIR') return renderFair();
+    if (ph === 'HOME') return renderHome();
     if (ph === 'MENU') return renderMenu();
     if (ph === 'STATS') return renderStats();
     if (ph === 'ACH') return renderAch();
@@ -1022,7 +1164,7 @@
       txt(label, x + 17, r1y + 14, '#fff', '15px sans-serif');
       addHit(x, r1y, 34, 28, act, {});
     };
-    iconBtn(L.playX + 8, '‹', 'MENU');
+    iconBtn(L.playX + 8, '‹', 'HOME');       // ‹ = 回主界面（MENU 挂在主界面的「⋯ 更多」里）
     iconBtn(L.playX + 46, '⚙', 'SET');
     iconBtn(L.playX + 84, '🎨', 'SHOP');
     // ⚠ Spider 不进可解池 ⇒ 绝不打「✓ 有解」（打了就是系统性撒谎，措辞死线同理）

@@ -89,6 +89,22 @@ Klondike 专属、本局上限 3、真卡死/prover 判死才点亮入口。⚠ 
 ⛔ **没抄的**：竞品的提示/撤销是限量道具(9/10 次)——撞「永远免费」红线,这是差异化资产,永远不学。
 E2E：`npm run test:sol:exp4`。
 
+**🏠 主界面（2026-07-31，照 snake 的天使主页做的纸牌版）**：新 `HOME` phase，
+**启动落点**（首启仍是 INTRO —— 头 5 秒必须撞到差异化）。构成：hero 天使大图（取
+**玩家最近解锁的那张**，是「我的收藏」不是装饰画；没解锁/素材没加载 ⇒ 回退画四花色）→
+标题 + 一句话卖点 → 收集进度卡（n/500 + 百分比 + 条 + 等级/金币）→ **智能续继主按钮**
+（局中未完 ⇒「继续这一局」，别把人扔回新局）→ 每日挑战（带 🔥 连续天数）→ 2×3 入口网格
+（每格挂数字角标：教学 n/4、天使 n、成就 n —— **空按钮不给人点进去的理由**）→
+底部四钮（更多/公平/怎么玩/减弱动态）。
+⚠ **导航变了**：PLAY 顶栏 `‹` 现在回 HOME，**MENU 挂在主界面的「⋯ 更多」里**
+（e2e-p5p6 / e2e-settings / e2e-exp4 已按真实路径改）。
+三个坑（都是验图抓出的）：① canvas 不滚动 ⇒ **先量后画**，把富余高度平摊进 7 个间隙，
+否则高屏底部一大片死白；② `wrapLines` **按当前 ctx.font 量宽**（本文件开头就警告过），
+画完 17px 图标不设回 11px ⇒ 文字被截成「Angel Gall…」；③ 15px 的纯 emoji 认不出来
+（⚖ 看着像两个小人）⇒ **图标钮必须配文字**。
+⛔ 整屏起点 = `safeTop + ctrlH`：hero 是最宽的一块，不下移就贴到右上角引擎 DOM 语言控件了。
+E2E：`npm run test:sol:home`；`tools/shot-notch.cjs` 已支持 `extras` 多截几屏（solitaire-home）。
+
 **五期·把求解器变成教练（2026-07-31，用户点名四件）**：
 **① Spider 蜘蛛纸牌**（`js/rules-spider.js`，三合一的第三块）——104 张 = **8 份**×13
 （⚠ id 编码 `copy*52+rank*4+suit`，copy 0..7，1 花色档要 8 份同花；单测抓出过「只有 26 张」）、
@@ -280,6 +296,7 @@ node games/solitaire/tests/e2e-freecell.cjs  # FreeCell
 node games/solitaire/tests/e2e-p5p6.cjs      # 菜单/收藏 + ⭐变现红线（写成测试）
 npm run test:sol:spider     # Spider（三合一第三块）
 npm run test:sol:coach      # ⭐ 求解器当教练：难度阶梯 / 妙手 / 我的弱点 / 互动教学
+npm run test:sol:home       # 🏠 主界面（启动落点 / 智能续继 / 入口角标 / 刘海）
 node games/solitaire/tools/test-freecell.js  # ⭐ 微软局号地面真值（#11982 必须无解）
 node games/solitaire/tools/test-prover.js    # ⭐ 证明器不许对已知有解的局说「死局」
 node games/solitaire/tools/measure-deadlock.js 40 3 blind   # 那个 45% 是怎么来的

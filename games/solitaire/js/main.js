@@ -891,6 +891,13 @@ function dispatch(action, data) {
       break;
     }
     case 'PLAY': goPhase('PLAY'); break;
+    case 'HOME': goPhase('HOME'); break;
+    // 🏠 主按钮**智能续继**：局中未完就接着打（把人扔回新局 = 白丢一局进度）
+    case 'HOME_PLAY': {
+      if (!(G.s && !G.s.won && G.s.moves.length > 0)) newGame();
+      goPhase('PLAY');
+      break;
+    }
     case 'UNDO': {
       // ⚠ 撤销永远免费、永远不看广告（DESIGN §7.4：纸牌的基本人权）
       const undone = s.moves[s.moves.length - 1];
@@ -1297,7 +1304,8 @@ async function boot() {
   }
 
   // ⭐ 第一次打开 → 先给首启一屏（App Store 4.3(a) 的主要防线：差异必须在头 5 秒撞到脸上）
-  if (!G.seenIntro) G.phase = 'INTRO';
+  //   之后每次启动落在 🏠 主界面（回访必经之路,收集/教学/成就的进度都摆在那儿）。
+  G.phase = G.seenIntro ? 'HOME' : 'INTRO';
 
   Input.bind({ onAction: dispatch });                       // 工具条
   Input2.bind(document.getElementById(CFG.canvasId), {      // 牌区：拖拽 + tap-to-move

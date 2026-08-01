@@ -232,6 +232,9 @@
     "insWf": "Descarte → base",
     "insWt": "Descarte → columna",
     "insFt": "Base → de vuelta",
-    "brilliantTotal": "Jugadas brillantes"
+    "brilliantTotal": "Jugadas brillantes",
+    "homeTag": "Toda mano tiene solución, y podemos demostrártelo.",
+    "homePlay": "Jugar",
+    "homeResume": "Continuar"
   }
 }

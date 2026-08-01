@@ -232,6 +232,9 @@
     "insWf": "Waste → foundation",
     "insWt": "Waste → column",
     "insFt": "Foundation → back down",
-    "brilliantTotal": "Brilliant moves"
+    "brilliantTotal": "Brilliant moves",
+    "homeTag": "Every deal has a solution — and we can prove it to you.",
+    "homePlay": "Play",
+    "homeResume": "Continue"
   }
 }

@@ -232,6 +232,9 @@
     "insWf": "めくり札 → 組札",
     "insWt": "めくり札 → 列",
     "insFt": "組札 → 戻す",
-    "brilliantTotal": "妙手の回数"
+    "brilliantTotal": "妙手の回数",
+    "homeTag": "どの配りにも解がある——しかも証明してみせます。",
+    "homePlay": "プレイ",
+    "homeResume": "続きから"
   }
 }
