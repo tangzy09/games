@@ -235,6 +235,17 @@
     "brilliantTotal": "Jogadas brilhantes",
     "homeTag": "Toda mão tem solução — e a gente prova para você.",
     "homePlay": "Jogar",
-    "homeResume": "Continuar"
+    "homeResume": "Continuar",
+    "hintDead": "Esta mão não tem mais solução — desfaça algumas jogadas ou pegue um Joker.",
+    "hintWin": "VITÓRIA",
+    "hintGuess": "PALPITE",
+    "adNoneLeft": "Acabaram os vídeos de hoje — volte amanhã.",
+    "adLeft": "restam {n} hoje",
+    "adBack": "Ver anúncio → verso de carta grátis",
+    "adBackGot": "Novo verso desbloqueado!",
+    "adBackAll": "Você já tem todos os versos!",
+    "galleryAdN": "Ver anúncio → +{n} anjos",
+    "watchAdN": "Ver anúncio → +{n} moedas",
+    "peekOn": "espiando"
   }
 }

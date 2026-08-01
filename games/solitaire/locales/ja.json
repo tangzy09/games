@@ -235,6 +235,17 @@
     "brilliantTotal": "妙手の回数",
     "homeTag": "どの配りにも解がある——しかも証明してみせます。",
     "homePlay": "プレイ",
-    "homeResume": "続きから"
+    "homeResume": "続きから",
+    "hintDead": "この配りにはもう解がありません——数手戻すか、🃏 を使いましょう。",
+    "hintWin": "必勝",
+    "hintGuess": "候補",
+    "adNoneLeft": "本日の回数を使い切りました。また明日。",
+    "adLeft": "本日あと {n} 回",
+    "adBack": "広告を見る → カード裏を 1 つ無料",
+    "adBackGot": "新しいカード裏を獲得！",
+    "adBackAll": "すべてのカード裏を持っています！",
+    "galleryAdN": "広告を見る → 天使 +{n} 枚",
+    "watchAdN": "広告を見る → コイン +{n}",
+    "peekOn": "透視中"
   }
 }

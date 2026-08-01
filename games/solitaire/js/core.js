@@ -269,6 +269,8 @@
     const match = m => {
       if (sel.p === 'w') return m.t === 'wf' || m.t === 'wt';
       if (sel.p === 'c') return (m.t === 'cf' || m.t === 'ct') && m.ci === sel.ci;
+      // ⭐ 从 foundation 取回（'ft'）——收早了的牌要能拿回来（Klondike 专属，见 rules-klondike）
+      if (sel.p === 'f') return m.t === 'ft' && m.fi === sel.fi;
       if (m.t === 'tf' || m.t === 'tc') return m.ti === sel.ti && sel.idx === topIdx(sel.ti);
       if (m.t === 'tt') return m.ti === sel.ti && m.idx === sel.idx;
       return false;
@@ -280,7 +282,7 @@
     const rank = m => {
       if (m.t === 'tf' || m.t === 'wf' || m.t === 'cf') return 0;
       if (m.t === 'tc') return 3;
-      const tj = m.t === 'wt' ? m.ti : m.tj;      // ⚠ wt 的目标列字段叫 ti，不是 tj
+      const tj = (m.t === 'wt' || m.t === 'ft') ? m.ti : m.tj;   // ⚠ wt/ft 的目标列字段叫 ti，不是 tj
       return s.tableau[tj].cards.length ? 1 : 2;
     };
     let best = null, bestR = Infinity;

@@ -235,6 +235,17 @@
     "brilliantTotal": "Brilliant moves",
     "homeTag": "Every deal has a solution — and we can prove it to you.",
     "homePlay": "Play",
-    "homeResume": "Continue"
+    "homeResume": "Continue",
+    "hintDead": "No solution left in this deal — undo a few steps, or grab a Joker.",
+    "hintWin": "WIN",
+    "hintGuess": "GUESS",
+    "adNoneLeft": "No watches left today — comes back tomorrow.",
+    "adLeft": "{n} left today",
+    "adBack": "Watch an ad → free card back",
+    "adBackGot": "New card back unlocked!",
+    "adBackAll": "You already own every card back!",
+    "galleryAdN": "Watch an ad → +{n} angels",
+    "watchAdN": "Watch an ad → +{n} coins",
+    "peekOn": "peeking"
   }
 }

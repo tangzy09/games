@@ -235,6 +235,17 @@
     "brilliantTotal": "Jugadas brillantes",
     "homeTag": "Toda mano tiene solución, y podemos demostrártelo.",
     "homePlay": "Jugar",
-    "homeResume": "Continuar"
+    "homeResume": "Continuar",
+    "hintDead": "Esta mano ya no tiene solución: deshaz unas jugadas o consigue un Joker.",
+    "hintWin": "GANA",
+    "hintGuess": "TANTEO",
+    "adNoneLeft": "No te quedan visionados hoy; vuelve mañana.",
+    "adLeft": "quedan {n} hoy",
+    "adBack": "Ver anuncio → dorso de carta gratis",
+    "adBackGot": "¡Nuevo dorso desbloqueado!",
+    "adBackAll": "¡Ya tienes todos los dorsos!",
+    "galleryAdN": "Ver anuncio → +{n} ángeles",
+    "watchAdN": "Ver anuncio → +{n} monedas",
+    "peekOn": "mirando"
   }
 }

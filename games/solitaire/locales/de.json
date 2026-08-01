@@ -235,6 +235,17 @@
     "brilliantTotal": "Glanzzüge",
     "homeTag": "Jedes Blatt ist lösbar — und wir beweisen es dir.",
     "homePlay": "Spielen",
-    "homeResume": "Fortsetzen"
+    "homeResume": "Fortsetzen",
+    "hintDead": "Dieses Blatt hat keine Lösung mehr — nimm ein paar Züge zurück oder hol einen Joker.",
+    "hintWin": "SIEG",
+    "hintGuess": "TIPP",
+    "adNoneLeft": "Heute keine Videos mehr übrig — morgen wieder.",
+    "adLeft": "heute noch {n}",
+    "adBack": "Video ansehen → gratis Kartenrücken",
+    "adBackGot": "Neuer Kartenrücken freigeschaltet!",
+    "adBackAll": "Du hast bereits alle Kartenrücken!",
+    "galleryAdN": "Video ansehen → +{n} Engel",
+    "watchAdN": "Video ansehen → +{n} Münzen",
+    "peekOn": "Blick"
   }
 }

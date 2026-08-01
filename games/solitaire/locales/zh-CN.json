@@ -235,6 +235,17 @@
     "brilliantTotal": "妙手次数",
     "homeTag": "每一局都存在解法——而且我们能证明给你看。",
     "homePlay": "开始",
-    "homeResume": "继续这一局"
+    "homeResume": "继续这一局",
+    "hintDead": "这一局已经没有解法了——撤销几步，或者用一张 🃏。",
+    "hintWin": "必胜",
+    "hintGuess": "试试",
+    "adNoneLeft": "今天的次数用完了，明天再来。",
+    "adLeft": "今日还剩 {n} 次",
+    "adBack": "看广告 → 白送一款牌背",
+    "adBackGot": "解锁了一款新牌背！",
+    "adBackAll": "所有牌背你都已经有了！",
+    "galleryAdN": "看广告 → +{n} 张天使",
+    "watchAdN": "看广告 → +{n} 金币",
+    "peekOn": "透视中"
   }
 }

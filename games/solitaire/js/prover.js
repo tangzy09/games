@@ -33,9 +33,15 @@
             if (mv && mv.t) root.noteWeak(mv.t);
           }
         }
+        // ⭐ 玩家点了「提示」在等结果 ⇒ 把解法的第一步交给他（见 main.js hintFromProof）
+        if (root.hintFromProof) root.hintFromProof();
         if (root.renderAll) root.renderAll();
       };
-      worker.onerror = () => { st.phase = 'done'; st.result = 'unknown'; if (root.renderAll) root.renderAll(); };
+      worker.onerror = () => {
+        st.phase = 'done'; st.result = 'unknown';
+        if (root.hintFromProof) root.hintFromProof();
+        if (root.renderAll) root.renderAll();
+      };
     } catch (e) { worker = null; }
     return worker;
   }

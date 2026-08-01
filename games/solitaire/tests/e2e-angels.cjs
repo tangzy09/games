@@ -74,12 +74,12 @@ async function click(page, action, dm){
   await page.waitForTimeout(400);
   ok(await page.evaluate(()=>G.angels===4&&G.lastAngelGain===3), '⭐ 每日挑战赢局解锁 3 张（1+2）');
 
-  // ── ③ 图鉴里看广告 +3 ──
+  // ── ③ 图鉴里看广告 +8（2026-07-31 加厚：+3 没人看，+8 才动手）──
   await page.evaluate(()=>dispatch('GALLERY'));
   await page.waitForTimeout(150);
-  ok(await click(page,'GAL_AD'), '图鉴有「看广告 +3」入口');
+  ok(await click(page,'GAL_AD'), '图鉴有「看广告 +8」入口');
   await page.waitForTimeout(500);
-  ok(await page.evaluate(()=>G.angels===7), `⭐ 看广告 +3（4 -> 7）`);
+  ok(await page.evaluate(()=>G.angels===12&&AD_GIVE.gallery===8), `⭐ 看广告 +8（4 -> 12，数量由 AD_GIVE 表定）`);
 
   // ── ④ 缩略图真实加载 + 大图查看 + 翻页 ──
   await page.waitForFunction(()=>!!Angels.img(Angels.fileAt(0)),{timeout:8000});
@@ -100,7 +100,7 @@ async function click(page, action, dm){
   await page.reload();
   await page.waitForFunction(()=>window.G&&window.G.s);
   await page.waitForTimeout(250);
-  ok(await page.evaluate(()=>G.angels===7), '解锁数持久化（只存计数,顺序全球一致）');
+  ok(await page.evaluate(()=>G.angels===12), '解锁数持久化（只存计数,顺序全球一致）');
 
   ok(errs.length===0, '全程零 error'+(errs.length?': '+errs.join(' | '):''));
   await browser.close(); srv.close();

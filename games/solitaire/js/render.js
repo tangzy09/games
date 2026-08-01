@@ -428,7 +428,8 @@
     //    （激励视频保留 —— 它不是 IAP，只换外观。）
     if (!Money.noAds && tall) {
       fillRR(cx - w / 2, y, w, 44, 10, 'rgba(255,255,255,0.14)');
-      txt('▶ ' + T('sol.watchAd') + '  ' + T('sol.watchAdSub'), cx, y + 22, '#fff', '13px sans-serif');
+      txt('▶ ' + T('sol.watchAdN', { n: AD_GIVE.coins }) + '   ' + T('sol.adLeft', { n: adLeft('coins') }),
+          cx, y + 22, adLeft('coins') ? '#fff' : 'rgba(255,255,255,0.45)', '13px sans-serif');
       addHit(cx - w / 2, y, w, 44, 'EARN_AD', {});
     }
 
@@ -568,10 +569,21 @@
       y += Math.ceil(Money.FXS.length / 4) * 60 + 12;
     }
 
+    // ⭐ 外观位：看一条广告白送一款牌背（1 次/天 —— 额度低才不贬值）
+    if (!Money.noAds && G.shopTab === 'back') {
+      const bl = adLeft('back');
+      fillRR(cx - w / 2, y, w, 40, 10, bl ? 'rgba(255,216,77,0.22)' : 'rgba(255,255,255,0.10)');
+      txt('🎁 ' + T('sol.adBack') + '   ' + T('sol.adLeft', { n: bl }), cx, y + 20,
+          bl ? '#ffd84d' : 'rgba(255,255,255,0.45)', 'bold 12px sans-serif');
+      addHit(cx - w / 2, y, w, 40, 'AD_BACK', {});
+      y += 48;
+    }
+
     // 小屏（SE 等）放不下这行 —— 图鉴/结算屏有同款激励入口，不缺
     if (!Money.noAds && GameGlobal.SH >= 760) {
       fillRR(cx - w / 2, y, w, 42, 10, 'rgba(255,255,255,0.14)');
-      txt('▶ ' + T('sol.watchAd') + '  ' + T('sol.watchAdSub'), cx, y + 21, '#fff', '12px sans-serif');
+      txt('▶ ' + T('sol.watchAdN', { n: AD_GIVE.coins }) + '   ' + T('sol.adLeft', { n: adLeft('coins') }),
+          cx, y + 21, adLeft('coins') ? '#fff' : 'rgba(255,255,255,0.45)', '12px sans-serif');
       addHit(cx - w / 2, y, w, 42, 'EARN_AD', {});
     }
   }
@@ -649,7 +661,9 @@
     // 看广告 +3（纯增益消耗端）
     if (!Money.noAds && G.angels < total) {
       fillRR(cx - w / 2, y, w, 38, 10, 'rgba(255,216,77,0.20)');
-      txt('▶ ' + T('sol.galleryAd'), cx, y + 19, '#ffd84d', 'bold 12px sans-serif');
+      const gl = adLeft('gallery');
+      txt('▶ ' + T('sol.galleryAdN', { n: AD_GIVE.gallery }) + '   ' + T('sol.adLeft', { n: gl }),
+          cx, y + 19, gl ? '#ffd84d' : 'rgba(255,255,255,0.45)', 'bold 12px sans-serif');
       addHit(cx - w / 2, y, w, 38, 'GAL_AD', {});
     }
 
@@ -1078,6 +1092,13 @@
             Math.round(L.cardW * 0.5) + 'px sans-serif');
         ctx.globalAlpha = 1;
       }
+      // ⭐ 选中了这摞（准备取回）⇒ 描黄框，否则点了没反馈、玩家以为点不动
+      if (G.sel && G.sel.p === 'f' && G.sel.fi === fi) {
+        ctx.save();
+        ctx.strokeStyle = '#ffd84d'; ctx.lineWidth = 3;
+        Sprite.rr(ctx, x + 1, L.topY + 1, L.cardW - 2, L.cardH - 2, L.cardW * 0.09);
+        ctx.stroke(); ctx.restore();
+      }
       addHit(x, L.topY, L.cardW, L.cardH, 'FOUND', { fi });
     }
 
@@ -1105,7 +1126,21 @@
         const isDragged = G.drag && G.drag.from === ti && i >= G.drag.idx;
         // ⚠ 正在**滑动**中的牌不能在目标位置画 —— 否则它会同时出现在两个地方
         if (!isDragged && !FX.isFlying(id)) {
-          ctx.drawImage(up ? Sprite.face(id) : Sprite.back(), x, y, L.cardW, L.cardH);
+          // ⭐ 透视（激励视频的局内增益）：暗牌半透明露出牌面。
+          //   ⚠ 它**不改牌局、不改随机**，只把已经定死的信息提前给你看 ⇒ 不碰公平红线。
+          const peek = !up && G.peekUntil > Date.now();
+          if (peek) {
+            // ⚠ 别拿牌背半透明盖在牌面上「意思一下」——点数照样看不清 = 等于没给（验图抓出）。
+            //   直接画牌面，再罩一层淡绿表示「这是透视出来的，牌还没真的翻开」。
+            ctx.drawImage(Sprite.face(id), x, y, L.cardW, L.cardH);
+            ctx.save();
+            ctx.globalAlpha = 0.22;
+            Sprite.rr(ctx, x, y, L.cardW, L.cardH, L.cardW * 0.09);
+            ctx.fillStyle = '#7ef2a0'; ctx.fill();
+            ctx.restore();
+          } else {
+            ctx.drawImage(up ? Sprite.face(id) : Sprite.back(), x, y, L.cardW, L.cardH);
+          }
           // 选中高亮（tap-to-move）
           if (G.sel && G.sel.p === 't' && G.sel.ti === ti && i >= G.sel.idx) {
             ctx.strokeStyle = PAL.hint; ctx.lineWidth = 3;
@@ -1143,7 +1178,7 @@
     }
 
     // ── 提示可视化：源牌黄框 + 落点绿虚线框（点了提示必须看得见东西）──
-    if (G.hintMove && !s.won) drawHintMove(s, L, G.hintMove);
+    if (G.hintMove && !s.won) drawHintMove(s, L, G.hintMove, G.hintWin);
 
     // ── 拖拽中的牌 ──
     if (G.drag) {
@@ -1271,6 +1306,24 @@
       fillRR(jx, jy, 52, 42, 12, 'rgba(255,216,77,0.30)');
       txt('🃏×' + G.jokers, jx + 26, jy + 21, '#ffd84d', 'bold 13px sans-serif');
       addHit(jx, jy, 52, 42, 'JOKER_USE', {});
+    }
+
+    // 👁 透视暗牌（激励视频·局内增益）：只在**真有暗牌**时出现，透视中显示倒计时。
+    //   ⚠ 它不改牌局，只把已经定死的信息提前给你看 ⇒ 不碰公平红线（但计 usedHint，不算干净赢）。
+    const downN = fc ? 0 : s.tableau.reduce((a, c) => a + (c.cards.length - c.up), 0);
+    if (!fc && !Money.noAds && downN > 0 && !s.won) {
+      const peeking = G.peekUntil > Date.now();
+      const px2 = L.playX + 8, py2 = L.proveY - 50;
+      const left = adLeft('peek');
+      fillRR(px2, py2, 52, 42, 12, peeking ? 'rgba(126,242,160,0.30)'
+                                 : left ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.08)');
+      txt(peeking ? '👁' + Math.ceil((G.peekUntil - Date.now()) / 1000) : '👁',
+          px2 + 26, py2 + 16, peeking ? '#7ef2a0' : left ? '#fff' : 'rgba(255,255,255,0.4)',
+          '15px sans-serif');
+      ctx.font = '8px sans-serif';
+      txt(peeking ? T('sol.peekOn') : T('sol.adLeft', { n: left }), px2 + 26, py2 + 33,
+          'rgba(255,255,255,0.7)', '8px sans-serif');
+      if (!peeking) addHit(px2, py2, 52, 42, 'AD_PEEK', {});
     }
 
     // ── 底部大圆钮（照竞品排版;⛔ 撤销/提示**永远免费无限**,绝不学它的限量道具）──
@@ -1410,7 +1463,11 @@
   };
 
   /** 提示的源/落点框（与 moveAnim 同一套 cardXY 坐标约定）*/
-  function drawHintMove(s, L, m) {
+  /**
+   * @param win true = 这一步来自**求解器的解法**（走下去能赢）；false = 启发式兜底。
+   * ⛔ 两者必须在 UI 上分得清 —— 把「我猜的」画成「我证明的」就是撒谎（措辞死线的同源要求）。
+   */
+  function drawHintMove(s, L, m, win) {
     const box = (p, color, dash) => {
       if (!p) return;
       ctx.save();
@@ -1429,8 +1486,14 @@
     else if (m.t === 'ct') { src = Layout.cardXY(s, { p: 'c', ci: m.ci }); dst = land(m.tj); }
     else if (m.t === 'cf') { src = Layout.cardXY(s, { p: 'c', ci: m.ci }); dst = { x: L.foundX(m.fi), y: L.topY }; }
     else if (m.t === 'ft') { src = { x: L.foundX(m.fi), y: L.topY }; dst = land(m.ti); }
-    box(src, '#ffd84d');
+    box(src, win ? '#7ef2a0' : '#ffd84d');
     box(dst, '#7ef2a0', true);
+    // 角标：绿色 ✓ = 求解器证明过的一步；黄色 ~ = 只是「看起来不错」
+    if (src) {
+      const bx = src.x + L.cardW - 16, by = src.y - 6;
+      fillRR(bx, by, 30, 15, 7, win ? '#7ef2a0' : 'rgba(255,216,77,0.92)');
+      txt(win ? T('sol.hintWin') : T('sol.hintGuess'), bx + 15, by + 8, '#0a3d22', 'bold 8px sans-serif');
+    }
   }
 
   /** 轻提示（分享已复制等）—— 谁在最后画谁在最上面 */

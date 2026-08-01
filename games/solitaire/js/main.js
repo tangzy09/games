@@ -101,6 +101,7 @@ const saveOpts = () => {
       difficulty: G.difficulty, dailyDone: G.dailyDone, dailyHist: G.dailyHist,
       badges: G.badges, ach: G.ach, angels: G.angels, seenIntro: G.seenIntro,
       spiderSuits: G.spiderSuits, diffLv: G.diffLv, diffBest: G.diffBest, insight: G.insight,
+      ads: G.ads,
       lessonsDone: G.lessonsDone,
       stage: G.stage, runScore: G.runScore, dayScore: G.dayScore, dayId: G.dayId,
       xp: G.xp, avatarFile: G.avatarFile,
@@ -141,6 +142,7 @@ function newGame(drawCount, mode) {
   G.jokers = 0; G.jokerOffer = 0;             // 🃏 是本局资产,换局清零
   G.comboN = 0; G.brilliant = 0;
   G.lesson = 0; G.lessonNeed = 0; G.lessonBase = 0;   // 普通局 ⇒ 退出教学态
+  G.hintWant = false; G.hintWin = false; G.peekUntil = 0;
   Prover.reset();
   Snd.deal();                                 // 洗牌声
   G.stats.played++;
@@ -311,7 +313,15 @@ function doMove(m) {
       const fe = ev.find(e => e.t === 'toFoundation');
       if (fe) {
         const p = Layout.cardXY(G.s, { p: 'f', fi: fe.fi });
-        FX.float('×' + G.comboN, p.x + Layout.L.cardW / 2, p.y - 6, '#ff9d3d');
+        // 浮字也跟着连击数升级（声音在爬、字不动 = 一半的爽感白丢）
+        const hot = G.comboN >= 7, mid = G.comboN >= 4;
+        FX.float((hot ? '🔥×' : mid ? '✨×' : '×') + G.comboN,
+                 p.x + Layout.L.cardW / 2, p.y - 6,
+                 hot ? '#ff4d4d' : mid ? '#ffd84d' : '#ff9d3d');
+      }
+      if (G.comboN >= 5 && G.comboN % 5 === 0) {   // 每 5 连给一次金币（把手感换成实得）
+        Money.state.coins += 5; Money.save();
+        FX.float('+5', Layout.L.cx, Layout.L.tabY - 22, '#ffd84d');
       }
     } else {
       Snd.found(G.s.foundations.reduce((a, f) => a + f.length, 0) % 8);
@@ -485,6 +495,17 @@ function onTap(hit, cardHit) {
       if (am && doMove(am)) return;
     }
     G.sel = { p: 'w' };
+  } else if (hit.action === 'FOUND') {
+    // ⭐ 收到右上角的牌**还能拿回来**（'ft'）：收早了是纸牌最常见的失误，
+    //   不给取回的话玩家只能一路撤销一大串（Klondike 专属 —— FreeCell 全明牌不需要，
+    //   Spider 的完成组按规则本来就不能拆）。
+    const fi = hit.data.fi;
+    const f = s.foundations[fi];
+    if (s.mode !== 'klondike' || !f || !f.length) return renderAll();
+    const am = Core.autoDest(s, { p: 'f', fi });
+    // ⚠ 只在「落到有牌的列」时才自动走：把 K 从 foundation 自动扔进空列几乎不是玩家想要的
+    if (am && s.tableau[am.ti] && s.tableau[am.ti].cards.length && doMove(am)) return;
+    G.sel = { p: 'f', fi };
   } else if (hit.action === 'TAB') {
     const { ti, idx } = hit.data;
     const col = s.tableau[ti];
@@ -510,6 +531,7 @@ function sameAsSel(hit) {
   if (hit.action === 'WASTE') return sel.p === 'w';
   if (hit.action === 'CELL') return sel.p === 'c' && hit.data.ci === sel.ci;
   if (hit.action === 'TAB') return sel.p === 't' && hit.data.ti === sel.ti && hit.data.idx === sel.idx;
+  if (hit.action === 'FOUND') return sel.p === 'f' && hit.data.fi === sel.fi;
   return false;
 }
 
@@ -534,6 +556,7 @@ function buildMove(sel, hit) {
   }
   if (hit.action === 'TAB') {
     const tj = hit.data.ti;
+    if (sel.p === 'f') return { t: 'ft', fi: sel.fi, ti: tj };     // ⭐ foundation → tableau（取回）
     if (sel.p === 'c') return { t: 'ct', ci: sel.ci, tj };         // free cell → tableau
     if (sel.p === 'w') return { t: 'wt', ti: tj };
     if (sel.ti === tj) return null;
@@ -617,14 +640,7 @@ function dispatch(action, data) {
     case 'GAL_CLOSE': G.galView = null; break;
     // 图鉴里看广告 +3 张（纯增益,激励视频的又一消耗端）
     case 'GAL_AD': {
-      Ads.showRewarded().then(got => {
-        if (got) {
-          gainAngels(3);
-          saveOpts();
-          checkAchievements();
-        }
-        renderAll();
-      });
+      watchAd('gallery', () => gainAngels(AD_GIVE.gallery));
       break;
     }
     // 👼 大图存壁纸（snake 同款体验：Web Share 优先降级下载）
@@ -637,15 +653,10 @@ function dispatch(action, data) {
     // 🔥 补签：昨天没来、连续天数正要断 ⇒ 看广告补上（打卡记录不是玩法优势，不踩红线）
     case 'MAKEUP': {
       if (!canMakeup()) break;
-      Ads.showRewarded().then(got => {
-        if (got) {
-          G.dailyHist[dayKeyAgo(1)] = 1;
-          saveOpts();
-          checkAchievements();
-          G.toast = { msg: '🔥 ' + T('sol.dailyStreak', { n: dailyStreakDays() }), until: Date.now() + 2200 };
-          setTimeout(renderAll, 2300);
-        }
-        renderAll();
+      watchAd('makeup', () => {
+        G.dailyHist[dayKeyAgo(1)] = 1;
+        G.toast = { msg: '🔥 ' + T('sol.dailyStreak', { n: dailyStreakDays() }), until: Date.now() + 2200 };
+        setTimeout(renderAll, 2300);
       });
       break;
     }
@@ -692,15 +703,12 @@ function dispatch(action, data) {
     // 🃏 万能牌:看广告获得(⚠ 红线口径:救场与 snake 的 AI 救场同类——提示/撤销/证明仍永远免费)
     case 'JOKER_AD': {
       if (s.mode === 'freecell' || G.jokers >= 3) break;
-      Ads.showRewarded().then(got => {
-        if (got) {
-          G.jokers = Math.min(3, G.jokers + 1);
-          G.jokerOffer = 0;
-          saveRun();
-          G.toast = { msg: '🃏 ' + T('sol.jokerReady'), until: Date.now() + 2400 };
-          setTimeout(renderAll, 2500);
-        }
-        renderAll();
+      watchAd('joker', () => {
+        G.jokers = Math.min(3, G.jokers + AD_GIVE.joker);   // 一次给 2 张（救场要给厚）
+        G.jokerOffer = 0;
+        saveRun();
+        G.toast = { msg: '🃏 ' + T('sol.jokerReady'), until: Date.now() + 2400 };
+        setTimeout(renderAll, 2500);
       });
       break;
     }
@@ -828,7 +836,29 @@ function dispatch(action, data) {
 
     // 激励视频 → 金币。⚠ **纯增益**：金币只能换外观，换不到提示/撤销（那是基本人权）
     case 'EARN_AD': {
-      Ads.showRewarded().then(got => { if (got) Money.earnAd(); renderAll(); });
+      watchAd('coins', () => Money.earnAd());
+      break;
+    }
+    // 新位·外观：白送一款牌背（1 次/天）。外观不影响强度 ⇒ 可以卖；额度低才不贬值。
+    case 'AD_BACK': {
+      watchAd('back', () => {
+        const id = Money.grantCheapestBack();
+        G.toast = { msg: id ? T('sol.adBackGot') : T('sol.adBackAll'), until: Date.now() + 2400 };
+        setTimeout(renderAll, 2500);
+      });
+      break;
+    }
+    // 新位·局内增益：**透视暗牌 15 秒**。
+    //   它不改牌局、不改随机，只把**已经定死**的信息提前给你看 ⇒ 不碰公平红线；
+    //   但它是外部帮助 ⇒ 与提示同口径记 usedHint，**不算干净赢**（统计不能撒谎）。
+    case 'AD_PEEK': {
+      if (s.won || s.mode === 'freecell') break;            // FreeCell 全明牌，没得透视
+      watchAd('peek', () => {
+        G.peekUntil = Date.now() + AD_GIVE.peek;
+        G.s.usedHint = true;
+        saveRun();
+        setTimeout(renderAll, AD_GIVE.peek + 100);
+      });
       break;
     }
     case 'PICK_BACK': {
@@ -934,6 +964,28 @@ function dispatch(action, data) {
         break;
       }
       G.s.usedHint = true;                       // 留痕（「零提示胜率」靠它）
+      // ⭐⭐ 提示的目标是**赢**，不是「现在有什么能走」。
+      //   我们有求解器 ⇒ 提示就该是**解法的下一步**（别家给不了：他们只有启发式）。
+      //   ⛔ 仍然永远免费、永远不看广告（变现红线 §0）。
+      //   Spider 不进求解器（104 张状态空间超出能力）⇒ 只能退回启发式。
+      if (s.mode !== 'spider') {
+        const P = Prover.st;
+        if (P.phase === 'done' && P.result === 'solvable' && P.solMoves && P.solMoves.length) {
+          G.hintMove = P.solMoves[0]; G.hintWin = true; break;     // ← 通往胜利的那一步
+        }
+        if (P.phase === 'done' && P.result === 'dead') {
+          // ⛔ 措辞死线：陈述事实「这局已经没解了」，**绝不说「是你走错了」**。
+          //   并且给退路（撤销回还有解的那一步 / 🃏），不是把人晾在那儿。
+          G.toast = { msg: T('sol.hintDead'), until: Date.now() + 2600 };
+          if (G.jokers < 1 && s.mode === 'klondike') G.jokerOffer = Date.now() + 15000;
+          setTimeout(renderAll, 2700);
+          break;
+        }
+        if (P.phase !== 'proving') {              // 还没算过 ⇒ 现在去算（证明条会显示进度）
+          G.hintWant = true; Prover.ask(s); renderAll(); break;
+        }
+        if (P.phase === 'proving') { G.hintWant = true; renderAll(); break; }
+      }
       // ⭐ 用盲打 AI 的打分挑「像好棋」的一步（翻暗牌>清列>收牌），不是 legalMoves[0] 随手一指。
       //   FreeCell 的 AI 打分不适用（全明牌），按 收牌 > 搬牌 > 出格 > 进格 排。
       let best = ms[0], bv = -Infinity;
@@ -1105,6 +1157,80 @@ function dayKeyAgo(days) {
 function canMakeup() {
   const h = G.dailyHist || {};
   return !h[dayKeyAgo(1)] && !!h[dayKeyAgo(2)];
+}
+
+/**
+ * ⭐ 求解器算完了 ⇒ 如果玩家在等提示，把**解法的第一步**给他。
+ *   算不出来（unknown/超时）⇒ 退回盲打 AI 的启发式，并**如实标注**这一步不保证通往胜利
+ *   （`hintWin=false`）—— 「我们算不出来」是一等公民，不许伪装成「这就是最优解」。
+ */
+function hintFromProof() {
+  if (!G.hintWant) return;
+  G.hintWant = false;
+  const P = Prover.st, s = G.s;
+  if (P.result === 'solvable' && P.solMoves && P.solMoves.length) {
+    G.hintMove = P.solMoves[0]; G.hintWin = true;
+  } else if (P.result === 'dead') {
+    G.hintMove = null; G.hintWin = false;
+    G.toast = { msg: T('sol.hintDead'), until: Date.now() + 2600 };
+    setTimeout(renderAll, 2700);
+  } else {                                        // unknown ⇒ 启发式兜底
+    const ms = Core.rules(s).legalMoves(s).filter(m => m.t !== 'draw' && m.t !== 'recycle');
+    let best = ms[0], bv = -Infinity;
+    for (const m of ms) {
+      const v = s.mode === 'freecell'
+        ? (m.t === 'cf' || m.t === 'tf' ? 100 : m.t === 'tt' ? 50 : m.t === 'ct' ? 30 : 10)
+        : AIBlind.scoreMove(s, m);
+      if (v > bv) { bv = v; best = m; }
+    }
+    G.hintMove = best || null; G.hintWin = false;
+  }
+  renderAll();
+}
+
+// == 激励视频：统一入口 + 每日额度（skill `casual-game-meta` 的打法）==
+//  设计要点（三款产品踩出来的）：
+//   (1) 奖励给厚，一次见效 —— 图鉴 +1 张没人看，+8 张才动手；按钮标签**把数量写出来**。
+//   (2) 给得厚 ⇒ **必须配每日额度**，否则一天几十条广告把 500 张长线收集当天刷穿。
+//       额度是设计不是抠门：6×8 = 每天 48 张已经很大方，而长尾还在。
+//   (3) 跨天重置**按额度表全量清**（手写清哪几个 key 必漏，而漏掉的位会永久卡在首日额度）。
+//   (4) 拒绝观看 ⇒ **零发放且不扣额度**（写进冒烟测试）。
+//   (5) 发放口收敛成**一个函数**、入口统一成 dispatch('AD_*')，否则冒烟点不到、口径也会漂。
+//  绝不动的红线：撤销 / 提示 / 重开 / 换局 / 证明器**永远免费**。这里全是纯增益 + 救场。
+const AD_CAPS = { gallery: 6, coins: 5, joker: 3, back: 1, peek: 3, makeup: 1 };
+const AD_GIVE = { gallery: 8, coins: 60, joker: 2, peek: 15000 };   // peek 单位是毫秒
+
+function adsState() {
+  G.ads = G.ads || { day: '' };
+  if (G.ads.day !== todayId()) {
+    G.ads = { day: todayId() };
+    for (const k of Object.keys(AD_CAPS)) G.ads[k] = 0;    // 全量清，别手写几个
+  }
+  return G.ads;
+}
+function adLeft(kind) { return Math.max(0, (AD_CAPS[kind] || 0) - (adsState()[kind] || 0)); }
+
+/** 唯一的激励视频入口。拒绝观看 ⇒ 零发放且**不扣额度**。 */
+function watchAd(kind, grant) {
+  const st = adsState();
+  if (adLeft(kind) <= 0) {
+    G.toast = { msg: T('sol.adNoneLeft'), until: Date.now() + 2200 };
+    setTimeout(renderAll, 2300);
+    return renderAll();
+  }
+  // ⚠ **先占位再放广告**：showRewarded 是异步的，若等回调才扣，连点两下会双双通过
+  //   「点击时」的检查 ⇒ 额度超发（E2E 抓出过 7/6）。拒绝观看时再回滚。
+  st[kind] = (st[kind] || 0) + 1;
+  Ads.showRewarded().then(function (got) {
+    if (got) {
+      grant();
+      saveOpts();
+      checkAchievements();
+    } else {
+      st[kind] = Math.max(0, st[kind] - 1);      // 拒绝 ⇒ 回滚（不惩罚没看完的人）
+    }
+    renderAll();
+  });
 }
 
 // ══ ⭐ 难度阶梯（明面进度，代替「混合/简单/困难」三个下拉项）══
