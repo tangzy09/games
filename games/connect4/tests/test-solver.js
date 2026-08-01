@@ -297,6 +297,54 @@ const DRAW_MOVES = [3, 5, 5, 1, 6, 3, 2, 5, 1, 3, 5, 4, 4, 4, 2, 6, 5, 4, 6, 3, 
 }
 
 // ─────────────────────────────────────────
+// 3.8 ⭐ 镜像归一：一个**整盘左右对称**的定点局面（P1 Task 5）
+//     solver 的 key 取「自身与左右镜像的较小者」，把一个局面和它的镜像合并成同一条表项。
+//     ⛔ 这条优化**在随机语料上完全没有灵敏度**：把它整块删掉，§4 那 3,850 个局面的节点数
+//        **一位不差**（37,013 → 37,013）。原因是它只在整盘对称的根上发力，而随机语料
+//        一个对称局面都造不出来。它的价值全在 Task 7 那条路上（空盘 1.74× 节点）——
+//        **「有价值但零门禁」正是静默失效的标准配方**，所以必须有这一条。
+//     两件事一起钉：
+//       (a) 正确性 —— 对称局面下每列与其镜像列必须同分、best 对 c↦6-c 闭合。
+//           这是镜像归一唯一可能静默出错的方向（把某列的结论跨镜像用到错的列号上）。
+//       (b) 剪枝有效性 —— 节点数上限（同 §4，⚠ 只许往下改）。
+//     ⚠ 局面是手工核对过的（不是随机扫出来就用）：n=20、未终局、a/b 两个掩码各自关于中列
+//       对称；分数 2 另有**独立**佐证 —— 照 best 打完，先手正好在第 41 子成四，与
+//       `score = CELLS + 1 - nWin = 43 - 41 = 2` 逐位对上（这条不依赖求解器的分数算术）。
+// ─────────────────────────────────────────
+{
+  const SYM = [6, 3, 3, 2, 1, 1, 5, 5, 0, 4, 5, 3, 1, 6, 3, 5, 3, 0, 3, 1];
+  const bd = B.fromMoves(SYM);
+  const mirrored = m => { for (let c = 0; c < B.W; c++) if (m[c] !== m[B.W - 1 - c]) return false; return true; };
+  assert.strictEqual(bd.n, 20, '前提：这是个 20 手局面');
+  assert.strictEqual(R.terminal(bd), null, '前提：未终局');
+  assert.ok(mirrored(bd.a) && mirrored(bd.b),
+    '前提：这个局面必须**整盘**左右对称（两方掩码各自对称），否则这条门禁量的不是镜像归一');
+
+  const r = S.solve(bd), sa = S.scoreAll(bd);
+
+  // (a) 正确性
+  for (const c of R.moves(bd)) {
+    assert.strictEqual(sa[c], sa[B.W - 1 - c],
+      '对称局面下 c' + c + ' 与 c' + (B.W - 1 - c) + ' 必须同分，实得 ' + sa[c] + ' vs ' + sa[B.W - 1 - c]);
+  }
+  assert.deepStrictEqual(r.best.slice().sort((x, y) => x - y),
+    r.best.map(c => B.W - 1 - c).sort((x, y) => x - y),
+    'best 必须对 c↦6-c 闭合（对称局面上「左边那一列更好」是不可能的）');
+
+  // (b) 剪枝门禁
+  assert.strictEqual(r.score, 2,
+    '这个定点局面的精确分是 2（先手第 41 子取胜）——变了就是**算错了**，不是变慢');
+  const SYM_NODE_CEILING = 185000;              // ⚠ 只许往下改，同 §4
+  assert.ok(r.nodes <= SYM_NODE_CEILING,
+    '镜像归一失效：对称根访问 ' + r.nodes.toLocaleString('en-US') + ' 节点，超过上限 '
+    + SYM_NODE_CEILING.toLocaleString('en-US')
+    + '（实测水位 172,279；把 keyOf 的镜像归一整块去掉是 312,512，正好被这条拦下）');
+  console.log('test-solver: ⭐ 镜像归一定点局面 OK —— score=' + r.score
+    + ' best=[' + r.best.join(',') + '] nodes=' + r.nodes.toLocaleString('en-US')
+    + '，每列与镜像列同分、best 对 c↦6-c 闭合');
+}
+
+// ─────────────────────────────────────────
 // 4. ⭐⭐ 大规模对拍：solve/scoreAll vs 朴素参考求解器，**精确分数逐位相同**
 // ─────────────────────────────────────────
 // r = 剩余空格数。⭐ 必须**同时**压两头：
@@ -413,9 +461,17 @@ const CORPUS = DEEP ? CORPUS_DEEP : CORPUS_SHALLOW;
   // ⚠ 浅块只降到 1.46×，而同一批代码在 18 手档的墙钟是 209× —— 别拿这个比值判断优化有没有
   //   效：r ≤ 12 的残局本来就搜不了几个节点，剪枝的收益全在更深的局面上（那是 bench 的活）。
   const NODE_CEILING = DEEP ? 3950 : 38900;
+  const NODE_ACTUAL = DEEP ? 3753 : 37013;      // ⚠ 定稿版的实测水位，跟着上限一起维护
+  // ⚠ 失败信息必须给出**倍数**：超 1%（无害重构把某个局面的搜索顺序挪了一位）和超 7×
+  //   （fail-high 的 >= 写成 >，剪枝真坏了）是完全不同的两件事，只报一个绝对值看不出来。
   assert.ok(solverNodes <= NODE_CEILING,
-    '剪枝退化：solver 共访问 ' + solverNodes + ' 节点，超过上限 ' + NODE_CEILING
-    + '（结果可能仍然全对——这条专门拦「只变慢不算错」）');
+    '剪枝退化：solver 共访问 ' + solverNodes.toLocaleString('en-US') + ' 节点，超过上限 '
+    + NODE_CEILING.toLocaleString('en-US')
+    + '（= 定稿水位 ' + NODE_ACTUAL.toLocaleString('en-US') + ' 的 '
+    + (solverNodes / NODE_ACTUAL).toFixed(2) + '×）'
+    + '。结果可能仍然全对——这条专门拦「只变慢不算错」。'
+    + '超出 ~1.05× 多半是无害重构（复核后可**同时**下调上限与水位）；'
+    + '超出 1.3× 以上按剪枝坏了查，⛔ 别直接抬上限');
   console.log('test-solver: ⭐ 大规模对拍 OK —— ' + total + ' 个局面'
     + (DEEP ? '（--deep：剩 13-14 手的深块）' : '（剩 1-12 手）')
     + '，**每一列的精确分数**与朴素参考求解器逐位相同');

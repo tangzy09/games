@@ -138,16 +138,48 @@
   let ttLog = null;
   let ttLogN = 0, ttOverflow = false;
 
+  // ⚠ ttOverflow 这条分支在 CI 里几乎不会触发（要一次搜索写满 50 万个不同的槽）。
+  //   ⭐ 但它**即使写错也不会算错**：残留的表项仍然是「这个局面的真分数 ≥/≤/= v」这种
+  //     与调用历史无关的**正确事实**，多留下来只会让 nodes 变小、打破「同局面两次解逐位
+  //     相同」那条契约。所以这里的风险等级是「门禁读数漂移」，不是「求解器撒谎」——
+  //     别因为它难覆盖就以为这里藏着正确性地雷。
   function ttReset() {
     if (ttQ === null) {                                  // 首次搜索才真正分配（见上面的 ⭐）
       ttQ = new Int32Array(TT_SIZE);
       ttV = new Int16Array(TT_SIZE);
       ttLog = new Int32Array(TT_LOG_CAP);
+      // ⚠ 这两行必须在 return 之前：今天它们本来就是 0，但将来若加「内存紧张时释放大表
+      //   （ttQ = null）」，回到这条分支时 ttLogN/ttOverflow 就是上一轮的脏值 —— log 里
+      //   记的是**已经被释放的那张表**的槽号，拿去清新表就是清错位置（静默）。
+      ttLogN = 0; ttOverflow = false;
       return;                                            // 新数组本来就是全 0，不用再清
     }
     if (ttOverflow) { ttQ.fill(0); ttOverflow = false; }
     else for (let i = 0; i < ttLogN; i++) ttQ[ttLog[i]] = 0;
     ttLogN = 0;
+  }
+
+  // ⭐ ─── 离线专用逃生门：跨局面复用整张表（Task 7 的 gen-book 专用）───
+  // 默认**关**。关着时 analyze 每次清表，`nodes` 才是「只由局面决定」的确定量（tests 的
+  // 节点数上限门禁、DESIGN §10 全押在这条上）。
+  // ⛔ 打开它 nodes 就不再可比（读数随调用历史漂移）⇒ 任何门禁/预算都不许再读 nodes；
+  //    tests 与 DESIGN §10 的节点数上限**必须**在关闭状态下跑。
+  // ⭐ 复用本身是**无损**的，不是「近似加速」：key 是无损编码（不是哈希，无碰撞），表里存的
+  //    是「这个局面的真分数 ≥/≤/= v」这种**与窗口、与调用者、与是哪一次 solve 都无关的
+  //    绝对事实」⇒ 换个局面来查照样成立，答案一位都不会变。它就是纯记忆化。
+  // ⭐ 为什么值得开：开局库是「一个根 + 它的全部近邻后代」，兄弟子树重叠极大。实测（n=14 的
+  //    根 + 3 层内全部 287 个去重非终局后代）：56,392,914 → 12,445,476 节点、15.0s → 3.1s，
+  //    **4.53× 节点 / 4.81× 墙钟**，score 指纹完全相同。
+  //    ⚠ 而在**互不相关**的随机局面上它一分不赚（10,368,810 → 10,364,625）—— 所以这笔收益
+  //      在 tools/bench-solver.js 那种随机散点基准里**永远看不见**，别拿 bench 去证伪它。
+  let keepTable = false;
+  /** @param v true = 跨 solve/scoreAll 复用整张表（离线用）；false = 回到每次清表的可比状态 */
+  function setKeepTable(v) {
+    keepTable = !!v;
+    // ⚠ 关闭时必须置 overflow：暖表期间写过的槽早已超出 log 的记录（log 只记「由空变非空」
+    //   的那些，而且中途可能已溢出）⇒ 下一次 ttReset 必须整表 fill 才能真正回到干净状态。
+    //   少这一行，关掉之后第一次搜索仍会读到暖表的残留 ⇒ nodes 对不上、门禁静默失真。
+    if (!keepTable) ttOverflow = true;
   }
 
   /** 局面的无损 key（推导见上），**取自身与左右镜像的较小者**。
@@ -163,8 +195,16 @@
    *         n=8 102,366,792→58,726,667（1.74×，28.9s→18.1s）
    *       · 随机（不对称）根 10 手档：0.98×，区间重叠 ⇒ **没有可测量代价**
    *     ⇒ 空盘/开局免费提速一大截，中后盘白拿一次多余的 keyOf，划算。
+   *  ⭐ **为什么在非对称的窗口下也合法**（这是最容易被怀疑的一点）：表里存的从来不是「在
+   *     窗口 (α,β) 下算出来的东西」，而是**「这个局面的真分数 ≥ v / ≤ v / = v」这种与窗口
+   *     无关的绝对事实** —— 分数是局面自身的纯函数。窗口只在**探查那一刻**被拿来重判一次
+   *     （`v >= beta` / `v <= alpha`）。所以谁来查、拿什么窗查、是不是同一次 solve，
+   *     都不影响事实本身；镜像局面与原局面的真分数恒等，共用一条事实自然也成立。
    *  ⛔ 别顺手把「表里存的着法也镜像回来」那套加上：本文件的表里**不存着法**（存了实测无
-   *     收益，见文件头），而着法一旦跨镜像复用就必须跟着翻列号，翻错是静默的错答案。 */
+   *     收益，见文件头），而着法一旦跨镜像复用就必须跟着翻列号，翻错是静默的错答案。
+   *  ⚠ 镜像归一有专门的门禁：tests/test-solver.js §3.8 的对称定点局面，同时钉「每列与其
+   *     镜像列同分 / best 对 c↦6-c 闭合」（正确性）与节点数上限（它有没有真的在生效）。
+   *     ⛔ 没有那条门禁的话，这整块删掉，全部随机语料的节点数**一位不差** —— 静默失效。 */
   function keyOf(bd) {
     const me = bd.turn === 0 ? bd.a : bd.b, h = bd.h;
     let k = 0, km = 0;
@@ -199,6 +239,15 @@
   // ⚠ 正确性怎么被钉住的，见 negamax 里调用处的那段 ⚠（独立预言机 + 零剪枝参考解对拍）。
   //   ⛔ 别在这里加「本函数已验证」之类的空话：这个文件最怕的就是靠注释背书的正确性。
   const MASK_H = (1 << B.H) - 1;
+  // ⛔⛔ ─── 下面这四个模块级临时数组被**全部递归栈帧共用**，只有一条纪律保着它们 ───
+  //   `_tMe` / `_tOp`（negamax 用）与 `_tOrd` / `_key`（orderMoves 用）都不是每层一份。
+  //   它们今天安全**只是因为**：每一次读都发生在本层第一个 `B.playIn` 之前 —— 递归一旦开始，
+  //   子节点会把它们全部覆盖掉。
+  //   ⛔ **绝对不许在主循环内部或之后再读它们**。下一个人最自然的一行就是在循环后面加一句
+  //     「回头看看对手还有没有威胁」去读 `_tOp` —— 那时读到的是**最深那个子节点**的数据，
+  //     不报错、不崩溃、不越界，只是分数悄悄变了。这与 `_nodes` 那条警告是同一类病，
+  //     但比它更隐蔽（计数器至少还是个能对账的数）。
+  //   ⇒ 真要在递归之后用，就在递归**之前**把需要的值抄进局部变量（SMI，零成本）。
   const _tMe = new Int32Array(B.W);
   const _tOp = new Int32Array(B.W);
 
@@ -233,6 +282,8 @@
   // 6 位掩码的 popcount 查表（H=6 ⇒ 只有 64 种取值，查表比任何位技巧都快）。
   const POPC = new Uint8Array(1 << B.H);
   for (let i = 1; i < POPC.length; i++) POPC[i] = POPC[i >> 1] + (i & 1);
+  // ⛔ 同上那条「模块级临时数组被全部栈帧共用」的纪律，这两个也一样（都在 orderMoves 内部
+  //   用完即弃，orderMoves 整个跑在第一个 playIn 之前）。
   const _tOrd = new Int32Array(B.W);        // orderMoves 的临时威胁掩码
   const _key = new Int32Array(B.W);         // 每个候选列的排序键
 
@@ -359,6 +410,15 @@
     // ⚠ alpha0 必须是**进入本节点时**的 alpha（beta 被 max 夹过不影响它）——最后判
     //   EXACT/UPPER 全靠它。别图省事复用循环里被抬高的 alpha：那样每个 fail-low 节点都会
     //   被当成 EXACT 存进去，表里从此是错的界，而搜索照跑不报错。
+    // ⭐ **为什么 `best > alpha0` 就一定是精确值**（正面证明，不只是「反过来会错」）：
+    //   循环里恒有 `alpha === Math.max(alpha0, best)`。设第 i 手是最后一次把 best 抬过
+    //   alpha0 的那一手，它搜索时用的窗是 (alpha_i, beta)，而 alpha_i < score_i（否则抬不
+    //   起来）、score_i < beta（否则上面就 fail-high 返回了）⇒ **score_i 严格落在窗内
+    //   ⇒ 子搜索没有 fail 任何一侧 ⇒ 拿回来的就是精确值**。
+    //   其余各手返回的都是「自身真值的上界」且 ≤ best（不然 best 会更大）⇒ 全部手的真值
+    //   都 ≤ best，而第 i 手的真值**恰好等于** best ⇒ max 正好落在它身上 ⇒ best 精确。∎
+    //   反之 best ≤ alpha0 时，各手只保证「真值 ≤ 自己的返回值」⇒ 只能断言本节点 ≤ best，
+    //   即 UPPER。
     const alpha0 = alpha;
     let best = -INF;
     for (const c of ms) {
@@ -404,6 +464,12 @@
       const r = negamax(sb, med, med + 1);
       if (r <= med) max = r; else min = r;                  // fail-soft ⇒ r 本身就是新的界
     }
+    // ⚠ **本函数会返回 `-0`**（和棋支上 negamax 内部的 `-negamax(...)` 会造出来）。这不是
+    //   理论担心：插桩数过，本机 2,100 个局面的语料里出现 173 次（评审员另一份语料 993 次）。
+    //   今天唯一的调用点 rootScores 用 `0 - exactScore(sb)`
+    //   把它洗成 `+0` —— **清洗只有那一处**。⛔ 下一个人直接调 exactScore 拿去比
+    //   `Object.is(s, 0)` / deepStrictEqual / `.toFixed(1)`（复盘曲线）会当场翻脸，且只在
+    //   「和棋」这一支出现，最难查。要直接用就自己再夹一次 `0 - x`。
     return min;
   }
 
@@ -462,7 +528,9 @@
     // ⭐ 反过来，**同一次 analyze 内部的 7 次列搜索必须共享这张表**：兄弟列之间的转置重叠
     //    正是置换表在 scoreAll 上的主要收益来源（scoreAll 是提示/精准度/妙手判定的输入，
     //    也是本项目最需要救的那条路径）。所以清表在 analyze 开头、rootScores 之外。
-    ttReset();
+    // ⭐ setKeepTable(true) 时**故意不清**（离线 gen-book 专用，见那里的说明）——
+    //    但表还没分配的话仍要走一次 ttReset 去分配。
+    if (!keepTable || ttQ === null) ttReset();
     const cols = rootScores(sb);
     return { cols: cols, nodes: _nodes };
   }
@@ -529,7 +597,10 @@
   // 与 rules-classic.js 同样冻结：不在热路径上（只是属性读取），零代价，却能挡住
   // `S.solve = () => ({score:0,best:[3]})` 这类把真值整个换掉的误用 —— 求解器被悄悄
   // 替换掉，上面每一层仍会「正常工作」，正是本文件最怕的失败模式。
-  const API = Object.freeze({ solve, scoreAll });
+  // ⚠ setKeepTable 是**离线专用**的第三个导出（Task 7 gen-book），默认关、行为与不导出时
+  //   完全一致。⛔ 运行时（Worker/UI）永远不许调它：一旦打开，nodes 就不再是「只由局面决定」
+  //   的量，而 DESIGN §10 的节点数上限门禁与 AI 分档的搜索预算都读 nodes。
+  const API = Object.freeze({ solve, scoreAll, setKeepTable });
   // ⚠ 浏览器侧按 root.Bitboard / root.RulesClassic 取依赖 ⇒ index.html 里
   //   bitboard.js → rules-classic.js → solver.js 的**脚本顺序不能乱**（乱了是
   //   「B is undefined」当场炸，响的，不是静默错，但仍别踩）。
