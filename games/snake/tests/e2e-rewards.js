@@ -5,6 +5,8 @@
 const { chromium } = require('playwright');
 
 const BASE = process.argv[2] || 'http://localhost:8123';
+// 本地静态服务从仓库根起,线上子域(snake.ai-speeds.com)直接就是游戏根 ⇒ 路径要能换
+const PATH = process.argv[3] || (/localhost|127\.0\.0\.1/.test(BASE) ? '/games/snake/' : '/');
 function assert(cond, msg) {
   if (!cond) { console.error('FAIL: ' + msg); process.exitCode = 1; throw new Error('assert failed: ' + msg); }
   console.log('OK: ' + msg);
@@ -21,7 +23,7 @@ async function main() {
   page.on('dialog', d => (acceptAds ? d.accept() : d.dismiss()));
 
   console.log('--- snake 激励奖励 e2e ---');
-  await page.goto(BASE + '/games/snake/', { waitUntil: 'load' });
+  await page.goto(BASE + PATH, { waitUntil: 'load' });
   await page.evaluate(() => localStorage.clear());
   await page.reload({ waitUntil: 'load' });
   await page.waitForTimeout(1500);
