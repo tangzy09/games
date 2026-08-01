@@ -4,11 +4,11 @@
 //
 // 三种模式，一条命令：
 //   --mode=ladder  （默认）参考玩家 vs 每一级，出「胜/和/负 + 当前 p」整张表  ⇒ **回归基线**
-//   --mode=sweep   固定一级、扫一串 p，出 **p → 参考玩家得分率** 的响应曲线   ⇒ **校准的依据**
+//   --mode=sweep   固定一级、扫一串 p **或 blunder**（`--knob=`），出响应曲线       ⇒ **校准的依据**
 //   --mode=weights 第 1-5 级中路权重表的复算（等差 vs 出厂几何，相邻级与跨度）⇒ **兑现 ai.js 里那句欠账**
 //
-// ⭐ **要 A/B 一条候选 p 曲线，用 `--pset=p6,p7,…,p20`，⛔ 别去改 js/ai.js**：它只改内存里的
-//   参数表，进程一死就没了。「跑之前改源码、跑完记得改回来」正是本仓栽过的那类事故
+// ⭐ **要 A/B 候选曲线，用 `--pset=p6,…,p20`（求解器档）/ `--bset=b1,…,b5`（轻松档送头率），
+//   ⛔ 别去改 js/ai.js**：它们只改内存里的参数表，进程一死就没了。「跑之前改源码、跑完记得改回来」正是本仓栽过的那类事故
 //   （进程被 kill → finally 没跑 → 源文件留在改动态，而 `git status` 看着和正常改动一模一样）。
 //   校准前的出厂线性曲线随手复现：
 //     --pset=0.55,0.511,0.471,0.432,0.393,0.354,0.314,0.275,0.236,0.196,0.157,0.118,0.079,0.039,0
@@ -19,6 +19,15 @@
 // 即 DESIGN §3.1 那句「一个懂规则的普通人」。⛔ **绝不许拿 AI.aiMove(tier=N) 当参考玩家** ——
 // 那是自己量自己：AI 的任何改动会同时移动被测者和尺子，胜率纹丝不动而实际强度已经变了。
 // ⚠ 所以下面的 refMove 一行都不 require ai.js，连 posHash 都自己写一份（常数都不同）。
+//
+// ⭐⭐ ─── 一条用两把尺子才发现的事（2026-08-01，别再踩）───
+// **轻松档与求解器档不在同一条强弱轴上，「谁更强」取决于玩家自己送不送头。**
+//   求解器档**会完美惩罚送头**，轻松档不会 ⇒ 对会送头的玩家（basic）求解器档显得强得多；
+//   对不送头的玩家（solid）它只剩自己走的次优手，反而显得弱。
+//   实锤：p(6)=1.0 那一版在 basic 上完全单调（t5 .484 → t6 .443），
+//        **在 solid 上当场倒挂**（t5 .599 → t6 .706，本工具的 ⚠倒挂 标出来了）。
+// ⇒ ⛔ **改接缝附近的参数（p(6) / blunder(5)）必须两把尺子都跑**，
+//   单尺子上漂亮的阶梯可能对另一半玩家是倒的。
 // ⚠⚠ 参考玩家**故意不带**「不走立即败招」这一层（那是 AI 的战术前置层）。这正是它与第 1 级
 //   AI 的分野：第 1 级是「瞎走但从不送头」，参考玩家是「会抓会挡但会送头」。⛔ 别顺手给它加上，
 //   加了就等于把尺子换掉，本文件此前的每一个数字都作废 —— 要更强的对手请用下面的第二把尺子。
@@ -143,48 +152,59 @@ function refMove(bd, seed, solid) {
 const MOVE_SALT = 7919;
 
 /**
- * @returns { s, mistakes, blunders, aiMoves } —— s 是**参考玩家视角**的得分：1 胜/0.5 和/0 负
+ * @returns { s, mistakes, blunders, feeds, aiMoves } —— s 是**参考玩家视角**的得分：1/0.5/0
  *
  * ⭐ 为什么要在胜率之外统计失误：阶梯**顶端**（第 16-20 级）的胜率全部压在 0-3% 那一段，
  *   任何规模的蒙特卡洛都分不开这几级 —— 但玩家分得开的从来不是「我赢了几局」，
- *   是**「它有没有走错」**。⇒ 顶端可区分性看下面这两列，不要看 p 也不要看胜率。
- * ⚠ 两个都不等于 p：p 是「打算走次优」的概率，而次优常常与最优**同分**（那一手其实没失误）。
+ *   是**「它有没有走错」**。⇒ 顶端可区分性看下面这几列，不要看 p 也不要看胜率。
+ * ⚠ 三个都不等于 p / blunder：那两个是**意图**概率，实际值恒小于它们
+ *   （次优常与最优同分；「不检查」也常常正好挑到安全列）。
  *
  *   · `mistakes` = **分数严格更差**的手（decide 的 `slipped`）。⚠ 分数含「多快赢」
  *     ⇒ 它把「仍然必胜，只是慢几手」也算成失误 —— 那是玩家**观察不到**的失误。
  *   · `blunders` = ⭐ **把胜负类别走没了**的手（必胜→和/负，或和→负；比较两个分数的正负号）。
  *     **这才是玩家能抓住的那种失误**，也是难度页上该印的数字（⛔ 不是 p）。
+ *   · `feeds`    = ⭐ **实际送头**的手（这一手让对手下一手就连四）。轻松档的明面指标；
+ *     ⛔ 求解器档必须恒为 0（DESIGN §3.1 的按档分流，测试里是零容忍断言）。
  */
 function playVsRef(tier, gameIdx, seedBase, solid) {
   const refFirst = (gameIdx % 2) === 0;          // ⭐ 先后手各半
   const aiSeed = (seedBase + gameIdx * 104729) | 0;
   const refSeed = (seedBase ^ 0x5bf03635) + gameIdx * 40507;
   let bd = B.newBoard();
-  let t, mistakes = 0, blunders = 0, aiMoves = 0;
+  let t, mistakes = 0, blunders = 0, feeds = 0, aiMoves = 0;
   while ((t = R.terminal(bd)) === null) {
     const refToMove = (bd.turn === 0) === refFirst;
     let col;
     if (refToMove) {
       col = refMove(bd, (refSeed + bd.n * MOVE_SALT) | 0, solid);
     } else {
-      // ⚠ 走 decide 而不是 aiMove **只为了读 slipped / scores** —— aiMove 就是 decide().col，
-      //   同一条代码路径、同一个答案，统计不会反过来影响落子。
+      // ⚠ 走 decide 而不是 aiMove **只为了读 slipped / safe / scores** —— aiMove 就是
+      //   decide().col，同一条代码路径、同一个答案，统计不会反过来影响落子。
       const dec = AI.decide(bd, tier, (aiSeed + bd.n * MOVE_SALT) | 0);
       col = dec.col; aiMoves++;
-      if (dec.slipped) {
+      // ⭐ 实际**送头**（这一手让对手下一手就连四）。不需要求解器，两档都能量：
+      //   ⚠ safe 为空 = 全部列都送头（DOOMED），那是局面已经输了，⛔ 不算它选错。
+      if (dec.safe.length && dec.safe.indexOf(col) === -1) feeds++;
+      if (dec.slipped && dec.ranked) {
         mistakes++;
         // ⚠ ranked 按分数降序且全部来自安全列 ⇒ ranked[0].score 就是这一手的最优分。
         //   ⛔ 别拿 scores[col] 与 0 比：判据是**类别下降**（1→0、1→-1、0→-1），
         //     而不是「走出了一个负分」（本来就必败的局面里每一列都是负分，那不是失误）。
         const best = dec.ranked[0].score, got = dec.scores[dec.col];
         if (Math.sign(got) < Math.sign(best)) blunders++;
+      } else if (dec.slipped) {
+        // 轻松档的 slipped = 真送了头（ranked 为 null，没有求解器分数）。
+        // 送头 ⇒ 对手下一手就赢 ⇒ 它**必然**是一次变盘失误（安全列严格优于送头列，
+        // 证明见 ai.js 的 doomedScore 那段）—— ⛔ 不必也不应该为它再调一次求解器。
+        mistakes++; blunders++;
       }
     }
     bd = B.play(bd, col);
   }
   const w = R.winnerOf(t);
   const s = (w === null) ? 0.5 : (((w === 0) === refFirst) ? 1 : 0);
-  return { s: s, mistakes: mistakes, blunders: blunders, aiMoves: aiMoves };
+  return { s: s, mistakes: mistakes, blunders: blunders, feeds: feeds, aiMoves: aiMoves };
 }
 
 /** AI 自对弈（--mode=weights 用）：@returns tA 视角的得分 */
@@ -213,12 +233,13 @@ function applyParams(over) {
 
 function runJob(job) {
   applyParams(job.params);
-  let w = 0, d = 0, l = 0, mistakes = 0, blunders = 0, blunderGames = 0, aiMoves = 0;
+  let w = 0, d = 0, l = 0, mistakes = 0, blunders = 0, blunderGames = 0, feeds = 0, aiMoves = 0;
   for (let i = job.from; i < job.to; i++) {
     let s;
     if (job.kind === 'ref') {
       const r = playVsRef(job.tier, i, job.seedBase, job.solid);
-      s = r.s; mistakes += r.mistakes; blunders += r.blunders; aiMoves += r.aiMoves;
+      s = r.s; mistakes += r.mistakes; blunders += r.blunders;
+      feeds += r.feeds; aiMoves += r.aiMoves;
       if (r.blunders) blunderGames++;
     } else {
       s = playAiVsAi(job.tA, job.tB, i, job.seedBase);
@@ -227,7 +248,8 @@ function runJob(job) {
   }
   return {
     id: job.id, wins: w, draws: d, losses: l, n: job.to - job.from,
-    mistakes: mistakes, blunders: blunders, blunderGames: blunderGames, aiMoves: aiMoves
+    mistakes: mistakes, blunders: blunders, blunderGames: blunderGames,
+    feeds: feeds, aiMoves: aiMoves
   };
 }
 
@@ -305,18 +327,19 @@ if (!isMainThread) {
 // ════════ 汇总 ════════
 function collect(results, ids) {
   const acc = {};
-  for (const id of ids) acc[id] = { wins: 0, draws: 0, losses: 0, n: 0, mistakes: 0, blunders: 0, blunderGames: 0, aiMoves: 0 };
+  for (const id of ids) acc[id] = { wins: 0, draws: 0, losses: 0, n: 0, mistakes: 0, blunders: 0, blunderGames: 0, feeds: 0, aiMoves: 0 };
   for (const r of results) {
     const a = acc[r.id];
     a.wins += r.wins; a.draws += r.draws; a.losses += r.losses; a.n += r.n;
     a.mistakes += r.mistakes || 0; a.blunders += r.blunders || 0;
-    a.blunderGames += r.blunderGames || 0; a.aiMoves += r.aiMoves || 0;
+    a.blunderGames += r.blunderGames || 0; a.feeds += r.feeds || 0; a.aiMoves += r.aiMoves || 0;
   }
   for (const id of ids) {
     const a = acc[id];
     a.score = (a.wins + a.draws / 2) / a.n;
     a.blunderGameRate = a.blunderGames / a.n;       // ⭐ 顶端可区分性看这一列
     a.blunderMoveRate = a.aiMoves ? a.blunders / a.aiMoves : 0;
+    a.feedRate = a.aiMoves ? a.feeds / a.aiMoves : 0;   // ⭐ 实测送头率（难度页印这个）
   }
   return acc;
 }
@@ -326,7 +349,8 @@ const se = n => 0.5 / Math.sqrt(n);   // p≈0.5 处的标准误上界
 function parseArgs(argv) {
   const o = {
     mode: 'ladder', games: 400, seedBase: 20260801, workers: Math.max(1, Math.min(20, require('os').cpus().length - 4)),
-    tiers: null, ps: null, pset: null, tier: 12, q3: null, keep: false, needBook: true, families: 4, json: false, ref: 'basic'
+    tiers: null, ps: null, pset: null, bset: null, knob: 'p', tier: 12, q3: null,
+    keep: false, needBook: true, families: 4, json: false, ref: 'basic'
   };
   for (const a of argv) {
     const m = /^--([a-z0-9]+)(?:=(.*))?$/.exec(a);
@@ -347,6 +371,17 @@ function parseArgs(argv) {
       case 'json': o.json = true; break;
       case 'tiers': o.tiers = expandRange(v); break;
       case 'ps': o.ps = v.split(',').map(Number); break;
+      case 'knob':
+        if (v !== 'p' && v !== 'blunder') throw new Error('--knob 只有 p / blunder，收到 ' + v);
+        o.knob = v; break;
+      case 'bset':
+        // ⭐ 整条候选送头率曲线（第 1..SOLVER_FROM-1 级）。理由同 --pset：⛔ 别改源码去 A/B。
+        o.bset = v.split(',').map(Number);
+        if (o.bset.length !== AI.SOLVER_FROM - 1) {
+          throw new Error('--bset 必须给 ' + (AI.SOLVER_FROM - 1) + ' 个数（第 1..'
+            + (AI.SOLVER_FROM - 1) + ' 级），收到 ' + o.bset.length + ' 个');
+        }
+        break;
       case 'pset':
         // ⭐ 整条候选 p 曲线（第 SOLVER_FROM..TIER_MAX 级，逗号分隔）。
         //   ⛔ 有了它就**不必为了 A/B 去改 js/ai.js** —— 「跑之前改源码、跑完记得改回来」
@@ -381,7 +416,12 @@ async function modeLadder(o) {
     over = {};
     for (let t = AI.SOLVER_FROM; t <= AI.TIER_MAX; t++) over[t] = { p: o.pset[t - AI.SOLVER_FROM] };
   }
-  const pOf = t => (over && over[t]) ? over[t].p : AI.params(t).p;
+  if (o.bset) {
+    over = over || {};
+    for (let t = 1; t < AI.SOLVER_FROM; t++) over[t] = { blunder: o.bset[t - 1] };
+  }
+  const pOf = t => (over && over[t] && over[t].p !== undefined) ? over[t].p : AI.params(t).p;
+  const bOf = t => (over && over[t] && over[t].blunder !== undefined) ? over[t].blunder : AI.params(t).blunder;
   const jobs = tiers.map(t => ({
     id: 't' + t, kind: 'ref', tier: t, from: 0, to: o.games,
     seedBase: o.seedBase, params: over, solid: o.ref === 'solid'
@@ -389,10 +429,10 @@ async function modeLadder(o) {
   const t0 = Date.now();
   const acc = collect(await runParallel(jobs, o), jobs.map(j => j.id));
   const wall = (Date.now() - t0) / 1000;
-  if (o.pset) console.log('\n⚠ 本次用的是 --pset 传进来的候选曲线，**不是** js/ai.js 的出厂表');
+  if (o.pset || o.bset) console.log('\n⚠ 本次用的是 --pset/--bset 传进来的候选曲线，**不是** js/ai.js 的出厂表');
   console.log('\n⭐ 参考玩家[' + o.ref + '] vs 20 级阶梯（' + o.games + ' 局/级 · 先后手各半 · 和局半分 · seed '
     + o.seedBase + ' · 标准误 ≈ ' + se(o.games).toFixed(3) + '）');
-  console.log('级别  模式     p       q3     参考玩家 胜/和/负        得分率   慢招/局  ⭐变盘失误/局  有变盘失误的局');
+  console.log('级别  模式    p/blunder  q3    参考玩家 胜/和/负        得分率  ⭐送头率  ⭐变盘失误/局  有变盘失误的局');
   let prev = null;
   for (const t of tiers) {
     const a = acc['t' + t], pr = AI.params(t);
@@ -400,13 +440,15 @@ async function modeLadder(o) {
     //   噪声里是正常的（DESIGN 说相邻角色五五开是对的），但**方向性的倒挂**是阶梯错了。
     const inv = (prev !== null && a.score > prev + 2 * se(o.games)) ? '  ⚠倒挂' : '';
     prev = a.score;
+    // ⚠ 「p/blunder」一列对求解器档是 p、对轻松档是 blunder —— 两者是**同一件事在两段的
+    //   不同实现**（都是「这一手打算走坏」的意图概率），并排读才看得出整条阶梯的走势。
     console.log(String(t).padStart(3) + '   ' + pr.mode.padEnd(8)
-      + (pr.mode === 'solver' ? pOf(t).toFixed(3) : '  -  ').padEnd(8)
-      + (pr.mode === 'solver' ? pr.q3.toFixed(2) : ' - ').padEnd(7)
+      + (pr.mode === 'solver' ? pOf(t).toFixed(3) : bOf(t).toFixed(3)).padEnd(10)
+      + (pr.mode === 'solver' ? pr.q3.toFixed(2) : ' - ').padEnd(6)
       + (a.wins + '/' + a.draws + '/' + a.losses).padEnd(20)
       + a.score.toFixed(3)
-      + (a.mistakes / a.n).toFixed(2).padStart(9)
-      + (a.blunders / a.n).toFixed(2).padStart(14)
+      + (a.feedRate * 100).toFixed(1).padStart(8) + '%'
+      + (a.blunders / a.n).toFixed(2).padStart(13)
       + (a.blunderGameRate * 100).toFixed(0).padStart(14) + '%' + inv);
   }
   console.log('（' + wall.toFixed(1) + 's · ' + o.workers + ' worker · '
@@ -423,7 +465,8 @@ async function modeSweep(o) {
   const jobs = [];
   for (const p of ps) {
     for (let f = 0; f < o.families; f++) {
-      const par = {}; par[o.tier] = { p: p };
+      const par = {}; par[o.tier] = {};
+      par[o.tier][o.knob] = p;
       if (o.q3 !== null) par[o.tier].q3 = o.q3;
       jobs.push({
         id: 'p' + p + '#' + f, kind: 'ref', tier: o.tier, from: 0, to: o.games,
@@ -433,10 +476,10 @@ async function modeSweep(o) {
   }
   const t0 = Date.now();
   const acc = collect(await runParallel(jobs, o), jobs.map(j => j.id));
-  console.log('\n⭐ p → 参考玩家得分率（第 ' + o.tier + ' 级 · q3='
+  console.log('\n⭐ ' + o.knob + ' → 参考玩家[' + o.ref + ']得分率（第 ' + o.tier + ' 级 · q3='
     + (o.q3 === null ? AI.params(o.tier).q3 : o.q3) + ' · ' + o.games + ' 局 × '
     + o.families + ' 家族 · 单家族标准误 ≈ ' + se(o.games).toFixed(3) + '）');
-  console.log('  p      ' + Array.from({ length: o.families }, (_, f) => ('家族' + f).padStart(7)).join(' ') + '   合并    胜/和/负（合并）');
+  console.log('  ' + o.knob.padEnd(6) + ' ' + Array.from({ length: o.families }, (_, f) => ('家族' + f).padStart(7)).join(' ') + '   合并    胜/和/负（合并）');
   for (const p of ps) {
     let w = 0, d = 0, l = 0, n = 0;
     const cells = [];
@@ -470,8 +513,14 @@ async function modeWeights(o) {
   for (const vn of Object.keys(variants)) {
     for (const [x, y] of pairs) {
       for (let f = 0; f < o.families; f++) {
-        let par = null;
-        if (variants[vn]) { par = {}; for (let t = 1; t <= 5; t++) par[t] = { w: variants[vn][t - 1] }; }
+        // ⚠⚠ **两个变体都把 blunder 清零**：这一组只回答「权重表该不该是几何间距」，
+        //   带着送头率跑会被主旋钮完全盖过（送头率的量程比中路偏好大一个数量级），
+        //   量出来的是 blunder 表而不是权重表 —— 一次看不出来的口径错。
+        const par = {};
+        for (let t = 1; t < AI.SOLVER_FROM; t++) {
+          par[t] = { blunder: 0 };
+          if (variants[vn]) par[t].w = variants[vn][t - 1];
+        }
         jobs.push({
           id: vn + '|' + x + 'v' + y + '|' + f, kind: 'ai', tA: x, tB: y,
           from: 0, to: o.games, seedBase: (o.seedBase + f * 1000003) | 0, params: par

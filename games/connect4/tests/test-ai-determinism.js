@@ -189,6 +189,14 @@ const searchy = bd => noMate(bd) && oracleSafe(bd).length >= 2;   // 求解器�
   // 覆盖开局到残局的各种深度；低档在所有深度上都跑，⛔ 高档只在深局面上跑（见局面工厂的 ⚠⚠）
   const shallowTierSets = [2, 6, 10, 16, 24, 30, 36].map(n => randomPositions(n, 12, 700 + n));
   let mateCases = 0, blockCases = 0, doomedCases = 0;
+  // ⭐⭐ 2026-08-01 规格修订：「立即败招」**按档分流**（DESIGN §3.1）——
+  //   · 求解器档 6-20：**零容忍**，且是结构性保证（ranked 全部取自 safe）；
+  //   · 轻松档 1-5：**准许**，送头率就是这五级的明面主旋钮（新手就是会送头）。
+  //   ⇒ 这一段因此分成两条断言：求解器档一次都不许；轻松档数出送头次数，
+  //     再用「必须真的送过头」+「blunder=0 时必须一次都不送」两头夹住。
+  //   ⛔ 别把轻松档那条写成「送头率 ≈ blunder」：blunder 是**意图**概率，抽中之后照样
+  //     可能挑到安全列 ⇒ 实际送头率恒 < blunder，写等号必假红（口径见 ai.js）。
+  let shallowFeeds = 0, shallowChoices = 0;
 
   for (const set of shallowTierSets) {
     for (const bd of set) {
@@ -213,11 +221,25 @@ const searchy = bd => noMate(bd) && oracleSafe(bd).length >= 2;   // 求解器�
             // 每列都送头 ⇒ 走哪都一样，只断言它诚实地报了 DOOMED
             assert.strictEqual(d.reason, AI.REASON.DOOMED);
             doomedCases++;
-          } else {
-            // ⛔ 绝不主动走立即败招（送对方当场连四）——**包括第 1 级**
+          } else if (t >= AI.SOLVER_FROM) {
+            // ⛔⛔ 求解器档：绝不主动走立即败招（送对方当场连四）。**零容忍**，
+            //   这一段的玩家看得出区别 —— 送头会被读成「AI 坏了」而不是「AI 在放水」。
             assert.ok(safe.indexOf(d.col) !== -1,
-              '第 ' + t + ' 级走了立即败招 ' + d.col + '（安全列 ' + safe + '）');
+              '第 ' + t + ' 级（求解器档）走了立即败招 ' + d.col + '（安全列 ' + safe + '）');
             if (safe.length < legal.length) blockCases++;
+          } else {
+            // 轻松档：准许送头，只统计（下面两条断言两头夹）
+            if (safe.length < legal.length) {
+              blockCases++; shallowChoices++;
+              if (safe.indexOf(d.col) === -1) {
+                shallowFeeds++;
+                assert.strictEqual(d.reason, AI.REASON.BLUNDER,
+                  '轻松档送了头却没如实报 BLUNDER（reason=' + d.reason + '）');
+                assert.strictEqual(d.slipped, true, '送头必须记成 slipped');
+              } else {
+                assert.strictEqual(d.reason, AI.REASON.SHALLOW);
+              }
+            }
           }
         }
       }
@@ -225,8 +247,37 @@ const searchy = bd => noMate(bd) && oracleSafe(bd).length >= 2;   // 求解器�
   }
   assert.ok(mateCases > 0, '样本里必须真的出现过「有制胜手」的局面');
   assert.ok(blockCases > 0, '样本里必须真的出现过「有列会送头」的局面');
-  console.log('test-ai: 全档合法 / 能赢必赢(' + mateCases + ') / 绝不送头(' + blockCases
-    + ') / 全送头诚实报 DOOMED(' + doomedCases + ') OK');
+  // ⭐ 轻松档**确实会送头**（否则第 1 级又变回「克制的高手」，产品目标当场不成立）
+  assert.ok(shallowChoices > 100, '轻松档的样本太少（' + shallowChoices + '）');
+  assert.ok(shallowFeeds / shallowChoices > 0.10,
+    '轻松档几乎不送头（' + (shallowFeeds / shallowChoices * 100).toFixed(1)
+    + '%）⇒ blunder 旋钮没接上，第 1 级又变回「从不犯错的新手」');
+  // ⭐⭐ 反向：把 blunder 全部拧到 0，轻松档必须**一次都不送头** ——
+  //   这条才是「送头是明面参数控制的，不是随机漏防」的证据。
+  {
+    for (let t = 1; t < AI.SOLVER_FROM; t++) AI.setTierParams(t, { blunder: 0 });
+    let zeroFeeds = 0, zeroChoices = 0;
+    for (const set of shallowTierSets) {
+      for (const bd of set) {
+        if (R.winningMoves(bd).length) continue;
+        const safe = oracleSafe(bd);
+        if (safe.length === 0 || safe.length === R.moves(bd).length) continue;
+        for (let t = 1; t < AI.SOLVER_FROM; t++) {
+          for (let seed = 0; seed < 6; seed++) {
+            zeroChoices++;
+            if (safe.indexOf(AI.decide(bd, t, seed).col) === -1) zeroFeeds++;
+          }
+        }
+      }
+    }
+    AI.resetTierParams();
+    assert.ok(zeroChoices > 100, 'blunder=0 的样本太少（' + zeroChoices + '）');
+    assert.strictEqual(zeroFeeds, 0,
+      'blunder=0 时轻松档仍送了 ' + zeroFeeds + ' 次头 ⇒ 送头不是明面参数控制的');
+  }
+  console.log('test-ai: 全档合法 / 能赢必赢(' + mateCases + ') / ⭐求解器档零送头(' + blockCases
+    + ') / 轻松档送头率 ' + (shallowFeeds / shallowChoices * 100).toFixed(1)
+    + '%（blunder=0 时为 0）/ 全送头诚实报 DOOMED(' + doomedCases + ') OK');
 }
 
 // ════════════════════════════════════════
@@ -584,21 +635,42 @@ function playScripted(startMoves, aiTier, seed, plies, humanRnd) {
 // ⑩ 阶梯不许是假的：低档确实会失误 · 中档的 slip 绝不是败招 · 相邻级有真实强弱差
 // ════════════════════════════════════════
 {
-  // (a) 低档确实会失误：拿求解器当真值，数「AI 走的列不在 best 里」的比例
-  let lowTotal = 0, lowWrong = 0, midTotal = 0, midWrong = 0;
+  // (a) 低档确实会失误，且**比中档错得更狠**。
+  // ⚠⚠ 判据必须是「**变盘失误**」（把必胜走成和/负、或把和走成负 = 分数正负号下降），
+  //   ⛔ 绝不能用「走的列不在 solve().best 里」—— 那条在 2026-08-01 的重校准后**当场假红**
+  //   （实锤）：第 6 级现在 p=1.0，按定义**每一手都故意不走最优**，「不在 best 里」的比例
+  //   接近 1，比第 1-3 级还高；但它走的仍然是第 2/3 好的**安全**列，实际强度远在低档之上。
+  //   ⇒ 「意图失误率」和「实际有多坏」是两回事，阶梯的判据只能是后者（同一条教训在
+  //     ai.js 里写成「难度页该印变盘失误，不是 p」）。
+  const bands = { low: [1, 2, 3], mid: [6, 8], high: [16, 18] };
+  const tot = { low: 0, mid: 0, high: 0 }, bad = { low: 0, mid: 0, high: 0 };
   for (const n of [22, 26]) {
     for (const bd of randomPositions(n, 20, 7700 + n, searchy)) {
-      const best = S.solve(bd).best;
+      const sa = S.scoreAll(bd);
+      let bestScore = -Infinity;
+      for (const k of Object.keys(sa)) if (sa[k] > bestScore) bestScore = sa[k];
+      const degraded = col => Math.sign(sa[col]) < Math.sign(bestScore);
       for (let s = 0; s < 12; s++) {
-        for (const t of [1, 2, 3]) { lowTotal++; if (best.indexOf(AI.aiMove(bd, t, s)) === -1) lowWrong++; }
-        for (const t of [6, 8]) { midTotal++; if (best.indexOf(AI.aiMove(bd, t, s)) === -1) midWrong++; }
+        for (const b of Object.keys(bands)) {
+          for (const t of bands[b]) { tot[b]++; if (degraded(AI.aiMove(bd, t, s))) bad[b]++; }
+        }
       }
     }
   }
-  const lowRate = lowWrong / lowTotal, midRate = midWrong / midTotal;
-  assert.ok(lowRate > 0.10, '第 1-3 级几乎不失误（' + (lowRate * 100).toFixed(1) + '%）⇒ 阶梯是假的');
-  assert.ok(midRate > 0.02, '第 6-8 级几乎不失误（' + (midRate * 100).toFixed(1) + '%）⇒ p 曲线没接上');
-  assert.ok(midRate < lowRate, '中档的失误率必须低于低档');
+  const lowRate = bad.low / tot.low, midRate = bad.mid / tot.mid, highRate = bad.high / tot.high;
+  assert.ok(lowRate > 0.10, '第 1-3 级几乎不变盘失误（' + (lowRate * 100).toFixed(1) + '%）⇒ 阶梯是假的');
+  assert.ok(midRate > 0.02, '第 6-8 级几乎不变盘失误（' + (midRate * 100).toFixed(1) + '%）⇒ p 曲线没接上');
+  assert.ok(midRate <= lowRate, '中档的变盘失误率（' + (midRate * 100).toFixed(1)
+    + '%）必须不高于低档（' + (lowRate * 100).toFixed(1) + '%）');
+  // ⚠ low 与 mid **本来就贴得很近**（第 5↔6 级是两段的**接缝**，实测胜率只差 5 个百分点），
+  //   所以上面那条只写 <=，⛔ 别给它加一个「至少差多少」的阈值 —— 那是在要求接缝断开。
+  //   真正要有余量的是**跨越整条阶梯**的这一条：
+  //   ⚠ 阈值 1.5× 是照**实测**给的（本轮：低档 31.1% / 中档 29.4% / 高档 16.1%，比值 1.93），
+  //     留了余量但不宽 —— ⛔ 别为了让某次改动变绿把它往下调，该重跑 `npm run sim:c4` 看阶梯。
+  //   ⚠ 别指望这个比值很大：这里量的是**随机深局面上每一手**的变盘率，不是对局胜率；
+  //     顶档在真实对局里是 0（有单独的「顶档零失误」用例钉死）。
+  assert.ok(highRate * 1.5 < lowRate, '第 16-18 级的变盘失误率（' + (highRate * 100).toFixed(1)
+    + '%）没有明显低于第 1-3 级（' + (lowRate * 100).toFixed(1) + '%）⇒ 20 级阶梯是假的');
 
   // (b) slip 出来的那一手**仍然**不是立即败招（结构性保证，这里正面验一遍）
   let slips = 0;
@@ -638,8 +710,8 @@ function playScripted(startMoves, aiTier, seed, plies, humanRnd) {
     '第 ' + pairs[i][0] + ' 级打不过第 ' + pairs[i][1] + ' 级（得分率 ' + v + '）⇒ 这两级其实是同一级'));
   const far = +scoreOfMatch(5, 1, 400).toFixed(3);
   assert.ok(far > 0.72, '第 5 级 vs 第 1 级只有 ' + far + ' ⇒ 轻松档五级没拉开');
-  console.log('test-ai: 阶梯是真的 OK（低档失误率 ' + (lowRate * 100).toFixed(1)
-    + '% / 中档 ' + (midRate * 100).toFixed(1) + '%；slip ' + slips + ' 次全部非败招；'
+  console.log('test-ai: 阶梯是真的 OK（变盘失误率 低档 ' + (lowRate * 100).toFixed(1)
+    + '% / 中档 ' + (midRate * 100).toFixed(1) + '% / 高档 ' + (highRate * 100).toFixed(1) + '%；slip ' + slips + ' 次全部非败招；'
     + '相邻级得分率 ' + JSON.stringify(got) + '，5v1 = ' + far + '）');
 }
 
@@ -666,7 +738,24 @@ function playScripted(startMoves, aiTier, seed, plies, humanRnd) {
   for (let t = AI.SOLVER_FROM; t <= AI.TIER_MAX; t++) assert.strictEqual(AI.params(t).mode, 'solver');
   // ⭐ 出厂值钉死在**校准结果**上（Task 9，tools/sim-ai.js）。改这三个数 = 改明面阶梯，
   //   ⛔ 必须先重跑 `npm run sim:c4`，别只改测试让它变绿。
-  assert.strictEqual(AI.params(AI.SOLVER_FROM).p, 0.75);
+  // ⭐ 第 6 级是**接缝**：求解器档要从自己很弱的一头接上轻松档的第 5 级。
+  // ⚠ 不写死成 p=1 —— 实测 p=1 在 solid 尺子上会**倒挂**（t5 .599 → t6 .706），
+  //   定稿是 .90。这里只钉「必须足够弱」，具体值以 `npm run sim:c4` 的两把尺子为准。
+  assert.ok(AI.params(AI.SOLVER_FROM).p > 0.8,
+    '第 ' + AI.SOLVER_FROM + ' 级（接缝）的 p 只有 ' + AI.params(AI.SOLVER_FROM).p
+    + ' ⇒ 求解器档一上来就太强，与第 5 级之间会断档');
+  assert.strictEqual(AI.params(AI.SOLVER_FROM).q3, 1,
+    'q3=1 才有那 .29→.45 的弱端量程，接缝全靠它（见 ai.js 的 Q3 那段）');
+  // ⭐ 轻松档的送头率必须逐级下降、且第 1 级足够高（产品锚点：第 1 级 ≈ 参考玩家 90%）
+  for (let t = 2; t < AI.SOLVER_FROM; t++) {
+    assert.ok(AI.params(t).blunder <= AI.params(t - 1).blunder,
+      'blunder 必须逐级不增（第 ' + t + ' 级 ' + AI.params(t).blunder
+      + ' > 第 ' + (t - 1) + ' 级 ' + AI.params(t - 1).blunder + '）');
+  }
+  assert.ok(AI.params(1).blunder > 0.8, '第 1 级的送头率太低 ⇒ 它不是新手');
+  for (let t = AI.SOLVER_FROM; t <= AI.TIER_MAX; t++) {
+    assert.strictEqual(AI.params(t).blunder, 0, '⛔ 求解器档的送头率必须是结构性的 0');
+  }
   assert.strictEqual(AI.params(AI.TIER_MAX).p, 0);
   assert.ok(AI.params(19).p > 0, '第 19 级必须还有失误（否则它和第 20 级是同一级）');
   // ⭐ 顶端要有**可感知**的台阶（Task 9 的产品要求）：出厂线性曲线的 p(19)=.039 与 p(20)=0
