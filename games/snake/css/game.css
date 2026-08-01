@@ -25,9 +25,18 @@ body { background: #fdf3f7; }
 .q-bar { height: 7px; border-radius: 4px; background: #f6ecf4; margin: -2px 12px 12px; overflow: hidden; }
 .q-bar i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, #f7a8c8, #d6336c); }
 .q-sub, .q-all { font: 500 12px sans-serif; color: #b39ddb; text-align: center; padding: 6px 0 10px; }
-/* 任务行的图标是「任务类型」(🍎/⚡/🔓),不是成就徽章 ⇒ 不套灰掉的锁定样式 */
-.ach-item.qrow .medal { filter: none; background: #fdf1f8; }
+/* 任务行的图标是「任务类型」(苹果/闪电/钥匙),不是成就徽章 ⇒ 不套锁定的降透明度 */
+.ach-item.qrow .medal { opacity: 1; background: #fdf1f8; }
 .ach-item.qrow .nm { color: #7a5c72; }
+
+/* ── 天使风格 UI 图标(tools/gen-ui-icons.cjs 生成的 assets/ui/*.webp)──
+   ⚠ 图标自带留白 ⇒ 在 34~36px 的圆片里要放到 ~88% 才不显小。
+   img 的 alt 是对应 emoji:图缺了浏览器直接显示 emoji(天然回退)。 */
+.uic { width: 88%; height: 88%; object-fit: contain; display: block; }
+.uic.inl { width: 1.35em; height: 1.35em; display: inline-block; vertical-align: -.32em; }
+/* ⚠ 图标是「浅色 + 白描边」的贴纸风,压在深色/彩色按钮上会糊成一团白 ⇒ 补一层投影脱开底色 */
+#home .home-daily .uic { filter: drop-shadow(0 1px 2px rgba(160,90,30,.45)); }
+#home .home-btn .ico .uic { width: 100%; height: 100%; }   /* 入口图标撑满色片,最显眼 */
 /* 统计页:两列数据格。16 个同色数字扫过去像账单 ⇒ 加图标 + 按语义分四色 */
 .st-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; padding-top: 6px; }
 .st-cell { position: relative; background: #fff6fb; border-radius: 14px; padding: 11px 8px 10px;
@@ -78,10 +87,12 @@ body { background: #fdf3f7; }
 /* 成就行:解锁的做成金色卡片(一眼看出「我拿到了哪些」),未解锁的留白 + 细进度条 */
 .ach-item { display: flex; align-items: center; gap: 10px; padding: 9px 10px;
   border-radius: 13px; margin-bottom: 2px; }
-.ach-item .medal { font-size: 22px; filter: grayscale(1) opacity(.3); flex: none;
-  width: 34px; height: 34px; border-radius: 11px; background: #f7f2f6;
-  display: grid; place-items: center; }
-.ach-item.got .medal { filter: none; background: linear-gradient(#fff2cc, #ffe08a);
+/* ⚠ 未解锁不再靠 `filter: grayscale` —— 现在两档各有自己的 Flux 图(金翼星章/灰石章),
+   再套滤镜会把灰石章压成一团脏灰。 */
+.ach-item .medal { font-size: 20px; flex: none;
+  width: 36px; height: 36px; border-radius: 11px; background: #f7f2f6;
+  display: grid; place-items: center; opacity: .6; }
+.ach-item.got .medal { opacity: 1; background: linear-gradient(#fff2cc, #ffe08a);
   box-shadow: 0 2px 8px rgba(214,160,40,.28); }
 .ach-item .nm { font: 600 14px sans-serif; color: #9b8394; }
 .ach-item.got { background: linear-gradient(90deg, #fffaf0, #fff5e2); }
@@ -135,11 +146,14 @@ body { background: #fdf3f7; }
 .gal-set .gb { height: 6px; border-radius: 4px; background: #f6ecf4; overflow: hidden; }
 .gal-set .gb i { display: block; height: 100%; border-radius: 4px;
   background: linear-gradient(90deg, #f7a8c8, #d6336c); transition: width .4s; }
-/* 集齐:整行转金 + 右上角小皇冠,给「差 3 张就集齐」一个明确的目标物 */
+/* 集齐:整行转金 + 名字后跟一顶小金冠,给「差 3 张就集齐」一个明确的目标物 */
 .gal-set.full { background: linear-gradient(90deg, #fffaf0, #fff3dc); }
 .gal-set.full .pg { color: #c9a227; }
 .gal-set.full .gb i { background: linear-gradient(90deg, #ffd36e, #f0a500); }
-.gal-set.full .nm::after { content: '👑'; font-size: 13px; }
+/* ⚠ 皇冠用 background-image 不是 content:'👑' —— CSS 的 content 塞不进图片资源,
+   而这里要跟其余 UI 用同一套 Flux 生成的图标(风格统一)。 */
+.gal-set.full .nm::after { content: ''; width: 15px; height: 15px; flex: none; align-self: center;
+  background: url('../assets/ui/set-crown.webp') center/contain no-repeat; }
 .gal-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding-top: 8px; }
 .gal-grid img { width: 100%; aspect-ratio: 1; border-radius: 10px; object-fit: cover; }
 .gal-grid img.locked { filter: grayscale(1) brightness(.35); }

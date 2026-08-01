@@ -153,6 +153,24 @@ DOM 层的所有页面 + 游戏主画面的下半屏。**零玩法/经济改动*
 
 **验收工具**:`node games/snake/tools/shot-ui.cjs` 一次截全部 9 个 DOM 界面到 `C:/tmp/snake/ui/`(自动造进度数据,空页看不出排版好坏)。改样式后跑它 + `tools/shot-notch.cjs`。
 
+## 天使风格 UI 图标(assets/ui/,本机 Flux 生成)
+
+emoji 是系统字体、每个平台长得都不一样,和游戏世界观也没关系。16 个显眼位置换成自制图标:
+主界面六个入口 · 成就徽章两档(金翼星章 / 灰石章,120 行共用)· 每日任务六个类型 · 每日礼物 · 集齐皇冠。
+
+```bash
+node games/snake/tools/gen-ui-icons.cjs [名字过滤]   # ComfyUI+Flux schnell → C:/tmp/snake/ui-icons/raw
+cd C:/tmp/snake/ui-icons && C:/ComfyUI/venv/Scripts/python.exe cut-ui-icons.py   # 抠透明+裁正方+192 webp
+cp C:/tmp/snake/ui-icons/cut/*.webp games/snake/assets/ui/                        # 全套 196KB
+```
+
+- **回退**:`uiIcon(name, emoji)` 生成的 `<img>` 把 **emoji 填进 `alt`** ⇒ 图缺了浏览器直接显示 emoji,**零 JS 的天然回退**(同引擎 `makeArt` 的思路:换图不改码,丢图不白屏)。
+- ⛔ **判据只有一个:缩到 34px 还认得出**。第一版三张全糊了(淡粉水晶柱几乎看不见 / 米色卷轴一团 / 画框里的天使只剩紫方块)——图标必须**主体色和背景拉开 + 剪影简单**,prompt 里写 `bold saturated colors` / `strong contrast` / `thick outline`。**验收要做「三尺寸对照表」**(192/62/34 并排,见 `C:/tmp/snake/ui-icons/sheet.py`),只看 1024 原图必定误判。
+- ⚠ 未解锁成就**不要**给同一张图套 `filter: grayscale` —— 两档各生成一张(金/灰)才好看,套滤镜是一团脏灰。
+- ⚠ 浅色贴纸风图标压在深色/彩色按钮上会糊成一团白 ⇒ 补 `drop-shadow` 脱开底色(每日礼物的金色按钮实踩)。
+- ⚠ CSS 里要图标用 `background-image`,`content:'👑'` 塞不进图片资源(集齐皇冠)。
+- **回归**:`tests/test-ui-icons.js` 静态查「代码引用的名字都有文件 / css 引用的都有文件 / 没有没人用的孤儿图 / 单张 <40KB」。**名字拼错不会报错**(退回 emoji 而已),功能测试和 E2E 都抓不到,只能靠这条。已挂进 `npm run test:snake`(顺带把一直漏在外面的 `test-quests` 也补进去了)。
+
 ## 项目状态(上架)
 
 - **已上线 App Store**(`READY_FOR_SALE`)。ASC App「Snake Angel: Retro Arcade」Apple ID `6789757716`,bundle `com.aispeeds.angelsnake`。

@@ -238,7 +238,7 @@ function renderAchTab(tab) {
   // 顶部总进度:120 个成就里「我拿了几个」是这一页唯一真正想知道的数,原来得自己数
   // 头部标题用**页签名**(单局/累计),不用面板标题——否则和上方大标题一字不差地重复一遍
   const head = `<div class="ach-head">
-    <div class="t"><span>🏅 ${T(tab === 'run' ? 'achui.tabRun' : 'achui.tabCum')}</span><b>${nGot}/${defs.length}</b></div>
+    <div class="t"><span>${uiIcon('ach-gold', '🏅', 'inl')} ${T(tab === 'run' ? 'achui.tabRun' : 'achui.tabCum')}</span><b>${nGot}/${defs.length}</b></div>
     <div class="b"><i style="width:${((nGot / defs.length) * 100).toFixed(1)}%"></i></div></div>`;
   body.innerHTML = head + defs.map(d => {
     const has = got.has(d.id);
@@ -252,8 +252,9 @@ function renderAchTab(tab) {
       // ⚠ 放在 .ach-item **外面**是刻意的——E2E 按 .ach-item 计数(必须恰好 100)
       if (!has) bar = `<div class="ach-pg"><i style="width:${((cur / info.threshold) * 100).toFixed(0)}%"></i></div>`;
     }
+    // 徽章两档各有自己的图(金翼星章 / 灰石章)——比给同一张图套 grayscale 滤镜好看得多
     return `<div class="ach-item${has ? ' got' : ''}">
-      <span class="medal">🏅</span><span class="nm">${T('ach.' + d.id)}</span>
+      <span class="medal">${uiIcon(has ? 'ach-gold' : 'ach-locked', '🏅')}</span><span class="nm">${T('ach.' + d.id)}</span>
       <span class="pg">${pg}</span></div>${bar}`;
   }).join('');
 }
@@ -549,7 +550,7 @@ function homeProgressHTML() {
     <div class="hp-top"><span>🖼️ ${T('home.collected', { n: got, total })}</span>
       <span class="pct">${((got / total) * 100).toFixed(1)}%</span></div>
     <div class="hp-bar"><i style="width:${pct.toFixed(1)}%"></i></div>
-    ${skin ? `<div class="hp-skin">🎨 ${T('home.nextSkin', { name: skin.name })} · ${skin.bySet ? T('skins.needSet') : skin.cur + '/' + skin.need}</div>` : ''}
+    ${skin ? `<div class="hp-skin">${uiIcon('menu-skins', '🎨', 'inl')} ${T('home.nextSkin', { name: skin.name })} · ${skin.bySet ? T('skins.needSet') : skin.cur + '/' + skin.need}</div>` : ''}
   </div>`;
 }
 function openHome() {
@@ -573,14 +574,14 @@ function openHome() {
      ${homeProgressHTML()}
      <button class="home-play" id="home-play" type="button">${playLabel}</button>
      <button class="home-daily${dailyClaimable() ? ' ready' : ''}" id="home-daily" type="button">
-       🎁 ${dailyClaimable() ? T('daily.claim') : T('daily.streak', { n: (G.save.daily && G.save.daily.giftStreak) || 0 })}</button>
+       ${uiIcon('daily-gift', '🎁', 'inl')} ${dailyClaimable() ? T('daily.claim') : T('daily.streak', { n: (G.save.daily && G.save.daily.giftStreak) || 0 })}</button>
      <div class="home-menu">
-       <button class="home-btn${qDone < 3 ? ' todo' : ''}" id="home-quests" type="button"><span class="ico">📋</span><span class="lb">${T('q.title')}</span><span class="bdg">${qDone}/3</span></button>
-       <button class="home-btn" id="home-ach" type="button"><span class="ico">🏅</span><span class="lb">${T('menu.achievements')}</span><span class="bdg">${achGot}</span></button>
-       <button class="home-btn" id="home-gal" type="button"><span class="ico">🖼️</span><span class="lb">${T('menu.gallery')}</span><span class="bdg">${G.save.gallery.unlocked.length}</span></button>
-       <button class="home-btn" id="home-skin" type="button"><span class="ico">🎨</span><span class="lb">${T('menu.skins')}</span><span class="bdg">${skinGot}/${Themes.THEME_ORDER.length}</span></button>
-       <button class="home-btn" id="home-stats" type="button"><span class="ico">📊</span><span class="lb">${T('stats.title')}</span></button>
-       <button class="home-btn" id="home-howto" type="button"><span class="ico">❓</span><span class="lb">${T('howto.title')}</span></button>
+       <button class="home-btn${qDone < 3 ? ' todo' : ''}" id="home-quests" type="button"><span class="ico">${uiIcon('menu-quests', '📋')}</span><span class="lb">${T('q.title')}</span><span class="bdg">${qDone}/3</span></button>
+       <button class="home-btn" id="home-ach" type="button"><span class="ico">${uiIcon('menu-ach', '🏅')}</span><span class="lb">${T('menu.achievements')}</span><span class="bdg">${achGot}</span></button>
+       <button class="home-btn" id="home-gal" type="button"><span class="ico">${uiIcon('menu-gallery', '🖼️')}</span><span class="lb">${T('menu.gallery')}</span><span class="bdg">${G.save.gallery.unlocked.length}</span></button>
+       <button class="home-btn" id="home-skin" type="button"><span class="ico">${uiIcon('menu-skins', '🎨')}</span><span class="lb">${T('menu.skins')}</span><span class="bdg">${skinGot}/${Themes.THEME_ORDER.length}</span></button>
+       <button class="home-btn" id="home-stats" type="button"><span class="ico">${uiIcon('menu-stats', '📊')}</span><span class="lb">${T('stats.title')}</span></button>
+       <button class="home-btn" id="home-howto" type="button"><span class="ico">${uiIcon('menu-howto', '❓')}</span><span class="lb">${T('howto.title')}</span></button>
      </div>
      <div class="home-foot">
        <button id="home-lang" class="wide" type="button" title="${T('lang.toggle')}">🌐 ${I18N.NATIVE[I18N.lang] || I18N.lang}</button>
@@ -672,6 +673,14 @@ function questDoneCount() {
 }
 // 每个任务类型自己的图标:三行同一个 📋 看不出差别,换成对应的果子/格子/连击更好读
 const Q_ICON = { apples: '🍎', levels: '🖼️', cells: '🔓', special: '✨', combo: '⚡', noDeath: '🛡️' };
+/**
+ * 天使风格的 UI 图标(本机 Flux 生成,assets/ui/*.webp,见 tools/gen-ui-icons.cjs)。
+ * ⚠ `alt` 填对应 emoji ⇒ **图缺了浏览器直接显示 emoji**,零 JS 的天然回退
+ *   (与引擎 makeArt 的「缺图回退」同一个思路:换图不改码,丢图不白屏)。
+ */
+function uiIcon(name, emoji, cls) {
+  return `<img class="uic${cls ? ' ' + cls : ''}" src="assets/ui/${name}.webp" alt="${emoji}" decoding="async">`;
+}
 function openQuests() {
   const panel = document.getElementById('panel');
   document.getElementById('panel-title').textContent = T('q.title');
@@ -683,7 +692,7 @@ function openQuests() {
       const pct = Math.min(100, (q.prog / q.target) * 100).toFixed(0);
       // qrow:任务图标表达的是「任务类型」不是「拿没拿到」⇒ 不能套成就那套灰掉的样式
       return `<div class="ach-item qrow${q.done ? ' got' : ''}">
-          <span class="medal">${q.done ? '✅' : (Q_ICON[q.t] || '📋')}</span>
+          <span class="medal">${q.done ? '✅' : uiIcon('q-' + q.t, Q_ICON[q.t] || '📋')}</span>
           <span class="nm">${T('q.' + q.t, { n: q.target })}</span>
           <span class="pg">${q.done ? '✓' : q.prog + '/' + q.target}</span>
         </div>
