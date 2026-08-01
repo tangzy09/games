@@ -14,7 +14,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | 目录 | 状态 |
 |---|---|
 | `minesweeper` | 已上线 + App Store 送审。完整。 |
-| `snake` | **已上线 App Store**(Snake Angel: Retro Arcade)。完整 + 爽感 FX/每日天使/星级/奖励关/收集进度/本机 Flux 道具美术。**1.0.1 审核中**；**1.0.2 待出包 = 全仓元游戏对齐批**(插屏闸门 2 关→前50关免/每10关、每日任务、统计页、求好评、推送)。 |
+| `snake` | **已上线 App Store**(Snake Angel: Retro Arcade)。完整 + 爽感 FX/每日天使/星级/奖励关/收集进度/本机 Flux 道具美术。**1.0.1 审核中**；**1.0.2 待出包**，web 已上线三批：①全仓元游戏对齐(插屏闸门 2 关→前50关免/每10关、每日任务、统计页、求好评、推送)②**AI 代打免费开放 + 揭图提速 + 激励视频七个位**(结算屏/图鉴/每日礼物/开局礼包/皮肤/任务/复活,`AD_REWARD`+`AD_CAPS` 两张表即全部数值)③**页面视觉打磨**(主界面极光+光环、图鉴缩略图、皮肤真盘面预览、云海填高屏留白)。 |
 | `abyssshoot` | **被 4.3(a) 拒审后整改中**（2026-07-22 改名「Fish Cannon: Deep Sea Merge」+ 盘面去数字化）。玩法/美术/图鉴/道具/广告全备，线上 <https://fishshoot.ai-speeds.com>。 |
 | `blockblast` | **iOS 1.0 已上架（READY_FOR_SALE）**（ASC 名「Cube Blast: Block Puzzle」）。8×8 消除拼图；卖点是**预生成块流**（出块序列落子前就定死、种子可查）。**1.0.1 全量改良已上线 web、iOS 待出包**：30关3章/拼块水晶/天使画廊500张/天使榜/每日任务/连续奖励+补签/日历补玩/图鉴/16皮肤/统计/新广告模型（前50盘零插屏）/GC+推送+求好评+反馈（原生件）。线上 <https://blocks.ai-speeds.com>。 |
 | `solitaire` | **iOS 1.0 已上架 READY_FOR_SALE（2026-07-23 过审）**（ASC 名「Fair Deal: Patience & Cards」，Apple ID 6790861224）。**web 已迭代四轮改良（v26），iOS 待出新包**。Klondike 可解池 + FreeCell 微软局号 + 「这局还有解吗」证明器。线上 <https://cards.ai-speeds.com>。⚠ 商店名**不含 solitaire**（品牌差异化），但 keywords 里有（公有品类，合规）。⚠ 措辞是死线：可解率是「透视暗牌」意义下的，绝不能说成「你一定能赢」（见其 CLAUDE.md）。 |
@@ -51,6 +51,8 @@ node tools/check-locales.js games/<name>/locales
 | 广告闸门 / 激励视频 | 各游戏 `js/shop.js`（未抽取） | 参数与红线见 skill §1；blockblast 是最简闸门的参考实现 |
 | 原生三件套（推送/求好评/反馈） | `games/blockblast/js/{notify,rate,feedback}.js`、`games/snake/js/{notify,rate}.js` | **三个文件都是 game-agnostic**（只依赖 `T()`/`CFG`/`Platform`），复制即用；反馈后端是共享 hub `feedback.ai-speeds.com`（CORS `*`，任何域可直连）。⚠ 已有**两份**实现 ⇒ **下一个游戏要接时先抽进 `engine/`**（drag.js 的老规矩：第三个用例出现才抽） |
 | 插屏闸门 / 每日任务 | `blockblast/js/{shop,quests}.js`、`snake/js/{adgate,quests}.js` | 同一套模型的两份实现（盘数计数口径不同：blockblast 按盘、snake 按关）；参数与红线见 `casual-game-meta` §1/§5.7 |
+| **激励视频七个位 + 每日额度** | `snake/js/main.js` 的 `AD_CAPS`/`AD_REWARD`/`adQuotaLeft` + `tests/e2e-rewards.js` | snake 是最全的参考实现（结算屏/图鉴/每日礼物/开局礼包/皮肤/任务/复活）。⚠ 抄的时候连**冒烟一起抄**：额度失效＝长线收集当天被刷穿、线上收不回来。跨天重置必须按 `AD_CAPS` 全量清（手写清 key 必漏）。奖励池要**显式白名单**，别 `filter(排除两个)`。详见 `casual-game-meta` §1 |
+| **元游戏页面视觉打磨** | `snake/css/game.css` + `snake/tools/shot-ui.cjs` | 入口数量角标 / 收集列表带缩略图 / 皮肤画真盘面预览 / 统计图标做水印 / 方形盘面高屏留白画装饰 / `body.rm` 兜底关掉全部 CSS 动画。清单见 `casual-game-meta` §6.2；`shot-ui.cjs` 是「一次截全部界面 + 先注入有进度的存档」的验收模板，其它游戏照抄 |
 
 **各游戏留存件覆盖（2026-07-31 实测）**：blockblast 全套 ✅ · **snake 已对齐 ✅**（插屏闸门下调 + 每日任务 + 统计页 + 求好评 + 推送）· solitaire 大半 · **minesweeper/abyssshoot 几乎为零且只有 2 语**（现在它俩是全仓 ROI 最高的缺口）。
 
