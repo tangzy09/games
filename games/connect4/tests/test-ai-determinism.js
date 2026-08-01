@@ -664,9 +664,16 @@ function playScripted(startMoves, aiTier, seed, plies, humanRnd) {
     assert.strictEqual(AI.params(t).p, 0, '轻松档没有 p');
   }
   for (let t = AI.SOLVER_FROM; t <= AI.TIER_MAX; t++) assert.strictEqual(AI.params(t).mode, 'solver');
-  assert.strictEqual(AI.params(AI.SOLVER_FROM).p, 0.55);
+  // ⭐ 出厂值钉死在**校准结果**上（Task 9，tools/sim-ai.js）。改这三个数 = 改明面阶梯，
+  //   ⛔ 必须先重跑 `npm run sim:c4`，别只改测试让它变绿。
+  assert.strictEqual(AI.params(AI.SOLVER_FROM).p, 0.75);
   assert.strictEqual(AI.params(AI.TIER_MAX).p, 0);
   assert.ok(AI.params(19).p > 0, '第 19 级必须还有失误（否则它和第 20 级是同一级）');
+  // ⭐ 顶端要有**可感知**的台阶（Task 9 的产品要求）：出厂线性曲线的 p(19)=.039 与 p(20)=0
+  //   只差 3.9 个百分点，玩家分不出来 —— 校准后的最后一格必须明显更大。
+  assert.ok(AI.params(19).p - AI.params(20).p > 0.15,
+    '第 19→20 级的台阶只有 ' + (AI.params(19).p - AI.params(20).p).toFixed(3)
+    + ' ⇒ 阶梯最后一格是画上去的（顶档零失误、第 19 级也几乎零失误，两个棋手角色一模一样）');
   // 参数对象冻结：⛔ 别让调用方 `AI.params(8).p = 0` 静默改掉明面阶梯
   assert.throws(() => { 'use strict'; AI.params(8).p = 0.9; }, TypeError);
 
@@ -721,9 +728,21 @@ function playScripted(startMoves, aiTier, seed, plies, humanRnd) {
     const d1 = AI.paramsDigest();
     assert.notStrictEqual(d1.hash, d0.hash, '改了 p 之后 hash 必须变（否则指纹拦不住误调）');
     assert.strictEqual(d1.rev, 1);
-    // ⚠ 这正是那件「合法但会破坏逐手复现」的事，明确记录下来
-    assert.notStrictEqual(AI.aiMove(bd, 8, 5), before,
-      '前提：改参数确实会改落子 —— 所以它必须被指纹覆盖');
+    // ⚠ 这正是那件「合法但会破坏逐手复现」的事，明确记录下来。
+    // ⛔ 判据必须是 **p=0 与 p=1 这对极值 × 一把 seed**，⛔ 不许写成「出厂参数 vs p=1」：
+    //    Task 9 校准后出厂 p 已经到 .70，这个局面在出厂参数下**本来就会 slip** ⇒ 两边同一列，
+    //    断言当场假红（实锤：actual 3 / expected 3）。⚠ 单个 seed 也不行 —— 次优与最优
+    //    同分时 slip 未必换列，判据必须是「**多数** seed 会变」而不是「这一个 seed 会变」。
+    let diff = 0;
+    for (let s = 0; s < 50; s++) {
+      AI.setTierParams(8, { p: 0 });
+      const atP0 = AI.aiMove(bd, 8, s);
+      AI.setTierParams(8, { p: 1 });
+      if (AI.aiMove(bd, 8, s) !== atP0) diff++;
+    }
+    assert.ok(diff > 20, '前提：改参数确实会改落子（50 个 seed 里只有 ' + diff
+      + ' 个变了）—— 所以它必须被指纹覆盖');
+    assert.strictEqual(AI.params(8).p, 1, '循环结束时 p 必须停在 1（下面几条断言依赖它）');
     AI.setTierParams(2, { w: [11, 10, 10, 10] });
     assert.notStrictEqual(AI.paramsDigest().hash, d1.hash, '改了 w 之后 hash 也必须变');
     AI.resetTierParams();
