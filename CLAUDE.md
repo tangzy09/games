@@ -14,10 +14,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | 目录 | 状态 |
 |---|---|
 | `minesweeper` | 已上线 + App Store 送审。完整。 |
-| `snake` | **已上线 App Store**(Snake Angel: Retro Arcade)。完整 + 爽感 FX/每日天使/星级/奖励关/收集进度/本机 Flux 道具美术。**1.0.1 已过审上线（2026-08-01 itunes lookup 实证 v1.0.1）**；**1.0.2 待出包**，web 已上线四批：①全仓元游戏对齐(插屏闸门 2 关→前50关免/每10关、每日任务、统计页、求好评、推送)②**AI 代打免费开放 + 揭图提速 + 激励视频七个位**(结算屏/图鉴/每日礼物/开局礼包/皮肤/任务/复活,`AD_REWARD`+`AD_CAPS` 两张表即全部数值)③**页面视觉打磨**(主界面极光+光环、图鉴缩略图、皮肤真盘面预览、云海填高屏留白)④**粘度层 `js/meta.js`**(等级/称号 XP 条、**天使榜** 20 个预设角色、连续奖励阶梯 3/7/14/30、「下一个目标」条) + **UI 图标 engine 级共享库**。 |
+| `snake` | **已上线 App Store**(Snake Angel: Retro Arcade)。完整 + 爽感 FX/每日天使/星级/奖励关/收集进度/本机 Flux 道具美术。**1.0.1 已过审上线（2026-08-01 itunes lookup 实证 v1.0.1）**；**1.0.2 待出包**，web 已上线四批：①全仓元游戏对齐(插屏闸门 2 关→前50关免/每10关、每日任务、统计页、求好评、推送)②**AI 代打免费开放 + 揭图提速 + 激励视频七个位**(结算屏/图鉴/每日礼物/开局礼包/皮肤/任务/复活,`AD_REWARD`+`AD_CAPS` 两张表即全部数值)③**页面视觉打磨**(主界面极光+光环、图鉴缩略图、皮肤真盘面预览、云海填高屏留白)④**粘度层 `js/meta.js`**(等级/称号 XP 条、**天使榜** 20 个预设角色、连续奖励阶梯 3/7/14/30、「下一个目标」条) + **UI 图标 engine 级共享库**⑤**天使图随机化**(主界面主视觉每次进来换一张、每关揭的图随机且优先未解锁) + **复活加厚到 10 条命 + 30 秒无敌**(按钮/toast/HUD 三处提示)。 |
 | `abyssshoot` | **被 4.3(a) 拒审后整改中**（2026-07-22 改名「Fish Cannon: Deep Sea Merge」+ 盘面去数字化）。玩法/美术/图鉴/道具/广告全备，线上 <https://fishshoot.ai-speeds.com>。 |
-| `blockblast` | **iOS 1.0 已上架（READY_FOR_SALE）**（ASC 名「Cube Blast: Block Puzzle」）。8×8 消除拼图；卖点是**预生成块流**（出块序列落子前就定死、种子可查）。**1.0.1 全量改良已上线 web、iOS 待出包**：30关3章/拼块水晶/天使画廊500张/天使榜/每日任务/连续奖励+补签/日历补玩/图鉴/16皮肤/统计/新广告模型（前50盘零插屏）/GC+推送+求好评+反馈（原生件）/**🏠 主界面**（天使 hero + 智能续继 + 六格角标入口）/**🗺 关卡地图瘦身成纯选关**（去掉与主界面重复的一切）/**结算卡**（胜负与无尽共用一张不透明卡）/**系统 emoji 换共享 UI 图标**。线上 <https://blocks.ai-speeds.com>。 |
-| `solitaire` | **iOS 1.0 已上架 READY_FOR_SALE（2026-07-23 过审）**（ASC 名「Fair Deal: Patience & Cards」，Apple ID 6790861224）。**web 已迭代六轮改良（v30），iOS 待出新包**。Klondike 可解池 + FreeCell 微软局号 + **Spider 蜘蛛纸牌** + 「这局还有解吗」证明器 + **难度明面阶梯 5 档** + **妙手 ✨/「我的弱点」页** + **求解器自动出题的互动教学 4 课** + **🏠 主界面** + **提示 = 通往胜利的下一步**（不再是启发式）。线上 <https://cards.ai-speeds.com>。⚠ 商店名**不含 solitaire**（品牌差异化），但 keywords 里有（公有品类，合规）。⚠ 措辞是死线：可解率是「透视暗牌」意义下的，绝不能说成「你一定能赢」（见其 CLAUDE.md）。 |
+| `blockblast` | **iOS 1.0 已上架（READY_FOR_SALE）**（ASC 名「Cube Blast: Block Puzzle」）。8×8 消除拼图；卖点是**预生成块流**（出块序列落子前就定死、种子可查）。**1.0.1 全量改良已上线 web、iOS 待出包**：30关3章/拼块水晶/天使画廊500张/天使榜/每日任务/连续奖励+补签/日历补玩/图鉴/16皮肤/统计/新广告模型（前50盘零插屏）/GC+推送+求好评+反馈（原生件）/**🏠 主界面**（天使 hero + 智能续继 + 六格角标入口）/**🗺 关卡地图瘦身成纯选关**（去掉与主界面重复的一切）/**结算卡**（胜负与无尽共用一张不透明卡）/**系统 emoji 换共享 UI 图标**/**主视觉每次随机**。线上 <https://blocks.ai-speeds.com>。 |
+| `solitaire` | **iOS 1.0 已上架 READY_FOR_SALE（2026-07-23 过审）**（ASC 名「Fair Deal: Patience & Cards」，Apple ID 6790861224）。**web 已迭代六轮改良（v30），iOS 待出新包**。Klondike 可解池 + FreeCell 微软局号 + **Spider 蜘蛛纸牌** + 「这局还有解吗」证明器 + **难度明面阶梯 5 档** + **妙手 ✨/「我的弱点」页** + **求解器自动出题的互动教学 4 课** + **🏠 主界面** + **提示 = 通往胜利的下一步**（不再是启发式）+ **系统 emoji 全换共享可爱图标 · 对手头像换天使画像 · 结算卡 · 菜单瘦身 · 主视觉每次随机**。线上 <https://cards.ai-speeds.com>。⚠ 商店名**不含 solitaire**（品牌差异化），但 keywords 里有（公有品类，合规）。⚠ 措辞是死线：可解率是「透视暗牌」意义下的，绝不能说成「你一定能赢」（见其 CLAUDE.md）。 |
 | `bouncerogue` | **设计 v2 定稿（2026-07-18），零代码，下一个动工目标**。市场调研后骨架从实时 paddle 改为**竖屏回合制瞄准发射**（Ballz/Holedown 形态 × 合球化学 × 规则卡 × 种子可查），调研全文见其 `RESEARCH.md`。动工从 P1 走 writing-plans。 |
 
 ## 常用命令
@@ -45,7 +45,7 @@ node tools/check-locales.js games/<name>/locales
 
 | 共用件 | 位置 | 复用方式 |
 |---|---|---|
-| **天使图鉴素材 501 张（25MB）** | `games/snake/assets/angels/` + `manifest.json` | ⛔ **绝不再拷第二份**：web 走相对路径 `../snake/assets/angels/`，iOS 出包走 package.json 的 `wwwExtras`（照 `games/solitaire` 抄）。⚠ blockblast 已踩：又拷了 24MB 进自己目录，待去重 |
+| **天使图鉴素材 501 张（25MB）** | `games/snake/assets/angels/` + `manifest.json` | ⛔ **绝不再拷第二份**：web 走相对路径 `../snake/assets/angels/`，iOS 出包走 package.json 的 `wwwExtras`（照 `games/solitaire` 抄）。⚠ blockblast 已踩：又拷了 24MB 进自己目录，待去重。<br>⭐ **用法上的三条**（三款都这么做了）：主界面主视觉**每次进来从已解锁的里随机抽一张**（固定一张 = 静态海报；⚠ 只在「进入」时抽一次并缓存，renderHome 每帧都跑，每帧重抽会闪）；一局一张的收集品（snake 的揭图）**随机发且优先未解锁**（⚠ 顺手查有没有别的机制搭在序号上 —— snake 的奖励关原判 `imgPos%10`，图号一随机就成了 10% 随机撞上，改挂关数）；**伪社交榜的对手头像也用这批画像**，一眼看出是游戏角色不是真人。 |
 | 引擎美术回退 | `engine/canvas.js` 的 `makeArt(dir,ids)` / `drawArtIcon` | 缺图自动回退矢量/emoji ⇒ **零改码换图**；生成素材见 `comfyui-flux-local` |
 | 十语 i18n | `engine/i18n.js` 默认集 + 各游戏 `locales/*.json` | 加语言 = **纯加 json**；`node tools/check-locales.js games/<name>/locales` 必 0 fail |
 | 广告闸门 / 激励视频 | 各游戏 `js/shop.js`（未抽取） | 参数与红线见 skill §1；blockblast 是最简闸门的参考实现 |
