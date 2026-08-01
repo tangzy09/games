@@ -69,6 +69,12 @@ function serve() {
     await page.evaluate(() => { G.chapter = 3; });
     await shot('menu-ch3');
 
+    // 3.5) 全部二级页（图标/排版都在这些页上，不截就等于没验）
+    for (const ph of ['ACH', 'SKIN', 'SHOP', 'SET', 'CAL', 'DEX', 'ANG', 'QUESTS', 'STATS', 'LADDER', 'FAIR']) {
+      await page.evaluate(p => { G.phase = p; }, ph);
+      await shot('page-' + ph.toLowerCase());
+    }
+
     // 4) 过关结算（三星：步数 ≤ par）
     await page.evaluate(() => {
       dispatch('PLAY_LEVEL', { id: 5 });

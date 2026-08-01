@@ -50,16 +50,17 @@ async function click(page, action, dm){
   ok(await page.evaluate(()=>G.phase==='MENU'), '进入菜单');
   await page.screenshot({path:path.join(SHOT,'p5-01-menu.png')});
 
-  // ── 统计（双口径）──
-  ok(await click(page,'STATS'), '统计可进');
+  // ── 统计（双口径）：菜单瘦身后，统计/收藏等入口只在 🏠 主界面一份 ──
+  await click(page,'PLAY'); await page.waitForTimeout(120);
+  await click(page,'HOME'); await page.waitForTimeout(250);
+  ok(await click(page,'STATS'), '主界面「统计」可进');
   await page.waitForTimeout(120);
   await page.screenshot({path:path.join(SHOT,'p5-02-stats.png')});
   await click(page,'PLAY'); await page.waitForTimeout(100);
 
   // ── 收藏 + 看广告赚币 + 买牌背 ──
   await click(page,'HOME'); await page.waitForTimeout(250);
-  await click(page,'MENU'); await page.waitForTimeout(150);
-  ok(await click(page,'SHOP'), '收藏可进');
+  ok(await click(page,'SHOP'), '主界面「收藏」可进');
   await page.waitForTimeout(120);
   await page.screenshot({path:path.join(SHOT,'p5-03-shop.png')});
 

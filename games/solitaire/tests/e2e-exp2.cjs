@@ -71,6 +71,8 @@ async function click(page, action, dm){
   ok(await page.evaluate(()=>!canMakeup()&&dailyStreakDays()>=1), '⭐ 看广告补上昨天（连续天数保住）');
 
   // ── ④ 成就分页:18 项 ⇒ 2 页 ──
+  await click(page,'PLAY'); await page.waitForTimeout(120);   // 成就入口在 🏠 主界面（菜单已瘦身）
+  await click(page,'HOME'); await page.waitForTimeout(250);
   await click(page,'ACH');
   await page.waitForTimeout(150);
   ok(await click(page,'ACH_PG',{p:1}), '成就页可翻页');

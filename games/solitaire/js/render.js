@@ -15,6 +15,71 @@
     hint: '#ffd84d',
   };
 
+  // ── 共享 UI 图标库（engine/assets/ui，全仓一份）──
+  //    系统 emoji 每个平台长得都不一样、跟这个游戏的天使世界观也没关系 ⇒ 显眼位置一律换掉。
+  //    ⛔ 别在 games/solitaire/assets/ui/ 放第二份（tools/check-ui-icons.cjs 会拦）。
+  const UI = makeUIArt(['star', 'lock', 'coin', 'gem', 'trophy', 'medal', 'crown', 'check',
+                        'calendar', 'clock', 'fire', 'sparkle', 'gift', 'share', 'feedback',
+                        'settings', 'palette', 'chart', 'scroll', 'book', 'frame', 'picture-done',
+                        'shield-heart', 'hint', 'video-ad', 'search', 'eye', 'cards', 'bolt']);
+  UI.load();
+  /** 画一个共享 UI 图标（居中）；缺图回退 emoji */
+  const uiIcon = (id, emoji, x, y, size, col) =>
+    drawArtIcon(UI, id, emoji, x, y, size, col || '#fff', Math.round(size * 0.9) + 'px sans-serif');
+  /** 图标 + 文字（⚠ 分开量宽再排：拼进一个字符串靠 measureText 猜位置，换图标后必叠字）*/
+  function iconText(id, emoji, label, cx0, cy, font, col, size) {
+    ctx.font = font;
+    const tw = ctx.measureText(label).width, ic = size || 16;
+    uiIcon(id, emoji, cx0 - (tw + ic + 4) / 2 + ic / 2, cy, ic);
+    txtL(label, cx0 - (tw + ic + 4) / 2 + ic + 4, cy, col, font);
+  }
+  /** 左对齐版（列表行用）：返回文字实际起点 x */
+  function iconTextL(id, emoji, label, x, cy, font, col, size) {
+    const ic = size || 16;
+    uiIcon(id, emoji, x + ic / 2, cy, ic);
+    txtL(label, x + ic + 5, cy, col, font);
+  }
+  function drawStar(x, y, r, on) {
+    const im = UI.get('star');
+    if (im) { ctx.globalAlpha = on ? 1 : 0.18; ctx.drawImage(im, x - r, y - r, r * 2, r * 2); ctx.globalAlpha = 1; return; }
+    txt('\u2605', x, y, on ? '#ffd84d' : 'rgba(255,255,255,0.18)', Math.round(r * 2) + 'px sans-serif');
+  }
+  /**
+   * 对手头像 = **天使画像**（原来是 👩🏻/🦊 这类系统 emoji）。
+   * ⭐ 两个好处：跟图鉴/主视觉同一套世界观（可爱得起来），而且一眼看出榜上是
+   *   **游戏角色**不是真人玩家 —— 伪社交榜的红线（绝不能让人以为在跟真人比）。
+   * 缺图回退到带首字母的彩色圆盘，零素材依赖。
+   */
+  const AVA_COL = ['#f0abfc', '#67e8f9', '#fdba74', '#86efac', '#c4b5fd', '#fda4af'];
+  function drawAvatar(av, x, y, size, name) {
+    const r = size / 2;
+    if (av === -1) {                                   // 「你」= 玩家选的那张天使 / 星星
+      const f = root.G.avatarFile, im0 = f ? Angels.img(f) : null;
+      if (im0) return clipDraw(im0, x - r, y - r, size);
+      fillRR(x - r, y - r, size, size, r, 'rgba(255,216,77,0.30)');
+      drawStar(x, y, r * 0.62, true);
+      return;
+    }
+    const file = Angels.fileAt(av % (Angels.total() || 500));
+    const im = file ? Angels.img(file) : null;
+    if (im) return clipDraw(im, x - r, y - r, size);
+    fillRR(x - r, y - r, size, size, r, AVA_COL[av % AVA_COL.length]);
+    txt((name || '?').slice(0, 1).toUpperCase(), x, y, '#3a2a4a', 'bold ' + Math.round(size * 0.5) + 'px sans-serif');
+  }
+  function clipDraw(im, x, y, size) {
+    ctx.save();
+    Sprite.rr(ctx, x, y, size, size, size / 2); ctx.clip();
+    const sc = Math.max(size / im.width, size / im.height);
+    ctx.drawImage(im, x + (size - im.width * sc) / 2, y + (size - im.height * sc) / 2,
+                  im.width * sc, im.height * sc);
+    ctx.restore();
+  }
+
+  // 赢局结算卡的高度：⛔ 结算内容必须落在**不透明卡**上（直接飘在牌面上，牌会从字缝里
+  //  透出来一片花 —— blockblast 实拍同款）。canvas 没法先量后画一整段流式内容 ⇒
+  //  用**上一帧量到的高度**，首帧退回估计值（差一帧，肉眼无感）。
+  let winCardH = 0;
+
   function drawSlot(x, y, w, h, label) {
     ctx.strokeStyle = PAL.slot;
     ctx.lineWidth = 2;
@@ -118,18 +183,19 @@
     txt('‹ ' + T('sol.back'), cx - 80, SH - 48, '#fff', '14px sans-serif');
     addHit(cx - 150, SH - 70, 140, 44, 'PLAY', {});
     fillRR(cx + 10, SH - 70, 140, 44, 12, 'rgba(126,242,160,0.22)');
-    txt('📣 ' + T('sol.share'), cx + 80, SH - 48, '#7ef2a0', '13px sans-serif');
+    iconText('share', '📤', T('sol.share'), cx + 80, SH - 48, '13px sans-serif', '#7ef2a0', 15);
     addHit(cx + 10, SH - 70, 140, 44, 'SHARE', {});
     drawToast();
   }
 
   /** 页面通用背景 + 返回按钮 */
-  function page(title) {
+  function page(title, icon, emoji) {
     clearHits();
     const L = Layout.layout({ noBanner: true });
     const { SW, SH } = GameGlobal;
     Sprite.drawTable(ctx, 0, 0, SW, SH, Money.state.table);
-    txt(title, L.cx, GameGlobal.safeTop + 30, '#fff', 'bold 20px sans-serif');
+    if (icon) iconText(icon, emoji, title, L.cx, GameGlobal.safeTop + 30, 'bold 20px sans-serif', '#fff', 22);
+    else txt(title, L.cx, GameGlobal.safeTop + 30, '#fff', 'bold 20px sans-serif');
     fillRR(L.cx - 70, SH - 70, 140, 44, 12, 'rgba(255,255,255,0.20)');
     txt('‹ ' + T('sol.back'), L.cx, SH - 48, '#fff', '14px sans-serif');
     addHit(L.cx - 70, SH - 70, 140, 44, 'PLAY', {});
@@ -205,8 +271,8 @@
     const tot = Angels.total() || 500;
     const got = Math.min(G0.angels || 0, tot);
     fillRR(cx - w / 2, y, w, ch, 11, 'rgba(0,0,0,0.34)');
-    txtL('\ud83d\uddbc\ufe0f ' + T('sol.galleryProgress', { n: got, m: tot }),
-         cx - w / 2 + 12, y + 15, '#fff', 'bold 12px sans-serif');
+    iconTextL('frame', '\u{1F5BC}', T('sol.galleryProgress', { n: got, m: tot }),
+              cx - w / 2 + 12, y + 15, 'bold 12px sans-serif', '#fff', 17);
     txtR((got / tot * 100).toFixed(1) + '%', cx + w / 2 - 12, y + 15, '#ffd84d', 'bold 12px sans-serif');
     fillRR(cx - w / 2 + 12, y + 25, w - 24, 7, 4, 'rgba(255,255,255,0.16)');
     if (got) fillRR(cx - w / 2 + 12, y + 25, Math.max(4, (w - 24) * got / tot), 7, 4, '#ffd84d');
@@ -230,9 +296,21 @@
     const doneToday = G0.dailyDone === todayId();
     const days = dailyStreakDays();
     fillRR(cx - 105, y, 210, dh, 11, doneToday ? 'rgba(255,255,255,0.18)' : '#ffd84d');
-    txt((doneToday ? '\u2713 ' : '\ud83d\udcc5 ') + T('sol.daily')
-        + (days ? '  \ud83d\udd25' + days : ''),
-        cx, y + dh / 2, doneToday ? '#fff' : '#3a2a00', 'bold 13px sans-serif');
+    {   // 图标 / 文字 / 火苗各自量宽（拼字符串必叠字）
+      const fg0 = doneToday ? '#fff' : '#3a2a00', f0 = 'bold 13px sans-serif';
+      ctx.font = f0;
+      const nw = ctx.measureText(T('sol.daily')).width;
+      const dw = ctx.measureText(String(days)).width;
+      let lx = cx - (20 + nw + (days ? 12 + dw + 6 : 0)) / 2;
+      uiIcon(doneToday ? 'check' : 'calendar', doneToday ? '\u2713' : '\u{1F4C5}', lx + 9, y + dh / 2, 17);
+      lx += 20;
+      txtL(T('sol.daily'), lx, y + dh / 2, fg0, f0);
+      if (days) {
+        lx += nw + 6;
+        uiIcon('fire', '\u{1F525}', lx + 8, y + dh / 2, 16);
+        txtL(String(days), lx + 17, y + dh / 2, fg0, f0);
+      }
+    }
     addHit(cx - 105, y, 210, dh, 'DAILY', {});
     y += dh + gap;
 
@@ -240,22 +318,22 @@
     const lessN = Object.keys(G0.lessonsDone || {}).length;
     const achN = Object.keys(G0.ach || {}).length;
     const cells = [
-      ['\ud83c\udf93', T('sol.lessons'), lessN + '/4', 'LESSON'],
-      ['\ud83d\udc7c', T('sol.gallery'), got + '', 'GALLERY'],
-      ['\ud83c\udfc6', T('sol.achievements'), achN + '', 'ACH'],
-      ['\ud83c\udfb4', T('sol.collection'), '', 'SHOP'],
-      ['\ud83d\udcca', T('sol.stats'), '', 'STATS'],
-      ['\u2699', T('sol.settings'), '', 'SET'],
+      ['scroll', '\u{1F393}', T('sol.lessons'), lessN + '/4', 'LESSON'],
+      ['frame', '\u{1F47C}', T('sol.gallery'), got + '', 'GALLERY'],
+      ['trophy', '\u{1F3C6}', T('sol.achievements'), achN + '', 'ACH'],
+      ['cards', '\u{1F3B4}', T('sol.collection'), '', 'SHOP'],
+      ['chart', '\u{1F4CA}', T('sol.stats'), '', 'STATS'],
+      ['settings', '\u2699', T('sol.settings'), '', 'SET'],
     ];
     const gw = (w - 8) / 2;
     cells.forEach(function (c, i) {
       const bx = cx - w / 2 + (i % 2) * (gw + 8), by = y + Math.floor(i / 2) * (gh + 8);
       fillRR(bx, by, gw, gh, 10, 'rgba(0,0,0,0.34)');
-      txt(c[0], bx + 22, by + gh / 2, '#fff', '17px sans-serif');
+      uiIcon(c[0], c[1], bx + 23, by + gh / 2, 21);
       ctx.font = 'bold 11px sans-serif';          // ⚠ wrapLines 按当前 font 量宽，必须先设回来
-      txtL(wrapLines(c[1], gw - 62, 1)[0], bx + 40, by + gh / 2, '#fff', 'bold 11px sans-serif');
-      if (c[2]) txtR(c[2], bx + gw - 10, by + gh / 2, '#ffd84d', 'bold 11px sans-serif');
-      addHit(bx, by, gw, gh, c[3], {});
+      txtL(wrapLines(c[2], gw - 62, 1)[0], bx + 41, by + gh / 2, '#fff', 'bold 11px sans-serif');
+      if (c[3]) txtR(c[3], bx + gw - 10, by + gh / 2, '#ffd84d', 'bold 11px sans-serif');
+      addHit(bx, by, gw, gh, c[4], {});
     });
     y += 3 * gh + 2 * 8 + gap;
 
@@ -263,23 +341,26 @@
     const sw = (w - 24) / 4;
     // \u26a0 **\u7eaf\u56fe\u6807\u94ae\u5fc5\u987b\u914d\u6587\u5b57**\uff1a\u7f29\u5230 15px \u7684 emoji \u8ba4\u4e0d\u51fa\u6765\uff08\u9a8c\u56fe\u5b9e\u9524\uff1a\u2696 \u770b\u7740\u50cf\u4e24\u4e2a\u5c0f\u4eba\uff09\u3002
     //   \u56db\u4e2a\u683c\u5b50\u5404 ~84px\uff0c\u56fe\u6807\u5728\u4e0a\u30018px \u5c0f\u5b57\u5728\u4e0b\uff0c\u521a\u597d\u653e\u5f97\u4e0b\u3002
-    [['\u22ef', T('sol.menu'), 'MENU'], ['\u2696\ufe0f', T('sol.fair'), 'FAIR'],
-     ['\u2753', T('sol.help'), 'HELP'],
-     [G0.reduceFx ? '\ud83c\udf43' : '\u2728', T('sol.reduceFx'), 'TOG_RFX']].forEach(function (b, i) {
+    [['scroll', '\u22ef', T('sol.menu'), 'MENU'], ['shield-heart', '\u2696', T('sol.fair'), 'FAIR'],
+     ['book', '\u2753', T('sol.help'), 'HELP'],
+     ['sparkle', '\u2728', T('sol.reduceFx'), 'TOG_RFX']].forEach(function (b, i) {
       const bx = cx - w / 2 + i * (sw + 8);
-      fillRR(bx, y, sw, sh2, 10, 'rgba(255,255,255,0.14)');
-      txt(b[0], bx + sw / 2, y + sh2 / 2 - 6, '#fff', '14px sans-serif');
+      // ⚠ 底色要深：共享库是浅色贴纸风图标，压在半透明白按钮上会糊成一团（blockblast 实拍）
+      fillRR(bx, y, sw, sh2, 10, 'rgba(0,0,0,0.30)');
+      if (b[0] === 'sparkle' && G0.reduceFx) ctx.globalAlpha = 0.4;   // 减弱动态开着 ⇒ 图标压暗
+      uiIcon(b[0], b[1], bx + sw / 2, y + sh2 / 2 - 5, 18);
+      ctx.globalAlpha = 1;
       ctx.font = '8px sans-serif';                // \u26a0 wrapLines \u6309\u5f53\u524d font \u91cf\u5bbd
-      txt(wrapLines(b[1], sw - 6, 1)[0], bx + sw / 2, y + sh2 - 8,
+      txt(wrapLines(b[2], sw - 6, 1)[0], bx + sw / 2, y + sh2 - 8,
           'rgba(255,255,255,0.72)', '8px sans-serif');
-      addHit(bx, y, sw, sh2, b[2], {});
+      addHit(bx, y, sw, sh2, b[3], {});
     });
     drawToast();
   }
 
   /** 菜单：档案头 / 每日锦标赛 / 每日 / 图鉴 / 统计 / 成就 / 收藏 / 公平 / 设置 */
   function renderMenu() {
-    const L = page(T('sol.menu'));
+    const L = page(T('sol.menu'), 'scroll', '📋');
     const { SH } = GameGlobal;
     const cx = L.cx, w = Math.min(L.playW - 40, 380);
     const tall0 = GameGlobal.SH >= 760;
@@ -331,20 +412,22 @@
     if (tall0) {
       const th = 108;
       fillRR(cx - w / 2, y, w, th, 12, 'rgba(0,0,0,0.30)');
-      txtL('🏆 ' + T('sol.tournament'), cx - w / 2 + 12, y + 16, '#ffd84d', 'bold 12px sans-serif');
-      txtR('⏳ ' + cd, cx + w / 2 - 12, y + 16, PAL.sub, 'bold 11px sans-serif');
+      iconTextL('trophy', '🏆', T('sol.tournament'), cx - w / 2 + 12, y + 16, 'bold 12px sans-serif', '#ffd84d', 15);
+      ctx.font = 'bold 11px sans-serif';
+      uiIcon('clock', '⏱', cx + w / 2 - 22 - ctx.measureText(cd).width, y + 16, 14);
+      txtR(cd, cx + w / 2 - 12, y + 16, PAL.sub, 'bold 11px sans-serif');
       // 三张迷你卡:你的名次 + 上下邻居
       const cardW3 = Math.floor((w - 40) / 3);
       const trio = [
         tr.rank > 1 ? { r: tr.rank - 1, e: tr.field[tr.rank - 2] } : null,
-        { r: tr.rank, e: { name: T('sol.rankYou'), ava: G0.avatarFile ? '⭐' : '⭐', score: G0.dayScore || 0 }, you: 1 },
+        { r: tr.rank, e: { name: T('sol.rankYou'), av: -1, score: G0.dayScore || 0 }, you: 1 },
         tr.rank <= tr.field.length ? { r: tr.rank + 1, e: tr.field[tr.rank - 1] } : null,
       ];
       trio.forEach((t3, i) => {
         if (!t3) return;
         const x3 = cx - w / 2 + 12 + i * (cardW3 + 8);
         fillRR(x3, y + 28, cardW3, 70, 10, t3.you ? 'rgba(126,242,160,0.22)' : 'rgba(255,255,255,0.10)');
-        txt(t3.e.ava, x3 + cardW3 / 2, y + 44, '#fff', '17px sans-serif');
+        drawAvatar(t3.e.av, x3 + cardW3 / 2, y + 45, 26, t3.e.name);
         txt('#' + t3.r, x3 + cardW3 / 2, y + 62, t3.you ? '#7ef2a0' : '#fff', 'bold 12px sans-serif');
         txt(t3.e.name + ' · ' + t3.e.score, x3 + cardW3 / 2, y + 78,
             t3.you ? '#7ef2a0' : PAL.sub, '8px sans-serif');
@@ -353,8 +436,10 @@
       y += th + 8;
     } else {
       fillRR(cx - w / 2, y, w, 34, 10, 'rgba(0,0,0,0.30)');
-      txtL('🏆 #' + tr.rank + ' · ' + (G0.dayScore || 0), cx - w / 2 + 12, y + 17, '#ffd84d', 'bold 11px sans-serif');
-      txtR('⏳ ' + cd, cx + w / 2 - 12, y + 17, PAL.sub, '10px sans-serif');
+      iconTextL('trophy', '🏆', '#' + tr.rank + ' · ' + (G0.dayScore || 0), cx - w / 2 + 12, y + 17, 'bold 11px sans-serif', '#ffd84d', 14);
+      ctx.font = '10px sans-serif';
+      uiIcon('clock', '⏱', cx + w / 2 - 20 - ctx.measureText(cd).width, y + 17, 13);
+      txtR(cd, cx + w / 2 - 12, y + 17, PAL.sub, '10px sans-serif');
       addHit(cx - w / 2, y, w, 34, 'DAILY', {});
       y += 40;
     }
@@ -364,28 +449,25 @@
     const doneToday = root.G.dailyDone === ('' + d0.getFullYear() + (d0.getMonth() + 1) + d0.getDate());
     const streak = dailyStreakDays();
     const dailySub = (doneToday ? T('sol.dailyDone') : T('sol.dailySub'))
-      + (streak >= 2 ? '  🔥' + T('sol.dailyStreak', { n: streak }) : '');
+      + (streak >= 2 ? '  · ' + T('sol.dailyStreak', { n: streak }) : '');
     // 小屏（SE 等）：7 个入口 + 日历放不下 ⇒ 藏副标题、缩日历、砍看广告行（图鉴/结算屏有同款入口）
     const tall = GameGlobal.SH >= 760;
     const sub760 = t => tall ? t : '';
+    // ⛔ **只留 🏠 主界面上没有的东西**（2026-08-01）：图鉴/统计/教学/成就/收藏/公平/设置
+    //    在 HOME 的六格 + 底栏里一模一样各有一份 —— 两屏重复正是这页原来「像设置页」
+    //    且在 896 高屏上把月历、Back 按钮压成一团的原因（blockblast 关卡地图同款病）。
+    //    这页现在 = 每日锦标赛 + 月历 + 「我的弱点」，一屏放得下。
     const items = [
-      ['📅 ' + T('sol.daily'), sub760(dailySub), 'DAILY'],
-      ['👼 ' + T('sol.gallery'), sub760(T('sol.galleryProgress', { n: root.G.angels, m: Angels.total() || 500 })), 'GALLERY'],
-      ['📊 ' + T('sol.stats'), '', 'STATS'],
-      ['🎓 ' + T('sol.lessons'),
-       sub760(T('sol.lessonsProg', { n: Object.keys(root.G.lessonsDone || {}).length, m: 4 })), 'LESSON'],
-      ['🔍 ' + T('sol.insight'), '', 'INSIGHT'],
-      ['🏆 ' + T('sol.achievements'), '', 'ACH'],
-      ['🎴 ' + T('sol.collection'), '', 'SHOP'],
-      ['⚖ ' + T('sol.fair'), sub760(T('sol.fairTitle')), 'FAIR'],
-      ['⚙ ' + T('sol.settings'), '', 'SET'],
+      ['calendar', '📅', T('sol.daily'), sub760(dailySub), 'DAILY'],
+      ['search', '🔍', T('sol.insight'), '', 'INSIGHT'],
     ];
     items.forEach(function (it) {
-      const label = it[0], sub = it[1], act = it[2];
+      const sub = it[3], act = it[4];
       const hh = sub ? 52 : 42;
       fillRR(cx - w / 2, y, w, hh, 10, 'rgba(0,0,0,0.26)');
-      txtL(label, cx - w / 2 + 14, y + (sub ? 18 : 21), '#fff', 'bold 14px sans-serif');
-      if (sub) txtL(wrapLines(sub, w - 28, 1)[0], cx - w / 2 + 14, y + 37, PAL.sub, '10px sans-serif');
+      uiIcon(it[0], it[1], cx - w / 2 + 26, y + (sub ? 26 : 21), 20);
+      txtL(it[2], cx - w / 2 + 44, y + (sub ? 18 : 21), '#fff', 'bold 14px sans-serif');
+      if (sub) txtL(wrapLines(sub, w - 58, 1)[0], cx - w / 2 + 44, y + 37, PAL.sub, '10px sans-serif');
       addHit(cx - w / 2, y, w, hh, act, {});
       y += hh + 8;
     });
@@ -393,7 +475,7 @@
     // 🔥 补签：昨天没来、连续天数正要断 ⇒ 看广告补上（条件出现，平时不占位）
     if (canMakeup() && !Money.noAds) {
       fillRR(cx - w / 2, y, w, 38, 10, 'rgba(255,216,77,0.22)');
-      txt('▶ 🔥 ' + T('sol.makeup'), cx, y + 19, '#ffd84d', 'bold 12px sans-serif');
+      iconText('fire', '🔥', T('sol.makeup'), cx, y + 19, 'bold 12px sans-serif', '#ffd84d', 16);
       addHit(cx - w / 2, y, w, 38, 'MAKEUP', {});
       y += 46;
     }
@@ -431,14 +513,15 @@
       txt('▶ ' + T('sol.watchAdN', { n: AD_GIVE.coins }) + '   ' + T('sol.adLeft', { n: adLeft('coins') }),
           cx, y + 22, adLeft('coins') ? '#fff' : 'rgba(255,255,255,0.45)', '13px sans-serif');
       addHit(cx - w / 2, y, w, 44, 'EARN_AD', {});
+      y += 52;                                   // ⚠ 忘了推进 y ⇒ 下面那行小字直接压在按钮上（实拍）
     }
 
-    txt(T('sol.freeForever'), cx, SH - 100, 'rgba(255,255,255,0.55)', '10px sans-serif');
+    txt(T('sol.freeForever'), cx, Math.min(y + 20, SH - 92), 'rgba(255,255,255,0.55)', '10px sans-serif');
   }
 
   /** 统计：**双口径**（DESIGN 4.5）—— 无限撤销会把总胜率架空，不分开记统计就是假的 */
   function renderStats() {
-    const L = page(T('sol.stats'));
+    const L = page(T('sol.stats'), 'chart', '📊');
     const st = root.G.stats;
     const cx = L.cx, w = Math.min(L.playW - 40, 380);
     let y = GameGlobal.safeTop + 70;
@@ -458,10 +541,14 @@
     const bd = root.G.badges || {};
     const cnt = t => Object.values(bd).filter(x => x === t).length;
     rows.push([T('sol.monthMedals'),
-      '🥇' + cnt('gold') + ' 🥈' + cnt('silver') + ' 🥉' + cnt('bronze')]);
+      cnt('gold') + ' · ' + cnt('silver') + ' · ' + cnt('bronze'), 'medal']);
     rows.forEach(function (r) {
       fillRR(cx - w / 2, y, w, 34, 8, 'rgba(0,0,0,0.24)');
       txtL(r[0], cx - w / 2 + 14, y + 17, PAL.sub, '12px sans-serif');
+      if (r[2]) {                                  // 带图标的行（月度奖牌）
+        ctx.font = 'bold 14px sans-serif';
+        uiIcon(r[2], '🏅', cx + w / 2 - 24 - ctx.measureText(r[1]).width, y + 17, 16);
+      }
       txtR(r[1], cx + w / 2 - 14, y + 17, '#fff', 'bold 14px sans-serif');
       y += 40;
     });
@@ -484,7 +571,7 @@
    * ⚠ 分页签：牌背扩到 19 款后三段摞不进一屏了 —— 一次只显示一个品类。
    */
   function renderShop() {
-    const L = page(T('sol.collection'));
+    const L = page(T('sol.collection'), 'cards', '🎴');
     const cx = L.cx, w = Math.min(L.playW - 40, 380);
     let y = GameGlobal.safeTop + 56;
 
@@ -549,7 +636,7 @@
       // ⭐ 瀑布特效 —— 贴着产品灵魂的收藏品（瀑布是玩家记了三十年的画面）
       const tw = Math.floor((w - 18) / 4);
       const fxY = y;
-      const FX_EMO = { classic: '🃏', rainbow: '🌈', comet: '☄️', confetti: '🎉' };
+      const FX_EMO = { classic: 'cards', rainbow: 'gem', comet: 'bolt', confetti: 'sparkle' };
       Money.FXS.forEach(function (it, i) {
         const x = cx - w / 2 + (i % 4) * (tw + 6);
         const fy = fxY + Math.floor(i / 4) * 60;
@@ -558,7 +645,7 @@
         const gg = ctx.createLinearGradient(x, fy, x, fy + 54);
         gg.addColorStop(0, '#1e293b'); gg.addColorStop(1, '#0f172a');
         fillRR(x, fy, tw, 54, 7, gg);
-        txt(FX_EMO[it.id] || '✨', x + tw / 2, fy + (own ? 27 : 16), '#fff', '18px sans-serif');
+        uiIcon(FX_EMO[it.id] || 'sparkle', '✨', x + tw / 2, fy + (own ? 27 : 16), 22);
         if (!own) {
           fillRR(x + tw / 2 - 17, fy + 30, 34, 18, 9, 'rgba(0,0,0,0.75)');
           txt(String(it.cost), x + tw / 2, fy + 39, '#ffd84d', 'bold 11px sans-serif');
@@ -573,8 +660,8 @@
     if (!Money.noAds && G.shopTab === 'back') {
       const bl = adLeft('back');
       fillRR(cx - w / 2, y, w, 40, 10, bl ? 'rgba(255,216,77,0.22)' : 'rgba(255,255,255,0.10)');
-      txt('🎁 ' + T('sol.adBack') + '   ' + T('sol.adLeft', { n: bl }), cx, y + 20,
-          bl ? '#ffd84d' : 'rgba(255,255,255,0.45)', 'bold 12px sans-serif');
+      iconText('gift', '🎁', T('sol.adBack') + '   ' + T('sol.adLeft', { n: bl }), cx, y + 20,
+               'bold 12px sans-serif', bl ? '#ffd84d' : 'rgba(255,255,255,0.45)', 16);
       addHit(cx - w / 2, y, w, 40, 'AD_BACK', {});
       y += 48;
     }
@@ -594,7 +681,7 @@
    * ⚠ 只缓存当前页的图（Angels.dropCache 在翻页时清）。
    */
   function renderGallery() {
-    const L = page('👼 ' + T('sol.gallery'));
+    const L = page(T('sol.gallery'), 'frame', '👼');
     const G = root.G;
     const cx = L.cx, w = Math.min(L.playW - 40, 380);
     const { SH } = GameGlobal;
@@ -688,10 +775,10 @@
       // 存壁纸 + 设为头像（⚠ 必须注册在 GAL_CLOSE 之后 —— hitTest 后注册优先）
       const wy2 = iy + size + 44;
       fillRR(cx - 150, wy2, 140, 40, 12, 'rgba(255,216,77,0.24)');
-      txt('💾 ' + T('sol.saveWall'), cx - 80, wy2 + 20, '#ffd84d', 'bold 12px sans-serif');
+      iconText('picture-done', '🖼', T('sol.saveWall'), cx - 80, wy2 + 20, 'bold 12px sans-serif', '#ffd84d', 15);
       addHit(cx - 150, wy2, 140, 40, 'GAL_WALL', {});
       fillRR(cx + 10, wy2, 140, 40, 12, 'rgba(126,242,160,0.24)');
-      txt('👤 ' + T('sol.setAva'), cx + 80, wy2 + 20, '#7ef2a0', 'bold 12px sans-serif');
+      iconText('crown', '👑', T('sol.setAva'), cx + 80, wy2 + 20, 'bold 12px sans-serif', '#7ef2a0', 15);
       addHit(cx + 10, wy2, 140, 40, 'SET_AVA', {});
     }
     drawToast();
@@ -699,7 +786,7 @@
 
   /** 成就页：11 项里程碑，达成发金币（目标感 + 收集系统的供弹药）。ACHS 定义在 main.js */
   function renderAch() {
-    const L = page(T('sol.achievements'));
+    const L = page(T('sol.achievements'), 'trophy', '🏆');
     const cx = L.cx, w = Math.min(L.playW - 40, 380);
     let y = GameGlobal.safeTop + 58;
     const got = root.G.ach || {};
@@ -713,7 +800,8 @@
       fillRR(cx - w / 2, y, w, rowH, 8, done ? 'rgba(126,242,160,0.16)' : 'rgba(0,0,0,0.24)');
       ctx.font = '12px sans-serif';
       const name = wrapLines(T('sol.ach_' + a.id), w - 100, 1)[0];
-      txtL((done ? '🏆 ' : '🔒 ') + name, cx - w / 2 + 12, y + rowH / 2,
+      uiIcon(done ? 'trophy' : 'lock', done ? '🏆' : '🔒', cx - w / 2 + 22, y + rowH / 2, 17);
+      txtL(name, cx - w / 2 + 34, y + rowH / 2,
            done ? '#7ef2a0' : PAL.sub, '12px sans-serif');
       txtR(done ? '✓' : '+' + a.coins, cx + w / 2 - 12, y + rowH / 2,
            done ? '#7ef2a0' : '#ffd84d', 'bold 12px sans-serif');
@@ -739,7 +827,7 @@
    *   盲打时那一步往往是信息上不可避免的（DESIGN §2.1）。
    */
   function renderInsight() {
-    const L = page('🔍 ' + T('sol.insight'));
+    const L = page(T('sol.insight'), 'search', '🔍');
     const G = root.G;
     const cx = L.cx, w = Math.min(L.playW - 40, 380);
     let y = GameGlobal.safeTop + 58;
@@ -782,7 +870,7 @@
 
   /** ❓ 怎么玩：Klondike / draw 模式 / FreeCell supermove / 证明器 / 免费三件套 */
   function renderHelp() {
-    const L = page(T('sol.help'));
+    const L = page(T('sol.help'), 'book', '❓');
     const cx = L.cx, w = Math.min(L.playW - 40, 400);
     let y = GameGlobal.safeTop + 56;
     for (let i = 1; i <= 5; i++) {
@@ -846,7 +934,7 @@
     iSub.forEach((ln, i) => txt(ln, cx, y + i * 17, '#7ef2a0', '12px sans-serif'));
     y += 17 * iSub.length + 20;
 
-    [['⚖', 'introB1'], ['🔍', 'introB2'], ['🎁', 'introB3']].forEach(function (it) {
+    [['shield-heart', 'introB1'], ['search', 'introB2'], ['gift', 'introB3']].forEach(function (it) {
       const lines = wrapLines(T('sol.' + it[1]), w - 34, 4);
       const h = Math.max(44, lines.length * 16 + 16);
       fillRR(cx - w / 2, y, w, h, 10, 'rgba(0,0,0,0.26)');
@@ -859,7 +947,7 @@
     y += 8;
     // ⭐ 教学即留存：第一屏就给第 1 课（一分钟学会 + 立刻赢一局 = 最强的 D1 钩子）
     fillRR(cx - 100, y, 200, 46, 13, '#22c55e');
-    txt('🎓 ' + T('sol.introLesson'), cx, y + 23, '#fff', 'bold 15px sans-serif');
+    iconText('scroll', '🎓', T('sol.introLesson'), cx, y + 23, 'bold 15px sans-serif', '#fff', 18);
     addHit(cx - 100, y, 200, 46, 'INTRO_LESSON', {});
     y += 54;
     fillRR(cx - 90, y, 180, 40, 12, 'rgba(255,255,255,0.18)');
@@ -881,7 +969,7 @@
    *   小牌面上最难分的正是 ♠/♣ 和 ♥/♦。
    */
   function renderSettings() {
-    const L = page(T('sol.settings'));
+    const L = page(T('sol.settings'), 'settings', '⚙');
     const cx = L.cx, w = Math.min(L.playW - 40, 380);
     let y = GameGlobal.safeTop + 66;
     const G = root.G;
@@ -946,7 +1034,8 @@
         const locked = d.lv > unlocked;
         fillRR(bx, y + 26, stepW, 26, 7,
                on ? '#22c55e' : locked ? 'rgba(0,0,0,0.30)' : 'rgba(255,255,255,0.16)');
-        txt(locked ? '🔒' : String(d.lv), bx + stepW / 2, y + 39,
+        if (locked) uiIcon('lock', '🔒', bx + stepW / 2, y + 39, 18);
+      else txt(String(d.lv), bx + stepW / 2, y + 39,
             locked ? 'rgba(255,255,255,0.45)' : '#fff', 'bold 12px sans-serif');
         if (!on && !locked) addHit(bx, y + 26, stepW, 26, 'SET_LV', { lv: d.lv });
       });
@@ -1200,16 +1289,20 @@
       addHit(x, r1y, 34, 28, act, {});
     };
     iconBtn(L.playX + 8, '‹', 'HOME');       // ‹ = 回主界面（MENU 挂在主界面的「⋯ 更多」里）
-    iconBtn(L.playX + 46, '⚙', 'SET');
-    iconBtn(L.playX + 84, '🎨', 'SHOP');
+    fillRR(L.playX + 46, r1y, 34, 28, 9, 'rgba(0,0,0,0.25)');
+    uiIcon('settings', '⚙', L.playX + 63, r1y + 14, 18);
+    addHit(L.playX + 46, r1y, 34, 28, 'SET', {});
+    fillRR(L.playX + 84, r1y, 34, 28, 9, 'rgba(0,0,0,0.25)');
+    uiIcon('palette', '🎨', L.playX + 101, r1y + 14, 18);
+    addHit(L.playX + 84, r1y, 34, 28, 'SHOP', {});
     // ⚠ Spider 不进可解池 ⇒ 绝不打「✓ 有解」（打了就是系统性撒谎，措辞死线同理）
     const verified = !fc && !sp && Pool.isVerified(s.drawCount, s.seed);
     // 分数胶囊 = 本轮连关累计(含当前关进行分×倍率);点开公平页（✓=已验证可解,措辞死线不变）
     const shown = (G.runScore || 0) + Math.round(s.score * Math.min(G.stage || 1, 5));
     const pillW = 150;
     fillRR(L.cx - pillW / 2, r1y, pillW, 28, 14, 'rgba(0,0,0,0.32)');
-    txt('🏆 ' + shown + (verified ? ' ✓' : ''), L.cx, r1y + 14,
-        verified ? '#ffd84d' : '#fff', 'bold 15px sans-serif');
+    iconText('trophy', '🏆', shown + (verified ? ' ✓' : ''), L.cx, r1y + 14,
+             'bold 15px sans-serif', verified ? '#ffd84d' : '#fff', 17);
     addHit(L.cx - pillW / 2, r1y, pillW, 28, 'FAIR', {});
 
     // ── HUD 行2:Stage ×M | #局号(FC 带 supermove 容量) | 步数 · 用时 ──
@@ -1292,11 +1385,11 @@
     } else if (Core.canAutoFinish(s)) {
       // ⭐ 稳赢收尾：全明牌 + 牌堆空 ⇒ 剩下的整理不用手磨,solver 播完直接接瀑布
       fillRR(L.playX + 8, L.proveY, L.playW - 16, L.proveH, 10, 'rgba(126,242,160,0.25)');
-      txt('✨ ' + T('sol.autoFinish'), L.cx, L.proveY + L.proveH / 2, '#7ef2a0', 'bold 14px sans-serif');
+      iconText('sparkle', '✨', T('sol.autoFinish'), L.cx, L.proveY + L.proveH / 2, 'bold 14px sans-serif', '#7ef2a0', 17);
       addHit(L.playX + 8, L.proveY, L.playW - 16, L.proveH, 'FINISH', {});
     } else {
       fillRR(L.playX + 8, L.proveY, L.playW - 16, L.proveH, 10, 'rgba(255,255,255,0.14)');
-      txt('🔍 ' + T('sol.prove'), L.cx, L.proveY + L.proveH / 2, '#fff', 'bold 14px sans-serif');
+      iconText('search', '🔍', T('sol.prove'), L.cx, L.proveY + L.proveH / 2, 'bold 14px sans-serif', '#fff', 17);
       addHit(L.playX + 8, L.proveY, L.playW - 16, L.proveH, 'PROVE', {});
     }
 
@@ -1317,9 +1410,12 @@
       const left = adLeft('peek');
       fillRR(px2, py2, 52, 42, 12, peeking ? 'rgba(126,242,160,0.30)'
                                  : left ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.08)');
-      txt(peeking ? '👁' + Math.ceil((G.peekUntil - Date.now()) / 1000) : '👁',
-          px2 + 26, py2 + 16, peeking ? '#7ef2a0' : left ? '#fff' : 'rgba(255,255,255,0.4)',
-          '15px sans-serif');
+      if (peeking) {
+        const sec = String(Math.ceil((G.peekUntil - Date.now()) / 1000));
+        ctx.font = 'bold 13px sans-serif';
+        uiIcon('eye', '👁', px2 + 26 - ctx.measureText(sec).width / 2 - 8, py2 + 16, 17);
+        txtL(sec, px2 + 26 - ctx.measureText(sec).width / 2 + 3, py2 + 16, '#7ef2a0', 'bold 13px sans-serif');
+      } else uiIcon('eye', '👁', px2 + 26, py2 + 16, 18);
       ctx.font = '8px sans-serif';
       txt(peeking ? T('sol.peekOn') : T('sol.adLeft', { n: left }), px2 + 26, py2 + 33,
           'rgba(255,255,255,0.7)', '8px sans-serif');
@@ -1330,14 +1426,14 @@
     //   MODE(切玩法)移到菜单标题旁的 chip —— 工具条只留高频四件
     const tools = sp ? [
       ['↺', T('sol.undo'), 'UNDO', s.moves.length > 0],
-      ['💡', T('sol.hint'), 'HINT', true],
+      ['hint', T('sol.hint'), 'HINT', true],
       ['🂠', T('sol.spDeal'), 'STOCK', s.stock.length > 0],   // Spider 用发牌代替「自动收牌」
-      ['🔄', T('sol.newGame'), 'NEW', true],
+      ['↻', T('sol.newGame'), 'NEW', true],
     ] : [
       ['↺', T('sol.undo'), 'UNDO', s.moves.length > 0],
-      ['💡', T('sol.hint'), 'HINT', true],
+      ['hint', T('sol.hint'), 'HINT', true],
       ['⤴', T('sol.auto'), 'AUTO', true],
-      ['🔄', T('sol.newGame'), 'NEW', true],
+      ['↻', T('sol.newGame'), 'NEW', true],
     ];
     const RB = 24;
     const gapB = (L.playW - 32 - tools.length * RB * 2) / (tools.length - 1);
@@ -1346,7 +1442,11 @@
       const cyB = L.barY + RB + 2;
       ctx.beginPath(); ctx.arc(cxB, cyB, RB, 0, 7);
       ctx.fillStyle = on ? 'rgba(0,0,0,0.32)' : 'rgba(0,0,0,0.14)'; ctx.fill();
-      txt(ic, cxB, cyB, on ? '#fff' : 'rgba(255,255,255,0.35)', '19px sans-serif');
+      if (ic === 'hint') {                       // 共享库图标（其余是几何字形，直接画字）
+        ctx.globalAlpha = on ? 1 : 0.35;
+        uiIcon('hint', '💡', cxB, cyB, 24);
+        ctx.globalAlpha = 1;
+      } else txt(ic, cxB, cyB, on ? '#fff' : 'rgba(255,255,255,0.35)', '19px sans-serif');
       txt(wrapLines(label, RB * 2 + gapB - 6, 1)[0], cxB, L.barY + RB * 2 + 12,
           on ? PAL.sub : 'rgba(255,255,255,0.3)', '9px sans-serif');
       if (on) addHit(cxB - RB, cyB - RB, RB * 2, RB * 2, act, {});
@@ -1361,7 +1461,7 @@
     // ── 赢局浮层（教学局单独一套：不谈分数金币排行，只谈「这一课学会了」）──
     if (s.won && !FX.busy() && G.lesson) {
       drawDim('rgba(0,40,20,0.80)');
-      txt('✅', L.cx, SH * 0.32, '#fff', '52px sans-serif');
+      uiIcon('check', '✅', L.cx, SH * 0.32, 56);
       txt(T('sol.lessonDone', { n: G.lesson }), L.cx, SH * 0.42, '#fff', 'bold 20px sans-serif');
       ctx.font = '12px sans-serif';
       wrapLines(T('sol.lesson' + G.lesson + 'Tip'), Math.min(L.playW - 60, 340), 3)
@@ -1374,7 +1474,10 @@
       return;
     }
     if (s.won && !FX.busy()) {
-      drawDim('rgba(0,40,20,0.72)');
+      drawDim('rgba(0,40,20,0.80)');
+      const wcw = Math.min(L.playW - 20, 344), wy0 = SH * 0.28 - 34;
+      fillRR(L.cx - wcw / 2, wy0, wcw, winCardH || SH * 0.58, 22, 'rgb(7,45,28)');
+      strokeRR(L.cx - wcw / 2, wy0, wcw, winCardH || SH * 0.58, 22, 'rgba(255,255,255,0.16)', 1.5);
       let wy = SH * 0.28;
       txt(T('sol.youWin'), L.cx, wy, '#fff', 'bold 30px sans-serif'); wy += 46;
       const multW = Math.min(G.stage || 1, 5);
@@ -1387,18 +1490,23 @@
       txt(clean ? T('sol.cleanWin') : T('sol.withHelp'), L.cx, wy,
           clean ? '#7ef2a0' : PAL.sub, '13px sans-serif'); wy += 22;
       // 本次赢的金币（×2 翻倍后带 ✓）+ 新解锁的天使
-      txt(T('sol.winCoins', { n: G.lastWinCoins || 0 }) + (G.winDoubled ? '  ×2 ✓' : '')
-          + (G.lastAngelGain ? '   👼 +' + G.lastAngelGain : ''),
-          L.cx, wy, '#ffd84d', 'bold 13px sans-serif'); wy += 22;
+      {
+        const wl = T('sol.winCoins', { n: G.lastWinCoins || 0 }) + (G.winDoubled ? '  ×2 ✓' : '');
+        if (G.lastAngelGain) iconText('frame', '👼', wl + '   +' + G.lastAngelGain, L.cx, wy, 'bold 13px sans-serif', '#ffd84d', 16);
+        else txt(wl, L.cx, wy, '#ffd84d', 'bold 13px sans-serif');
+      }
+      wy += 22;
       // 🏅 本局排行榜（预设对手,seed 确定性 —— 零后端伪社交,同一局全球同一组分数）
-      const rows2 = rivalScores(s.seed).concat([{ name: T('sol.rankYou'), ava: '⭐', score: s.score, you: 1 }])
+      const rows2 = rivalScores(s.seed).concat([{ name: T('sol.rankYou'), av: -1, score: s.score, you: 1 }])
         .sort((a, b) => b.score - a.score);
       txt(T('sol.rankTitle'), L.cx, wy, PAL.sub, 'bold 11px sans-serif'); wy += 16;
       const lw = 210;
       rows2.forEach((r, i) => {
         const col = r.you ? '#7ef2a0' : 'rgba(255,255,255,0.75)';
-        txtL((i + 1) + '. ' + r.ava + ' ' + r.name, L.cx - lw / 2, wy, col,
-             (r.you ? 'bold ' : '') + '12px sans-serif');
+        const f2 = (r.you ? 'bold ' : '') + '12px sans-serif';
+        txtL((i + 1) + '.', L.cx - lw / 2, wy, col, f2);
+        drawAvatar(r.av, L.cx - lw / 2 + 30, wy, 18, r.name);
+        txtL(r.name, L.cx - lw / 2 + 42, wy, col, f2);
         txtR(String(r.score), L.cx + lw / 2, wy, col, (r.you ? 'bold ' : '') + '12px sans-serif');
         wy += 17;
       });
@@ -1421,12 +1529,12 @@
       addHit(L.cx - 100, wy, 200, 48, 'NEXT_STAGE', {});
       wy += 54;
       fillRR(L.cx - 90, wy, 180, 34, 10, 'rgba(255,255,255,0.16)');
-      txt('🔄 ' + T('sol.newGame'), L.cx, wy + 17, '#fff', '12px sans-serif');
+      txt('↻ ' + T('sol.newGame'), L.cx, wy + 17, '#fff', '12px sans-serif');
       addHit(L.cx - 90, wy, 180, 34, 'NEW', {});
       wy += 40;
       // 挑战朋友：战绩图卡（支持文件分享时出图，桌面等环境自动降级为链接分享）
       fillRR(L.cx - 90, wy, 180, 40, 12, 'rgba(255,255,255,0.18)');
-      txt('📣 ' + T('sol.challenge'), L.cx, wy + 20, '#fff', '13px sans-serif');
+      iconText('share', '📤', T('sol.challenge'), L.cx, wy + 20, '13px sans-serif', '#fff', 15);
       addHit(L.cx - 90, wy, 180, 40, 'SHARE_CARD', {});
       wy += 48;
       // ⭐ 「金币 ×2」：转化最高的激励位（刚赢、瀑布刚放完）。纯增益；买了去广告的不打扰。
@@ -1434,7 +1542,9 @@
         fillRR(L.cx - 90, wy, 180, 40, 12, 'rgba(255,216,77,0.24)');
         txt('▶ ' + T('sol.adX2') + ' (+' + G.lastWinCoins + ')', L.cx, wy + 20, '#ffd84d', 'bold 13px sans-serif');
         addHit(L.cx - 90, wy, 180, 40, 'WIN_X2', {});
+        wy += 48;
       }
+      winCardH = wy - wy0 + 8;                 // 量给下一帧的卡片高度
     }
 
     // 🃏 卡死弹窗（照竞品:居中大卡;真卡死才出,可关掉继续自己找;诚实答案与撤销永远免费在旁）

@@ -72,7 +72,6 @@ async function click(page, action, dm){
   // ── ④ 舒适模式：一键 = 四色 + 大字 + 放宽点击 ──
   await page.evaluate(()=>{ if(G.s.mode==='freecell') dispatch('MODE'); });   // 难度块只在 Klondike 设置里
   await page.waitForTimeout(150);
-  await click(page,'MENU'); await page.waitForTimeout(120);
   await click(page,'SET'); await page.waitForTimeout(150);
   ok(await click(page,'TOG_COMFORT'), '舒适模式开关可点');
   await page.waitForTimeout(120);

@@ -80,6 +80,10 @@ const ICONS = [
   ['shield-heart', 'a glossy pastel pink heart-shaped shield with a golden halo, protective', '🛡️'],
   ['gift',         'a small wrapped gift box with a big pastel pink ribbon bow and tiny white wings', '🎁'],
   ['crown',        'a small ornate golden crown with pink gems and soft sparkles', '👑'],
+  // ── 求解器/纸牌类（solitaire 2026-08-01 补）──
+  ['search',       'a chunky magnifying glass with a thick golden rim, bright sky blue lens and a pink handle, one white sparkle on the lens, bold saturated colors', '🔍'],
+  ['eye',          'a big round cartoon eye with a bright sky blue iris, long curled lashes and a golden sparkle, bold outline', '👁️'],
+  ['cards',        'three small rounded playing cards fanned out, cream faces with bold magenta pink hearts and one gold star, thick white outline, bold saturated colors', '🎴'],
 ];
 
 function writeManifest() {

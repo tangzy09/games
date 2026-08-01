@@ -574,7 +574,8 @@
       const x = L.playX + 12 + c * cw, y = GameGlobal.safeTop + 76 + r * ch;
       const on = got.has(a.id);
       fillRR(x + 2, y, cw - 6, ch - 4, 7, on ? 'rgba(255,255,255,0.20)' : 'rgba(0,0,0,0.18)');
-      txtL((on ? '\u2605 ' : '\u00b7 ') + T('blockblast.ach.' + a.id), x + 10, y + (ch - 4) / 2,
+      if (on) drawStar(x + 15, y + (ch - 4) / 2, 7, true);
+      txtL(T('blockblast.ach.' + a.id), x + (on ? 25 : 12), y + (ch - 4) / 2,
            on ? PAL.accent : 'rgba(255,255,255,0.45)', '11px sans-serif');
     });
     if (pages > 1) {
@@ -605,7 +606,9 @@
     txt(T('blockblast.skins'), cx, GameGlobal.safeTop + 30, '#fff', 'bold 22px sans-serif');
     txt(T('blockblast.stars', { n: stars }), cx, GameGlobal.safeTop + 54, PAL.sub, '13px sans-serif');
 
-    txtR('\u{1FA99} ' + G.wallet.coins, L.playX + L.playW - 28, GameGlobal.safeTop + 54, PAL.accent, 'bold 13px sans-serif');
+    ctx.font = 'bold 13px sans-serif';
+    txtR(String(G.wallet.coins), L.playX + L.playW - 28, GameGlobal.safeTop + 54, PAL.accent, 'bold 13px sans-serif');
+    uiIcon('coin', '\u{1FA99}', L.playX + L.playW - 36 - ctx.measureText(String(G.wallet.coins)).width, GameGlobal.safeTop + 54, 16);
     // 分页（16 套 = 3 页 × 6）
     const PER = 6;
     const pages = Math.max(1, Math.ceil(Themes.THEMES.length / PER));
@@ -619,15 +622,23 @@
       if (!on && t.coins) {
         // 金币皮肤：显示价格；买得起就整行可点（金币经济的消耗出口）
         const afford = G.wallet.coins >= t.coins;
-        txtR('\u{1FA99} ' + t.coins + '  ' + T('blockblast.buy'), L.playX + L.playW - 28, y + 20,
+        const lab = t.coins + '  ' + T('blockblast.buy');
+        ctx.font = 'bold 11px sans-serif';
+        uiIcon('coin', '🪙', L.playX + L.playW - 36 - ctx.measureText(lab).width, y + 20, 14);
+        txtR(lab, L.playX + L.playW - 28, y + 20,
              afford ? PAL.accent : 'rgba(255,255,255,0.4)', 'bold 11px sans-serif');
         if (afford) addHit(L.playX + 14, y, L.playW - 28, 66, 'BUY_SKIN', { id: t.id });
       } else if (!on && t.games != null) {
         // 盘数皮肤：玩满 N 盘白送（进度直接写在行上）
-        txtR('\u{1F512} ' + T('blockblast.skinPlays', { a: Math.min(G.wallet.gamesPlayed | 0, t.games), b: t.games }),
-             L.playX + L.playW - 28, y + 20, PAL.sub, '11px sans-serif');
+        const lab2 = T('blockblast.skinPlays', { a: Math.min(G.wallet.gamesPlayed | 0, t.games), b: t.games });
+        ctx.font = '11px sans-serif';
+        uiIcon('lock', '🔒', L.playX + L.playW - 36 - ctx.measureText(lab2).width, y + 20, 13);
+        txtR(lab2, L.playX + L.playW - 28, y + 20, PAL.sub, '11px sans-serif');
       } else if (!on) {
-        txtR('\u{1F512} ' + T('blockblast.skinLocked', { n: t.stars }), L.playX + L.playW - 28, y + 20, PAL.sub, '11px sans-serif');
+        const lab3 = T('blockblast.skinLocked', { n: t.stars });
+        ctx.font = '11px sans-serif';
+        uiIcon('lock', '🔒', L.playX + L.playW - 36 - ctx.measureText(lab3).width, y + 20, 13);
+        txtR(lab3, L.playX + L.playW - 28, y + 20, PAL.sub, '11px sans-serif');
       } else if (cur) {
         txtR(T('blockblast.equipped'), L.playX + L.playW - 28, y + 20, '#7ef2a0', 'bold 11px sans-serif');
       } else {
@@ -714,12 +725,18 @@
     grad.addColorStop(0, PAL.bg1); grad.addColorStop(1, PAL.bg2);
     ctx.fillStyle = grad; ctx.fillRect(0, 0, SW, SH);
     txt(T('blockblast.shop'), cx, GameGlobal.safeTop + 30, '#fff', 'bold 22px sans-serif');
-    txt('\u{1FA99} ' + G.wallet.coins, cx, GameGlobal.safeTop + 56, PAL.accent, 'bold 16px sans-serif');
+    ctx.font = 'bold 16px sans-serif';
+    const cw0 = ctx.measureText(String(G.wallet.coins)).width;
+    uiIcon('coin', '\u{1FA99}', cx - cw0 / 2 - 14, GameGlobal.safeTop + 56, 20);
+    txtL(String(G.wallet.coins), cx - cw0 / 2, GameGlobal.safeTop + 56, PAL.accent, 'bold 16px sans-serif');
 
     // 看广告领币（玩家**主动**触发的激励视频 —— 唯一允许的广告形态之一）
     const y1 = GameGlobal.safeTop + 90;
     fillRR(L.playX + 20, y1, L.playW - 40, 58, 12, '#22c55e');
-    txt('\u{1F4FA} ' + T('blockblast.getCoins'), cx, y1 + 29, '#fff', 'bold 15px sans-serif');
+    ctx.font = 'bold 15px sans-serif';
+    const gw0 = ctx.measureText(T('blockblast.getCoins')).width;
+    uiIcon('video-ad', '\u{1F4FA}', cx - gw0 / 2 - 15, y1 + 29, 19);
+    txtL(T('blockblast.getCoins'), cx - gw0 / 2, y1 + 29, '#fff', 'bold 15px sans-serif');
     addHit(L.playX + 20, y1, L.playW - 40, 58, 'AD_COINS', {});
 
     // 广告政策直接印在商店页（2026-07-31 定稿：前 50 盘零插屏、之后每 10 盘至多 1 个、只在赢时）——
@@ -741,12 +758,15 @@
     grad.addColorStop(0, PAL.bg1); grad.addColorStop(1, PAL.bg2);
     ctx.fillStyle = grad; ctx.fillRect(0, 0, SW, SH);
     const now = new Date();
-    txt(T('blockblast.daily'), cx, GameGlobal.safeTop + 30, '#fff', 'bold 22px sans-serif');
+    pageTitle('calendar', '📅', T('blockblast.daily'), GameGlobal.safeTop + 30);
     txt(now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0'),
         cx, GameGlobal.safeTop + 54, PAL.sub, '13px sans-serif');
     if (G.profile.dailyStreak) {
-      txt('\u{1F525} ' + T('blockblast.dailyStreak', { n: G.profile.dailyStreak }),
-          cx, GameGlobal.safeTop + 74, PAL.accent, 'bold 12px sans-serif');
+      const st = T('blockblast.dailyStreak', { n: G.profile.dailyStreak });
+      ctx.font = 'bold 12px sans-serif';
+      const stw = ctx.measureText(st).width;
+      uiIcon('fire', '🔥', cx - stw / 2 - 10, GameGlobal.safeTop + 74, 15);
+      txtL(st, cx - stw / 2, GameGlobal.safeTop + 74, PAL.accent, 'bold 12px sans-serif');
     }
 
     const first = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -836,7 +856,7 @@
     grad.addColorStop(0, PAL.bg1); grad.addColorStop(1, PAL.bg2);
     ctx.fillStyle = grad; ctx.fillRect(0, 0, SW, SH);
     const have = G.wallet.angels | 0, total = Shop.ANGELS.total;
-    txt('\u{1F47C} ' + T('blockblast.angels'), cx, GameGlobal.safeTop + 30, '#fff', 'bold 22px sans-serif');
+    pageTitle('frame', '\u{1F47C}', T('blockblast.angels'), GameGlobal.safeTop + 30);
     txt(have + ' / ' + total, cx, GameGlobal.safeTop + 54, PAL.accent, 'bold 14px sans-serif');
 
     const COLS = 4, ROWS = 6, PER = COLS * ROWS;
@@ -891,7 +911,7 @@
     const grad = ctx.createLinearGradient(0, 0, SW, SH);
     grad.addColorStop(0, PAL.bg1); grad.addColorStop(1, PAL.bg2);
     ctx.fillStyle = grad; ctx.fillRect(0, 0, SW, SH);
-    txt('\u{1F3C6} ' + T('blockblast.ladder'), cx, GameGlobal.safeTop + 30, '#fff', 'bold 22px sans-serif');
+    pageTitle('trophy', '\u{1F3C6}', T('blockblast.ladder'), GameGlobal.safeTop + 30);
     const beat = Ghosts.beatenCount(G.best);
     txt(T('blockblast.ladderYou', { n: G.best }) + '  ·  ' + beat + '/' + Ghosts.LADDER.length,
         cx, GameGlobal.safeTop + 54, PAL.accent, 'bold 13px sans-serif');
@@ -931,7 +951,7 @@
     const grad = ctx.createLinearGradient(0, 0, SW, SH);
     grad.addColorStop(0, PAL.bg1); grad.addColorStop(1, PAL.bg2);
     ctx.fillStyle = grad; ctx.fillRect(0, 0, SW, SH);
-    txt('\u{1F4CB} ' + T('blockblast.quests'), cx, GameGlobal.safeTop + 30, '#fff', 'bold 22px sans-serif');
+    pageTitle('scroll', '\u{1F4CB}', T('blockblast.quests'), GameGlobal.safeTop + 30);
     txt(T('blockblast.questReward'), cx, GameGlobal.safeTop + 54, PAL.sub, '12px sans-serif');
 
     const qs = Quests.status(G.profile, Daily.dayNo(new Date()));
@@ -961,7 +981,7 @@
     const grad = ctx.createLinearGradient(0, 0, SW, SH);
     grad.addColorStop(0, PAL.bg1); grad.addColorStop(1, PAL.bg2);
     ctx.fillStyle = grad; ctx.fillRect(0, 0, SW, SH);
-    txt('\u{1F4CA} ' + T('blockblast.stats'), cx, GameGlobal.safeTop + 30, '#fff', 'bold 22px sans-serif');
+    pageTitle('chart', '\u{1F4CA}', T('blockblast.stats'), GameGlobal.safeTop + 30);
     const p = G.profile, w = G.wallet;
     const crystals = Object.values(p.crystals || {}).reduce((a, v) => a + v, 0);
     const items = [
@@ -1015,14 +1035,15 @@
     });
     // 按钮行：统计 / 反馈 / Game Center 排行榜（原生）
     const btns = [
-      { act: 'PAGE_STATS', label: '\u{1F4CA} ' + T('blockblast.stats'), data: {} },
-      { act: 'FB_OPEN', label: '\u{1F4AC} ' + T('blockblast.fbTitle'), data: {} },
+      { act: 'PAGE_STATS', icon: 'chart', emoji: '\u{1F4CA}', label: T('blockblast.stats'), data: {} },
+      { act: 'FB_OPEN', icon: 'feedback', emoji: '\u{1F4AC}', label: T('blockblast.fbTitle'), data: {} },
     ];
-    if (GC.available) btns.push({ act: 'SHOW_GC', label: '\u{1F3C5} ' + T('blockblast.leaderboards'), data: { board: 'endless' } });
+    if (GC.available) btns.push({ act: 'SHOW_GC', icon: 'medal', emoji: '\u{1F3C5}', label: T('blockblast.leaderboards'), data: { board: 'endless' } });
     btns.forEach((b, i) => {
       const y = GameGlobal.safeTop + 76 + rows.length * 84 + i * 60;
       fillRR(L.playX + 14, y, L.playW - 28, 52, 12, 'rgba(0,0,0,0.20)');
-      txtL(b.label, L.playX + 28, y + 26, '#fff', 'bold 14px sans-serif');
+      uiIcon(b.icon, b.emoji, L.playX + 38, y + 26, 20);
+      txtL(b.label, L.playX + 56, y + 26, '#fff', 'bold 14px sans-serif');
       addHit(L.playX + 14, y, L.playW - 28, 52, b.act, b.data);
     });
     backButton();
@@ -1045,6 +1066,15 @@
     uiIcon('video-ad', '\u{1F4FA}', cx + 10, y + 16, 17);
     txtL(T('blockblast.double'), cx + 22, y + 16, '#fff', 'bold 12px sans-serif');
     addHit(cx - 8, y, 124, 32, 'DOUBLE_COINS', {});
+  }
+
+  /** 子页面页头：共享 UI 图标 + 标题（⚠ 图标和文字分开量宽，拼进字符串必叠字）*/
+  function pageTitle(icon, emoji, label, y) {
+    const cx = L.cx, f = 'bold 22px sans-serif';
+    ctx.font = f;
+    const tw = ctx.measureText(label).width;
+    uiIcon(icon, emoji, cx - tw / 2 - 17, y, 24);
+    txtL(label, cx - tw / 2, y, '#fff', f);
   }
 
   function backButton() {
@@ -1084,10 +1114,18 @@
   }
   const row = (h, fn) => ({ h, fn });
   /** \u4e3b/\u6b21\u6309\u94ae\uff08\u7ed3\u7b97\u5361\u901a\u7528\uff09*/
-  function cardBtn(y, w, hgt, label, act, bg, fg, font) {
+  function cardBtn(y, w, hgt, label, act, bg, fg, font, icon, emoji) {
     const cx = L.cx, x = cx - w / 2;
     fillRR(x, y, w, hgt, hgt / 2.6, bg);
-    txt(label, cx, y + hgt / 2, fg || '#fff', font || 'bold 16px sans-serif');
+    const f = font || 'bold 16px sans-serif';
+    if (icon) {                                   // 图标钮：图标和文字分开量宽，别拼字符串
+      ctx.font = f;
+      const tw = ctx.measureText(label).width;
+      uiIcon(icon, emoji, cx - tw / 2 - 14, y + hgt / 2, 18);
+      txtL(label, cx - tw / 2, y + hgt / 2, fg || '#fff', f);
+    } else {
+      txt(label, cx, y + hgt / 2, fg || '#fff', f);
+    }
     if (act) addHit(x, y, w, hgt, act, {});
   }
   /** \u672c\u76d8\u6536\u96c6\u5230\u7684\u5929\u4f7f\uff1a\u5e26\u7f29\u7565\u56fe\u7684\u5c0f\u836f\u4e38\uff08\u6bd4\u4e00\u884c\u5b57\u66f4\u50cf\u300c\u6211\u62ff\u5230\u4e86\u4e1c\u897f\u300d\uff09*/
@@ -1361,12 +1399,18 @@
         const usable = it.on && it.mode !== 'no';
         fillRR(x, uy, bw2, bh2, 10, usable ? 'rgba(255,255,255,0.20)' : 'rgba(0,0,0,0.18)');
         txt(it.label, x + bw2 / 2, uy + 12, usable ? '#fff' : 'rgba(255,255,255,0.35)', '11px sans-serif');
+        const tagIcon = it.mode === 'ad' ? 'video-ad' : it.mode === 'coins' ? 'coin' : null;
         const tag = it.mode === 'free' ? T('blockblast.free')
-                  : it.mode === 'ad' ? '\u{1F4FA} ' + T('blockblast.watchAd')
-                  : it.mode === 'coins' ? '\u{1FA99} ' + it.price
+                  : it.mode === 'ad' ? T('blockblast.watchAd')
+                  : it.mode === 'coins' ? String(it.price)
                   : T('blockblast.notEnough');
-        txt(tag, x + bw2 / 2, uy + 26,
-            it.mode === 'free' ? '#7ef2a0' : usable ? PAL.accent : 'rgba(255,255,255,0.3)', '10px sans-serif');
+        const tcol = it.mode === 'free' ? '#7ef2a0' : usable ? PAL.accent : 'rgba(255,255,255,0.3)';
+        if (tagIcon) {
+          ctx.font = '10px sans-serif';
+          const tw2 = ctx.measureText(tag).width;
+          uiIcon(tagIcon, it.mode === 'ad' ? '📺' : '🪙', x + bw2 / 2 - tw2 / 2 - 8, uy + 26, 13);
+          txtL(tag, x + bw2 / 2 - tw2 / 2 + 1, uy + 26, tcol, '10px sans-serif');
+        } else txt(tag, x + bw2 / 2, uy + 26, tcol, '10px sans-serif');
         if (usable) addHit(x, uy, bw2, bh2, it.act, {});
       });
     }
@@ -1519,15 +1563,16 @@
       // 分享/补签按钮（按优先级）：断签补签 > 每日分享成绩 > 种子挑战
       const canRepair = G.repairOffer && G.wallet.coins >= Daily.REPAIR_COST;
       const shareBtn = (s.daily && G.repairOffer)
-        ? { label: '\u{1F525} ' + T('blockblast.repair', { n: G.repairOffer.prev + 1 }),
+        ? { icon: 'fire', emoji: '\u{1F525}', label: T('blockblast.repair', { n: G.repairOffer.prev + 1 }),
             act: canRepair ? 'REPAIR_STREAK' : null,                  // 金币不够：按钮置灰不可点
             bg: canRepair ? '#f59e0b' : 'rgba(0,0,0,0.25)' }
         : s.daily
-        ? { label: '\u{1F4E4} ' + T('blockblast.shareScore'), act: 'SHARE_DAILY', bg: 'rgba(255,255,255,0.16)' }
-        : { label: '\u{1F517} ' + T('blockblast.challenge'), act: 'SHARE_SEED', bg: 'rgba(255,255,255,0.16)' };
+        ? { icon: 'share', emoji: '\u{1F4E4}', label: T('blockblast.shareScore'), act: 'SHARE_DAILY', bg: 'rgba(255,255,255,0.16)' }
+        : { icon: 'share', emoji: '\u{1F517}', label: T('blockblast.challenge'), act: 'SHARE_SEED', bg: 'rgba(255,255,255,0.16)' };
       rows.push(row(6, null));
       rows.push(row(42, y => cardBtn(y, cw - 70, 36, shareBtn.label, shareBtn.act, shareBtn.bg,
-                                     shareBtn.act ? '#fff' : 'rgba(255,255,255,0.4)', '13px sans-serif')));
+                                     shareBtn.act ? '#fff' : 'rgba(255,255,255,0.4)', '13px sans-serif',
+                                     shareBtn.icon, shareBtn.emoji)));
       rows.push(row(cmp ? 46 : 52, y =>
         cardBtn(y, cw - 56, cmp ? 42 : 48, T('blockblast.restart'), 'RESTART', '#22c55e', '#fff',
                 'bold ' + (cmp ? 15 : 17) + 'px sans-serif')));

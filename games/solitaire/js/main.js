@@ -419,11 +419,13 @@ function goPhase(p) {
 }
 
 // ── 预设对手（伪排行榜:零后端、按 seed 确定性,全球看到同一组分数）──
+// ⚠ 头像用**天使画像的序号**（render 的 drawAvatar 去取图），不是人物 emoji ——
+//   一来跟图鉴/主视觉同一套世界观，二来一眼看出榜上是**游戏角色不是真人玩家**（伪社交红线）。
 const RIVALS = [
-  { name: 'Mia', ava: '👩🏻', lo: 120, hi: 300 },
-  { name: 'Leo', ava: '👨🏽', lo: 100, hi: 260 },
-  { name: 'Sam', ava: '🧓',  lo: 60,  hi: 200 },
-  { name: 'Ava', ava: '👩🏾', lo: 140, hi: 340 },
+  { name: 'Mia', av: 12,  lo: 120, hi: 300 },
+  { name: 'Leo', av: 87,  lo: 100, hi: 260 },
+  { name: 'Sam', av: 203, lo: 60,  hi: 200 },
+  { name: 'Ava', av: 341, lo: 140, hi: 340 },
 ];
 /** 本局四位对手的分数（seed 确定性 ⇒ 可复现、可跟朋友对同一局的榜）*/
 function rivalScores(seed) {
@@ -431,7 +433,7 @@ function rivalScores(seed) {
     let a = (seed ^ Math.imul(i + 1, 2654435761)) >>> 0;
     a = Math.imul(a ^ (a >>> 15), 1 | a) >>> 0;
     const f = ((a >>> 8) % 1000) / 1000;
-    return { name: r.name, ava: r.ava, score: Math.round(r.lo + (r.hi - r.lo) * f) };
+    return { name: r.name, av: r.av, score: Math.round(r.lo + (r.hi - r.lo) * f) };
   });
 }
 
@@ -1260,7 +1262,7 @@ function noteWeak(kind) {
 // ══ 🏆 每日锦标赛（零后端伪社交:100 名确定性对手,同一天全球同一场）══
 const TOUR_NAMES = ['Patricio','Alex','Isabel','Marco','Yuki','Nadia','Omar','Elena','Kai','Zoe',
   'Ivan','Lucia','Noah','Aicha','Ravi','Mei','Jonas','Sofia','Tariq','Anya','Diego','Hana','Felix','Nora'];
-const TOUR_AVAS = ['🦊','🦝','🐱','🐨','🦁','🐼','🦉','🐸','🧑🏻','👩🏽','👨🏿','👩🏻','🧔🏽','👵🏼','👦🏾','👧🏻'];
+// 头像同上：天使画像序号（drawAvatar 缺图会回退到带首字母的彩盘）
 function tourField() {
   const dayN = parseInt(todayId(), 10) >>> 0;
   const out = [];
@@ -1270,7 +1272,7 @@ function tourField() {
     const noise = ((a >>> 8) % 1000) / 1000;
     const base = Math.pow(1 - i / 110, 2.1) * 155000;
     out.push({ name: TOUR_NAMES[a % TOUR_NAMES.length],
-               ava: TOUR_AVAS[(a >>> 5) % TOUR_AVAS.length],
+               av: (a >>> 5) % 500,
                score: Math.round(base * (0.9 + noise * 0.2)) + 500 });
   }
   out.sort((x, y) => y.score - x.score);

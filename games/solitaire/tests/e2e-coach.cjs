@@ -230,8 +230,8 @@ async function hit(page, action, dm) {   // 有没有这个可点区域（不点
      '⭐ 退出教学回到普通新局，教学横幅消失');
 
   // ── ⑪ 菜单里的教学入口带进度 ──
-  const menu = await page.evaluate(() => { dispatch('MENU'); return hitAreas.some(h => h.action === 'LESSON'); });
-  ok(menu, '⭐ 菜单有教学入口（带 n/4 进度）');
+  const menu = await page.evaluate(() => { dispatch('HOME'); return hitAreas.some(h => h.action === 'LESSON'); });
+  ok(menu, '⭐ 主界面有教学入口（带 n/4 进度）');
   await page.screenshot({ path: path.join(SHOT, 'p17-05-menu-lessons.png') });
 
   ok(errs.length === 0, '全程零 error' + (errs.length ? ': ' + errs.slice(0, 3).join(' | ') : ''));

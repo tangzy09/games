@@ -46,9 +46,9 @@ async function click(page, action, dm){
      `⭐ manifest 从 ../snake 真实拉到（${await page.evaluate(()=>Angels.total())} 张）`);
 
   // ── ① 图鉴入口 + 初始 0 张 ──
-  await page.evaluate(()=>dispatch('MENU'));
+  await page.evaluate(()=>dispatch('HOME'));   // 图鉴/成就/教学等入口都在 🏠 主界面（菜单已瘦身成「每日 + 弱点」）
   await page.waitForTimeout(120);
-  ok(await click(page,'GALLERY'), '菜单有「天使图鉴」入口');
+  ok(await click(page,'GALLERY'), '主界面有「天使图鉴」入口');
   await page.waitForTimeout(150);
   ok(await page.evaluate(()=>G.phase==='GALLERY'&&G.angels===0), '图鉴可进（新档案 0/500）');
   await page.screenshot({path:path.join(SHOT,'p12-01-gallery-locked.png')});
