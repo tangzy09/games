@@ -111,6 +111,11 @@
   //   ECMAScript 允许各引擎的 pow 有实现差异，一个 ulp 的差就能让 `rnd() < p` 在
   //   iOS(JSC) 与 Android(V8) 上分道扬镳，而 §7 的「确定性锦标赛 / 分享一条 URL 复盘整局」
   //   要求同 (position,tier,seed) 跨设备逐手相同。同样理由，中路权重表是手写整数。
+  // ⚠⚠ **给 Task 9 的一条提醒：别只盯着中位级的 50% 胜率。** 这条线性曲线在阶梯**顶端**
+  //   挤得很死 —— p(19)=.039 与 p(20)=0 只差 3.9 个百分点，而这两级在难度页上是**两个
+  //   不同的棋手角色**（DESIGN §7.5），玩家分不出来就等于最后一格台阶是画上去的。
+  //   校准时顶端需要一个**可感知**的台阶（把 p(17..19) 抬起来、或让曲线在末端变陡），
+  //   这件事只有跑过真实胜率才知道该抬多少 —— 所以它是 Task 9 的活，不是这里拍。
   const P0 = 0.55;
   function pCurve(tier) {
     if (tier >= TIER_MAX) return 0;
@@ -122,13 +127,26 @@
   // ⭐ **这就是 1-5 级之间唯一的梯度**，也正是 DESIGN §3.1 那句「其余随机偏中路」——
   //   中路控制是四子棋最强的静态启发（中列参与 13 条四连线、边列只有 3 条），所以
   //   「偏多少」是一条真实的强弱轴，不是装饰。测试用 t5 vs t1 的确定性自对弈钉死这条梯度。
-  // ⚠ 这五行的**间距是实测定的，不是拍的**：第一版按 bias 1.0/1.3/1.6/1.9/2.2 等差铺，
-  //   400 局确定性自对弈量出来 **第 4 级 vs 第 5 级 = 0.487（打平）** —— 中路偏好在 bias≈2
-  //   之后就饱和了，等差的上两级根本不是两级。改成下面这条**几何加速**的间距后，相邻级
-  //   全部单调（600 局/组、先后手各半、和局算半分，`scoreA` = 强者得分率）：
-  //     5v4 .542 · 4v3 .575 · 3v2 .598 · 2v1 .610 · 3v1 .715 · 4v1 .769 · 5v1 .820
-  //   ⛔ 别为了「参数好看」把它改回等差 bias：那会让阶梯的上两级变成同一级，而玩家在
-  //     难度页上看到的是两个不同的棋手角色（DESIGN §7.5），等于明面标错。
+  // ⚠ 这五行的**间距是几何加速的（1.0→1.5→2.0→2.8→3.8），不是等差**，理由是**阶梯跨度**。
+  //   口径：确定性自对弈 · 先后手各半 · 和局算半分 · **800 局/组 × 4 个 seed 家族**
+  //        （p≈0.5 处标准误 = sqrt(0.25/800) ≈ 0.018，所以只认区间不重叠的结论）。
+  //   与等差版（bias 1.0/1.3/1.6/1.9/2.2，w[d] = round(10 × bias^(3−d))）逐项对比：
+  //
+  //            t5v4                          t2v1                          t5v1
+  //     等差   .512 .539 .515 .522           .580 .587 .612 .581           .716 .739 .752 .762
+  //     几何   .549 .522 .553 .561           .617 .654 .626 .641           .799 .812 .819 .833
+  //            └ 区间重叠，**没有可测量差异** └ 不重叠           └ **不重叠**：跨度 .74 → .82
+  //
+  //   ⇒ 真实且可复现的收益是**跨度**（第 1 级到第 5 级拉得开），不是某一对相邻级。
+  //     这正是产品诉求本身：这五级在难度页上是**五个不同的棋手角色**（DESIGN §7.5），
+  //     跨度不够就是「五个头像共用一种棋风」。相邻级只要单调即可，本来就不该指望拉开
+  //     ——两个相邻角色打起来接近五五开是**对的**。
+  //   ⚠⚠ 本注释的上一版写着「等差版 t5v4 = 0.487（打平）」，那是**单次 400 局**（标准误
+  //     ≈0.025）的读数，用 800×4 复算复现不出来（最低 .512）—— 结论没错，**立论错了**。
+  //     ⛔ 本仓第三次踩这个坑：**标着「实测」的数字必须是此刻的代码能复现的数字**，
+  //       否则是给后人留一个查不动的伪真值。改这张表前必须重跑，别只信这段注释。
+  //   ⏱ 复算脚本随 Task 9 的 tools/sim-ai.js 落地（它本来就要跑成千上万局自对弈）；
+  //     在那之前，tests/test-ai-determinism.js 里有一份 400 局/组的轻量版守着单调性。
   const CENTER_W = [
     [10, 10, 10, 10],    // 第 1 级 bias 1.0（全等权：真·瞎走，只是不送头）
     [34, 23, 15, 10],    // 第 2 级 bias 1.5
@@ -166,9 +184,25 @@
    *   ⛔ 绝不许在一局进行中调用它 —— 那会让同一 seed 的同一局面前后给出不同答案，
    *     「撤销不改主意」当场破功，而且没有任何一处会报错。校准是**离线**行为。
    */
+  const PATCH_KEYS = ['p', 'q3', 'w'];
   function setTierParams(tier, patch) {
     const t = checkTier(tier);
     const cur = _tiers[t - 1];
+    // ⛔ **键名白名单 —— 未知键必须抛错，绝不许静默丢弃**（评审实锤）：
+    //   `setTierParams(8, {probability: 0.3})` 若被默默忽略，Task 9 的整轮蒙特卡洛就跑在
+    //   **出厂 p** 上，然后如实报告「已校准到目标胜率」—— 一次零报错的哑失败，
+    //   而且下游读到的每一个「已校准」的数字都是假的。同理 patch 传 null / 非对象
+    //   也不许当 no-op：那等于「我以为我改了」。
+    if (patch === null || typeof patch !== 'object' || Array.isArray(patch)) {
+      throw new Error('setTierParams：patch 必须是对象（收到 ' + (Array.isArray(patch) ? 'array' : String(patch)) + '）');
+    }
+    const keys = Object.keys(patch);
+    if (keys.length === 0) throw new Error('setTierParams：patch 是空对象，什么都没改 —— 十有八九是键名写错了');
+    for (const k of keys) {
+      if (PATCH_KEYS.indexOf(k) === -1) {
+        throw new Error('setTierParams：不认识的键 "' + k + '"（只接受 ' + PATCH_KEYS.join(' / ') + '）');
+      }
+    }
     const next = { tier: t, mode: cur.mode, w: cur.w, p: cur.p, q3: cur.q3 };
     if (patch && patch.p !== undefined) {
       if (typeof patch.p !== 'number' || !(patch.p >= 0 && patch.p <= 1)) {
@@ -186,18 +220,47 @@
     }
     if (patch && patch.w !== undefined) {
       if (cur.mode !== 'shallow') throw new Error('setTierParams：第 ' + t + ' 级是求解器档，没有中路权重可调');
+      // ⚠ 上界 1e6 不是洁癖：weightedPick 把 W 个权重相加，和一旦越过 2^53，
+      //   `Math.floor(rnd() * total)` 就开始**静默丢精度** —— 表现是某几列再也抽不到，
+      //   而「随机偏中路」看起来仍然正常。7 × 1e6 离 2^53 有九个数量级的余量。
       if (!Array.isArray(patch.w) || patch.w.length !== MAX_DIST + 1
-          || !patch.w.every(x => Number.isInteger(x) && x > 0)) {
-        throw new Error('setTierParams：w 必须是 ' + (MAX_DIST + 1) + ' 个正整数（下标 = 与中列的距离）');
+          || !patch.w.every(x => Number.isInteger(x) && x > 0 && x <= 1e6)) {
+        throw new Error('setTierParams：w 必须是 ' + (MAX_DIST + 1)
+          + ' 个 1..1e6 的正整数（下标 = 与中列的距离）');
       }
       next.w = Object.freeze(patch.w.slice());
     }
     _tiers = _tiers.slice();
     _tiers[t - 1] = Object.freeze(next);
+    _paramsRev++;
     return _tiers[t - 1];
   }
   /** 回到出厂曲线（测试与校准脚本收尾必调，别让一次校准漏到下一个用例里）。 */
-  function resetTierParams() { _tiers = buildTiers(); return allParams(); }
+  function resetTierParams() { _tiers = buildTiers(); _paramsRev = 0; return allParams(); }
+
+  // ⭐ ─── 参数表指纹（I4）───
+  // 公平承诺的**严格**表述不是「同 (position,tier,seed) 恒等」，而是
+  //   「**在这张明面参数表下**，同 (position,tier,seed) 恒等」。
+  // setTierParams 会合法地改变落子（Task 9 就靠它），⛔ 但「绝不许在一局进行中调用」
+  // 原本只是一句口头约定 —— 误调一次，存档与分享 URL 的复盘会与当时对不上，
+  // 而**没有任何一处会报错**。所以把参数表本身也钉进指纹：
+  //   ⭐ **存档（DESIGN §9.3）与分享 URL 里，除了 seed 还要记下这个 hash**；重放时
+  //     hash 不一致 ⇒ 如实说「这局是在另一套难度参数下下的」，⛔ 绝不假装能逐手复现。
+  // ⚠ rev 只是「改过几次」的计数（调试用，不参与相等判定）；判定一律用 hash。
+  let _paramsRev = 0;
+  function paramsDigest() {
+    let h = 0x811c9dc5 | 0;
+    const mix = v => { h = Math.imul(h ^ (v | 0), 0x01000193); };
+    for (const pr of _tiers) {
+      mix(pr.tier);
+      mix(pr.mode === 'solver' ? 1 : 2);
+      mix(Math.round(pr.p * 1e9));      // p/q3 是小数 ⇒ 定点化再拌（⛔ 别把浮点位模式直接拌进去）
+      mix(Math.round(pr.q3 * 1e9));
+      if (pr.w) for (const x of pr.w) mix(x);
+    }
+    h ^= h >>> 15; h = Math.imul(h, 0x2c1b3c6d); h ^= h >>> 12;
+    return Object.freeze({ rev: _paramsRev, hash: (h >>> 0).toString(16) });
+  }
 
   // ════════ 入参校验（⛔ 一律当场抛错，别静默兜底）════════
   // 理由与 bitboard.play 同源：静默兜底会让「AI 其实一直在按第 1 级走」这种事零报错地存在。
@@ -267,11 +330,32 @@
    *   的实现会漏掉另一半 —— **落进 X 的下面一格反而给对手垫高**、以及落别处**新造**
    *   出一个对手的连四点。这两类都是「送头」，只有从「落完之后对手有没有一手连四」
    *   这个角度看才一并抓住。
-   * ⚠ 前置条件：调用方必须**先**处理掉「本方有当场制胜手」的情况。在本方已经四连的盘上
-   *   R.winningMoves 照样会报出对手的着法（rules-classic 里有这条实锤警告）。
+   * ⛔⛔ **前置条件（现在是断言，不再是注释）：本方不许有当场制胜手。**
+   *   有制胜手时本函数会说谎，而且谎得很像真话 —— 实例（评审实锤）：
+   *     手数线 5113405651221034626204，制胜列 [5] ⇒ 本函数返回 **[]**，
+   *     读起来就是「每一列都必败」，而其实**下一手就赢了**。
+   *   原因：落进制胜列之后本方已经四连，`R.winningMoves` 在已终局的盘上照样会报出
+   *   「对手的制胜手」（rules-classic.js 里有这条实锤警告），于是制胜列被当成送头列筛掉。
+   *   ⚠ 内部两个调用点（decide / usesSolver）都已先查过 mates 所以不出错，**但它是公开
+   *     导出的**，名字读起来像个全函数，而分层提示（§3.2）与妙手判定（§3.4）都要用它
+   *     —— 那两处拿到 [] 会说出「你一列都不剩了」这种正好相反的话。
+   *   ⇒ 与其在文档里写「调用方记得先查」，不如让它**响**。热路径不付这笔钱：
+   *     decide / usesSolver 走下面那个不校验的 safeMovesUnchecked（它们本来就刚查过）。
    * @returns 中路优先序的列数组（可能为空 = 每一列都送头）
    */
   function safeMoves(bd) {
+    const b = toBoard(bd);
+    if (R.terminal(b) !== null) throw new Error('safeMoves：已终局的局面没有「安全列」，先自己查 R.terminal');
+    if (R.winningMoves(b).length) {
+      throw new Error('safeMoves：本方有当场制胜手（' + R.winningMoves(b)
+        + '），此时「安全列」这个问题不成立 —— 先走制胜手。⛔ 别忽略这个错误：'
+        + '不校验时本函数会把制胜列当成送头列筛掉，返回一个看起来像「全盘皆输」的空数组');
+    }
+    return safeMovesUnchecked(b);
+  }
+  /** 热路径版：**不**校验前置条件（decide / usesSolver 在调用前一行刚查过 mates）。
+   *  ⛔ 内部函数，不导出 —— 对外的唯一入口是上面那个带断言的 safeMoves。 */
+  function safeMovesUnchecked(bd) {
     const sb = B.searchBoard(bd);     // 零分配落子/悔子，绝不碰调用方的盘
     const out = [];
     for (const c of R.moves(sb)) {
@@ -333,7 +417,7 @@
     }
 
     // ② 不送头的列。⛔ 全档硬约束，第 1 级也一样。
-    const safe = safeMoves(bd);
+    const safe = safeMovesUnchecked(bd);   // 上面刚查过 mates，不必再校验一次前置条件
     if (safe.length === 0) {
       // 每一列都让对手当场连四 ⇒ 各列分数**完全相同**（都是 doomedScore(n)）⇒ 搜也白搜。
       // 取中路优先序的第一列：输是注定的，至少别在最后一手上看起来像乱走。
@@ -405,7 +489,11 @@
       col: col, tier: base.tier, seed: base.seed, n: base.n,
       reason: reason, usedSolver: usedSolver,
       safe: Object.freeze(safe.slice()),
-      scores: scores || null,
+      // ⚠ scores 是 S.scoreAll 原样返回的对象 —— **必须冻结**：它是求解器的真值，
+      //   消费端（提示 / 妙手 / 复盘）就地改一个字段就等于篡改真值，且零报错。
+      //   ⚠ 它是纯对象不是数组 ⇒ 不涉及 §9.1 那条「freeze 把数组踢出 fast packed elements」
+      //     的坑（那条只针对数组），这里冻结零代价。
+      scores: scores ? Object.freeze(scores) : null,
       ranked: ranked ? Object.freeze(ranked.map(e => Object.freeze({ c: e.c, score: e.score }))) : null,
       slipped: !!slipped
     });
@@ -434,13 +522,13 @@
     if (_tiers[t - 1].mode !== 'solver') return false;
     if (R.terminal(bd) !== null) return false;
     if (R.winningMoves(bd).length) return false;
-    return safeMoves(bd).length >= 2;
+    return safeMovesUnchecked(bd).length >= 2;   // 上面刚 return 过有制胜手的情况
   }
 
   const API = Object.freeze({
     TIER_MIN, TIER_MAX, SOLVER_FROM, REASON, REASON_VALUES,
     aiMove, decide, usesSolver,
-    params, allParams, pCurve, setTierParams, resetTierParams,
+    params, allParams, pCurve, setTierParams, resetTierParams, paramsDigest,
     safeMoves, doomedScore
   });
   // 与本仓其余真值组件同样冻结：挡住 `AI.aiMove = () => 3` 这类把整条决策换掉的误用 ——

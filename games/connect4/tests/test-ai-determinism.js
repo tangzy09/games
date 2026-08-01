@@ -64,23 +64,51 @@ const noMate = bd => R.winningMoves(bd).length === 0;
  *  那条断言当场退化成同义反复（它最后是被一条「样本里必须出现过送头列」的
  *  充分性守卫误打误撞拦下来的，不是被它该拦的那条拦下来的）。
  *  这里用纯函数 B.play 重写一遍（AI 内部用的是 searchBoard + playIn/undoIn，
- *  两条实现路径不同）⇒ 真正是两个独立的算法在对拍。 */
+ *  两条实现路径不同）⇒ 真正是两个独立的算法在对拍。
+ *  ⛔⛔ **它必须带与 AI.safeMoves 同一条前置断言**（评审实锤）：本方有当场制胜手时，
+ *  「安全列」这个问题不成立，而**两边会一起犯同一个错**（落进制胜列之后本方已四连，
+ *  R.winningMoves 照样报出对手的着法 ⇒ 制胜列被当成送头列筛掉，两边同时返回 []），
+ *  于是 `deepStrictEqual(AI.safeMoves, oracleSafe)` 恒真 —— 这就是「独立真值被同一个
+ *  前提污染」的标准样子：两份实现是独立的，两份**前提**不是。 */
 function oracleSafe(bd) {
+  if (R.terminal(bd) !== null) throw new Error('oracleSafe：已终局');
+  if (R.winningMoves(bd).length) throw new Error('oracleSafe：本方有当场制胜手，问题不成立');
   return R.moves(bd).filter(c => R.winningMoves(B.play(bd, c)).length === 0);
 }
 const searchy = bd => noMate(bd) && oracleSafe(bd).length >= 2;   // 求解器档真会搜的那一类
 
 // AI.safeMoves 自己也必须与这份独立真值逐位相同（它是三条免搜捷径的全部依据）
 {
-  let n = 0;
+  let n = 0, mateGuarded = 0;
   for (const d of [6, 14, 22, 30, 38]) {
     for (const bd of randomPositions(d, 15, 2200 + d)) {
+      if (R.winningMoves(bd).length) {
+        // ⭐ 前置条件必须**响**（两边都要响）：不校验时两边会一起把制胜列当送头列筛掉、
+        //   一起返回 []，那句 deepStrictEqual 就永远绿着，而 safeMoves 已经在对
+        //   提示 / 妙手（§3.2 / §3.4）说「你一列都不剩了」——正好说反。
+        assert.throws(() => AI.safeMoves(bd), /当场制胜手/, 'AI.safeMoves 没拦住制胜局面');
+        assert.throws(() => oracleSafe(bd), /当场制胜手/, 'oracleSafe 没拦住制胜局面（真值和被测一起错）');
+        mateGuarded++;
+        continue;
+      }
       assert.deepStrictEqual(AI.safeMoves(bd), oracleSafe(bd),
         'AI.safeMoves 与独立真值不符（n=' + bd.n + '，手数 ' + B.toMoves(bd) + '）');
       n++;
     }
   }
-  console.log('test-ai: AI.safeMoves 与独立真值逐位相同 OK（' + n + ' 局面）');
+  assert.ok(mateGuarded > 0, '样本里必须真的出现过「有制胜手」的局面，否则那两条 throws 是空转');
+  // 评审给的那条实例，逐字钉死（⛔ 别删：它是这个盲区的现场物证）
+  const WITNESS = '5113405651221034626204'.split('').map(Number);
+  const wbd = B.fromMoves(WITNESS);
+  assert.deepStrictEqual(R.winningMoves(wbd), [5], '前提：这条线上制胜列就是 [5]');
+  assert.throws(() => AI.safeMoves(wbd), /当场制胜手/,
+    '评审给的物证局面：safeMoves 必须抛错，⛔ 不许再返回那个看起来像「全盘皆输」的 []');
+  assert.strictEqual(AI.aiMove(wbd, 1, 0), 5, '任何档在这个局面上都必须直接取胜');
+  assert.strictEqual(AI.aiMove(wbd, 20, 0), 5);
+  // ⚠ 已终局同理（那也是个「问题不成立」的局面）
+  assert.throws(() => AI.safeMoves([3, 4, 3, 4, 3, 4, 3]), /已终局/);
+  console.log('test-ai: AI.safeMoves 与独立真值逐位相同 OK（' + n + ' 局面）；'
+    + '制胜局面上两边都抛错（' + mateGuarded + ' 个 + 评审物证 1 个）OK');
 }
 
 // ════════════════════════════════════════
@@ -128,7 +156,7 @@ const searchy = bd => noMate(bd) && oracleSafe(bd).length >= 2;   // 求解器�
     for (const bd of randomPositions(n, 8, 1212 + n)) {
       const snap = JSON.stringify(bd);
       const tiers = bd.n >= 20 ? [1, 5, 6, 20] : [1, 5];
-      for (const t of tiers) { AI.decide(bd, t, 3); AI.usesSolver(bd, t); AI.safeMoves(bd); }
+      for (const t of tiers) { AI.decide(bd, t, 3); AI.usesSolver(bd, t); R.winningMoves(bd).length ? 0 : AI.safeMoves(bd); }
       assert.strictEqual(JSON.stringify(bd), snap, 'AI 改了入参棋盘（n=' + n + '）');
     }
   }
@@ -165,7 +193,7 @@ const searchy = bd => noMate(bd) && oracleSafe(bd).length >= 2;   // 求解器�
   for (const set of shallowTierSets) {
     for (const bd of set) {
       const mates = R.winningMoves(bd);
-      const safe = oracleSafe(bd);
+      const safe = R.winningMoves(bd).length ? null : oracleSafe(bd);   // 有制胜手 ⇒ 问题不成立
       const legal = R.moves(bd);
       const tiers = bd.n >= 20 ? ALL_TIERS : ALL_TIERS.filter(t => t < AI.SOLVER_FROM);
       for (const t of tiers) {
@@ -210,7 +238,7 @@ const searchy = bd => noMate(bd) && oracleSafe(bd).length >= 2;   // 求解器�
   let forced = 0, doomed = 0, mate = 0, checked = 0;
   for (const n of [20, 24, 28, 32]) {
     for (const bd of randomPositions(n, 30, 3300 + n)) {
-      const safe = oracleSafe(bd);
+      const safe = R.winningMoves(bd).length ? null : oracleSafe(bd);   // 有制胜手 ⇒ 问题不成立
       const mates = R.winningMoves(bd);
       const sa = S.scoreAll(bd);
       const legal = R.moves(bd);
@@ -307,6 +335,76 @@ const searchy = bd => noMate(bd) && oracleSafe(bd).length >= 2;   // 求解器�
     '往全局塞玩家状态之后落子变了 —— 公平承诺（入参里没有玩家状态）不成立');
   console.log('test-ai: ⭐ 不读玩家状态 OK（' + cases.length
     + ' 次决策，连胜 99 / 大师存档 / Math.random 下毒之后逐手不变）');
+}
+
+// ════════════════════════════════════════
+// ⑥b ⭐⭐ 确定性第一条的**另一半**：跨进程指纹（污染发生在 require ai.js **之前**）
+//
+// 🔴 用例 ⑥ 有一个整类盲区，评审实锤、我自己也复现过：它是**同进程 before/after**，
+//    而 `require('../js/ai.js')` 在本文件第 30 行、污染在 274 行 ⇒ **任何在模块加载那一刻
+//    读一次玩家状态的实现，before 与 after 完全一致，那条断言恒真**。实测把这段塞进 ai.js：
+//        const _LOADPEEK = (globalThis.G && globalThis.G.streak) || globalThis.winStreak
+//          || (globalThis.localStorage && 99) || 0;
+//        const P0 = _LOADPEEK > 5 ? 0.275 : 0.55;    // 连胜高 ⇒ 失误率砍半
+//    ⇒ 当时**整套门禁 14 条全绿、EXIT=0**。一个货真价实的暗改 DDA 从公平门禁下面走过去了，
+//      而这条门禁守的正是要印在公平页上的那句话。
+// ⇒ 唯一能覆盖它的办法是**换个进程**：先污染，再 require，然后把整批决策摘成 sha256。
+//   ⚠ 用例 ⑥ 那段同进程 before/after **保留**（它抓的是**运行期**偷读，变异体 M5 实锤有效）；
+//     两条覆盖的是不同的时刻，⛔ 谁都不能替代谁。
+// ════════════════════════════════════════
+{
+  // ⚠ 纯 ASCII（走 execFile 不过 shell，但别赌 Windows 的编码）
+  const digestProbe = [
+    "var jsdir=process.argv[1], poison=process.argv[2]==='1';",
+    "if(poison){",
+    // ⛔ 污染必须在 require 之前 —— 这正是本用例存在的全部理由
+    "  globalThis.G={streak:99,wins:999,losses:0,level:'master',aiBias:-5,ddaBoost:3};",
+    "  globalThis.PlayerProfile={rating:2400,winStreak:99,tierBeaten:20,frustration:1};",
+    "  globalThis.winStreak=99; globalThis.lossStreak=0; globalThis.playerElo=2400;",
+    "  globalThis.__DDA__={enabled:true,offset:-7}; globalThis.difficultyOffset=-7;",
+    "  globalThis.localStorage={getItem:function(){return '{\"streak\":99,\"level\":\"master\"}';},setItem:function(){}};",
+    "  process.env.C4_PLAYER_STREAK='99'; process.env.C4_DDA='1'; process.env.C4_SKILL='master';",
+    "}",
+    "var B=require(jsdir+'/bitboard.js'),R=require(jsdir+'/rules-classic.js');",
+    "var AI=require(jsdir+'/ai.js');",
+    "function mk(a){return function(){a|=0;a=(a+0x6D2B79F5)|0;var t=Math.imul(a^(a>>>15),1|a);t=(t+Math.imul(t^(t>>>7),61|t))^t;return ((t^(t>>>14))>>>0)/4294967296;};}",
+    "var rec=[],seen={};",
+    "function note(d){seen[d.reason]=(seen[d.reason]||0)+1;}",
+    // (a) 低档：整局自对弈（无库也秒完），覆盖 SHALLOW/WIN/FORCED/DOOMED
+    "for(var t=1;t<AI.SOLVER_FROM;t++){for(var g=0;g<12;g++){var bd=B.newBoard();",
+    "  while(R.terminal(bd)===null){var d=AI.decide(bd,t,3000+g);note(d);rec.push(t+':'+bd.n+':'+d.col+':'+d.reason);bd=B.play(bd,d.col);}}}",
+    // (b) 求解器档：深局面（n>=20，中位 <2ms），覆盖 BEST/SLIP
+    "function pos(n,k,sd){var r=mk(sd),out=[],gu=0;while(out.length<k&&gu++<200000){var bd=B.newBoard(),ok=true;",
+    "  for(var i=0;i<n;i++){if(R.terminal(bd)!==null){ok=false;break;}var ms=R.moves(bd);bd=B.play(bd,ms[Math.floor(r()*ms.length)]);}",
+    "  if(!ok||R.terminal(bd)!==null)continue;out.push(bd);}return out;}",
+    "[20,24,28].forEach(function(n){pos(n,10,6100+n).forEach(function(bd){",
+    "  [6,8,11,15,19,20].forEach(function(t){for(var s=0;s<6;s++){var d=AI.decide(bd,t,s);",
+    "    note(d);rec.push(t+':'+bd.n+':'+d.col+':'+d.reason+':'+d.slipped);}});});});",
+    // 参数表本身也进指纹（I4：公平承诺是「在这张明面参数表下」恒等）
+    "rec.push('params:'+JSON.stringify(AI.allParams())+':'+AI.paramsDigest().hash);",
+    "console.log(require('crypto').createHash('sha256').update(rec.join('|')).digest('hex')+' '+rec.length+' '+JSON.stringify(seen));"
+  ].join('\n');
+
+  const run = poisoned => execFileSync(process.execPath, ['-e', digestProbe, JS_DIR, poisoned ? '1' : '0'],
+    { encoding: 'utf8', timeout: 600000 }).trim().split(' ');
+  const clean = run(false);
+  const dirty = run(true);
+  assert.ok(Number(clean[1]) > 2000, '决策样本量不够（' + clean[1] + '）');
+  // ⭐ 覆盖率必须**断言**，不能只写在注释里说「覆盖了 BEST/SLIP/WIN/FORCED/DOOMED」——
+  //   否则哪天某条分支不再被这批局面走到，这个指纹就悄悄只覆盖了一半的决策路径。
+  const seen = JSON.parse(clean[2]);
+  for (const r of AI.REASON_VALUES) {
+    assert.ok(seen[r] > 0, '跨进程指纹没覆盖到 ' + r + ' 分支（实际 ' + clean[2] + '）');
+  }
+  assert.deepStrictEqual(JSON.parse(dirty[2]), seen, '污染前后各分支的命中次数也必须一致');
+  assert.strictEqual(clean[1], dirty[1], '两次运行的决策条数必须相同');
+  assert.strictEqual(dirty[0], clean[0],
+    '⛔ 在 require ai.js **之前**塞入玩家状态改变了落子 —— 存在「模块加载期偷读」的暗改 DDA。\n'
+    + '   干净 ' + clean[0] + '\n   污染 ' + dirty[0]);
+  // 同一份污染再跑一次仍相同（排除「指纹本身不稳」这种假绿）
+  assert.strictEqual(run(true)[0], dirty[0], '同样的输入两次跑出不同指纹 ⇒ 指纹不稳，这条断言不作数');
+  console.log('test-ai: ⭐⭐ 跨进程指纹 OK（' + clean[1] + ' 次决策；污染在 require 之前注入，'
+    + 'sha256 ' + clean[0].slice(0, 16) + '… 不变）；分支覆盖 ' + clean[2]);
 }
 
 // ════════════════════════════════════════
@@ -588,6 +686,19 @@ function playScripted(startMoves, aiTier, seed, plies, humanRnd) {
   assert.throws(() => AI.setTierParams(9, { p: 1.5 }), /p 必须是/);
   assert.throws(() => AI.setTierParams(2, { w: [1, 1, 1] }), /w 必须是/);
   assert.throws(() => AI.setTierParams(2, { w: [1, 0, 1, 1] }), /w 必须是/);
+  // ⭐ I1：**键名写错必须响**。静默丢弃 ⇒ Task 9 的整轮蒙特卡洛跑在出厂 p 上、
+  //    然后如实报告「已校准到目标胜率」，零报错的哑失败。
+  for (const bad of [{ probability: 0.3 }, { mode: 'shallow' }, { P: 0.3 }, { p2: 1 }, { tier: 9 }]) {
+    assert.throws(() => AI.setTierParams(9, bad), /不认识的键/, '未知键 ' + JSON.stringify(bad) + ' 必须抛错');
+  }
+  assert.throws(() => AI.setTierParams(9, {}), /空对象/);
+  for (const bad of [null, undefined, 3, 'p=1', [0.3]]) {
+    assert.throws(() => AI.setTierParams(9, bad), /patch 必须是对象/, 'patch=' + String(bad) + ' 必须抛错');
+  }
+  // 确认它们确实**什么都没改**（抛错之后参数表必须原样）
+  assert.strictEqual(AI.params(9).p, AI.pCurve(9), '抛错的 setTierParams 不许留下半个修改');
+  // Nit：w 的上界（越过 2^53 后 weightedPick 会静默丢精度）
+  assert.throws(() => AI.setTierParams(2, { w: [2 ** 53, 1, 1, 1] }), /1\.\.1e6|w 必须是/);
   AI.resetTierParams();
   assert.strictEqual(AI.params(8).p, AI.pCurve(8));
   assert.strictEqual(AI.aiMove(bd, 8, 5), beforeMove, 'resetTierParams 之后必须回到出厂行为');
@@ -596,6 +707,40 @@ function playScripted(startMoves, aiTier, seed, plies, humanRnd) {
   for (let t = 1; t < AI.SOLVER_FROM; t++) assert.strictEqual(AI.usesSolver(bd, t), false, '轻松档永远不搜');
   assert.strictEqual(AI.usesSolver(bd, 20), true);
   assert.strictEqual(AI.usesSolver([3, 4, 3, 4, 3], 20), false, '有当场制胜手时不必搜');
+
+  // ⭐ I4：参数表指纹 —— 公平承诺的严格表述是「**在这张明面参数表下**，
+  //    同 (position,tier,seed) 恒等」。setTierParams 会合法地改变落子（Task 9 靠它），
+  //    ⛔ 但「绝不许在一局进行中调用」原本只是口头约定：误调一次，存档与分享 URL 的复盘
+  //    就与当时对不上，而没有一处会报错。⇒ 把参数表也钉进指纹，存档里跟 seed 一起存。
+  {
+    const d0 = AI.paramsDigest();
+    assert.strictEqual(d0.rev, 0, 'reset 之后 rev 必须归零');
+    assert.strictEqual(AI.paramsDigest().hash, d0.hash, '没改参数时 hash 必须稳定');
+    const before = AI.aiMove(bd, 8, 5);
+    AI.setTierParams(8, { p: 1 });
+    const d1 = AI.paramsDigest();
+    assert.notStrictEqual(d1.hash, d0.hash, '改了 p 之后 hash 必须变（否则指纹拦不住误调）');
+    assert.strictEqual(d1.rev, 1);
+    // ⚠ 这正是那件「合法但会破坏逐手复现」的事，明确记录下来
+    assert.notStrictEqual(AI.aiMove(bd, 8, 5), before,
+      '前提：改参数确实会改落子 —— 所以它必须被指纹覆盖');
+    AI.setTierParams(2, { w: [11, 10, 10, 10] });
+    assert.notStrictEqual(AI.paramsDigest().hash, d1.hash, '改了 w 之后 hash 也必须变');
+    AI.resetTierParams();
+    assert.strictEqual(AI.paramsDigest().hash, d0.hash, 'reset 之后 hash 必须变回出厂值');
+    assert.strictEqual(AI.aiMove(bd, 8, 5), before, 'reset 之后落子必须变回去');
+    // q3 也要进指纹（它同样改行为）
+    AI.setTierParams(8, { q3: 0.9 });
+    assert.notStrictEqual(AI.paramsDigest().hash, d0.hash, 'q3 也必须进指纹');
+    AI.resetTierParams();
+  }
+  // Nit：decide 记录里的 scores 也必须冻结（它是求解器真值，消费端不许就地改）
+  {
+    const d = AI.decide(bd, 20, 1);
+    assert.ok(d.scores && typeof d.scores === 'object', '前提：这一手真的调了求解器');
+    assert.ok(Object.isFrozen(d.scores), 'decide().scores 必须冻结');
+    assert.throws(() => { 'use strict'; d.scores[3] = 999; }, TypeError);
+  }
   console.log('test-ai: p 曲线单调 + 校准接口 + usesSolver OK（p(6)=' + AI.pCurve(6)
     + ' … p(15)=' + AI.pCurve(15).toFixed(3) + ' … p(20)=' + AI.pCurve(20) + '）');
 }
