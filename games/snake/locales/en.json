@@ -6,7 +6,7 @@
   "ads": {
     "simWatch": "[Ad simulation] Watch a rewarded ad?",
     "simInterstitial": "[Ad simulation] Interstitial ad",
-    "revive": "📺 Revive (ad)",
+    "revive": "📺 Revive — {n} lives + {s}s invincible",
     "rescue": "📺 AI 30s",
     "gal3": "Watch an ad → {n} angels",
     "daily2": "Watch an ad → {n} more angels",
@@ -16,7 +16,8 @@
     "quest": "Watch an ad → finish a quest",
     "repair": "Watch an ad → restore {n}-day streak",
     "double": "Ad → +{n} angels",
-    "skin": "Watch an ad → unlock a skin"
+    "skin": "Watch an ad → unlock a skin",
+    "reviveGot": "+{n} lives · {s}s invincible"
   },
   "snake": {
     "score": "Score",

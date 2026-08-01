@@ -54,6 +54,15 @@ node games/snake/tools/gen-items.cjs     # Flux schnell 生成 13 道具 → C:\
 
 ## ⭐ 揭图节奏(2026-08-01 用户拍板的两条)
 
+- **⭐ 每关揭哪张图 = 随机**(`pickImgIndex()`，2026-08-01 用户定「每次消除游戏时的天使图也都随机」)：
+  **优先从没解锁的里抽**（随机的惊喜 + 收集进度一直在动），全解锁了就随便抽一张重温。
+  调用点两处：`nextLevel()` 和 boot 里的**新局**（续玩局保持快照里的 `imgPos`，不许换图）。
+  ⚠ **奖励关的节奏不能再挂 `imgPos % 10`**（图号随机了 ⇒ 变成 10% 随机撞上）——改看
+  `run.level % 10`（每通一关 +1），节奏才稳定。
+- **⭐ 主界面主视觉 = 每次进来换一张**(`pickHeroAngel()`)：从**已解锁的**里抽（它是「我的收藏」
+  不是装饰画），一张都没解锁时回退 `HERO_ANGEL`（= App 图标那张）。
+  ⚠ 抽到的值缓存进 `G.heroAngel`、**只在 `openHome()` 里抽**，`hideHome()` 清空 ——
+  主界面会因切语言/领奖重渲多次，每次重渲都重抽的话图会毫无理由地自己跳。
 - **吃到果实随机揭 9 格**(`APPLE_REVEAL`,`onAppleEaten` → `revealRandom`):揭图是本作核心爽点,从「一步一格」提到「一果九格」,整关时长与收集节奏大幅提速。走 `s.rand()` ⇒ 同种子可复现(AI 回归/快照续玩都依赖这条)。
 - **特殊果永远在场**:开局即生成,吃掉**立刻补下一个**(`ensureSpecial`),**永不过期**——旧的「4~6 苹果刷一个 + 8s 过期」整套作废。⚠ `expiresAt` 保留字段但填 `Number.MAX_SAFE_INTEGER`:① render 的「快过期闪烁」判据因此永假;② **别改回 `Infinity`**——当局快照走 JSON,`Infinity` 会变 `null`,`null - now` 是负数 ⇒ 特殊果会一直闪。
 
@@ -78,7 +87,7 @@ node games/snake/tools/gen-items.cjs     # Flux schnell 生成 13 道具 → C:\
 - **道具 sprite**(`itemSprite`/`preloadItems`,render.js):苹果+12 特殊果+流星的 emoji 换成本机 **Flux schnell** 生成的可爱贴纸(`assets/items/*.png`,256² 透明),sprite 优先、未加载回退 emoji/圆(零破坏)。管线 `tools/gen-items.cjs`(ComfyUI)+`cut-items.py`(transparent_background 抠图),改风格才重跑。
 - **每日天使**(`claimDaily`,main.js):每天领一张未解锁天使进图鉴(按日期稳定选、防刷)+ 连续天数 `daily.giftStreak`;主界面 🎁 可领时金色脉动。streak 相邻天判定用 `Math.round(日差)`(夏令时安全,同 achievements)。
 - **每关星级**(`gallery.stars{文件名:1-3}`,开放 map):★1 通关+★2 无死亡+★3 速通(<2min)或高连击(≥10)。结算浮层星级药丸(`drawOverlay` 的 `stars` 参)+ 图鉴缩略图下显星(渲染前 `st` 夹 0-3 防崩)。(注:去 AI 代打后 `aiRun` 恒 false,救场清关也算全星,原「AI 局只给 1★」已作废。)
-- **奖励关**(`G.bonusLevel`):`imgPos%10===9` 的关 2× 分(`scoreScale` 乘 2)+ 金色 HUD + 开局横幅。**不改盘面尺寸 → AI 保证不受影响**。
+- **奖励关**(`G.bonusLevel`):**每 10 关**一次(`run.level % 10 === 0`)2× 分(`scoreScale` 乘 2)+ 金色 HUD + 开局横幅。**不改盘面尺寸 → AI 保证不受影响**。⚠ 判据从 `imgPos%10===9` 改过来的 —— 图号 2026-08-01 起是随机的，再拿它当节奏就变成「10% 概率随机撞上」。
 - **收集进度里程碑**(`homeProgressHTML`):主界面显 `X/500` + 下一皮肤还差多少(`nextSkinHint` 读 themes unlock)。
 - **壁纸导出**(`Gallery.saveWallpaper`):图鉴 lightbox 一键存 1080×1920 竖版天使壁纸(粉彩渐变+柔光,Web Share 优先降级下载)。
 - **无障碍减弱动态**(`computeReduceMotion`/`G.reduceMotion`):跟随系统 `prefers-reduced-motion`,主界面 ✨/🍃 可覆盖;`fxBurst`/`fxShake`/庆祝缩放/星光按它门控(飘字/流光保留)。持久化坑见存档节。
@@ -107,7 +116,9 @@ node games/snake/tools/gen-items.cjs     # Flux schnell 生成 13 道具 → C:\
 | **皮肤解锁**(皮肤面板顶部) | **永久解锁下一款未解锁皮肤**(写进 `save.skins`) | **外观** | 1 次/天 |
 | **任务面板** | **直接完成一个今日任务**(含其 3 张奖励) | **任务进度** | 2 次/天 |
 | **streak 补签**(每日礼物弹窗,仅断签当天出现) | 把 giftStreak 接回 `prev+1` | **习惯保护** | 恰好漏 1 天时 |
-| 死亡后复活 | 复活 + **3 层护盾 + 10s 穿身无敌** | 救场 | 2 次/关 |
+| 死亡后复活 | 复活 + **10 条命 + 30 秒无敌**（2026-08-01 用户加厚：「用户更开心」） | 救场 | 2 次/关 |
+
+⛔ **复活的奖励必须写在按钮上、复活后再报一次**（`ads.revive` 带 `{n}/{s}` 参数 + `showReviveToast()` + HUD 常驻 `💖×n` / `😇秒`）——**看不见的奖励等于没给**。⚠ 数值只动 `AD_REWARD.reviveLives` / `reviveGhostSec`；「命」= `shield`（墙和身体都保）、「无敌」= `ghost`（**只穿身，墙照死**）—— 两个一起给才是真救场，只给无敌会撞墙照死。
 
 **结算屏是全场转化最高的位置**(刚赢、庆祝动画刚放完),snake 之前竟然空着——这次补上是本批最大的一笔。
 

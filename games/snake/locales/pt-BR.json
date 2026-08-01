@@ -6,7 +6,7 @@
   "ads": {
     "simWatch": "[Simulação de anúncio] Assistir a um anúncio premiado?",
     "simInterstitial": "[Simulação de anúncio] Anúncio intersticial",
-    "revive": "📺 Reviver (anúncio)",
+    "revive": "📺 Reviver — {n} vidas + {s}s invencível",
     "rescue": "📺 IA 30s",
     "gal3": "Ver anúncio → {n} anjos",
     "daily2": "Ver anúncio → mais {n} anjos",
@@ -16,7 +16,8 @@
     "quest": "Ver anúncio → concluir uma missão",
     "repair": "Ver anúncio → recuperar sequência de {n} dias",
     "double": "Anúncio → +{n} anjos",
-    "skin": "Ver anúncio → desbloquear uma skin"
+    "skin": "Ver anúncio → desbloquear uma skin",
+    "reviveGot": "+{n} vidas · {s}s invencível"
   },
   "snake": {
     "score": "Pontos",

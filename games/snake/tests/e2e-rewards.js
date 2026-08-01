@@ -143,8 +143,9 @@ async function main() {
       ghost: window.G.run.effects.ghostUntil - (window.G.nowMs || 0),
     }));
     assert(rev.phase === 'PLAYING', '复活回到 PLAYING');
-    assert(rev.shield >= 3, `复活给足护盾(${rev.shield} 层,救场不能给完就再死)`);
-    assert(rev.ghost >= 9000, `复活给足穿身无敌(${Math.round(rev.ghost)}ms)`);
+    // ⭐ 2026-08-01 用户加厚：10 条命 + 30 秒无敌（数值在 main.js 的 AD_REWARD 里）
+    assert(rev.shield >= 10, `复活给足命数(${rev.shield} 条,救场不能给完就再死)`);
+    assert(rev.ghost >= 29000, `复活给足无敌时长(${Math.round(rev.ghost)}ms)`);
   }
 
   // —— 位⑥结算翻倍:赢局结算屏(全场转化最高的位置),每关限一次 ——

@@ -239,7 +239,13 @@
     const gap = base + Math.max(0, Math.min(22, slack / GAPS));
     let y = top0;
     const hx = cx - hs / 2;
-    const file = G0.angels > 0 ? Angels.fileAt(G0.angels - 1) : null;
+    // ⭐ **每次进主界面换一张**（2026-08-01 用户定）：从**已解锁的**里随机抽 ——
+    //   它是「我的收藏」不是装饰画。⚠ 只在 heroIdx 为空时抽一次（renderHome 每帧都跑，
+    //   每帧重抽图会疯狂闪）；离开 HOME 时由 renderAll 清空，下次进来才换。
+    if (G0.heroIdx == null || G0.heroIdx >= G0.angels) {
+      G0.heroIdx = G0.angels > 0 ? Math.floor(Math.random() * G0.angels) : -1;
+    }
+    const file = G0.angels > 0 ? Angels.fileAt(G0.heroIdx) : null;
     const im = file ? Angels.img(file) : null;
     fillRR(hx - 5, y - 5, hs + 10, hs + 10, 22, 'rgba(255,255,255,0.88)');
     if (im) {
@@ -1078,6 +1084,7 @@
 
   function renderAll() {
     const ph = root.G.phase;
+    if (ph !== 'HOME') root.G.heroIdx = null;    // 离开主界面就作废，下次进来重抽一张主视觉
     if (ph === 'SET') return renderSettings();
     if (ph === 'INTRO') return renderIntro();
     if (ph === 'FAIR') return renderFair();

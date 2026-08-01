@@ -185,8 +185,13 @@ function renderAll() {
   else if (G.phase === 'PAUSED') drawOverlay(T('snake.paused'), T(IS_TOUCH ? 'snake.hintResumeTouch' : 'snake.hintResumeKey'), T('snake.resume'), 'RESUME', false);
   else if (G.phase === 'DEAD') {
     const from = G.run.snake.length, to = Math.max(3, Math.floor(from / 2));
+    // ⛔ 复活按钮上必须**写清楚给什么**（10 条命 + 30 秒无敌）——玩家看不见的奖励等于没给
     drawOverlay(T('snake.dead'), T('snake.deadHint', { from, to }), T('snake.respawn'), 'RESPAWN', false,
-                G.revivesThisLevel < 2 ? { label: T('ads.revive'), action: 'REVIVE' } : null);
+                G.revivesThisLevel < 2
+                  ? { label: T('ads.revive', typeof AD_REWARD !== 'undefined'   // main.js 在 render.js 之后加载
+                        ? { n: AD_REWARD.reviveLives, s: AD_REWARD.reviveGhostSec } : { n: 10, s: 30 }),
+                      action: 'REVIVE' }
+                  : null);
   } else if (G.phase === 'LEVEL_DONE') {
     if (G.imgFull) drawImgFull();
     // 先放完成庆祝(~0.8s 流光星光),再滑入结算浮层

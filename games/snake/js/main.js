@@ -29,20 +29,24 @@ function dispatch(action) {
       break;
     }
     case 'REVIVE':
-      // 看广告原地满状态复活,每局(每张图)限 2 次。⭐ 奖励加厚:复活还附 2 层护盾 + 8s 光环无敌,
+      // 看广告原地满状态复活,每局(每张图)限 2 次。⭐ 奖励加厚:复活还附 **10 条命 + 30 秒无敌**,
       //   让「复活」真的能救回局面,而不是复活两秒又撞死(那种体验比不给还差)。
+      //   ⚠ 「命」= shield(墙和身体都保)、「无敌」= ghost(只穿身,墙照死)——两个一起给才是真的救场。
+      //   ⛔ 奖励必须**在按钮上写清楚、复活后再报一次**:玩家看不见的奖励等于没给。
       if (G.phase === 'DEAD' && G.revivesThisLevel < 2) {
         Ads.showRewarded().then(ok => {
           if (!ok || G.phase !== 'DEAD') return;
           G.revivesThisLevel++;
           Core.revive(G.run);
-          G.run.effects.shield += 3;                                   // 护盾 ×3
-          G.run.effects.ghostUntil = (G.nowMs || 0) + 10000;           // 10s 穿身无敌
+          G.run.effects.shield += AD_REWARD.reviveLives;               // 10 条命(墙/身体都保)
+          G.run.effects.ghostUntil = (G.nowMs || 0) + AD_REWARD.reviveGhostSec * 1000;   // 30s 穿身无敌
           G.save.stats.revives++;
           const u = Ach.checkCum(G.save).unlocked;      // rev_* 成就
           if (u.length) showAchToasts(u);
           persist();
           G.phase = 'PLAYING'; loopState.last = 0; renderAll();
+          // 拿到了什么,当场说清楚(HUD 上还有 💖×10 / 😇30 的常驻指示)
+          showReviveToast();
         });
       }
       break;
@@ -174,6 +178,22 @@ function speed() {   // 格/秒:基础7随长缓升封顶12;慢慢云 ×0.7;小�
   return Math.min(12, 7 + 0.03 * G.run.snake.length) * m;
 }
 
+/**
+ * 这一关揭哪张天使图 —— **随机**（2026-08-01 用户定：「每次消除游戏时的天使图也都随机」）。
+ * ⭐ 优先从**还没解锁的**里抽：既是随机的惊喜，收集进度也一直在动；全解锁了就随便抽一张重温。
+ * ⚠ 奖励关的节奏因此**不能再用 imgPos%10**（图号随机了 ⇒ 变成 10% 随机撞上）；
+ *   改看 run.level（每通一关 +1），节奏才稳定 —— 见 enterReady。
+ */
+function pickImgIndex() {
+  const list = G.imgList || [];
+  if (!list.length) return 0;
+  const got = new Set((G.save && G.save.gallery && G.save.gallery.unlocked) || []);
+  const fresh = [];
+  for (let i = 0; i < list.length; i++) if (!got.has(list[i])) fresh.push(i);
+  const pool = fresh.length ? fresh : list.map((_, i) => i);
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
 function loadImage() {
   return new Promise(res => {
     const img = new Image();
@@ -193,7 +213,7 @@ function enterReady(resumed) {
   G.aiUsedThisLevel = false;      // 星级封顶标记不跨关(AI 开关本身跨关保持,是玩家的显式选择)
   G.doubledThisLevel = false;     // 结算「奖励翻倍」每关限一次
   // 奖励关:每 10 张图一关(imgPos 末位=9),2× 分数。不改盘面尺寸 → AI 保证不受影响。
-  G.bonusLevel = !!(G.imgList && G.imgList.length && (G.imgPos % 10 === 9));
+  G.bonusLevel = !!(G.run && G.run.level % 10 === 0);   // 每 10 关一次(图号已随机,不能再拿它当节奏)
   if (G.save) {
     if (!resumed) G.save.stats.levelsStarted++;
     G.tracker = Ach.newTracker(loopState.gameMs || 0, false);
@@ -317,7 +337,9 @@ const AD_CAPS = { gal: 6, boost: 4, quest: 2, skin: 1 };
 // demon(提速对刚开局是负面)、meteor/gift(场上机制,不是即时增益)。
 const BOOST_POOL = ['heart', 'halo', 'trail', 'magnet', 'feather', 'twin', 'gold', 'cloud'];
 // 每次给多少：**奖励要一次见效**（+1 张没人看广告，+8 张才动手）
-const AD_REWARD = { gal: 8, daily: 5, boost: 4, double: 3 };
+// ⚠ 改激励视频的奖励数值**只动这张表**（reviveLives/reviveGhostSec 是 2026-08-01 用户加厚的：
+//   「复活 + 30 秒无敌 + 10 条命，而且要提示出来」——奖励看不见等于没给）
+const AD_REWARD = { gal: 8, daily: 5, boost: 4, double: 3, reviveLives: 10, reviveGhostSec: 30 };
 function adQuotaLeft(kind) {
   if (!G.save) return 0;
   const a = G.save.ads, today = ymd(Date.now());
@@ -506,14 +528,27 @@ function renderSkinsBody() {
 // ——主界面(启动/暂停 hub)——
 // 纯 DOM 浮层,不动 phase 机(boot 后 phase 仍 READY,E2E 契约不变)。
 // PLAYING 时打开会先暂停(与成就/图鉴一致);Play/继续按钮收起浮层。
-const HERO_ANGEL = '0bep0x.webp';   // 主界面主视觉(= App 图标同一张,品牌一致)
+const HERO_ANGEL = '0bep0x.webp';   // 主视觉的兜底(= App 图标同一张;一张都没解锁时用它)
+/**
+ * 主界面主视觉 —— **每次打开都换一张**（2026-08-01 用户定）。
+ * ⭐ 从**已解锁的**里抽：它是「我的收藏」不是装饰画，每次回来看到不同的那张才有收集感。
+ * ⚠ 只在 openHome() 里抽一次并缓存进 G.heroAngel —— 主界面会因语言/领奖等重渲多次，
+ *   每次重渲都重抽的话，图会毫无理由地自己跳。
+ */
+function pickHeroAngel() {
+  const got = (G.save && G.save.gallery && G.save.gallery.unlocked) || [];
+  return got.length ? got[Math.floor(Math.random() * got.length)] : HERO_ANGEL;
+}
 // 天国开场的装饰层(纯样式,全部 pointer-events:none,不接任何交互)。
 // 放在 innerHTML 最前面 ⇒ 永远在内容之下;动画由 body.rm 统一兜底关闭(见 syncMotionClass)。
 const SKY_DECO =
   '<div class="sky-deco" aria-hidden="true"><div class="sky"></div><div class="rays"></div>'
   + '<i class="fth"></i>'.repeat(9)
   + '<div class="sea s1"></div><div class="sea s2"></div><div class="sea s3"></div></div>';
-function hideHome() { const h = document.getElementById('home'); if (h) h.classList.add('hidden'); }
+function hideHome() {
+  G.heroAngel = null;                                 // 下次进主界面重抽一张
+  const h = document.getElementById('home'); if (h) h.classList.add('hidden');
+}
 // 减弱动态:未显式设置则跟随系统 prefers-reduced-motion;用户可在主界面切换(显式存档覆盖)
 function computeReduceMotion() {
   const pref = G.save && G.save.settings ? G.save.settings.reduceMotion : null;
@@ -593,6 +628,7 @@ function openHome() {
   const home = document.getElementById('home');
   if (!home) return;
   if (G.phase === 'PLAYING') dispatch('PAUSE');       // 打开即暂停
+  if (!G.heroAngel) G.heroAngel = pickHeroAngel();    // 每次「进」主界面换一张(重渲不换)
   // 主按钮按当前状态智能续继(从任意状态回主界面再点都对):
   // 暂停→继续 / 死亡→重新出发 / 过关→下一张 / 待机→只收起(滑动开始)
   let playLabel = T('home.play'), playAct = null;
@@ -604,7 +640,7 @@ function openHome() {
   const achGot = G.save.ach.unlocked.length;
   const skinGot = Themes.THEME_ORDER.filter(k => Themes.themeUnlocked(k, G.save)).length;
   home.innerHTML = SKY_DECO +
-    `<div class="hero-wrap"><img class="home-hero" src="assets/angels/${HERO_ANGEL}" alt=""></div>
+    `<div class="hero-wrap"><img class="home-hero" src="assets/angels/${G.heroAngel || HERO_ANGEL}" alt=""></div>
      <div class="home-title">Angel Snake</div>
      <div class="home-tag">${T('home.tag')}</div>
      ${homeProfileHTML()}
@@ -746,6 +782,18 @@ function openHowTo() {
 }
 
 /** 开局礼包发到手时的横幅(显示拿到哪三个果效) */
+/** 复活后当场报一次拿到了什么（HUD 上还有 💖×10 / 😇30 的常驻指示兜底）*/
+function showReviveToast() {
+  const host = document.getElementById('toasts');
+  if (!host) return;
+  const el = document.createElement('div');
+  el.className = 'set-banner';
+  el.innerHTML = '<span class="sb-emo">💖</span><span>'
+    + T('ads.reviveGot', { n: AD_REWARD.reviveLives, s: AD_REWARD.reviveGhostSec }) + '</span>';
+  host.appendChild(el);
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 500); }, 3000);
+}
+
 function showBoostToast(emojis) {
   const host = document.getElementById('toasts');
   if (!host) return;
@@ -1008,7 +1056,7 @@ function questBump(type, n) {
 }
 
 async function nextLevel() {
-  G.imgPos++;
+  G.imgPos = pickImgIndex();
   await loadImage();
   initLayers(G.img);
   enterReady();
@@ -1155,6 +1203,7 @@ async function boot() {
     }
     if (!G.run) {
       G.run = Core.createGame({ seed: G.seed });
+      G.imgPos = pickImgIndex();                           // 新局也随机抽一张(续玩局保持快照里的那张)
       G.save.stats.cellsRevealed += G.run.revealedCount;   // 出生格揭开发生在 tick 外(续玩局上一场已入账,不重复)
     }
     G.cyc = AI.buildCycle(G.run.cols, G.run.rows);

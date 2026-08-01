@@ -291,9 +291,13 @@
     // ── 👼 hero：玩家**最近解锁的那张**天使（是「我的收藏」，不是装饰画）──
     const got = G.wallet.angels | 0, totA = Shop.ANGELS.total;
     const hx = cx - hs / 2;
+    // ⭐ **每次进主界面换一张**（2026-08-01 用户定）：从**已解锁的**里随机抽，
+    //   它是「我的收藏」不是装饰画。⚠ 只在 heroIdx 为空时抽一次 —— renderHome 每帧都跑，
+    //   每帧重抽的话图会疯狂闪；离开 HOME 时由 renderAll 清空，下次进来才换。
+    if (G.heroIdx == null || G.heroIdx >= got) G.heroIdx = got > 0 ? Math.floor(Math.random() * got) : -1;
     fillRR(hx - 5, y - 5, hs + 10, hs + 10, 22, 'rgba(255,255,255,0.88)');
     if (got > 0) {
-      drawAngel(got - 1, hx, y, hs, hs, 18);
+      drawAngel(G.heroIdx, hx, y, hs, hs, 18);
     } else {
       // 还没解锁 ⇒ 回退画一小片方块（零素材依赖，绝不空着）
       fillRR(hx, y, hs, hs, 18, 'rgba(255,255,255,0.92)');
@@ -1142,6 +1146,7 @@
 
   function renderAll() {
     const G0 = root.G;
+    if (G0.phase !== 'HOME') G0.heroIdx = null;   // 离开主界面就作废，下次进来重抽一张主视觉
     if (G0.phase === 'HOME') return renderHome();
     if (G0.phase === 'MENU') return renderMenu();
     if (G0.phase === 'ACH') return renderAchievements();
