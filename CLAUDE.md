@@ -18,7 +18,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `abyssshoot` | **被 4.3(a) 拒审后整改中**（2026-07-22 改名「Fish Cannon: Deep Sea Merge」+ 盘面去数字化）。玩法/美术/图鉴/道具/广告全备，线上 <https://fishshoot.ai-speeds.com>。 |
 | `blockblast` | **iOS 1.0 已上架（READY_FOR_SALE）**（ASC 名「Cube Blast: Block Puzzle」）。8×8 消除拼图；卖点是**预生成块流**（出块序列落子前就定死、种子可查）。**1.0.1 全量改良已上线 web、iOS 待出包**：30关3章/拼块水晶/天使画廊500张/天使榜/每日任务/连续奖励+补签/日历补玩/图鉴/16皮肤/统计/新广告模型（前50盘零插屏）/GC+推送+求好评+反馈（原生件）。线上 <https://blocks.ai-speeds.com>。 |
 | `solitaire` | **iOS 1.0 已上架 READY_FOR_SALE（2026-07-23 过审）**（ASC 名「Fair Deal: Patience & Cards」，Apple ID 6790861224）。**web 已迭代四轮改良（v26），iOS 待出新包**。Klondike 可解池 + FreeCell 微软局号 + 「这局还有解吗」证明器。线上 <https://cards.ai-speeds.com>。⚠ 商店名**不含 solitaire**（品牌差异化），但 keywords 里有（公有品类，合规）。⚠ 措辞是死线：可解率是「透视暗牌」意义下的，绝不能说成「你一定能赢」（见其 CLAUDE.md）。 |
-| `bouncerogue` | **设计 v2 定稿（2026-07-18），零代码，下一个动工目标**。市场调研后骨架从实时 paddle 改为**竖屏回合制瞄准发射**（Ballz/Holedown 形态 × 合球化学 × 规则卡 × 种子可查），调研全文见其 `RESEARCH.md`。动工从 P1 走 writing-plans。 |
+| `connect4` | **P1「求解器与真值地基」已交付（2026-08-01），⚠ 但还不能玩**——只有求解器库（5 模块 + 6 套门禁 + 4 工具 + 3.63 MiB 开局库），**没有 index.html / render / main / css / locales / 美术**。⭐ 卖点已立住：**完美求解器通过 Allis 1988 外部真值门禁**（空盘七列 `−3 −1 0 +2 0 −1 −3`，取胜手数逐列对上），空盘查库 25 ms。20 级明面 AI 阶梯 + 公平承诺写进 `aiMove(position,tier,seed)` 签名并由**跨进程指纹**守住。剩 P1b(Pop Out) / P2(可玩本体) / P3(提示复盘) / P4(课程) / P5(元游戏变现)。⛔ 商标红线：`Connect 4` 是孩之宝活商标，**一个字都不许进任何面向用户的地方**（泛型词是 `Four in a Row`）；红黄圆片+蓝框是其 trade dress。**动手前必读其 `DESIGN.md` §0 与 §11b**。 |
+| `bouncerogue` | **设计 v2 定稿（2026-07-18），零代码**。市场调研后骨架从实时 paddle 改为**竖屏回合制瞄准发射**（Ballz/Holedown 形态 × 合球化学 × 规则卡 × 种子可查），调研全文见其 `RESEARCH.md`。动工从 P1 走 writing-plans。 |
 
 ## 常用命令
 
