@@ -439,15 +439,13 @@ function consume(events) {
 }
 
 // ── 交互入口 ──
-/** 挑战链接：web 上用当前地址，原生壳里用线上域名（分享出去的链接必须打得开）*/
-function challengeUrl(seed) {
-  try {
-    if (!Platform.isNative && location.protocol.startsWith('http')) {
-      return location.origin + location.pathname + '?seed=' + seed;
-    }
-  } catch (e) {}
-  return 'https://blocks.ai-speeds.com/?seed=' + seed;
-}
+/**
+ * ⭐ 分享的链接一律指向 **App Store**（engine/share.js），不是网页版 ——
+ *   网页版不产生下载量/评分/排名，把朋友导过去等于白送掉一次转化。
+ * ⚠ App Store 链接**带不了 ?seed=** ⇒ 「同一条块流比分数」这个卖点必须靠**文案里的种子号**
+ *   兑现（装了 app 的朋友在设置里输种子即可）。⛔ 只换链接不写种子 = 把卖点悄悄删了。
+ */
+function challengeUrl() { return Share.link(); }
 
 function dispatch(action, data) {
   switch (action) {
@@ -563,7 +561,9 @@ function dispatch(action, data) {
       // Wordle 式每日分享：日期 + 分数 + 同种子链接（对方打开就是同一条块流）
       const id = G.s.daily || 0;
       const dstr = Math.floor(id / 10000) + '-' + String(Math.floor(id / 100) % 100).padStart(2, '0') + '-' + String(id % 100).padStart(2, '0');
-      const text = T('blockblast.shareDaily', { d: dstr, n: G.s.score }) + ' ' + challengeUrl(G.s.seed);
+      const text = T('blockblast.shareDaily', { d: dstr, n: G.s.score })
+                 + '\n' + T('blockblast.shareSeedTip', { n: G.s.seed })
+                 + '\n' + challengeUrl();
       const done = () => {
         FX.toast(T('blockblast.challengeCopied'), Render.L.cx, Render.L.boardY + 40, '#7ef2a0', 'bold 15px sans-serif', 1.2);
         renderAll();
@@ -631,8 +631,9 @@ function dispatch(action, data) {
     }
     case 'SHARE_SEED': {
       // 种子挑战：块流由种子定死 ⇒ 「同一条块流比分数」天然成立（公平机制的病毒式副产品）
-      const url = challengeUrl(G.s.seed);
-      const text = T('blockblast.shareText', { n: G.s.score }) + ' ' + url;
+      const text = T('blockblast.shareText', { n: G.s.score })
+                 + '\n' + T('blockblast.shareSeedTip', { n: G.s.seed })
+                 + '\n' + challengeUrl();
       const done = () => {
         FX.toast(T('blockblast.challengeCopied'), Render.L.cx, Render.L.boardY + 40, '#7ef2a0', 'bold 15px sans-serif', 1.2);
         renderAll();

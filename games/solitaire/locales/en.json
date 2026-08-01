@@ -246,6 +246,7 @@
     "adBackAll": "You already own every card back!",
     "galleryAdN": "Watch an ad → +{n} angels",
     "watchAdN": "Watch an ad → +{n} coins",
-    "peekOn": "peeking"
+    "peekOn": "peeking",
+    "shareSeedTip": "Deal #{n} — install the app and type this number under Settings to play the very same deal."
   }
 }

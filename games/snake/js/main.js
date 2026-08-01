@@ -155,7 +155,7 @@ function dispatch(action) {
         Gallery.shareCard(G.img, G.run.score, PAL, {
           title: 'Angel Snake',
           score: `${T('snake.score')} ${G.run.score}`,
-          url: location.origin + location.pathname,
+          url: Share.link(),          // ⭐ App Store 链接（不是网页版）——见 engine/share.js
         });
       break;
     case 'IMG_FULL':  if (G.phase === 'LEVEL_DONE') G.imgFull = true; break;

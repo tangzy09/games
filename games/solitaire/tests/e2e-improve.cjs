@@ -54,14 +54,18 @@ async function click(page, action, dm){
   st=await page.evaluate(()=>({seed:G.s.seed,mode:G.s.mode}));
   ok(st.seed===11982&&st.mode==='freecell', `⭐ #fc-11982 = 微软 #11982（32000 局唯一无解局也能被分享出来围观）`);
 
-  // ── ③ 分享按钮 → 剪贴板里是可用链接 ──
+  // ── ③ 分享按钮 → 剪贴板里是 **App Store 链接 + 局号**（2026-08-01 改：不再分享网页版）──
+  //    ⚠ 这条断言原来钉的是网页挑战链接 `#fc-11982`。策略变了 ⇒ **把断言改成钉新策略**，
+  //      不是删掉（跨游戏红线另有 tools/test-share-links.cjs 守着）。
   await page.evaluate(()=>{ if(G.phase==='INTRO') dispatch('INTRO_GO'); });
   await page.evaluate(()=>dispatch('FAIR'));
   await page.waitForTimeout(120);
   ok(await click(page,'SHARE'), '公平页有「分享此局」按钮');
   await page.waitForTimeout(250);
   const clip=await page.evaluate(()=>navigator.clipboard.readText());
-  ok(clip.includes('#fc-11982'), `⭐ 剪贴板是完整挑战链接（…${clip.slice(-24)}）`);
+  ok(clip.includes('apps.apple.com/app/id6790861224') && !clip.includes('ai-speeds.com'),
+     `⭐ 剪贴板是 App Store 链接，不是网页版（…${clip.slice(-30)}）`);
+  ok(clip.includes('11982'), '⭐ 局号仍在文案里（App Store 链接带不了 seed ⇒ 靠局号直输兑现「同一局」）');
   ok(await page.evaluate(()=>!!G.toast), '复制成功有 toast 反馈');
   await page.evaluate(()=>dispatch('PLAY'));
 

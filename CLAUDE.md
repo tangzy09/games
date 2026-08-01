@@ -49,6 +49,7 @@ node tools/check-locales.js games/<name>/locales
 | 引擎美术回退 | `engine/canvas.js` 的 `makeArt(dir,ids)` / `drawArtIcon` | 缺图自动回退矢量/emoji ⇒ **零改码换图**；生成素材见 `comfyui-flux-local` |
 | 十语 i18n | `engine/i18n.js` 默认集 + 各游戏 `locales/*.json` | 加语言 = **纯加 json**；`node tools/check-locales.js games/<name>/locales` 必 0 fail |
 | 广告闸门 / 激励视频 | 各游戏 `js/shop.js`（未抽取） | 参数与红线见 skill §1；blockblast 是最简闸门的参考实现 |
+| **分享（链接指向 App Store）** | `engine/share.js` + 各游戏 `GAME_CONFIG.appStoreId`/`webUrl` | ⛔ **分享出去的链接一律指向 App Store，绝不是网页版**（2026-08-01 用户定，全游戏适用）——网页版不产生下载/评分/排名。⚠ 商店链接**带不了 seed** ⇒ 局号/种子必须写进**文案**（只换链接 = 把「同一局」的玩法价值悄悄删了）。没上架的游戏别填 `appStoreId`，会自动回退网页链接。红线测试 `npm run test:share` |
 | 原生三件套（推送/求好评/反馈） | `games/blockblast/js/{notify,rate,feedback}.js`、`games/snake/js/{notify,rate}.js` | **三个文件都是 game-agnostic**（只依赖 `T()`/`CFG`/`Platform`），复制即用；反馈后端是共享 hub `feedback.ai-speeds.com`（CORS `*`，任何域可直连）。⚠ 已有**两份**实现 ⇒ **下一个游戏要接时先抽进 `engine/`**（drag.js 的老规矩：第三个用例出现才抽） |
 | 插屏闸门 / 每日任务 | `blockblast/js/{shop,quests}.js`、`snake/js/{adgate,quests}.js` | 同一套模型的两份实现（盘数计数口径不同：blockblast 按盘、snake 按关）；参数与红线见 `casual-game-meta` §1/§5.7 |
 | **激励视频七个位 + 每日额度** | `snake/js/main.js` 的 `AD_CAPS`/`AD_REWARD`/`adQuotaLeft` + `tests/e2e-rewards.js` | snake 是最全的参考实现（结算屏/图鉴/每日礼物/开局礼包/皮肤/任务/复活）。⚠ 抄的时候连**冒烟一起抄**：额度失效＝长线收集当天被刷穿、线上收不回来。跨天重置必须按 `AD_CAPS` 全量清（手写清 key 必漏）。奖励池要**显式白名单**，别 `filter(排除两个)`。详见 `casual-game-meta` §1 |

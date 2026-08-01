@@ -232,6 +232,7 @@
     "ghostLine": "{a}/{b} anjos superados",
     "ghostNext": "{name} a {n} pts",
     "goalGhost": "{n} pts para passar o anjo {name}",
-    "ladderYou": "Seu recorde: {n}"
+    "ladderYou": "Seu recorde: {n}",
+    "shareSeedTip": "Semente #{n} — instale o app e digite esta semente para receber exatamente a mesma sequência de peças."
   }
 }

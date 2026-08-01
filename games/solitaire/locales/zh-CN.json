@@ -246,6 +246,7 @@
     "adBackAll": "所有牌背你都已经有了！",
     "galleryAdN": "看广告 → +{n} 张天使",
     "watchAdN": "看广告 → +{n} 金币",
-    "peekOn": "透视中"
+    "peekOn": "透视中",
+    "shareSeedTip": "局号 #{n}——装了 app 后在设置里输入这个局号，就能打同一副牌。"
   }
 }

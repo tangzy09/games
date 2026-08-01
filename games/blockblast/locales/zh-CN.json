@@ -232,6 +232,7 @@
     "ghostLine": "已超过 {a}/{b} 位天使",
     "ghostNext": "差 {n} 分追上 {name}",
     "goalGhost": "差 {n} 分超过天使 {name}",
-    "ladderYou": "你的最高分：{n}"
+    "ladderYou": "你的最高分：{n}",
+    "shareSeedTip": "种子 #{n}——装了 app 后输入这个种子，就是完全相同的一条块流。"
   }
 }

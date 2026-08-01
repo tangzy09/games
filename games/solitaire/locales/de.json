@@ -246,6 +246,7 @@
     "adBackAll": "Du hast bereits alle Kartenrücken!",
     "galleryAdN": "Video ansehen → +{n} Engel",
     "watchAdN": "Video ansehen → +{n} Münzen",
-    "peekOn": "Blick"
+    "peekOn": "Blick",
+    "shareSeedTip": "Blatt #{n} — installiere die App und gib diese Nummer in den Einstellungen ein, um genau dasselbe Blatt zu spielen."
   }
 }

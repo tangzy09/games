@@ -246,6 +246,7 @@
     "adBackAll": "¡Ya tienes todos los dorsos!",
     "galleryAdN": "Ver anuncio → +{n} ángeles",
     "watchAdN": "Ver anuncio → +{n} monedas",
-    "peekOn": "mirando"
+    "peekOn": "mirando",
+    "shareSeedTip": "Mano n.º {n}: instala la app y escribe este número en Ajustes para jugar exactamente la misma mano."
   }
 }

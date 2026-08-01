@@ -896,18 +896,17 @@ function dispatch(action, data) {
     //   FreeCell 用微软局号（老玩家的接头暗号），Klondike 用自家 seed（draw 模式进链接 ——
     //   draw-1/draw-3 是两个不同的可解性问题，丢了它「同一局」就是假的）。
     case 'SHARE': {
-      const tag = (s.mode === 'freecell' ? 'fc' : 'd' + s.drawCount) + '-' + s.seed;
-      const base = location.protocol.indexOf('http') === 0
-        ? location.origin + location.pathname : 'https://cards.ai-speeds.com/';
-      const msg = T('sol.shareText', { n: s.seed }) + ' ' + base + '#' + tag;
+      // ⭐ 链接指向 App Store（不是网页版）——分享是最便宜的获客渠道，网页版不产生下载/评分。
+      // ⚠ App Store 链接**带不了 seed** ⇒ 局号必须写进**文案**，否则「一起打同一局」这个
+      //   玩法价值就被悄悄删掉了。装了 app 的朋友用设置里的 #️⃣ 局号直输即可进同一局。
+      const msg = T('sol.shareText', { n: s.seed })
+                + (Share.hasStore() ? '\n' + T('sol.shareSeedTip', { n: s.seed }) : '');
       const toast = () => {
         G.toast = { msg: T('sol.copied'), until: Date.now() + 1600 };
         renderAll();
         setTimeout(renderAll, 1700);
       };
-      if (navigator.share) navigator.share({ text: msg }).catch(() => {});
-      else if (navigator.clipboard && navigator.clipboard.writeText)
-        navigator.clipboard.writeText(msg).then(toast).catch(() => {});
+      Share.text(msg).then(r => { if (r === 'copied') toast(); });
       break;
     }
     // ⭐ 「这局还有解吗？」—— 永远免费、永远不看广告（它是产品的灵魂，不是道具）
@@ -1332,9 +1331,6 @@ async function shareWinCard() {
     const t = Math.max(0, Math.round(ms / 1000));
     return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
   };
-  const tag = (s.mode === 'freecell' ? 'fc' : 'd' + s.drawCount) + '-' + s.seed;
-  const base = location.protocol.indexOf('http') === 0
-    ? location.origin + location.pathname : 'https://cards.ai-speeds.com/';
   const W = 1080, H = 1350;
   const c = document.createElement('canvas'); c.width = W; c.height = H;
   const x = c.getContext('2d');
@@ -1359,13 +1355,14 @@ async function shareWinCard() {
   }
   x.fillStyle = '#fff'; x.font = 'bold 46px sans-serif';
   x.fillText(T('sol.shareText', { n: s.seed }), W / 2, 1020);
+  // 图卡上印 App Store 链接（不是网页版）—— 截图被转发时这行字就是获客入口
   x.fillStyle = 'rgba(255,255,255,0.85)'; x.font = '40px sans-serif';
-  x.fillText(base + '#' + tag, W / 2, 1110);
+  x.fillText(Share.link(), W / 2, 1110);
   const blob = await new Promise(r => c.toBlob(r, 'image/png'));
   const f = new File([blob], 'fair-deal-win.png', { type: 'image/png' });
-  if (navigator.share && navigator.canShare && navigator.canShare({ files: [f] })) {
-    try { await navigator.share({ files: [f], text: base + '#' + tag }); return; } catch (e) {}
-  }
+  const cap = T('sol.shareText', { n: s.seed })
+            + (Share.hasStore() ? '\n' + T('sol.shareSeedTip', { n: s.seed }) : '');
+  if ((await Share.files(f, cap)) !== 'failed') return;
   dispatch('SHARE');                             // 降级：链接分享（剪贴板 + toast）
 }
 

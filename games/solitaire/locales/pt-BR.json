@@ -246,6 +246,7 @@
     "adBackAll": "Você já tem todos os versos!",
     "galleryAdN": "Ver anúncio → +{n} anjos",
     "watchAdN": "Ver anúncio → +{n} moedas",
-    "peekOn": "espiando"
+    "peekOn": "espiando",
+    "shareSeedTip": "Mão #{n} — instale o app e digite este número nos ajustes para jogar exatamente a mesma mão."
   }
 }
