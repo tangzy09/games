@@ -5,7 +5,7 @@ root `CLAUDE.md`（引擎契约、部署铁律、git 纪律、iOS 流水线）�
 
 **规格是权威**：`DESIGN.md`（改核心前必查；调研 + 红队驱动，数值靠 `tools/sim-blind.js` 校准）。
 
-## 当前状态（2026-07-30）
+## 当前状态（2026-08-01）
 
 **iOS 1.0 已上架**（2026-07-14 提交 → **2026-07-23 过审 READY_FOR_SALE**，itunes lookup 实证）。商店名 **`Fair Deal: Patience & Cards`**
 （中文「公平发牌：接龙与空当接龙」），Apple ID `6790861224`，Bundle `com.aispeeds.solitaireproven`。

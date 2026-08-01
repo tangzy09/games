@@ -14,10 +14,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | 目录 | 状态 |
 |---|---|
 | `minesweeper` | 已上线 + App Store 送审。完整。 |
-| `snake` | **已上线 App Store**(Snake Angel: Retro Arcade)。完整 + 爽感 FX/每日天使/星级/奖励关/收集进度/本机 Flux 道具美术。**1.0.1 已过审上线（2026-08-01 itunes lookup 实证 v1.0.1）**；**1.0.2 待出包**，web 已上线三批：①全仓元游戏对齐(插屏闸门 2 关→前50关免/每10关、每日任务、统计页、求好评、推送)②**AI 代打免费开放 + 揭图提速 + 激励视频七个位**(结算屏/图鉴/每日礼物/开局礼包/皮肤/任务/复活,`AD_REWARD`+`AD_CAPS` 两张表即全部数值)③**页面视觉打磨**(主界面极光+光环、图鉴缩略图、皮肤真盘面预览、云海填高屏留白)。 |
+| `snake` | **已上线 App Store**(Snake Angel: Retro Arcade)。完整 + 爽感 FX/每日天使/星级/奖励关/收集进度/本机 Flux 道具美术。**1.0.1 已过审上线（2026-08-01 itunes lookup 实证 v1.0.1）**；**1.0.2 待出包**，web 已上线四批：①全仓元游戏对齐(插屏闸门 2 关→前50关免/每10关、每日任务、统计页、求好评、推送)②**AI 代打免费开放 + 揭图提速 + 激励视频七个位**(结算屏/图鉴/每日礼物/开局礼包/皮肤/任务/复活,`AD_REWARD`+`AD_CAPS` 两张表即全部数值)③**页面视觉打磨**(主界面极光+光环、图鉴缩略图、皮肤真盘面预览、云海填高屏留白)④**粘度层 `js/meta.js`**(等级/称号 XP 条、**天使榜** 20 个预设角色、连续奖励阶梯 3/7/14/30、「下一个目标」条) + **UI 图标 engine 级共享库**。 |
 | `abyssshoot` | **被 4.3(a) 拒审后整改中**（2026-07-22 改名「Fish Cannon: Deep Sea Merge」+ 盘面去数字化）。玩法/美术/图鉴/道具/广告全备，线上 <https://fishshoot.ai-speeds.com>。 |
-| `blockblast` | **iOS 1.0 已上架（READY_FOR_SALE）**（ASC 名「Cube Blast: Block Puzzle」）。8×8 消除拼图；卖点是**预生成块流**（出块序列落子前就定死、种子可查）。**1.0.1 全量改良已上线 web、iOS 待出包**：30关3章/拼块水晶/天使画廊500张/天使榜/每日任务/连续奖励+补签/日历补玩/图鉴/16皮肤/统计/新广告模型（前50盘零插屏）/GC+推送+求好评+反馈（原生件）。线上 <https://blocks.ai-speeds.com>。 |
-| `solitaire` | **iOS 1.0 已上架 READY_FOR_SALE（2026-07-23 过审）**（ASC 名「Fair Deal: Patience & Cards」，Apple ID 6790861224）。**web 已迭代四轮改良（v26），iOS 待出新包**。Klondike 可解池 + FreeCell 微软局号 + 「这局还有解吗」证明器。线上 <https://cards.ai-speeds.com>。⚠ 商店名**不含 solitaire**（品牌差异化），但 keywords 里有（公有品类，合规）。⚠ 措辞是死线：可解率是「透视暗牌」意义下的，绝不能说成「你一定能赢」（见其 CLAUDE.md）。 |
+| `blockblast` | **iOS 1.0 已上架（READY_FOR_SALE）**（ASC 名「Cube Blast: Block Puzzle」）。8×8 消除拼图；卖点是**预生成块流**（出块序列落子前就定死、种子可查）。**1.0.1 全量改良已上线 web、iOS 待出包**：30关3章/拼块水晶/天使画廊500张/天使榜/每日任务/连续奖励+补签/日历补玩/图鉴/16皮肤/统计/新广告模型（前50盘零插屏）/GC+推送+求好评+反馈（原生件）/**🏠 主界面**（天使 hero + 智能续继 +六格角标入口；原 MENU 留作关卡地图）。线上 <https://blocks.ai-speeds.com>。 |
+| `solitaire` | **iOS 1.0 已上架 READY_FOR_SALE（2026-07-23 过审）**（ASC 名「Fair Deal: Patience & Cards」，Apple ID 6790861224）。**web 已迭代六轮改良（v30），iOS 待出新包**。Klondike 可解池 + FreeCell 微软局号 + **Spider 蜘蛛纸牌** + 「这局还有解吗」证明器 + **难度明面阶梯 5 档** + **妙手 ✨/「我的弱点」页** + **求解器自动出题的互动教学 4 课** + **🏠 主界面** + **提示 = 通往胜利的下一步**（不再是启发式）。线上 <https://cards.ai-speeds.com>。⚠ 商店名**不含 solitaire**（品牌差异化），但 keywords 里有（公有品类，合规）。⚠ 措辞是死线：可解率是「透视暗牌」意义下的，绝不能说成「你一定能赢」（见其 CLAUDE.md）。 |
 | `bouncerogue` | **设计 v2 定稿（2026-07-18），零代码，下一个动工目标**。市场调研后骨架从实时 paddle 改为**竖屏回合制瞄准发射**（Ballz/Holedown 形态 × 合球化学 × 规则卡 × 种子可查），调研全文见其 `RESEARCH.md`。动工从 P1 走 writing-plans。 |
 
 ## 常用命令
@@ -49,6 +49,7 @@ node tools/check-locales.js games/<name>/locales
 | 引擎美术回退 | `engine/canvas.js` 的 `makeArt(dir,ids)` / `drawArtIcon` | 缺图自动回退矢量/emoji ⇒ **零改码换图**；生成素材见 `comfyui-flux-local` |
 | 十语 i18n | `engine/i18n.js` 默认集 + 各游戏 `locales/*.json` | 加语言 = **纯加 json**；`node tools/check-locales.js games/<name>/locales` 必 0 fail |
 | 广告闸门 / 激励视频 | 各游戏 `js/shop.js`（未抽取） | 参数与红线见 skill §1；blockblast 是最简闸门的参考实现 |
+| **粘度层（等级/称号 · 静态榜 · 连续奖励阶梯 · 「下一个目标」）** | `games/snake/js/meta.js`、`blockblast/js/ghosts.js`、solitaire 的 `main.js`（levelOf/tourField） | **三份实现了 ⇒ 下一个游戏要接时先抽进 `engine/`**（drag.js 的老规矩）。三份的共同形状：**只吃既有计数器**（累计分/连续天数/收集数），**进度零存档**（榜位由分数现算）。⛔ 两条红线：静态榜的角色**必须明示是游戏角色、绝不称「玩家」**（伪造真人）；**补签必须把连续奖励的已领水位一起恢复**，否则「故意断签→补签」可无限刷奖（两处都写成了单测）。 |
 | **分享（链接指向 App Store）** | `engine/share.js` + 各游戏 `GAME_CONFIG.appStoreId`/`webUrl` | ⛔ **分享出去的链接一律指向 App Store，绝不是网页版**（2026-08-01 用户定，全游戏适用）——网页版不产生下载/评分/排名。⚠ 商店链接**带不了 seed** ⇒ 局号/种子必须写进**文案**（只换链接 = 把「同一局」的玩法价值悄悄删了）。没上架的游戏别填 `appStoreId`，会自动回退网页链接。红线测试 `npm run test:share` |
 | 原生三件套（推送/求好评/反馈） | `games/blockblast/js/{notify,rate,feedback}.js`、`games/snake/js/{notify,rate}.js` | **三个文件都是 game-agnostic**（只依赖 `T()`/`CFG`/`Platform`），复制即用；反馈后端是共享 hub `feedback.ai-speeds.com`（CORS `*`，任何域可直连）。⚠ 已有**两份**实现 ⇒ **下一个游戏要接时先抽进 `engine/`**（drag.js 的老规矩：第三个用例出现才抽） |
 | 插屏闸门 / 每日任务 | `blockblast/js/{shop,quests}.js`、`snake/js/{adgate,quests}.js` | 同一套模型的两份实现（盘数计数口径不同：blockblast 按盘、snake 按关）；参数与红线见 `casual-game-meta` §1/§5.7 |
@@ -56,7 +57,7 @@ node tools/check-locales.js games/<name>/locales
 | **⭐ 共享 UI 图标库（41 张位图 + 8 个 SVG 字形，520KB）** | `engine/assets/ui/*.webp` + `manifest.json` + `engine/ui-icons.js` | 星星/奖杯/金币/宝石/爱心/火苗/锁/日历/时钟/分享/反馈/语言/激励视频/商店/设置/提示/信息/铃铛开关/声音开关/关闭/对勾/加号/奖章/画框/调色盘/图表/书/礼盒/皇冠… **每个游戏都要的那批**。用法：index.html 加 `<script src="../../engine/ui-icons.js?v=N">` → `UIIcon.img('star')`（回退 emoji 自动从 manifest 取）。样式 `.uic/.uic.inl/.uic.fill` 在 `engine.css`。<br>⛔ **绝不在 `games/*/assets/ui/` 再放一份**（`tools/check-ui-icons.cjs` 会拦，已挂进 `npm test`）。<br>⚠ 路径是**运行时**从 engine 脚本标签反推的（网页 `../../engine/` vs iOS 包 `engine/`）⇒ **CSS 里不能写 `url()`**，要图标就用 JS 渲 `<img>`。缺图自动显示 emoji。<br>⛔ **方向性/几何字形（back/forward/play/pause/menu/undo/redo/restart/unlock）不是图片，是 `UIIcon.GLYPHS` 的内联 SVG** —— 扩散模型画不了这类（两轮实锤：prompt 里的 "LEFT" 被写在图上、restart 没箭头、unlock 和 lock 一模一样）。SVG 跟着 `currentColor` 走，任意尺寸清晰。<br>加新图标：`node tools/gen-ui-icons.cjs`（已有的自动跳过）→ `tools/cut-ui-icons.py`（抠透明 + 出**三尺寸对照表**，34px 认不出的重做） |
 | **元游戏页面视觉打磨** | `snake/css/game.css` + `snake/tools/shot-ui.cjs` | 入口数量角标 / 收集列表带缩略图 / 皮肤画真盘面预览 / 统计图标做水印 / 方形盘面高屏留白画装饰 / `body.rm` 兜底关掉全部 CSS 动画。清单见 `casual-game-meta` §6.2；`shot-ui.cjs` 是「一次截全部界面 + 先注入有进度的存档」的验收模板，其它游戏照抄 |
 
-**各游戏留存件覆盖（2026-07-31 实测）**：blockblast 全套 ✅ · **snake 已对齐 ✅**（插屏闸门下调 + 每日任务 + 统计页 + 求好评 + 推送）· solitaire 大半 · **minesweeper/abyssshoot 几乎为零且只有 2 语**（现在它俩是全仓 ROI 最高的缺口）。
+**各游戏留存件覆盖（2026-08-01 实测）**：**blockblast / snake / solitaire 三款全套 ✅**（三者都有：主界面门面 · 每日 + streak + 补签 · 每日任务 · 收集图鉴 500 · 成就 · 统计 · 皮肤 · 静态榜/锦标赛 · 等级称号 · 激励视频多位 + 每日额度 · 原生三件套）；solitaire 另有品类独有的**求解器教练**（教学/我的弱点/通往胜利的提示）。⛔ **minesweeper / abyssshoot 仍几乎为零且只有 2 语 —— 现在它俩是全仓 ROI 最高的缺口**（元游戏层是 game-agnostic 的，照 §9 的接入顺序搬即可）。
 
 ## 语言策略（所有游戏一律如此，第一版就要照办）
 
@@ -122,6 +123,8 @@ ssh -i /c/Users/tangz/Documents/credentials/ec2_1.pem ec2-user@3.26.95.240 "sudo
 - **⛔ 绝不用 PowerShell 读写含中文/emoji 的源文件（本仓几乎全是）**——`(Get-Content x.html -Raw) -replace ... | Set-Content -Encoding utf8` 这条看似人畜无害的「bump `?v=N`」写法，**会把整个文件的非 ASCII 毁掉**：PS 5.1 的 `Get-Content` 对**无 BOM 的 UTF-8** 按系统 ANSI 码页解码，再按 UTF-8 写回 ⇒ `✕` 变 `âœ•`、中文注释全成乱码。**2026-07-31 咬了两次**：snake 的面板关闭按钮变成用户可见的 `âœ•`；blockblast 带着损坏注释连发了 9 个提交上线。
   **改文件一律用 Write/Edit 工具，或写成 `.cjs` 用 node 跑**（`fs.readFileSync/writeFileSync(...,'utf8')` 无此问题）。
   **体检**：`node scan-moji.cjs` 式的全仓扫描（正则 `â€|âœ|ï¼|ã€|å¤|è¯`），批量改文件后跑一次；已坏的从 git 干净版本重建、别试图「就地反解」（PS 的映射不可逆，latin1 round-trip 会产出替换字符）。
+  ⚠ **扫描要排除 `*.md`**：本条目自己就引用了那些坏字符当样例 ⇒ 扫全仓时 `CLAUDE.md` 必然命中，
+  每次都要白查一轮。只扫 `games/*/js/*.js`、`games/*/*.html`、`engine/*.js`、`css` 这些**源码**。
 - **别用 shell heredoc 写含反斜杠/引号的代码**：`'C:\tmp'` 里的 `\t` 会被吃成 tab（真实踩过），
   引号也会和 bash 打架。用 Write 工具写文件，或写成 `.py` 再 `python` 执行。
 - **Monte-Carlo / solver 是本仓的数值真值源**：拍脑袋的数值一律先用模拟器验（`games/*/tools/sim*.js`）。
