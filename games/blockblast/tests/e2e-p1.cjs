@@ -175,9 +175,9 @@ const ok = (cond, msg) => { if (!cond) { console.error('✗ ' + msg); process.ex
   await playOneMove();                                   // 落一子（turns>0 才算「进行中」）
   const cont = await page.evaluate(() => {
     const score0 = G.s.score, turns0 = G.s.stats.turns;
-    dispatch('MENU');
+    dispatch('HOME');                                  // 关卡地图瘦身后，两个入口都在 🏠 主界面
     const resumable = resumableScore();
-    // 菜单上必须同时有「继续」和「新开一局」两个入口
+    // 主界面上必须同时有「继续」和「新开一局」两个入口
     const { SW, SH } = GameGlobal, found = [];
     for (let y = 0; y < SH; y += 5) for (let x = 0; x < SW; x += 5) {
       const h = hitTest(x, y);
@@ -187,7 +187,7 @@ const ok = (cond, msg) => { if (!cond) { console.error('✗ ' + msg); process.ex
     return { resumable, hasNew: found.includes('NEW_RUN'), hasCont: found.includes('PLAY_ENDLESS'),
              sameRun: G.s.stats.turns === turns0 && G.s.score === score0, phase: G.phase };
   });
-  ok(cont.resumable !== null && cont.hasNew && cont.hasCont, '菜单同时给「继续」与「新开一局」入口');
+  ok(cont.resumable !== null && cont.hasNew && cont.hasCont, '主界面同时给「继续」与「新开一局」入口');
   ok(cont.sameRun && cont.phase === 'PLAYING', '点「继续」回到同一局（分数/步数原封不动）');
 
   // ── 中英切换（P1 就双语，且零硬编码文案）──

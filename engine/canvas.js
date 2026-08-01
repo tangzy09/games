@@ -102,6 +102,31 @@ function makeArt(dir, ids){
       im.src = `assets/${dir}/${id}.webp`; }); },
     get(id){ return imgs[id]; } };
 }
+// ── shared UI icons (engine/assets/ui/*.webp) for **canvas** games ──
+// engine/ui-icons.js is the DOM API (<img>); canvas games need Image objects.
+// Same {load,get} shape as makeArt ⇒ drawArtIcon works unchanged, emoji fallback included.
+// ⚠ The path is derived at runtime from the loaded engine <script> tag: the web build
+//    serves pages from games/<name>/ (../../engine/) while build-www flattens them to
+//    www/ (engine/). Hardcoding either one breaks the other.
+function uiIconBase(){
+  let root = 'engine/';
+  try {
+    const s = document.querySelector('script[src*="engine/"]');
+    const m = s && s.src && s.src.match(/^(.*\/engine\/)/);
+    if (m) root = m[1];
+  } catch (e) {}
+  return root + 'assets/ui/';
+}
+function makeUIArt(ids){
+  const imgs = {}; let started = false;
+  return { load(){ if (started) return; started = true;
+    const base = uiIconBase();
+    ids.forEach(id => { const im = new Image();
+      im.onload  = () => { imgs[id] = im; if (typeof renderAll==='function') { try { renderAll(); } catch(e){} } };
+      im.onerror = () => {};
+      im.src = base + id + '.webp'; }); },
+    get(id){ return imgs[id]; } };
+}
 // draw an art image centered at (cx,cy), else its emoji fallback
 function drawArtIcon(art, id, emoji, cx, cy, size, emojiColor, emojiFont){
   const im = art.get(id);

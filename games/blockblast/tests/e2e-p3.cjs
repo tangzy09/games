@@ -71,7 +71,7 @@ async function clickAction(page, action) {
   ok(!/blockblast\./.test(fair.t1 + fair.t2 + fair.t3), '三条承诺文案有 locale（不是 key 原文）');
   ok(typeof fair.seed === 'number', `显示本局种子 ${fair.seed}（玩家可拿它复现整条块流）`);
   await page.screenshot({ path: path.join(SHOT_DIR, 'p3-02-fair.png') });
-  ok(await clickAction(page, 'MENU'), '返回菜单');
+  ok(await clickAction(page, 'HOME'), '返回主界面（子页面的返回键回 HOME —— 关卡地图只管选关）');
 
   // ── 皮肤页：未解锁的**不能装**（防伪造点击）──
   ok(await clickAction(page, 'PAGE_SKIN'), '菜单能进皮肤页');
@@ -96,7 +96,7 @@ async function clickAction(page, action) {
   ok(afterEquip.theme !== 'candy', `换上了 ${afterEquip.theme} 皮肤`);
   ok(afterEquip.colors.length === 7, '调色板换了 7 色');
   await page.screenshot({ path: path.join(SHOT_DIR, 'p3-04-skin-equipped.png') });
-  await clickAction(page, 'MENU');
+  await clickAction(page, 'HOME');
 
   // ── 每日谜题：同一天同一条块流 ──
   ok(await clickAction(page, 'PLAY_DAILY'), '菜单能进每日谜题');
@@ -132,7 +132,7 @@ async function clickAction(page, action) {
   ok(after.best === 0, '⚠ 每日谜题的分数**不进**无尽最高分（两条赛道）');
 
   // ── 成就页 ──
-  await page.evaluate(() => { G.phase = 'MENU'; renderAll(); });
+  await page.evaluate(() => { G.phase = 'HOME'; renderAll(); });
   ok(await clickAction(page, 'PAGE_ACH'), '菜单能进成就页');
   const ach = await page.evaluate(() => ({
     phase: G.phase, total: Achievements.total(), got: G.profile.unlocked.length,
@@ -153,7 +153,7 @@ async function clickAction(page, action) {
   ok(pg.join(',') === '0,1,1,0', `成就分页翻页 + 边界钳制（${pg.join('→')}）`);
 
   // ── 设置页：预览/粒子开关翻转并持久化 ──
-  await page.evaluate(() => { G.phase = 'MENU'; renderAll(); });
+  await page.evaluate(() => { G.phase = 'HOME'; renderAll(); });
   ok(await clickAction(page, 'PAGE_SET'), '菜单能进设置页');
   await page.screenshot({ path: path.join(SHOT_DIR, 'p3-08-settings.png') });
   const setOk = await page.evaluate(() => {
@@ -194,7 +194,7 @@ async function clickAction(page, action) {
   await page.evaluate(() => { G.wallet.angels = 30; dispatch('PAGE_ANG'); });
   await page.waitForTimeout(600);                  // 等图片加载
   await page.screenshot({ path: path.join(SHOT_DIR, 'p3-09-angels.png') });
-  await page.evaluate(() => dispatch('MENU'));
+  await page.evaluate(() => dispatch('HOME'));
 
   // ── 中文 ──
   await page.evaluate(() => I18N.setLang('zh-CN'));

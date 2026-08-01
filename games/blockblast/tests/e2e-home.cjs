@@ -102,13 +102,17 @@ async function click(page, action) {
     ok(ph === want, `  ${act} → ${ph}`);
   }
 
-  // ── ⑥ 关卡地图（原 MENU）功能一样没少：章节页签 + 关卡格子都还在 ──
+  // ── ⑥ 关卡地图（原 MENU）**只管选关**：章节页签 + 关卡格子 + 返回 HOME。
+  //    每日/无尽/成就/皮肤/设置… 一律只在 HOME 一份（不再两屏重复，2026-08-01）──
   await page.evaluate(() => { G.phase = 'MENU'; renderAll(); });
   const menu = await page.evaluate(() => {
     const a = hitAreas.map(h => h.action);
-    return { chapter: a.includes('CHAPTER'), level: a.includes('PLAY_LEVEL'), n: a.length };
+    // ⛔ 这些是 HOME 的入口，关卡地图上再出现一份就是又回到「像设置页」的老路
+    const dup = ['PLAY_DAILY', 'PLAY_ENDLESS', 'PAGE_ACH', 'PAGE_SKIN', 'PAGE_SET', 'PAGE_SHOP'].filter(x => a.includes(x));
+    return { chapter: a.includes('CHAPTER'), level: a.includes('PLAY_LEVEL'), n: a.length, dup: dup.length ? dup.join(',') : '' };
   });
-  ok(menu.chapter && menu.level, `⭐ 关卡地图原样保留（章节页签 + 关卡格子，共 ${menu.n} 个可点区）`);
+  ok(menu.chapter && menu.level && !menu.dup,
+     `⭐ 关卡地图 = 纯选关（章节页签 + 关卡格子，共 ${menu.n} 个可点区，零 HOME 重复入口）`);
 
   // ── ⑦ 刘海：主界面顶部内容必须在 safeTop 之下 ──
   await page.evaluate(() => { G.phase = 'HOME'; renderAll(); });

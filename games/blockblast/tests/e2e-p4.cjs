@@ -231,8 +231,8 @@ async function clickAction(page, action) {
   ok(await page.evaluate(() => G.wallet.gamesSinceAd) === 0, '出过 ⇒ 盘数预算归零（下次至少再等 10 盘）');
 
   // ── 商店页：IAP 已封存 ⇒ 不许再有「去广告」假按钮；广告政策文案明示 ──
-  await clickAction(page, 'MENU');
-  ok(await clickAction(page, 'PAGE_SHOP'), '菜单能进商店');
+  await clickAction(page, 'HOME');
+  ok(await clickAction(page, 'PAGE_SHOP'), '主界面能进商店');
   await page.screenshot({ path: path.join(SHOT_DIR, 'p4-04-shop.png') });
   const shopBtns = await page.evaluate(() => {
     const { SW, SH } = GameGlobal, found = [];

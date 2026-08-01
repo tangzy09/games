@@ -45,6 +45,13 @@ for (const g of games) {
       const src = fs.readFileSync(path.join(dir, f), 'utf8');
       // UIIcon.img('name' …) / UIIcon.src('name') / uiIcon('name' …) / assets/ui/name.webp
       const pats = [/UIIcon\.(?:img|src)\('([\w-]+)'/g, /\buiIcon\('([\w-]+)'/g, /assets\/ui\/([\w-]+)\.webp/g];
+      // canvas 游戏走引擎的 makeUIArt([...])（engine/canvas.js）—— 名单也要查
+      for (const m of src.matchAll(/makeUIArt\(\[([^\]]*)\]/g)) {
+        for (const q of m[1].matchAll(/'([\w-]+)'/g)) {
+          refs++;
+          if (!set.has(q[1])) bad(`games/${g}/${sub}/${f} 的 makeUIArt 里有不存在的图标 "${q[1]}"`);
+        }
+      }
       for (const re of pats) {
         for (const m of src.matchAll(re)) {
           refs++;
