@@ -156,22 +156,119 @@ body { background: #fdf3f7; }
   background:
     radial-gradient(120% 80% at 50% 0%, #fff6fb 0%, #fbe6f2 42%, #f6d5e5 100%);
   overflow-y: auto; }
-/* 柔光极光层:四团慢慢飘的彩雾,把「一块死粉」变成有空气感的天空。
-   ⚠ 绝对定位的伪元素会盖住未定位的子元素 ⇒ 必须 z-index:0 + 子元素 z-index:1 */
-#home::before { content: ''; position: absolute; inset: -10%; z-index: 0; pointer-events: none;
+/* ── 天国开场:天空 → 光柱 → 飘落的羽毛 → 云海,四层叠出来 ──
+   ⚠ 绝对定位的装饰会盖住未定位的子元素 ⇒ 装饰整块 z-index:0 + 内容 z-index:1 */
+/* ⚠ 只能掐横向:#home 本身要竖向滚动(矮屏内容超一屏),写 overflow:hidden 会把滚动废掉 */
+#home { overflow-x: hidden; }
+#home > * { position: relative; z-index: 1; }
+/* ⚠ 用 fixed 不是 absolute:#home 是滚动容器,absolute 子元素会**跟着内容一起滚**,
+   云海会被卷走。fixed 钉在视口上,#home 隐藏时它作为子元素一起隐藏,行为正确。 */
+#home .sky-deco { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+
+/* ① 天空:顶上晨曦金 → 天蓝 → 粉 → 底部云白(天国的日出) */
+/* ⚠ 底部必须压深:云海是白的,背景也白就等于没画(第一版实拍全看不见)。
+   下 1/3 压到藕紫粉,白云才浮得出来。 */
+#home .sky-deco .sky { position: absolute; inset: 0;
   background:
-    radial-gradient(closest-side at 20% 18%, rgba(255,255,255,.95), transparent 72%),
-    radial-gradient(closest-side at 84% 12%, rgba(255,205,235,.85), transparent 72%),
-    radial-gradient(closest-side at 10% 76%, rgba(206,186,255,.55), transparent 72%),
-    radial-gradient(closest-side at 90% 74%, rgba(255,226,168,.6), transparent 72%);
-  background-size: 62% 48%, 54% 42%, 58% 46%, 50% 40%;
-  background-repeat: no-repeat;
+    linear-gradient(180deg, transparent 52%, rgba(214,160,205,.34) 82%, rgba(186,140,190,.42) 100%),
+    radial-gradient(120% 62% at 50% -8%, #fff6de 0%, #ffe6f2 32%, #e6efff 60%, #f4d9ec 100%); }
+/* 柔光极光:四团慢慢飘的彩雾,让天空有空气感而不是一块死色 */
+#home .sky-deco .sky::after { content: ''; position: absolute; inset: -10%;
+  background:
+    radial-gradient(closest-side at 20% 18%, rgba(255,255,255,.9), transparent 72%),
+    radial-gradient(closest-side at 84% 12%, rgba(255,214,238,.8), transparent 72%),
+    radial-gradient(closest-side at 10% 70%, rgba(206,186,255,.5), transparent 72%),
+    radial-gradient(closest-side at 90% 66%, rgba(255,226,168,.6), transparent 72%);
+  background-size: 62% 48%, 54% 42%, 58% 46%, 50% 40%; background-repeat: no-repeat;
   animation: homeAura 18s ease-in-out infinite alternate; }
 @keyframes homeAura {
-  0%   { background-position: 20% 18%, 84% 12%, 10% 76%, 90% 74%; }
-  100% { background-position: 32% 26%, 70% 22%, 22% 66%, 78% 62%; }
+  0%   { background-position: 20% 18%, 84% 12%, 10% 70%, 90% 66%; }
+  100% { background-position: 32% 26%, 70% 22%, 22% 60%, 78% 56%; }
 }
-#home > * { position: relative; z-index: 1; }
+
+/* ② 圣光光柱:从天使背后放射。conic 做交替的透明/白扇形,极慢旋转 + 呼吸 */
+#home .sky-deco .rays { position: absolute; left: 50%; top: 14%;
+  width: 190vw; aspect-ratio: 1; transform: translate(-50%, -50%);
+  background: conic-gradient(from 0deg,
+    rgba(255,255,255,.95) 0deg 5deg, transparent 5deg 26deg,
+    rgba(255,240,200,.85) 26deg 31deg, transparent 31deg 52deg,
+    rgba(255,255,255,.8) 52deg 57deg, transparent 57deg 80deg,
+    rgba(255,228,242,.85) 80deg 85deg, transparent 85deg 108deg,
+    rgba(255,255,255,.9) 108deg 113deg, transparent 113deg 138deg,
+    rgba(255,240,200,.8) 138deg 143deg, transparent 143deg 168deg,
+    rgba(255,255,255,.85) 168deg 173deg, transparent 173deg 200deg,
+    rgba(255,228,242,.8) 200deg 205deg, transparent 205deg 232deg,
+    rgba(255,255,255,.9) 232deg 237deg, transparent 237deg 264deg,
+    rgba(255,240,200,.8) 264deg 269deg, transparent 269deg 296deg,
+    rgba(255,255,255,.85) 296deg 301deg, transparent 301deg 330deg,
+    rgba(255,228,242,.8) 330deg 335deg, transparent 335deg 360deg);
+  /* 圆形羽化:光柱要从中心亮到外面淡出,硬边缘会像风车 */
+  -webkit-mask-image: radial-gradient(closest-side, rgba(0,0,0,.9) 8%, rgba(0,0,0,.5) 38%, transparent 72%);
+  mask-image: radial-gradient(closest-side, rgba(0,0,0,.9) 8%, rgba(0,0,0,.5) 38%, transparent 72%);
+  opacity: .8; animation: rayTurn 90s linear infinite, rayBreathe 7s ease-in-out infinite alternate; }
+@keyframes rayTurn { to { transform: translate(-50%, -50%) rotate(360deg); } }
+@keyframes rayBreathe { from { opacity: .55; } to { opacity: .95; } }
+
+/* ③ 飘落的羽毛:一头尖一头圆的白/金羽片,边转边飘。9 片,各自节奏错开 */
+#home .sky-deco .fth { position: absolute; top: -8%;
+  width: 13px; height: 26px; border-radius: 50% 50% 50% 6%;
+  background: linear-gradient(150deg, #ffffff, #ffeef7 55%, #ffe3ba);
+  box-shadow: 0 2px 6px rgba(214,51,108,.14);
+  opacity: 0; animation: fthFall linear infinite; }
+#home .sky-deco .fth::after {                /* 羽轴 */
+  content: ''; position: absolute; left: 50%; top: 12%; width: 1px; height: 76%;
+  background: rgba(214,51,108,.16); }
+@keyframes fthFall {
+  0%   { transform: translateY(0) translateX(0) rotate(0deg); opacity: 0; }
+  8%   { opacity: .85; }
+  50%  { transform: translateY(52vh) translateX(26px) rotate(180deg); opacity: .8; }
+  92%  { opacity: .5; }
+  100% { transform: translateY(112vh) translateX(-14px) rotate(400deg); opacity: 0; }
+}
+/* ⚠ 必须 nth-of-type 不是 nth-child:.sky-deco 里还有 .sky/.rays/.sea 三种 div,
+   nth-child 会从它们开始数、九条规则全落空。羽毛是唯一的 <i> ⇒ of-type 正好。
+   ⚠ 大小改 width/height,别用 transform:scale——会被 fthFall 的 transform 整个覆盖掉。 */
+#home .sky-deco .fth:nth-of-type(1) { left:  6%; width: 10px; height: 20px; animation-duration: 15s; animation-delay:  0s;   }
+#home .sky-deco .fth:nth-of-type(2) { left: 19%; animation-duration: 21s; animation-delay: -6s;  }
+#home .sky-deco .fth:nth-of-type(3) { left: 31%; width: 11px; height: 22px; animation-duration: 17s; animation-delay: -12s; }
+#home .sky-deco .fth:nth-of-type(4) { left: 44%; animation-duration: 24s; animation-delay: -3s;  }
+#home .sky-deco .fth:nth-of-type(5) { left: 57%; width: 15px; height: 30px; animation-duration: 18s; animation-delay: -15s; }
+#home .sky-deco .fth:nth-of-type(6) { left: 69%; animation-duration: 22s; animation-delay: -9s;  }
+#home .sky-deco .fth:nth-of-type(7) { left: 81%; width: 10px; height: 21px; animation-duration: 16s; animation-delay: -19s; }
+#home .sky-deco .fth:nth-of-type(8) { left: 91%; animation-duration: 25s; animation-delay: -1s;  }
+#home .sky-deco .fth:nth-of-type(9) { left: 50%; width: 16px; height: 32px; animation-duration: 28s; animation-delay: -22s; }
+
+/* ④ 云海:三层软云托住整个页面的底,做「站在云端」的感觉。越靠下越实、漂得越快 */
+/* ⚠ 云的做法(踩了两版才对):条带高 H,椭圆瓦片高 2H,`background-position: 0 top`
+   ⇒ 只露出每个椭圆的**上半个圆顶**,连起来才是向上鼓的云。
+   ① 瓦片比条带高很多(165%)⇒ 只截到椭圆中段 = 一条横白杠;
+   ② 对齐 bottom ⇒ 露的是下半圆 = 向下凹,方向正好反了。 */
+#home .sky-deco .sea { position: absolute; left: -20%; width: 140%;
+  background-repeat: repeat-x; background-position: 0 top;
+  animation: seaDrift linear infinite; }
+/* ⚠ 三层必须**上下交叠**(每层顶要压住下一层的底),否则层与层之间露出天空 = 三条横带,
+   完全不像云岸(实拍踩过)。最低那层必须 bottom:0 顶到屏幕底。 */
+/* ⚠ 每层 = 上面一排圆顶 + 下面一条实底,而且两者必须**严丝合缝**:
+   实底的顶边要正好落在圆顶最宽处(= 瓦片高的一半)。对不齐就会出问题——
+   实底偏高 ⇒ 从圆顶之间的缝里露出直角块;实底偏低/没有 ⇒ 圆顶的平切底边横穿整屏(实拍两种都见过)。
+   所以下面每层都写死:瓦片高 = 圆顶高 ×2,`::after` 高 = 条带高 − 圆顶高。 */
+#home .sky-deco .sea.s1 { bottom: 196px; height: 92px;  opacity: .5; animation-duration: 90s;
+  background-image: radial-gradient(closest-side, #ffffff 88%, rgba(255,255,255,0) 100%);
+  background-size: 150px 144px;                      /* 圆顶高 72 */
+  filter: drop-shadow(0 4px 7px rgba(150,110,160,.13)); }
+#home .sky-deco .sea.s1::after { height: 20px; background: #ffffff; }
+#home .sky-deco .sea.s2 { bottom: 104px; height: 108px; opacity: .8; animation-duration: 62s;
+  background-image: radial-gradient(closest-side, #fffafd 88%, rgba(255,250,253,0) 100%);
+  background-size: 124px 160px;                      /* 圆顶高 80 */
+  filter: drop-shadow(0 4px 8px rgba(150,110,160,.16)); }
+#home .sky-deco .sea.s2::after { height: 28px; background: #fffafd; }
+#home .sky-deco .sea.s3 { bottom: 0;     height: 122px; opacity: 1;  animation-duration: 44s;
+  background-image: radial-gradient(closest-side, #ffffff 88%, rgba(255,255,255,0) 100%);
+  background-size: 104px 164px;                      /* 圆顶高 82 */
+  filter: drop-shadow(0 4px 9px rgba(150,110,160,.18)); }
+#home .sky-deco .sea::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; }
+#home .sky-deco .sea.s3::after { height: 40px; background: #ffffff; }
+@keyframes seaDrift { from { transform: translateX(0); } to { transform: translateX(-21%); } }
 
 /* 主视觉:光环托底 + 轻轻起伏(点题「天使」) */
 #home .hero-wrap { position: relative; width: min(58vw, 232px); aspect-ratio: 1;
@@ -208,9 +305,13 @@ body { background: #fdf3f7; }
 /* 图标做成彩色圆片:六个白方块一字排开太像设置页,加了色片才像游戏 */
 /* ⚠ 六个入口的译名长短差很多(德/俄尤其长):标签必须能缩、能省略,
    否则「Daily Quests」这种两词标题会换行把卡片撑高、六格参差不齐。 */
+/* ⚠ 半透明磨砂而不是实白:底下是云海,实白卡片会把整片云挡死(第一版就这么废掉的)。
+   0.72 + blur 既保证文字对比度,又让云从卡片后面透出来 = 「浮在云端」。 */
 #home .home-btn { display: flex; align-items: center; justify-content: flex-start; gap: 9px;
-  border: 0; border-radius: 16px; padding: 11px 11px; background: #fff; text-align: left;
-  font: 700 13.5px/1.15 sans-serif; color: #7a5c72; box-shadow: 0 5px 16px rgba(183,142,180,.28);
+  border: 0; border-radius: 16px; padding: 11px 11px; text-align: left;
+  background: rgba(255,255,255,.72);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  font: 700 13.5px/1.15 sans-serif; color: #7a5c72; box-shadow: 0 5px 16px rgba(183,142,180,.24);
   transition: transform .1s, box-shadow .15s; min-width: 0; }
 /* 允许折到两行(省略号比换行更难读),用 min-height 保证六格等高、不参差 */
 #home .home-btn { min-height: 58px; }
@@ -231,9 +332,10 @@ body { background: #fdf3f7; }
 #home .home-btn.todo .bdg { color: #fff; background: #ff9800; border-radius: 999px; padding: 2px 8px; }
 
 #home .home-foot { display: flex; gap: 9px; margin-top: 2px; flex-wrap: wrap; justify-content: center; }
-#home .home-foot button { border: 0; background: rgba(255,255,255,.78); border-radius: 13px;
+#home .home-foot button { border: 0; background: rgba(255,255,255,.66); border-radius: 13px;
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   width: 42px; height: 42px; font-size: 18px; color: #a85d7a;
-  box-shadow: 0 3px 10px rgba(183,142,180,.2); transition: transform .1s; }
+  box-shadow: 0 3px 10px rgba(183,142,180,.18); transition: transform .1s; }
 #home .home-foot button:active { transform: scale(.92); }
 
 /* 说明面板:图文行 */
@@ -290,10 +392,11 @@ body { background: #fdf3f7; }
 .bonus-banner.out { opacity: 0; transition: opacity .5s; }
 
 /* 主界面收集进度 + 里程碑 */
-#home .home-prog { width: min(88vw, 340px); background: rgba(255,255,255,.86);
+#home .home-prog { width: min(88vw, 340px); background: rgba(255,255,255,.74);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   border-radius: 16px; padding: 12px 16px; margin-top: 2px;
   display: flex; flex-direction: column; gap: 7px;
-  box-shadow: 0 4px 14px rgba(183,142,180,.22), inset 0 1px 0 #fff; }
+  box-shadow: 0 4px 14px rgba(183,142,180,.2), inset 0 1px 0 rgba(255,255,255,.9); }
 #home .hp-top { display: flex; align-items: baseline; gap: 6px;
   font: 700 14px sans-serif; color: #a85d7a; }
 #home .hp-top .pct { margin-left: auto; font: 800 13px sans-serif; color: #d6336c; }

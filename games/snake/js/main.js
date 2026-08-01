@@ -506,6 +506,12 @@ function renderSkinsBody() {
 // 纯 DOM 浮层,不动 phase 机(boot 后 phase 仍 READY,E2E 契约不变)。
 // PLAYING 时打开会先暂停(与成就/图鉴一致);Play/继续按钮收起浮层。
 const HERO_ANGEL = '0bep0x.webp';   // 主界面主视觉(= App 图标同一张,品牌一致)
+// 天国开场的装饰层(纯样式,全部 pointer-events:none,不接任何交互)。
+// 放在 innerHTML 最前面 ⇒ 永远在内容之下;动画由 body.rm 统一兜底关闭(见 syncMotionClass)。
+const SKY_DECO =
+  '<div class="sky-deco" aria-hidden="true"><div class="sky"></div><div class="rays"></div>'
+  + '<i class="fth"></i>'.repeat(9)
+  + '<div class="sea s1"></div><div class="sea s2"></div><div class="sea s3"></div></div>';
 function hideHome() { const h = document.getElementById('home'); if (h) h.classList.add('hidden'); }
 // 减弱动态:未显式设置则跟随系统 prefers-reduced-motion;用户可在主界面切换(显式存档覆盖)
 function computeReduceMotion() {
@@ -560,7 +566,7 @@ function openHome() {
   const qDone = questDoneCount();
   const achGot = G.save.ach.unlocked.length;
   const skinGot = Themes.THEME_ORDER.filter(k => Themes.themeUnlocked(k, G.save)).length;
-  home.innerHTML =
+  home.innerHTML = SKY_DECO +
     `<div class="hero-wrap"><img class="home-hero" src="assets/angels/${HERO_ANGEL}" alt=""></div>
      <div class="home-title">Angel Snake</div>
      <div class="home-tag">${T('home.tag')}</div>
