@@ -9,7 +9,12 @@
   'use strict';
 
   const L = {};
-  const PLAY_MAX = 760;                 // 游戏区宽度上限（再宽牌就大得可笑）
+  const PLAY_MAX = 760;                 // 手机：游戏区宽度上限（再宽牌就大得可笑）
+  // ⭐ 平板单独一档（2026-08-01 出商店截图时实拍抓到）：760 铺在 1024 宽的 iPad 上
+  //   = **正中一条窄带**，两侧各空 130px、牌只有手机上的两倍大一点，四周全是空牌桌 ——
+  //   审核员看 iPad 截图的第一印象就是「没适配 iPad」。放到 1000 后牌宽 124px（手机 56），
+  //   垂直方向也正好被 gameH(playW×1.35) 吃满，不再需要居中偏移去填空。
+  const PLAY_MAX_TABLET = 1000;
   const BANNER_H = 56;                  // ⚠ 横幅**预留**空间（不是盖上去）—— DESIGN §7.2
   const TABLET_W = 700;                 // ≥ 这个宽度算平板
 
@@ -17,7 +22,8 @@
     const { SW, SH, safeTop } = GameGlobal;
     const showBanner = !(opts && opts.noBanner);
 
-    const playW = Math.min(SW, PLAY_MAX);
+    const tablet = SW >= TABLET_W;
+    const playW = tablet ? Math.min(SW - 40, PLAY_MAX_TABLET) : Math.min(SW, PLAY_MAX);
     const playX = Math.round((SW - playW) / 2);
 
     // 列数随玩法变：Klondike 7 / FreeCell 8 / **Spider 10**（10 列最窄，牌角横排的价值在这最大）
@@ -36,7 +42,7 @@
     //   右边和下面全是空的 —— 在 App Store 的 iPad 截图里不只是难看，
     //   审核员会直接判定「没适配 iPad」（Capacitor 默认支持 iPad，这套截图躲不掉）。
     //   ⇒ 平板上把整个游戏区**垂直居中**（像放大的手机布局），而不是顶着屏幕顶端。
-    const isTablet = SW >= TABLET_W;
+    const isTablet = tablet;                     // （宽度那步已经算过一次，别重复定义）
     const availH = SH - bannerH - safeTop - 16;
     // ⚠ 这个系数决定 iPad 上「牌桌 + 工具条」这一整块的高度。
     //   设太松（>= 可用高度）居中偏移就恒为 0，等于没居中 —— 第一版 1.72 就是这样，白改。
@@ -69,7 +75,11 @@
       // tableau
       tabY: top + cardH + Math.round(cardH * 0.22),
       // 堆叠 offset：明牌/暗牌**不同**（暗牌挤一点，省高度）
-      upOff: Math.round(cardH * 0.28),
+      //  ⭐ 明牌间距跟着**可用高度**走（2026-08-01）：固定 0.28×cardH 在高屏/iPad 上把牌全挤在
+      //    上半截、下面一大片空牌桌（出商店截图时实拍到）。这里按「12 张明牌正好占满牌区」反算，
+      //    并夹在 [0.28, 0.55]×cardH 之间 —— 更松 = 每张牌露出的部分更多，也更好认。
+      //    ⚠ 只吃屏幕尺寸、**不吃当前牌局** ⇒ 打牌过程中间距恒定，不会边打边跳。
+      upOff: 0,      // ↓ 下面按 maxColH 反算后回填（这里占位，别直接用）
       downOff: Math.round(cardH * 0.10),
       // 底部工具条：大圆按钮 + 标签（平板上跟着居中的游戏区走，不是贴着屏幕最底）
       barH: 72,
@@ -83,6 +93,9 @@
     // ⚠ 最长列压缩：Klondike 最长可能 6 暗 + 13 明 = 19 张。
     //    竖屏放不下 ⇒ 动态压缩 offset（而不是让牌溢出屏幕）。
     L.maxColH = L.proveY - L.tabY - 8;      // ⚠ 牌区高度要给证明条让位，否则最长的列会被它盖住
+    // 明牌间距：让 12 张明牌正好吃满牌区（12 是实战里常见的最长列；再长的由 fitOffsets 压缩）
+    L.upOff = Math.max(Math.round(cardH * 0.28),
+                       Math.min(Math.round(cardH * 0.55), Math.floor((L.maxColH - cardH) / 11)));
     L.fitOffsets = (nDown, nUp) => {
       let up = L.upOff, down = L.downOff;
       const need = () => nDown * down + Math.max(0, nUp - 1) * up + L.cardH;
