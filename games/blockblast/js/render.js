@@ -611,16 +611,16 @@
 
     // ── 先量：固定块高度加总，富余高度先喂间隙（有上限），剩下的把整块往下推一点居中 ──
     const tall = SH >= 760;
-    const cell = Math.min(tall ? 68 : 62, (w - 4 * 9) / 5);
+    const cell = Math.min(tall ? 76 : 66, (w - 4 * 9) / 5);
     const headH = 32, tabH = tall ? 62 : 58, gridH = cell * 2 + 10, chestH = tall ? 56 : 50;
     const top0 = GameGlobal.safeTop + GameGlobal.ctrlH + 6;
     const GAPS = 3;
     const slack = SH - top0 - 20 - (headH + tabH + gridH + chestH) - GAPS * 12;
     const slot = Math.max(0, Math.min(44, slack / (GAPS + 1)));
     const gap = 12 + slot;
-    // 喂完间隙还剩的高度：**大部分留给底部**（那儿有 drawFooterArt 的装饰），顶部只让一点点 ——
-    // ⚠ 系数原来是 0.35，高屏上把整块推到了半屏以下，顶部一大片死白（实拍抓到）
-    let y = top0 + slot + Math.max(0, slack - slot * (GAPS + 1)) * 0.1;
+    // 喂完间隙还剩的高度：**几乎全留给底部**（那儿有 drawFooterArt 的装饰），顶部只让一丁点 ——
+    // ⚠ 系数从 0.35 → 0.1 → 0.03：出商店截图时（932 高）顶部还是空出一大条，白占版面
+    let y = top0 + slot + Math.max(0, slack - slot * (GAPS + 1)) * 0.03;
 
     // ── 顶栏：‹ 返回主页 · 「关卡」 · 总星数 ──
     fillRR(x0, y, 62, headH, 10, 'rgba(255,255,255,0.16)');
