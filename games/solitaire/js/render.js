@@ -1430,16 +1430,17 @@
     }
 
     // ── 底部大圆钮（照竞品排版;⛔ 撤销/提示**永远免费无限**,绝不学它的限量道具）──
-    //   MODE(切玩法)移到菜单标题旁的 chip —— 工具条只留高频四件
+    //   MODE(切玩法)移到菜单标题旁的 chip
+    //   ⛔ 「⤴ 自动收牌」已删（2026-08-01 用户："这个没用"）：单击就会自动走牌、
+    //      收尾还有「✨ 一键走完」，中间那个按钮既不是全自动也省不了几下点击。
     const tools = sp ? [
       ['↺', T('sol.undo'), 'UNDO', s.moves.length > 0],
       ['hint', T('sol.hint'), 'HINT', true],
-      ['🂠', T('sol.spDeal'), 'STOCK', s.stock.length > 0],   // Spider 用发牌代替「自动收牌」
+      ['🂠', T('sol.spDeal'), 'STOCK', s.stock.length > 0],   // Spider 专属：发牌
       ['↻', T('sol.newGame'), 'NEW', true],
     ] : [
       ['↺', T('sol.undo'), 'UNDO', s.moves.length > 0],
       ['hint', T('sol.hint'), 'HINT', true],
-      ['⤴', T('sol.auto'), 'AUTO', true],
       ['↻', T('sol.newGame'), 'NEW', true],
     ];
     const RB = 24;

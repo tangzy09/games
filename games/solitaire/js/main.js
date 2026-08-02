@@ -1020,26 +1020,8 @@ function dispatch(action, data) {
       break;
     }
     case 'TOG_RFX': G.reduceFx = !G.reduceFx; saveOpts(); break;
-    case 'AUTO': {
-      const ms = Core.autoPlayMoves(s);
-      // ⚠ 逐张**错开**滑（一堆牌同时瞬移，比没有动画还怪）
-      ms.forEach((m, i) => {
-        const before = snapshot(G.s);
-        if (!Core.apply(G.s, m)) return;
-        const L = Layout.L; void L;
-        const sn = G.s;
-        // 复用 moveAnim 的坐标逻辑，但加一个递增延迟
-        const pending = FX.slide;
-        FX.slide = (ids, x0, y0, x1, y1) => pending(ids, x0, y0, x1, y1, i * 0.055);
-        moveAnim(m, before);
-        FX.slide = pending;
-        void sn;
-      });
-      // ⚠ AUTO / UNDO 都**不经过 doMove()** ⇒ 得各自 reset（这就是当初漏掉的地方）
-      if (ms.length) { Prover.reset(); Snd.found(0); tick(); saveRun(); }
-      if (G.s.won) onWin();
-      break;
-    }
+    // ⛔ 'AUTO'（自动收牌）已删（2026-08-01 用户："这个没用"）——单击自动走牌 +
+    //    「✨ 一键走完」把它夹在中间没有位置了。⚠ UNDO/FINISH 仍各自 Prover.reset()。
     case 'STOCK': case 'WASTE': case 'TAB': case 'FOUND': break;   // 由 input 层处理
     default: break;
   }

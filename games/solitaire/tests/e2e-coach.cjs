@@ -201,8 +201,9 @@ async function hit(page, action, dm) {   // 有没有这个可点区域（不点
   const done = await page.evaluate(() => {
     const w0 = G.stats.won, p0 = G.stats.played;
     const r = Solver.solve(Solver.clone(G.s), { maxNodes: 200000, timeoutMs: 4000 });
-    r.moves.forEach(m => Core.apply(G.s, m));
-    dispatch('AUTO');                               // 真实的 onWin 入口（AUTO 末尾会判 won）
+    // 最后一步走**真实入口** doMove（末尾判 win 事件 → onWin）；前面的步直接 apply
+    r.moves.slice(0, -1).forEach(m => Core.apply(G.s, m));
+    doMove(r.moves[r.moves.length - 1]);
     return { won: G.s.won, doneMap: JSON.parse(JSON.stringify(G.lessonsDone || {})),
              dWon: G.stats.won - w0, dPlayed: G.stats.played - p0 };
   });

@@ -4,7 +4,6 @@
     "deal": "牌局 #{n}",
     "undo": "撤销",
     "hint": "提示",
-    "auto": "自动",
     "newGame": "新的一局",
     "youWin": "你赢了！",
     "finalScore": "得分 {n}",

@@ -304,31 +304,11 @@
     return s.tableau.every(c => c.up === c.cards.length);
   }
 
-  /** 一次 autoplay 能收的所有牌（安全判定见 rules.isSafeToAutoPlay）*/
-  function autoPlayMoves(s) {
-    const out = [];
-    const RR = rules(s);
-    const sim = replay(s.seed, s.drawCount, s.moves, s.mode);   // 在副本上推演
-    for (let guard = 0; guard < 60; guard++) {
-      let did = false;
-      for (const m of RR.legalMoves(sim)) {
-        // 收牌的 move 类型按模式不同：Klondike 是 tf/wf，FreeCell 是 tf/cf
-        if (m.t !== 'tf' && m.t !== 'wf' && m.t !== 'cf') continue;
-        const card = m.t === 'tf' ? sim.tableau[m.ti].cards[sim.tableau[m.ti].cards.length - 1]
-                   : m.t === 'cf' ? sim.free[m.ci]
-                   : sim.waste[sim.waste.length - 1];
-        if (card == null || !RR.isSafeToAutoPlay(sim, card)) continue;
-        apply(sim, m);
-        out.push(m);
-        did = true;
-        break;
-      }
-      if (!did) break;
-    }
-    return out;
-  }
+  // ⛔ `autoPlayMoves`（一次收光所有安全牌）已删（2026-08-01）：它只服务于底部那个
+  //    「⤴ 自动收牌」按钮，按钮去掉后没有第二个调用点。
+  //    ⚠ `rules.isSafeToAutoPlay` **保留**——solver/盲打 AI 的启发式仍靠它打分。
 
-  const API = { SAVE_VERSION, newGame, apply, replay, undo, autoPlayMoves,
+  const API = { SAVE_VERSION, newGame, apply, replay, undo,
                 autoDest, destsFor, canAutoFinish, addScore, rules };
   if (isNode) module.exports = API;
   else root.Core = API;

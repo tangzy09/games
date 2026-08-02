@@ -214,6 +214,19 @@ E2E：`npm run test:sol:coach`（含**负例**：走一步非最优 ⇒ 妙手�
 - **验收**：`node games/solitaire/tools/shot-ui.cjs` —— 11 个页面 + 局内 + 结算 × 两种视口
   （414×896 / 360×640），先注入有进度的存档，产物 `C:/tmp/solitaire/ui/`。
 
+## ⛔ 「⤴ 自动收牌」已删（2026-08-01 用户："这个没用"，别加回来）
+
+底部工具条 Klondike/FreeCell 侧从四钮变**三钮**（撤销 / 提示 / 换一局；Spider 侧仍四钮，
+第三个是它专属的「发 10 张」）。删的是**中间态**那个按钮：单击就已经自动走牌、收尾还有
+「✨ 一键走完」，夹在中间的「收光当前所有安全牌」既不省几下点击、也不是全自动。
+
+一起删干净的：`Core.autoPlayMoves`（唯一调用点就是它）、`dispatch('AUTO')` 分支、
+十语的 `sol.auto` 文案。⚠ **`rules.isSafeToAutoPlay` 保留**——solver / 盲打 AI 的
+启发式打分仍靠它（`autoDest`/`canAutoFinish` 也都还在，那是另外两回事）。
+测试同步改：e2e-exp4 反向断言 `!acts.includes('AUTO')`；e2e-slide 的「错开滑不丢牌」
+改走 FINISH（同一条错开滑代码路径）；e2e-coach 的 onWin 入口改成最后一步走 `doMove`；
+e2e-p5p6 的免费动作红线里 AUTO 换成 FINISH。
+
 ## 这个游戏的唯一卖点：**每一局都存在解法，而且我们证明给你看**
 
 ⛔ **但措辞必须精确到变态 —— 这里埋着一颗语义炸弹（红队抓出，DESIGN §2.1）**：

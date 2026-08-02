@@ -4,7 +4,6 @@
     "deal": "Partida #{n}",
     "undo": "Deshacer",
     "hint": "Pista",
-    "auto": "Auto",
     "newGame": "Nueva partida",
     "youWin": "¡Has ganado!",
     "finalScore": "Puntos {n}",

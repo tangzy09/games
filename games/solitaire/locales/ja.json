@@ -4,7 +4,6 @@
     "deal": "ゲーム #{n}",
     "undo": "元に戻す",
     "hint": "ヒント",
-    "auto": "自動",
     "newGame": "新しいゲーム",
     "youWin": "勝ちました！",
     "finalScore": "スコア {n}",

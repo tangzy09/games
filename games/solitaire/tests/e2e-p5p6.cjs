@@ -92,7 +92,7 @@ async function click(page, action, dm){
     const realRewarded = Ads.showRewarded, realInter = Ads.showInterstitial;
     Ads.showRewarded = () => { adCalls++; return Promise.resolve(false); };
     Ads.showInterstitial = () => { adCalls++; return Promise.resolve(false); };
-    dispatch('UNDO'); dispatch('HINT'); dispatch('NEW'); dispatch('PROVE'); dispatch('AUTO');
+    dispatch('UNDO'); dispatch('HINT'); dispatch('NEW'); dispatch('PROVE'); dispatch('FINISH');
     r.freeActionsAdCalls = adCalls;
     Ads.showRewarded = realRewarded; Ads.showInterstitial = realInter;
 
@@ -113,7 +113,7 @@ async function click(page, action, dm){
     return r;
   });
   ok(red.freeActionsAdCalls === 0,
-    `撤销/提示/重开/证明/自动 —— 一个广告都不弹（实测调用 ${red.freeActionsAdCalls} 次）`);
+    `撤销/提示/重开/证明/一键走完 —— 一个广告都不弹（实测调用 ${red.freeActionsAdCalls} 次）`);
   ok(red.honeymoon30, '⭐ 蜜月期：前 30 盘零插屏');
   ok(red.interstitialSeq.join('') === '1000100010',
     `插屏节流：盘盘赢也是每 4 盘 1 个（31-40 盘序列 ${red.interstitialSeq.join('')}），绝不连播`);

@@ -4,7 +4,6 @@
     "deal": "Deal #{n}",
     "undo": "Undo",
     "hint": "Hint",
-    "auto": "Auto",
     "newGame": "New Game",
     "youWin": "You Win!",
     "finalScore": "Score {n}",

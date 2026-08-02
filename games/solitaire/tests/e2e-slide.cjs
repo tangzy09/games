@@ -72,16 +72,28 @@ const ok=(c,m)=>{if(!c){console.error('X '+m);process.exitCode=1;}else console.l
     `⭐ **狂点 12 步、每步都打断上一个动画** -> 仍然 52 张不少、0 张卡飞行（${c2.n}/${c2.flying}）`);
   await page.screenshot({path:path.join(SHOT,'p9-02-after-rush.png')});
 
-  // autoplay 的一串收牌（错开滑）
-  await page.evaluate(()=>dispatch('AUTO'));
+  // 一串**错开滑**（「✨ 一键走完」：solver 的解逐步错开播）—— 仍不能丢牌
+  //   ⚠ 原来这段走的是已删除的「⤴ 自动收牌」，错开滑的代码路径与 FINISH 是同一条
+  await page.evaluate(()=>{
+    const s=Core.newGame(7,3);
+    s.stock=[]; s.waste=[]; s.moves=[];
+    s.foundations=[0,1,2,3].map(fi=>Array.from({length:12},(_,r)=>r*4+fi));   // A..Q 全收
+    s.tableau=Array.from({length:7},()=>({cards:[],up:0}));
+    [0,1,2,3].forEach(fi=>{ s.tableau[fi]={cards:[12*4+fi],up:1}; });         // 4 张 K 明牌
+    G.s=s; G.sel=null; Prover.reset(); FX.reset(); renderAll();
+    dispatch('FINISH');
+  });
   await page.waitForTimeout(1200);
+  await page.evaluate(()=>FX.skip());                 // 赢局会接瀑布，跳过它再点数
   await page.waitForFunction(()=>!FX.busy(), null, {timeout:8000});
   const c3 = await page.evaluate(()=>{
     const s=G.s;
     const all=[...s.tableau.flatMap(c=>c.cards), ...s.stock, ...s.waste, ...s.foundations.flat()];
-    return { n:new Set(all).size, flying:[...Array(52).keys()].filter(i=>FX.isFlying(i)).length };
+    return { n:new Set(all).size, won:s.won,
+             flying:[...Array(52).keys()].filter(i=>FX.isFlying(i)).length };
   });
-  ok(c3.n===52 && c3.flying===0, `autoplay 连收后仍 52 张不少（${c3.n}/${c3.flying}）`);
+  ok(c3.n===52 && c3.flying===0 && c3.won,
+     `⭐ 「一键走完」错开滑完仍 52 张不少（${c3.n}/${c3.flying}）`);
 
   ok(errs.length===0, '全程零 error'+(errs.length?': '+errs.join(' | '):''));
   await browser.close(); srv.close();
