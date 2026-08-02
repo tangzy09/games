@@ -76,6 +76,11 @@
     crystals: {},                      // 图鉴：每种水晶的累计收集数
     quests: null,                      // 每日任务进度（quests.js ensure 按天重置）
     unlocked: [],                      // 已解锁的成就 id
+    // ── 教练（coach.js）的终身账本：妙手数 + 两类失误数 ⇒「我的弱点」页 ──
+    //    ⚠ 只统计**看得见的**两类：放着能消的行不消 / 一手造出 2 个以上孤格。
+    //    它们都是纯逻辑可判定的，不是「我觉得你打得不好」。
+    brilliants: 0,
+    faults: { missLine: 0, isolate: 0 },
   });
 
   /**
@@ -116,7 +121,18 @@
   const total = () => ACHIEVEMENTS.length;
   const byId = id => ACHIEVEMENTS.find(a => a.id === id);
 
-  const API = { ACHIEVEMENTS, emptyProfile, settle, check, total, byId };
+  /**
+   * 等级 XP：把「玩过的一切」折成一个数（engine/meta.js 的 levelProgress 吃它）。
+   * ⚠ 只读**既有计数器**，不新增任何埋点 —— 这正是元游戏层能跨游戏复用的前提。
+   *   权重按「有多难」排：落子 1 · 消行 4 · 收集 5 · 妙手 8 · SWEEP 15 · 星 20 · 通关 60。
+   */
+  function xpOf(p, angels) {
+    if (!p) return 0;
+    return (p.turns | 0) + (p.lines | 0) * 4 + (p.levelsWon | 0) * 60 + (p.stars | 0) * 20
+         + (p.sweepsTotal | 0) * 15 + (p.brilliants | 0) * 8 + (angels | 0) * 5;
+  }
+
+  const API = { ACHIEVEMENTS, emptyProfile, settle, check, total, byId, xpOf };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   else root.Achievements = API;
 })(typeof self !== 'undefined' ? self : this);

@@ -65,6 +65,23 @@
     return completed;
   }
 
+  /**
+   * 直接完成第一个未完成的任务（激励视频「任务加速」位用）。返回该任务，或 null（今天已全完成）。
+   * ⚠ 走和 bump 一样的记账口径（写满进度 + 进 done），调用方照常发 REWARD ——
+   *   两条路径给的奖励必须一模一样，否则「看广告完成」会变成另一种经济。
+   */
+  function forceComplete(profile, day) {
+    const st = ensure(profile, day);
+    const qs = todays(day);
+    for (let i = 0; i < qs.length; i++) {
+      if (st.done.includes(i)) continue;
+      st.prog[i] = qs[i].target;
+      st.done.push(i);
+      return qs[i];
+    }
+    return null;
+  }
+
   /** 任务页/目标条用：[{t, target, prog, done}] */
   function status(profile, day) {
     const st = ensure(profile, day);
@@ -75,7 +92,7 @@
     }));
   }
 
-  const API = { POOL, REWARD, todays, ensure, bump, status };
+  const API = { POOL, REWARD, todays, ensure, bump, status, forceComplete };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   else root.Quests = API;
 })(typeof self !== 'undefined' ? self : this);

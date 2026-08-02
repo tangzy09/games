@@ -118,7 +118,11 @@
       "gold": "鎏金",
       "rose": "玫瑰",
       "grape": "葡萄",
-      "slate": "石板"
+      "slate": "石板",
+      "aurora": "极光",
+      "volcano": "熔岩",
+      "galaxy": "星河",
+      "cotton": "棉花糖"
     },
     "coins": "{n}",
     "refresh": "换一手",
@@ -235,6 +239,36 @@
     "ladderYou": "你的最高分：{n}",
     "shareSeedTip": "种子 #{n}——装了 app 后输入这个种子，就是完全相同的一条块流。",
     "angelsGot": "已收集 {n} / {m}",
-    "homePlay": "开始"
+    "homePlay": "开始",
+    "rank": {
+      "t1": "新手",
+      "t2": "筑块者",
+      "t3": "战术家",
+      "t4": "策士",
+      "t5": "宗师",
+      "t6": "传奇"
+    },
+    "brilliant": "妙手！",
+    "adSkin": "解锁一款皮肤",
+    "adLeft": "今日还剩 {n} 次",
+    "adGallery": "+{n} 张画像",
+    "adQuest": "直接完成一个任务",
+    "boost": "开局礼包",
+    "hint": "提示",
+    "weakTitle": "我的弱点",
+    "weakBrilliantSub": "你下出的最优手",
+    "weakNeedMore": "再打 {n} 手，教练就能说出你该练什么。",
+    "weak": {
+      "missLine": "错过的消行",
+      "isolate": "造出的死格"
+    },
+    "weakTip": {
+      "missLine": "当时有一个能消行的落点，你放到了别处。消行才能续上连击，而分数几乎全来自连击。",
+      "isolate": "那一手把空格封成了孤格。四面都是墙的格子只有 1×1 能填，而它很少出现。"
+    },
+    "weakFrom": "判断来自验证每一关都可通的同一套求解器。它只看你的盘面和公开的块流。",
+    "reviewLine": "第 {t} 手：换个位置放，还能再走 {n} 步。",
+    "stBrilliant": "妙手",
+    "stLevel": "等级"
   }
 }

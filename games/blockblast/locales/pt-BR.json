@@ -118,7 +118,11 @@
       "gold": "Ouro",
       "rose": "Rosa",
       "grape": "Uva",
-      "slate": "Ardósia"
+      "slate": "Ardósia",
+      "aurora": "Aurora",
+      "volcano": "Vulcão",
+      "galaxy": "Galáxia",
+      "cotton": "Algodão-doce"
     },
     "coins": "{n}",
     "refresh": "Novas peças",
@@ -235,6 +239,36 @@
     "ladderYou": "Seu recorde: {n}",
     "shareSeedTip": "Semente #{n} — instale o app e digite esta semente para receber exatamente a mesma sequência de peças.",
     "angelsGot": "{n} / {m} coletados",
-    "homePlay": "Jogar"
+    "homePlay": "Jogar",
+    "rank": {
+      "t1": "Novato",
+      "t2": "Construtor",
+      "t3": "Tático",
+      "t4": "Estrategista",
+      "t5": "Grão-mestre",
+      "t6": "Lenda"
+    },
+    "brilliant": "Jogada brilhante!",
+    "adSkin": "Desbloquear um tema",
+    "adLeft": "Restam {n} hoje",
+    "adGallery": "+{n} anjos",
+    "adQuest": "Concluir uma missão",
+    "boost": "Impulso",
+    "hint": "Dica",
+    "weakTitle": "Meus pontos fracos",
+    "weakBrilliantSub": "Melhor jogada possível",
+    "weakNeedMore": "Jogue mais {n} movimentos e o treinador poderá dizer o que praticar.",
+    "weak": {
+      "missLine": "Linhas perdidas",
+      "isolate": "Buracos mortos criados"
+    },
+    "weakTip": {
+      "missLine": "Você tinha uma posição que limpava uma linha e jogou em outro lugar. Limpar linhas mantém a sequência, e é dela que vem a pontuação.",
+      "isolate": "Essa jogada isolou células vazias. Um buraco cercado dos quatro lados só é preenchido por uma peça 1x1, e elas são raras."
+    },
+    "weakFrom": "Avaliado pelo mesmo solucionador que verifica se cada fase tem solução. Ele só vê seu tabuleiro e a sequência pública de peças.",
+    "reviewLine": "Jogada {t}: outra posição ali teria durado {n} movimentos a mais.",
+    "stBrilliant": "Jogadas brilhantes",
+    "stLevel": "Nível"
   }
 }

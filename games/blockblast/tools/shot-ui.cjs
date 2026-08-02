@@ -46,6 +46,9 @@ function serve() {
       G.wallet.coins = 1240; G.wallet.angels = 137; G.wallet.gamesPlayed = 46;
       G.profile.dailyStreak = 5;
       G.best = 8420;
+      // 教练账本（「我的弱点」页空着就等于没验）
+      G.profile.turns = 2400; G.profile.lines = 610; G.profile.brilliants = 37;
+      G.profile.faults = { missLine: 41, isolate: 18 };
     });
 
     const shot = async (name) => {
@@ -70,7 +73,7 @@ function serve() {
     await shot('menu-ch3');
 
     // 3.5) 全部二级页（图标/排版都在这些页上，不截就等于没验）
-    for (const ph of ['ACH', 'SKIN', 'SHOP', 'SET', 'CAL', 'DEX', 'ANG', 'QUESTS', 'STATS', 'LADDER', 'FAIR']) {
+    for (const ph of ['ACH', 'SKIN', 'SHOP', 'SET', 'CAL', 'DEX', 'ANG', 'QUESTS', 'STATS', 'WEAK', 'LADDER', 'FAIR']) {
       await page.evaluate(p => { G.phase = p; }, ph);
       await shot('page-' + ph.toLowerCase());
     }
@@ -103,8 +106,22 @@ function serve() {
       const s = G.s;
       s.score = 6120; s.over = true; s.stats.maxStreak = 9; s.stats.sweeps = 3;
       G.newAngels = 2; G.lastEarn = { n: 61 }; G.newBestRun = false;
+      G.review = { turn: 37, gain: 12, slot: 1, r: 3, c: 4, survive: 19 };   // 死亡复盘那一行
     });
     await shot('endless-over');
+
+    // 8) 局内：开局礼包（第三个道具位在还没落子时是 🚀）+ 教练提示高亮
+    await page.evaluate(() => {
+      dispatch('NEW_RUN');
+      G.phase = 'PLAYING';
+    });
+    await shot('play-boost');
+    await page.evaluate(() => {
+      const m = Coach.best(G.s);
+      G.s.stats.turns = 3;                       // 已开打 ⇒ 第三个位变成 💡 提示
+      G.coachHint = m ? { slot: m.slot, r: m.r, c: m.c } : null;
+    });
+    await shot('play-hint');
 
     await page.close();
   }

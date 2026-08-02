@@ -118,7 +118,11 @@
       "gold": "Gold",
       "rose": "Rose",
       "grape": "Grape",
-      "slate": "Slate"
+      "slate": "Slate",
+      "aurora": "Aurora",
+      "volcano": "Volcano",
+      "galaxy": "Galaxy",
+      "cotton": "Cotton Candy"
     },
     "coins": "{n}",
     "refresh": "New Pieces",
@@ -235,6 +239,36 @@
     "ladderYou": "Your best: {n}",
     "shareSeedTip": "Seed #{n} — install the app and enter this seed to get the exact same piece stream.",
     "angelsGot": "{n} / {m} collected",
-    "homePlay": "Play"
+    "homePlay": "Play",
+    "rank": {
+      "t1": "Rookie",
+      "t2": "Builder",
+      "t3": "Tactician",
+      "t4": "Strategist",
+      "t5": "Grandmaster",
+      "t6": "Legend"
+    },
+    "brilliant": "Brilliant!",
+    "adSkin": "Unlock a skin",
+    "adLeft": "{n} left today",
+    "adGallery": "+{n} angels",
+    "adQuest": "Finish a quest",
+    "boost": "Boost",
+    "hint": "Hint",
+    "weakTitle": "My weak spots",
+    "weakBrilliantSub": "Best move played",
+    "weakNeedMore": "Play {n} more moves and the coach can tell you what to practise.",
+    "weak": {
+      "missLine": "Missed clears",
+      "isolate": "Dead holes created"
+    },
+    "weakTip": {
+      "missLine": "You had a placement that would clear a line, and played elsewhere. Clears keep the streak alive, and the streak is where the score comes from.",
+      "isolate": "That move sealed off single empty cells. A hole with four walls can only be filled by a 1x1, and those are rare."
+    },
+    "weakFrom": "Judged by the same solver that verifies every level is winnable. It only sees your board and the public piece stream.",
+    "reviewLine": "Move {t}: a different spot there would have lasted {n} moves longer.",
+    "stBrilliant": "Brilliant moves",
+    "stLevel": "Level"
   }
 }

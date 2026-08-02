@@ -173,3 +173,79 @@ const Core = require('../js/core.js');
   assert.strictEqual(s.undo, null, '换过手就不能再撤销回去（否则可以来回刷）');
   console.log('test-shop: 换一手不是重抽 OK');
 }
+
+// ════════ 激励视频每日额度（A2 的洞：原来「看广告领币」零 cap，可无限刷）════════
+{
+  const w = Shop.emptyWallet();
+  const day1 = new Date(2026, 7, 1, 10, 0).getTime();
+  const day2 = new Date(2026, 7, 2, 10, 0).getTime();
+  assert.strictEqual(Shop.adQuotaLeft(w, 'coins', day1), Shop.AD_CAPS.coins);
+  for (let i = 0; i < Shop.AD_CAPS.coins; i++) Shop.adUse(w, 'coins', day1);
+  assert.strictEqual(Shop.adQuotaLeft(w, 'coins', day1), 0, '当天额度用完');
+  assert.strictEqual(Shop.adMode(w, 'coins', day1), 'no', '用完 ⇒ 这个位不能再点');
+  // ⚠ 跨天必须**按 AD_CAPS 全量清**：漏掉哪个 key，那个位就永久卡在首日额度
+  Shop.adUse(w, 'skin', day1);
+  assert.strictEqual(Shop.adQuotaLeft(w, 'skin', day1), 0);
+  assert.strictEqual(Shop.adQuotaLeft(w, 'coins', day2), Shop.AD_CAPS.coins, '跨天：领币重置');
+  assert.strictEqual(Shop.adQuotaLeft(w, 'skin', day2), Shop.AD_CAPS.skin, '跨天：皮肤位也必须重置');
+  for (const k of Object.keys(Shop.AD_CAPS)) {
+    assert(Shop.AD_CAPS[k] > 0, k + ' 必须有正的每日上限（零上限 = 这个位永远点不动）');
+  }
+  console.log('test-shop: 激励视频每日额度 OK');
+}
+
+// ════════ 红线：去广告玩家不失去功能（直接给），但照样吃额度 ════════
+{
+  const w = Shop.emptyWallet();
+  w.noAds = true;
+  const t0 = new Date(2026, 7, 1, 10, 0).getTime();
+  assert.strictEqual(Shop.adMode(w, 'gift', t0), 'free', 'noAds ⇒ 奖励直接给，不是「没广告可看所以没得拿」');
+  Shop.adUse(w, 'gift', t0);
+  assert.strictEqual(Shop.adMode(w, 'gift', t0), 'no', '额度是防刷穿的，付费玩家同样适用');
+  console.log('test-shop: 去广告玩家的激励位 OK');
+}
+
+// ════════ 各位的发放：奖励要真到账，且封顶/余额边界不漏 ════════
+{
+  const w = Shop.emptyWallet();
+  const c0 = w.coins;
+  const g = Shop.grantGift(w);
+  assert.strictEqual(w.coins, c0 + Shop.AD_REWARD.gift.coins);
+  assert.strictEqual(g.angels, Shop.AD_REWARD.gift.angels);
+  assert.strictEqual(Shop.grantGallery(w), Shop.AD_REWARD.gallery);
+  w.angels = Shop.ANGELS.total;
+  assert.strictEqual(Shop.grantGallery(w), 0, '收满 500 后不再发（额度也不该被这种空签消耗）');
+
+  const it = Shop.newRunItems();
+  const undo0 = it.undoFree;
+  assert(Shop.grantBoost(it));
+  assert.strictEqual(it.undoFree, undo0 + Shop.AD_REWARD.boost.undo, '开局礼包只动本局道具，不碰钱包');
+  assert.strictEqual(it.refreshCharge, Shop.AD_REWARD.boost.refresh);
+
+  w.coins = 10;
+  assert.strictEqual(Shop.buyWithCoins(w, 'boost'), false, '钱不够就不许买，也不许扣钱');
+  assert.strictEqual(w.coins, 10);
+  w.coins = Shop.COIN_PRICE.boost;
+  assert(Shop.buyWithCoins(w, 'boost'));
+  assert.strictEqual(w.coins, 0);
+  console.log('test-shop: 激励位发放与金币出口 OK');
+}
+
+// ════════ 金币出口必须够多（C6：溢出的货币 = 死货币，领币位就成了死位）════════
+{
+  const Themes = require('../js/themes.js');
+  const coinSkins = Themes.THEMES.filter(t => t.coins);
+  assert(coinSkins.length >= 6, '金币皮肤至少 6 款，否则中期金币无处可花');
+  const top = Math.max(...coinSkins.map(t => t.coins));
+  assert(top >= 3000, '价格阶梯要够高（长期玩家的金币沉淀出口）');
+  // 广告解锁皮肤**绝不碰星星赛道**：星星是三星通关的兑现，卖掉它等于把关卡奖励作废
+  const starSkins = Themes.THEMES.filter(t => t.coins == null && t.games == null && t.stars > 0);
+  for (const t of starSkins) {
+    assert.strictEqual(Themes.isUnlocked(t, 0, [t.id], 999), false,
+      '星星皮肤不认 owned —— 广告/金币都买不到它');
+  }
+  // 盘数皮肤认 owned（激励视频「皮肤解锁」把它提前给了）
+  const gameSkin = Themes.THEMES.find(t => t.games != null);
+  assert.strictEqual(Themes.isUnlocked(gameSkin, 0, [gameSkin.id], 0), true);
+  console.log('test-shop: 金币出口 + 皮肤赛道边界 OK');
+}

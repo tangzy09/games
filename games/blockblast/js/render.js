@@ -212,19 +212,57 @@
     });
   }
 
-  /** 画水晶：有生成图用图（目标条/图鉴等大尺寸处），没有回退矢量 drawCrystal */
+  /** 画水晶：有生成图用图（目标条/图鉴等大尺寸处），没有回退矢量 drawCrystal。
+   *  ⚠ 用图时**仍要叠一枚形状角标** —— 5 张生成图之间只有颜色不同，
+   *    对色盲玩家来说「收集目标是哪一种」在这些地方就成了猜谜。*/
   function drawCrystalArt(x, y, size, kind) {
     const im = ART.get('cry_' + kind);
-    if (im) ctx.drawImage(im, x, y, size, size);
-    else drawCrystal(x, y, size, kind);
+    if (!im) { drawCrystal(x, y, size, kind); return; }
+    ctx.drawImage(im, x, y, size, size);
+    const bs = size * 0.36;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.lineWidth = Math.max(1, size * 0.03);
+    crystalPath(x + size - bs * 0.9, y + size - bs * 0.9, bs, kind);
+    ctx.fillStyle = (CRYSTAL[kind] || CRYSTAL.blue).edge;
+    ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+
+  /**
+   * ⛔ 无障碍双编码（casual-game-meta 的红线）：5 种水晶**不能只靠颜色区分** ——
+   *   它们是关卡的收集目标，灰度下必须一眼分清。⇒ 一色一形：
+   *   蓝=菱形 · 粉=六边形 · 橙=三角 · 绿=圆角方 · 紫=五角星。
+   */
+  function crystalPath(x, y, size, kind) {
+    const cx = x + size / 2, cy = y + size / 2, r = size * 0.5;
+    const poly = (n, rot) => {
+      ctx.beginPath();
+      for (let i = 0; i < n; i++) {
+        const a = rot + i * Math.PI * 2 / n;
+        const px = cx + Math.cos(a) * r, py = cy + Math.sin(a) * r;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+    };
+    if (kind === 'pink') poly(6, -Math.PI / 2);
+    else if (kind === 'orange') poly(3, -Math.PI / 2);
+    else if (kind === 'green') roundRect(cx - r * 0.82, cy - r * 0.82, r * 1.64, r * 1.64, r * 0.3);
+    else if (kind === 'violet') {
+      ctx.beginPath();
+      for (let i = 0; i < 10; i++) {
+        const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r * 0.46 : r;
+        const px = cx + Math.cos(a) * rr, py = cy + Math.sin(a) * rr;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+    } else poly(4, -Math.PI / 2);                       // blue：菱形（老形状，别动）
   }
 
   function drawCrystal(x, y, size, kind) {
     const cr = CRYSTAL[kind] || CRYSTAL.blue;
     const cx = x + size / 2, cy = y + size / 2, r = size * 0.26;
-    ctx.beginPath();
-    ctx.moveTo(cx, cy - r); ctx.lineTo(cx + r, cy); ctx.lineTo(cx, cy + r); ctx.lineTo(cx - r, cy);
-    ctx.closePath();
+    crystalPath(cx - r, cy - r, r * 2, kind);
     ctx.fillStyle = cr.fill; ctx.fill();
     ctx.strokeStyle = cr.edge; ctx.lineWidth = Math.max(1.5, size * 0.05); ctx.stroke();
     ctx.beginPath();                                    // 高光
@@ -275,7 +313,7 @@
 
     // ── 先量 ──
     const hs = Math.min(w * 0.58, SH * (tall ? 0.225 : 0.205));
-    const ch = tall ? 50 : 42;            // 收集卡
+    const ch = tall ? 64 : 56;            // 收集卡（天使进度 + 等级/称号 XP 条）
     const bh = tall ? 52 : 44;            // 主按钮
     const dh = tall ? 40 : 34;            // 每日
     const gh = tall ? 46 : 40;            // 入口格
@@ -294,7 +332,11 @@
     // ⭐ **每次进主界面换一张**（2026-08-01 用户定）：从**已解锁的**里随机抽，
     //   它是「我的收藏」不是装饰画。⚠ 只在 heroIdx 为空时抽一次 —— renderHome 每帧都跑，
     //   每帧重抽的话图会疯狂闪；离开 HOME 时由 renderAll 清空，下次进来才换。
-    if (G.heroIdx == null || G.heroIdx >= got) G.heroIdx = got > 0 ? Math.floor(Math.random() * got) : -1;
+    // ⚠ `< 0` 这一条不能少：零解锁时抽到的 -1 会一直粘着 —— 在主界面上领了每日礼物
+    //   （+2 张画像）之后 hero 仍是空白方块，直到你离开再进来才好。
+    if (G.heroIdx == null || G.heroIdx < 0 || G.heroIdx >= got) {
+      G.heroIdx = got > 0 ? Math.floor(Math.random() * got) : -1;
+    }
     fillRR(hx - 5, y - 5, hs + 10, hs + 10, 22, 'rgba(255,255,255,0.88)');
     if (got > 0) {
       drawAngel(G.heroIdx, hx, y, hs, hs, 18);
@@ -326,14 +368,24 @@
     txtR((got / totA * 100).toFixed(1) + '%', cx + w / 2 - 12, y + 15, PAL.accent, 'bold 12px sans-serif');
     fillRR(cx - w / 2 + 12, y + 25, w - 24, 7, 4, 'rgba(255,255,255,0.16)');
     if (got) fillRR(cx - w / 2 + 12, y + 25, Math.max(4, (w - 24) * got / totA), 7, 4, PAL.accent);
+    // ── 等级 / 称号 / XP 条（engine/meta.js）──
+    //    ⭐ xp 全部由**既有计数器**折算（落子/消行/星/通关/SWEEP/妙手/收集），零新埋点、零存档：
+    //      等级现算 ⇒ 换设备不会掉级，也没有可作弊的字段。点这张卡进统计页看明细。
+    const lvY = y + (tall ? 42 : 38);
     if (tall) {
-      const stars = Object.values(G.progress).reduce((a, v) => a + v, 0);
-      drawStar(cx - w / 2 + 18, y + 42, 7, true);
-      txtL(String(stars), cx - w / 2 + 28, y + 42, 'rgba(255,255,255,0.75)', 'bold 10px sans-serif');
-      ctx.font = 'bold 10px sans-serif';
-      uiIcon('coin', '\u{1FA99}', cx + w / 2 - 20 - ctx.measureText(String(G.wallet.coins)).width, y + 42, 14);
-      txtR(String(G.wallet.coins), cx + w / 2 - 12, y + 42, PAL.accent, 'bold 10px sans-serif');
+      const stars0 = Object.values(G.progress).reduce((a, v) => a + v, 0);
+      drawStar(cx - w / 2 + 18, lvY, 7, true);
+      txtL(String(stars0), cx - w / 2 + 28, lvY, 'rgba(255,255,255,0.75)', 'bold 10px sans-serif');
     }
+    const lp = Meta.levelProgress(Achievements.xpOf(G.profile, got));
+    txtL('Lv.' + lp.level + '  ' + T('blockblast.rank.' + lp.title),
+         cx - w / 2 + (tall ? 56 : 12), lvY, '#fff', 'bold 10px sans-serif');
+    ctx.font = 'bold 10px sans-serif';
+    uiIcon('coin', '\u{1FA99}', cx + w / 2 - 20 - ctx.measureText(String(G.wallet.coins)).width, lvY, 14);
+    txtR(String(G.wallet.coins), cx + w / 2 - 12, lvY, PAL.accent, 'bold 10px sans-serif');
+    fillRR(cx - w / 2 + 12, lvY + 9, w - 24, 5, 3, 'rgba(255,255,255,0.14)');
+    fillRR(cx - w / 2 + 12, lvY + 9, Math.max(3, (w - 24) * lp.pct), 5, 3, '#a78bfa');
+    addHit(cx - w / 2, y, w, ch, 'PAGE_STATS', {});
     y += ch + gap;
 
     // ── ▶ 主按钮：**智能续继**（无尽局没打完 ⇒ 接着打，别把人扔回新局）
@@ -355,7 +407,9 @@
     // ── 📅 每日谜题（回访钩子：连续天数摆在按钮上）──
     const doneToday = Daily.playedToday(G.profile, new Date());
     const st0 = G.profile.dailyStreak | 0;
-    fillRR(cx - 105, y, 210, dh, 11, doneToday ? 'rgba(255,255,255,0.18)' : '#ffd84d');
+    const dw = 168;                       // ⚠ 右边让出 🎁 每日礼物（同「新开一局」那颗的做法）
+    const dcx = cx - 105 + dw / 2;
+    fillRR(cx - 105, y, dw, dh, 11, doneToday ? 'rgba(255,255,255,0.18)' : '#ffd84d');
     {
       // \u56fe\u6807\u548c\u6587\u5b57**\u5206\u5f00\u91cf\u5bbd**\u518d\u6392\uff1a\u628a emoji \u62fc\u8fdb\u5b57\u7b26\u4e32\u91cc\u9760 measureText \u731c\u4f4d\u7f6e\uff0c
       // \u6362\u6210\u56fe\u6807\u540e\u5fc5\u7136\u53e0\u5b57\uff08\u5b9e\u62cd\u6293\u5230\u300cDaily Puzzle\ud83d\udd255\u300d\u7cca\u6210\u4e00\u56e2\uff09
@@ -363,7 +417,7 @@
       ctx.font = 'bold 13px sans-serif';
       const nameW = ctx.measureText(name).width;
       const stW = st0 ? 17 + ctx.measureText(String(st0)).width : 0;
-      let lx = cx - (20 + nameW + (st0 ? 10 + stW : 0)) / 2;
+      let lx = dcx - (20 + nameW + (st0 ? 10 + stW : 0)) / 2;
       uiIcon(doneToday ? 'check' : 'calendar', doneToday ? '\u2713' : '\u{1F4C5}', lx + 9, y + dh / 2, 17);
       lx += 20;
       txtL(name, lx, y + dh / 2, fg, 'bold 13px sans-serif');
@@ -373,7 +427,15 @@
         txtL(String(st0), lx + 17, y + dh / 2, fg, 'bold 13px sans-serif');
       }
     }
-    addHit(cx - 105, y, 210, dh, 'PLAY_DAILY', {});
+    addHit(cx - 105, y, dw, dh, 'PLAY_DAILY', {});
+    // ── 🎁 每日礼物（激励视频，每天 1 次）：进来点一下就有东西拿 = 最轻的回访理由。
+    //    ⚠ 领过就画成灰的、并且**不挂 hit** —— 点了没反应比按钮灰着更让人恼火。
+    {
+      const canGift = Shop.adQuotaLeft(G.wallet, 'gift') > 0;
+      fillRR(cx + 71, y, 34, dh, 11, canGift ? '#f472b6' : 'rgba(255,255,255,0.14)');
+      uiIcon('gift', '\u{1F381}', cx + 88, y + dh / 2, 19);
+      if (canGift) addHit(cx + 71, y, 34, dh, 'AD_GIFT', {});
+    }
     y += dh + gap;
 
     // ── 2×3 入口网格：每格挂一个「你在这儿有多少东西」的角标 ──
@@ -613,12 +675,30 @@
     ctx.font = 'bold 13px sans-serif';
     txtR(String(G.wallet.coins), L.playX + L.playW - 28, GameGlobal.safeTop + 54, PAL.accent, 'bold 13px sans-serif');
     uiIcon('coin', '\u{1FA99}', L.playX + L.playW - 36 - ctx.measureText(String(G.wallet.coins)).width, GameGlobal.safeTop + 54, 16);
-    // 分页（16 套 = 3 页 × 6）
-    const PER = 6;
+    // ── 📺 看广告解锁下一款（每天 1 款）：先给「玩满 N 盘」那档（本来就白送，只是提前），
+    //    没有了才给金币款。⛔ 星星皮肤永远不在这个池子里 —— 星星是三星通关的兑现，不卖。
+    const adSkinY = GameGlobal.safeTop + 74;
+    const adSkinLeft = Shop.adQuotaLeft(G.wallet, 'skin');
+    {
+      const on = adSkinLeft > 0 && Themes.THEMES.some(t =>
+        (t.games != null || t.coins) && !Themes.isUnlocked(t, stars, G.wallet.themes, G.wallet.gamesPlayed));
+      fillRR(L.playX + 14, adSkinY, L.playW - 28, 34, 10, on ? '#7c3aed' : 'rgba(255,255,255,0.10)');
+      ctx.font = 'bold 12px sans-serif';
+      const lab0 = T('blockblast.adSkin');
+      uiIcon('video-ad', '\u{1F4FA}', cx - ctx.measureText(lab0).width / 2 - 13, adSkinY + 17, 17);
+      txtL(lab0, cx - ctx.measureText(lab0).width / 2, adSkinY + 17,
+           on ? '#fff' : 'rgba(255,255,255,0.42)', 'bold 12px sans-serif');
+      txtR(T('blockblast.adLeft', { n: adSkinLeft }), L.playX + L.playW - 26, adSkinY + 17,
+           'rgba(255,255,255,0.55)', '10px sans-serif');
+      if (on) addHit(L.playX + 14, adSkinY, L.playW - 28, 34, 'AD_SKIN', {});
+    }
+
+    // 分页（20 套 = 4 页 × 5）
+    const PER = 5;
     const pages = Math.max(1, Math.ceil(Themes.THEMES.length / PER));
     const page = Math.max(0, Math.min(pages - 1, G.skinPage || 0));
     Themes.THEMES.slice(page * PER, page * PER + PER).forEach((t, i) => {
-      const y = GameGlobal.safeTop + 80 + i * 76;
+      const y = GameGlobal.safeTop + 116 + i * 76;
       const on = Themes.isUnlocked(t, stars, G.wallet.themes, G.wallet.gamesPlayed), cur = G.theme === t.id;
       fillRR(L.playX + 14, y, L.playW - 28, 66, 12, cur ? 'rgba(255,255,255,0.26)' : 'rgba(0,0,0,0.20)');
       txtL(T('blockblast.theme.' + t.id), L.playX + 28, y + 20, on ? '#fff' : 'rgba(255,255,255,0.4)', 'bold 14px sans-serif');
@@ -651,7 +731,8 @@
       }
     });
     if (pages > 1) {
-      const py = GameGlobal.safeTop + 80 + PER * 76 + 8;
+      // ⚠ 夹一下：矮屏（360×640）上翻页钮会压到底部的「返回」，两个 hit 区重叠
+      const py = Math.min(GameGlobal.safeTop + 116 + PER * 76 + 8, SH - 104);
       txt(`${page + 1} / ${pages}`, cx, py + 16, PAL.sub, '12px sans-serif');
       if (page > 0) {
         fillRR(cx - 110, py, 44, 32, 10, 'rgba(255,255,255,0.16)');
@@ -735,17 +816,56 @@
     txtL(String(G.wallet.coins), cx - cw0 / 2, GameGlobal.safeTop + 56, PAL.accent, 'bold 16px sans-serif');
 
     // 看广告领币（玩家**主动**触发的激励视频 —— 唯一允许的广告形态之一）
+    // ⚠ **每日额度必须写在按钮上**：额度是防「一天刷穿长线经济」的设计，不是抠门，
+    //   藏着不说会让人以为坏了（snake 的教训）。用完 ⇒ 灰掉且不挂 hit。
     const y1 = GameGlobal.safeTop + 90;
-    fillRR(L.playX + 20, y1, L.playW - 40, 58, 12, '#22c55e');
+    const coinsLeft = Shop.adQuotaLeft(G.wallet, 'coins');
+    fillRR(L.playX + 20, y1, L.playW - 40, 58, 12, coinsLeft > 0 ? '#22c55e' : 'rgba(255,255,255,0.10)');
     ctx.font = 'bold 15px sans-serif';
     const gw0 = ctx.measureText(T('blockblast.getCoins')).width;
-    uiIcon('video-ad', '\u{1F4FA}', cx - gw0 / 2 - 15, y1 + 29, 19);
-    txtL(T('blockblast.getCoins'), cx - gw0 / 2, y1 + 29, '#fff', 'bold 15px sans-serif');
-    addHit(L.playX + 20, y1, L.playW - 40, 58, 'AD_COINS', {});
+    uiIcon('video-ad', '\u{1F4FA}', cx - gw0 / 2 - 15, y1 + 24, 19);
+    txtL(T('blockblast.getCoins'), cx - gw0 / 2, y1 + 24,
+         coinsLeft > 0 ? '#fff' : 'rgba(255,255,255,0.42)', 'bold 15px sans-serif');
+    txt(T('blockblast.adLeft', { n: coinsLeft }), cx, y1 + 44, 'rgba(255,255,255,0.6)', '10px sans-serif');
+    if (coinsLeft > 0) addHit(L.playX + 20, y1, L.playW - 40, 58, 'AD_COINS', {});
+
+    // 👼 画像加速：看广告 +5 张（每天 3 次），或直接花金币 —— 两条路给两种人，
+    //    金币也因此多了一个**经常用得上**的去处（皮肤买完就没得花了）。
+    const y15 = y1 + 66;
+    const galLeft = Shop.adQuotaLeft(G.wallet, 'gallery');
+    const galFull = (G.wallet.angels | 0) >= Shop.ANGELS.total;
+    {
+      const hw = (L.playW - 48) / 2;
+      const on = galLeft > 0 && !galFull;
+      fillRR(L.playX + 20, y15, hw, 50, 11, on ? '#7c3aed' : 'rgba(255,255,255,0.10)');
+      // ⚠ 两个按钮给的是同一样东西，**必须靠图标一眼分清**「看广告」和「花金币」
+      //   （只有文字时两颗一模一样，实拍抓到）
+      ctx.font = 'bold 12px sans-serif';
+      {
+        const lab = T('blockblast.adGallery', { n: Shop.AD_REWARD.gallery });
+        const lw = ctx.measureText(lab).width;
+        uiIcon('video-ad', '\u{1F4FA}', L.playX + 20 + hw / 2 - lw / 2 - 11, y15 + 18, 15);
+        txtL(lab, L.playX + 20 + hw / 2 - lw / 2, y15 + 18, on ? '#fff' : 'rgba(255,255,255,0.42)', 'bold 12px sans-serif');
+      }
+      txt(T('blockblast.adLeft', { n: galLeft }), L.playX + 20 + hw / 2, y15 + 35, 'rgba(255,255,255,0.6)', '10px sans-serif');
+      if (on) addHit(L.playX + 20, y15, hw, 50, 'AD_GALLERY', {});
+
+      const afford = G.wallet.coins >= Shop.COIN_PRICE.gallery && !galFull;
+      const bx = L.playX + 28 + hw;
+      fillRR(bx, y15, hw, 50, 11, afford ? 'rgba(255,255,255,0.20)' : 'rgba(255,255,255,0.08)');
+      txt(T('blockblast.adGallery', { n: Shop.AD_REWARD.gallery }), bx + hw / 2, y15 + 18,
+          afford ? '#fff' : 'rgba(255,255,255,0.42)', 'bold 12px sans-serif');
+      ctx.font = 'bold 11px sans-serif';
+      const pl = String(Shop.COIN_PRICE.gallery);
+      uiIcon('coin', '\u{1FA99}', bx + hw / 2 - ctx.measureText(pl).width / 2 - 9, y15 + 35, 13);
+      txtL(pl, bx + hw / 2 - ctx.measureText(pl).width / 2 + 2, y15 + 35,
+           afford ? PAL.accent : 'rgba(255,255,255,0.42)', 'bold 11px sans-serif');
+      if (afford) addHit(bx, y15, hw, 50, 'BUY_GALLERY', {});
+    }
 
     // 广告政策直接印在商店页（2026-07-31 定稿：前 50 盘零插屏、之后每 10 盘至多 1 个、只在赢时）——
     // 这是卖点，不是免责声明。IAP 已封存不接（假按钮比没有按钮更伤信任）。
-    const y2 = y1 + 74;
+    const y2 = y15 + 62;
     fillRR(L.playX + 20, y2, L.playW - 40, 66, 12, 'rgba(0,0,0,0.20)');
     ctx.font = '11px sans-serif';
     wrapLines(T('blockblast.adPolicy'), L.playW - 70, 3)
@@ -827,22 +947,11 @@
     backButton();
   }
 
-  // ── 天使图缓存（LRU 上限 64 张）：500 张全解码 ≈ 500MB，低端 WebView 会被杀 ──
-  const ANG_CACHE = new Map();
-  function angImg(i) {
-    const k = 'a' + String(i + 1).padStart(3, '0');
-    let im = ANG_CACHE.get(k);
-    if (!im) {
-      im = new Image();
-      im.src = 'assets/angels/' + k + '.webp';
-      im.onload = () => { if (typeof root.renderAll === 'function') root.renderAll(); };
-      ANG_CACHE.set(k, im);
-      if (ANG_CACHE.size > 64) ANG_CACHE.delete(ANG_CACHE.keys().next().value);   // 淘汰最老的
-    }
-    return im.complete && im.naturalWidth ? im : null;
-  }
+  // ── 天使图：素材是**全仓共享的那一份**（games/snake/assets/angels/），走 engine/angels.js。
+  //    ⛔ 本目录曾拷过一份 26MB 的副本，2026-08-01 删了 —— 别再拷回来（包体积白涨 26MB）。
+  //    缓存/LRU/路径（网页 ../snake/ vs 包内 assets/）全在 engine 那边，这里只管画。
   function drawAngel(i, x, y, w, h, r) {
-    const im = angImg(i);
+    const im = Angels.img(i);
     ctx.save();
     roundRect(x, y, w, h, r);
     ctx.clip();
@@ -892,9 +1001,22 @@
       txt('›', cx + 88, py + 16, '#fff', 'bold 16px sans-serif');
       addHit(cx + 66, py, 44, 32, 'ANG_PAGE', { d: 1 });
     }
+    // 📺 收集加速（每天 3 次）：图鉴页是玩家**主动打开**的界面，转化远高于逼着看的位置
+    {
+      const left = Shop.adQuotaLeft(G.wallet, 'gallery');
+      const on = left > 0 && have < total;
+      fillRR(L.playX + 20, py + 40, L.playW - 40, 38, 11, on ? '#7c3aed' : 'rgba(255,255,255,0.10)');
+      ctx.font = 'bold 12px sans-serif';
+      const lab = T('blockblast.adGallery', { n: Shop.AD_REWARD.gallery });
+      uiIcon('video-ad', '\u{1F4FA}', cx - ctx.measureText(lab).width / 2 - 13, py + 59, 17);
+      txtL(lab, cx - ctx.measureText(lab).width / 2, py + 59,
+           on ? '#fff' : 'rgba(255,255,255,0.42)', 'bold 12px sans-serif');
+      txtR(T('blockblast.adLeft', { n: left }), L.playX + L.playW - 30, py + 59, 'rgba(255,255,255,0.55)', '10px sans-serif');
+      if (on) addHit(L.playX + 20, py + 40, L.playW - 40, 38, 'AD_GALLERY', {});
+    }
     ctx.font = '11px sans-serif';
     wrapLines(T('blockblast.angelHint'), L.playW - 60, 2)
-      .forEach((ln, i) => txt(ln, cx, py + 48 + i * 15, PAL.sub, '11px sans-serif'));
+      .forEach((ln, i) => txt(ln, cx, py + 90 + i * 15, PAL.sub, '11px sans-serif'));
     backButton();
 
     // 大图查看：全屏遮罩 + 居中大图，点任意处关闭
@@ -971,9 +1093,22 @@
       txtR(q.done ? '✓' : q.prog + '/' + q.target, L.playX + L.playW - 28, y + 52,
            q.done ? '#7ef2a0' : PAL.sub, 'bold 12px sans-serif');
     });
+    const qy = GameGlobal.safeTop + 80 + 3 * 96 + 10;
     // 全部完成的小彩蛋文案
     if (qs.every(q => q.done)) {
-      txt('✨ ' + T('blockblast.questAllDone'), cx, GameGlobal.safeTop + 80 + 3 * 96 + 16, '#7ef2a0', 'bold 13px sans-serif');
+      txt('✨ ' + T('blockblast.questAllDone'), cx, qy + 6, '#7ef2a0', 'bold 13px sans-serif');
+    } else {
+      // 📺 任务加速：直接完成一个（奖励与自己打完**完全一致** —— 两条路给的东西必须一样，
+      //    否则「看广告完成」就变成了另一套经济）
+      const left = Shop.adQuotaLeft(G.wallet, 'quest');
+      fillRR(L.playX + 14, qy, L.playW - 28, 40, 11, left > 0 ? '#7c3aed' : 'rgba(255,255,255,0.10)');
+      ctx.font = 'bold 13px sans-serif';
+      const lab = T('blockblast.adQuest');
+      uiIcon('video-ad', '\u{1F4FA}', cx - ctx.measureText(lab).width / 2 - 14, qy + 20, 18);
+      txtL(lab, cx - ctx.measureText(lab).width / 2, qy + 20,
+           left > 0 ? '#fff' : 'rgba(255,255,255,0.42)', 'bold 13px sans-serif');
+      txtR(T('blockblast.adLeft', { n: left }), L.playX + L.playW - 26, qy + 20, 'rgba(255,255,255,0.55)', '10px sans-serif');
+      if (left > 0) addHit(L.playX + 14, qy, L.playW - 28, 40, 'AD_QUEST', {});
     }
     backButton();
   }
@@ -996,14 +1131,86 @@
       ['stStars', p.stars | 0], ['stCrystals', crystals],
       ['stAngels', (w.angels | 0) + '/' + Shop.ANGELS.total], ['stDailyDays', p.dailyDays | 0],
       ['stBestDaily', p.bestDailyStreak | 0], ['stCoins', w.coins | 0],
+      ['stBrilliant', p.brilliants | 0],
+      ['stLevel', 'Lv.' + Meta.levelOf(Achievements.xpOf(p, w.angels))],
     ];
+    // 📉「我的弱点」入口：教练的账本读出口（统计是「我做到了多少」，弱点是「我该练什么」）
+    {
+      const by = GameGlobal.safeTop + 52;
+      fillRR(L.playX + 12, by, L.playW - 24, 30, 9, 'rgba(255,255,255,0.14)');
+      ctx.font = 'bold 12px sans-serif';
+      const lab = T('blockblast.weakTitle');
+      uiIcon('search', '\u{1F50D}', cx - ctx.measureText(lab).width / 2 - 12, by + 15, 15);
+      txtL(lab, cx - ctx.measureText(lab).width / 2, by + 15, '#fff', 'bold 12px sans-serif');
+      addHit(L.playX + 12, by, L.playW - 24, 30, 'PAGE_WEAK', {});
+    }
     const cw = (L.playW - 36) / 2;
     items.forEach(([k, v], i) => {
-      const x = L.playX + 12 + (i % 2) * (cw + 12), y = GameGlobal.safeTop + 58 + Math.floor(i / 2) * 58;
+      const x = L.playX + 12 + (i % 2) * (cw + 12), y = GameGlobal.safeTop + 90 + Math.floor(i / 2) * 58;
       fillRR(x, y, cw, 50, 10, 'rgba(0,0,0,0.20)');
       txt(String(v), x + cw / 2, y + 18, PAL.accent, 'bold 16px sans-serif');
       txt(T('blockblast.' + k), x + cw / 2, y + 38, PAL.sub, '10px sans-serif');
     });
+    backButton();
+  }
+
+  /**
+   * 📉「我的弱点」—— 教练（coach.js）账本的读出口。
+   *
+   * ⭐ 这一页的说服力全在「它不是主观评价」：每一手都拿**和验关卡通关率同一套求解器**
+   *   在你落子前算过一遍最优解，两类失误都是纯逻辑可判定的事实（放着能消的行不消 /
+   *   一手造出 2 个以上孤格），不是「我觉得你打得不好」。
+   * ⚠ 数据不足时**明说数据不足**，绝不硬凑一个诊断（编出来的诊断比没有更伤信任）。
+   */
+  function renderWeak() {
+    clearHits(); layout();
+    const { SW, SH } = GameGlobal, G = root.G, cx = L.cx;
+    const grad = ctx.createLinearGradient(0, 0, SW, SH);
+    grad.addColorStop(0, PAL.bg1); grad.addColorStop(1, PAL.bg2);
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, SW, SH);
+    pageTitle('search', '\u{1F50D}', T('blockblast.weakTitle'), GameGlobal.safeTop + 30);
+
+    const p = G.profile, f = p.faults || {};
+    const rows = [['missLine', f.missLine | 0], ['isolate', f.isolate | 0]];
+    const tot = rows.reduce((a, r) => a + r[1], 0);
+    let y = GameGlobal.safeTop + 64;
+
+    // ✨ 妙手（先说好的：教练不是来骂人的）
+    fillRR(L.playX + 14, y, L.playW - 28, 52, 12, 'rgba(255,224,138,0.16)');
+    uiIcon('sparkle', '✨', L.playX + 40, y + 26, 22);
+    txtL(T('blockblast.stBrilliant'), L.playX + 60, y + 19, '#fff', 'bold 13px sans-serif');
+    txtL(T('blockblast.weakBrilliantSub'), L.playX + 60, y + 36, PAL.sub, '10px sans-serif');
+    txtR(String(p.brilliants | 0), L.playX + L.playW - 28, y + 26, PAL.accent, 'bold 20px sans-serif');
+    y += 64;
+
+    if (tot < 10) {
+      // 数据不足：说清还差多少，别编诊断
+      ctx.font = '12px sans-serif';
+      wrapLines(T('blockblast.weakNeedMore', { n: 10 - tot }), L.playW - 60, 3)
+        .forEach((ln, i) => txt(ln, cx, y + 16 + i * 18, PAL.sub, '12px sans-serif'));
+    } else {
+      const worst = rows.slice().sort((a, b) => b[1] - a[1])[0];
+      const bw = L.playW - 56;
+      rows.forEach(([k, n]) => {
+        const isWorst = k === worst[0];
+        // ⚠ 先量后画：建议是整段话，写死 2 行会被截成「…comes f…」（实拍抓到）
+        ctx.font = '11px sans-serif';
+        const tip = wrapLines(T('blockblast.weakTip.' + k), bw, 4);
+        const h = 52 + tip.length * 14 + 6;
+        fillRR(L.playX + 14, y, L.playW - 28, h, 12, isWorst ? 'rgba(244,63,94,0.18)' : 'rgba(0,0,0,0.20)');
+        txtL(T('blockblast.weak.' + k), L.playX + 28, y + 20, '#fff', 'bold 13px sans-serif');
+        txtR(n + '  (' + Math.round(n / tot * 100) + '%)', L.playX + L.playW - 28, y + 20,
+             isWorst ? '#fda4af' : PAL.sub, 'bold 12px sans-serif');
+        fillRR(L.playX + 28, y + 32, bw, 8, 4, 'rgba(0,0,0,0.30)');
+        fillRR(L.playX + 28, y + 32, Math.max(4, bw * n / tot), 8, 4, isWorst ? '#f43f5e' : PAL.accent);
+        tip.forEach((ln, i) => txtL(ln, L.playX + 28, y + 52 + i * 14, PAL.sub, '11px sans-serif'));
+        y += h + 10;
+      });
+    }
+    // 底注：这套判断的来源（可验证 = 本作的一贯立场）
+    ctx.font = '10px sans-serif';
+    wrapLines(T('blockblast.weakFrom'), L.playW - 60, 3)
+      .forEach((ln, i) => txt(ln, cx, y + 18 + i * 14, 'rgba(255,255,255,0.45)', '10px sans-serif'));
     backButton();
   }
 
@@ -1160,6 +1367,7 @@
     if (G0.phase === 'QUESTS') return renderQuests();
     if (G0.phase === 'STATS') return renderStats();
     if (G0.phase === 'LADDER') return renderLadder();
+    if (G0.phase === 'WEAK') return renderWeak();
     clearHits();
     layout();
     const { SW, SH } = GameGlobal;
@@ -1369,6 +1577,24 @@
       ctx.setLineDash([]);
     }
 
+    // 💡 教练提示（玩家**主动**求助时才出现）：金色脉冲标出最优落点 + 托盘里那一块。
+    //    ⚠ 与上面的 FTUE 指引分开画：那个是前 2 关自动出现的教学，这个是随时可求助的提示，
+    //      同时出现时颜色也要能分辨（绿=教学 / 金=提示）。
+    if (G.coachHint && !s.over && !G.drag) {
+      const h = G.coachHint, hp = tray[h.slot];
+      if (hp) {
+        const pulse = (0.45 + 0.55 * (0.5 + 0.5 * Math.sin(G.animClock * 4))).toFixed(2);
+        ctx.strokeStyle = 'rgba(255,224,138,' + pulse + ')';
+        const tr3 = L.traySlots && L.traySlots[h.slot];
+        if (tr3) { ctx.lineWidth = 3; roundRect(tr3.x - 6, tr3.y - 6, tr3.w + 12, tr3.h + 12, 10); ctx.stroke(); }
+        ctx.lineWidth = 2.5;
+        for (const [dr, dc] of hp.cells) {
+          const { x, y } = cellXY(h.r + dr, h.c + dc);
+          roundRect(x + 2, y + 2, L.cell - 4, L.cell - 4, L.cell * 0.16); ctx.stroke();
+        }
+      }
+    }
+
     // ── 拖拽中的块（浮在指尖上方，尺寸从托盘尺寸**平滑长到**棋盘格尺寸）──
     if (G.drag) {
       const d = G.drag;
@@ -1392,15 +1618,27 @@
     // ── 道具条：撤销 / 换一手。标签直接显示「免费 / 看广告 / 多少金币」——
     //    玩家永远先拿到不花钱的选项（DESIGN §9；原作的撤销要 1300 金币是逼氪价，不学）。
     if (!s.over) {
-      const bw2 = 108, bh2 = 36, gap2 = 10, uy = L.trayY + L.trayH + 6;
+      const gap2 = 8, bh2 = 36, uy = L.trayY + L.trayH + 6;
+      const bw2 = Math.min(108, (L.boardW - gap2 * 2) / 3);
+      // \u7B2C\u4E09\u4E2A\u4F4D\u7F6E**\u4E00\u683C\u4E24\u7528**\uFF08\u540C\u4E00\u4F4D\u7F6E\u3001\u8BED\u4E49\u90FD\u662F\u300C\u5C40\u5185\u589E\u76CA\u300D\u21D2 \u4E0D\u4F1A\u6296\u52A8\uFF09\uFF1A
+      //   \u8FD8\u6CA1\u843D\u5B50 \u21D2 \uD83D\uDE80 \u5F00\u5C40\u793C\u5305\uFF08\u770B\u5E7F\u544A\u6216 200 \u5E01\uFF09\uFF1B\u5DF2\u7ECF\u5F00\u6253 \u21D2 \uD83D\uDCA1 \u6559\u7EC3\u63D0\u793A\uFF08\u6BCF\u5C40\u9996\u6B21\u514D\u8D39\uFF09
+      const boostable = s.stats.turns === 0 && G.items;
+      const boostMode = Shop.adMode(G.wallet, 'boost', Date.now()) !== 'no' ? 'ad'
+                      : (G.wallet.coins >= Shop.COIN_PRICE.boost ? 'coins' : 'no');
+      const hintMode = (G.items && G.items.hintFree > 0) ? 'free' : Shop.adMode(G.wallet, 'hint', Date.now()) === 'no' ? 'no' : 'ad';
       const items = [
         { act: 'UNDO', on: !!s.undo, label: '\u21A9 ' + T('blockblast.undo'),
           mode: Shop.undoMode(G.wallet, G.items), price: Shop.PRICE.undo },
         { act: 'REFRESH', on: true, label: '\u21BB ' + T('blockblast.refresh'),
           mode: Shop.refreshMode(G.wallet, G.items), price: Shop.PRICE.refresh },
+        boostable
+          ? { act: boostMode === 'coins' ? 'BUY_BOOST' : 'AD_BOOST', on: true,
+              label: '\u{1F680} ' + T('blockblast.boost'), mode: boostMode, price: Shop.COIN_PRICE.boost }
+          : { act: 'HINT', on: true, label: '\u{1F4A1} ' + T('blockblast.hint'),
+              mode: hintMode, price: 0 },
       ];
       items.forEach((it, i) => {
-        const x = L.cx - (bw2 * 2 + gap2) / 2 + i * (bw2 + gap2);
+        const x = L.cx - (bw2 * 3 + gap2 * 2) / 2 + i * (bw2 + gap2);
         const usable = it.on && it.mode !== 'no';
         fillRR(x, uy, bw2, bh2, 10, usable ? 'rgba(255,255,255,0.20)' : 'rgba(0,0,0,0.18)');
         txt(it.label, x + bw2 / 2, uy + 12, usable ? '#fff' : 'rgba(255,255,255,0.35)', '11px sans-serif');
@@ -1562,6 +1800,15 @@
       const sweeps = s.stats.sweeps + s.stats.deeps + s.stats.perfects;
       rows.push(row(22, y =>
         txt(T('blockblast.statLine', { a: s.stats.maxStreak, b: sweeps }), cx, y + 11, PAL.sub, '12px sans-serif')));
+      // 🔍 死亡复盘（coach.js）：死亡序列已经证明了「都放不下」，这里回答**为什么会走到这一步**。
+      //    ⚠ 只在真算出「当时换个放法能多活 ≥3 步」时才说 —— 算不出就闭嘴，绝不编故事。
+      if (G.review) {
+        ctx.font = '11px sans-serif';
+        const rv = wrapLines(T('blockblast.reviewLine', { t: G.review.turn, n: G.review.gain }), cw - 44, 2);
+        rows.push(row(rv.length * 15 + 10, y => {
+          rv.forEach((ln, i) => txt(ln, cx, y + 8 + i * 15, '#fda4af', '11px sans-serif'));
+        }));
+      }
       if (G.lastEarn && G.lastEarn.n) rows.push(row(40, y => earnRow(G, y + 3)));   // 得分换金币 + 看广告×2
       if (G.newAngels > 0) rows.push(row(40, y => angelPill(y + 3, G.newAngels)));
       rows.push(row(20, y => txt(T('blockblast.seed', { s: s.seed }), cx, y + 10, 'rgba(255,255,255,0.42)', '11px sans-serif')));

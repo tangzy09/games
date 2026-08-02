@@ -23,6 +23,9 @@ const G = window.G = {
   overAnim: null,                // 死亡序列动画（回放最后几手 → 红色扫盘证明）；null = 不在播
   recentPlaces: [],              // 最近 3 手的落子格（死亡回放用）
   hint: null,                    // FTUE 指引（第 1-2 关首步：{slot,r,c,piece}）
+  coachHint: null,               // 教练提示（玩家主动求助：{slot,r,c}）—— 与上面的 FTUE 是两回事
+  history: [],                   // 最近 3 手**落子前**的局面快照（死亡复盘用；不进存档）
+  review: null,                  // 死亡复盘结论（Coach.postmortem 的产物）
   achPage: 0,                    // 成就页当前页
   skinPage: 0,                   // 皮肤页当前页
   angPage: 0,                    // 天使图鉴当前页
@@ -87,6 +90,9 @@ function resetRunUi() {
   G.overAnim = null;
   G.recentPlaces = [];
   G.hint = null;
+  G.coachHint = null;
+  G.history = [];
+  G.review = null;
   G.newAngels = 0;
   G.repairOffer = null;
   FX.reset();
@@ -159,7 +165,9 @@ function startLevel(id) {
   // 拼块水晶章：开场提示一句（玩家第一次见「水晶长在托盘的块上」）
   if (def.pieceCrystals) {
     requestAnimationFrame(() => {
-      FX.toast(T('blockblast.pieceCryIntro'), Render.L.cx, Render.L.boardY - 24, '#86efac', 'bold 14px sans-serif', 1.5);
+      // ⚠ 画在**棋盘中央**，不是 boardY-24 —— 那一行正是水晶目标条，两者叠在一起谁也看不清（实拍抓到）
+      FX.toast(T('blockblast.pieceCryIntro'), Render.L.cx, Render.L.boardY + Render.L.boardW / 2,
+               '#86efac', 'bold 15px sans-serif', 1.8);
     });
   }
   // ⚠ 别 clearRun()：K_RUN 存的是**无尽模式**的当前局。进一次关卡就把它抹了 = 玩家没打完的
@@ -190,6 +198,7 @@ function useItem(kind) {
     if (kind === 'undo') { if (Core.undo(G.s)) { FX.reset(); Sound.pick(); } }
     else { if (Core.refreshHand(G.s)) { FX.reset(); Sound.pick(); } }
     computeHint();               // 前 2 关：撤销回首步 / 换了一手 ⇒ 指引重算
+    G.coachHint = null;          // 局面变了，刚才那个最优落点已经过期
     saveWallet();
     if (G.s.mode === 'endless') saveRun();
     renderAll();
@@ -203,6 +212,48 @@ function useItem(kind) {
     return;
   }
   apply();
+}
+
+// ════════════════════════════════════════
+// 激励视频统一入口（七个位共用：领币/每日礼物/开局礼包/皮肤/任务/图鉴/结算翻倍）
+//
+// ⛔ 三态一处收敛，别在各 case 里各写一遍（写散了必然漏掉某一条红线）：
+//   · 'no'   今天额度用完 ⇒ 什么也不做（按钮那边本来就画成置灰）
+//   · 'free' 去广告玩家 ⇒ **直接给**（付费玩家不失去功能），但照样吃额度
+//   · 'ad'   看完才给；**拒绝/失败 ⇒ 什么也不发生**（不扣额度、不发奖励、不惩罚）
+// ════════════════════════════════════════
+function adGrant(kind, apply) {
+  const mode = Shop.adMode(G.wallet, kind, Date.now());
+  if (mode === 'no') return;
+  const done = () => {
+    Shop.adUse(G.wallet, kind, Date.now());     // ⚠ 只有**真拿到**才记账
+    apply();
+    saveWallet();
+    renderAll();
+  };
+  if (mode === 'free') { done(); return; }
+  Ads.showRewarded().then(ok => { if (ok) done(); else renderAll(); });
+}
+/** 奖励要看得见 —— 发了什么当场说清楚（看不见的奖励等于没给）*/
+function adToast(text) {
+  FX.toast(text, Render.L.cx, GameGlobal.SH * 0.42, '#ffe08a', 'bold 20px sans-serif', 1.4);
+  Sound.sweep('sweep');
+  if (Haptics.medium) Haptics.medium(); else Haptics.light();
+}
+/** 开局礼包只在「这一局还没落子」时给（它是开局礼包，不是随时补给）*/
+function canBoost() {
+  const s = G.s;
+  return !!(G.phase === 'PLAYING' && s && !s.over && s.stats.turns === 0 && G.items);
+}
+/**
+ * 下一款可被广告解锁的皮肤：**先给盘数款**（本来就是白送的，只是提前），没有了才给金币款。
+ * ⛔ 星星皮肤永远不进这个池子 —— 星星是三星通关的兑现，卖掉它等于把关卡奖励作废。
+ */
+function nextLockedSkin() {
+  const stars = Object.values(G.progress).reduce((a, v) => a + v, 0);
+  const owned = G.wallet.themes || [], games = G.wallet.gamesPlayed | 0;
+  const lockedOf = key => Themes.THEMES.filter(t => t[key] != null && !Themes.isUnlocked(t, stars, owned, games));
+  return lockedOf('games')[0] || lockedOf('coins')[0] || null;
 }
 
 /** 新解锁的成就：弹一条 toast（不打断玩法）*/
@@ -365,6 +416,7 @@ function consume(events) {
         const prologue = Math.min(G.recentPlaces.length, 3) * 0.3;
         G.overAnim = { t: 0, prologue, per: 0.55, n: remN, total: prologue + remN * 0.55 + 0.2 };
       }
+      scheduleReview();     // 「其实第 N 手换个放法还能再走 X 步」——算得出才说
       // ⚠ 只有**无尽模式**的结束才动最高分和 K_RUN：
       //    关卡失败也会走 'over'，若不门控，关卡的分数会污染无尽的最高分、还会抹掉无尽存档。
       if (s.mode === 'endless') {
@@ -643,15 +695,94 @@ function dispatch(action, data) {
       else if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done).catch(() => renderAll());
       return;
     }
+    case 'HINT': {
+      // 💡 教练提示 = **这一手的最优落点**（Coach 用当前盘面 + 公开块流现算，不是启发式口号）。
+      //    每局第一次免费；之后看广告（每天 3 次）。⛔ 拒绝 ⇒ 什么也不发生。
+      if (G.phase !== 'PLAYING' || !G.s || G.s.over) return;
+      const give = () => {
+        const m = Coach.best(G.s);
+        if (!m) return;
+        G.coachHint = { slot: m.slot, r: m.r, c: m.c };
+        Sound.pick();
+      };
+      if (G.items && G.items.hintFree > 0) { G.items.hintFree--; give(); break; }
+      adGrant('hint', give);
+      return;
+    }
+    case 'PAGE_WEAK': G.phase = 'WEAK'; break;         // 「我的弱点」：教练账本的读出口
     case 'UNDO': useItem('undo'); return;              // 走 Shop 的三段阶梯（免费/广告/金币）
     case 'REFRESH': useItem('refresh'); return;
     case 'PAGE_SHOP': G.phase = 'SHOP'; break;
     case 'AD_COINS':
-      Ads.showRewarded().then(rewarded => {
-        if (rewarded) { Shop.earnAd(G.wallet); saveWallet(); }   // 拒绝 ⇒ 什么也不发生
-        renderAll();
+      adGrant('coins', () => {
+        Shop.earnAd(G.wallet);
+        adToast('+' + Shop.AD_REWARD.coins + '\u{1FA99}');
       });
       return;
+    case 'AD_GIFT':
+      // 🎁 每日礼物（HOME，每天一次）——最轻的回访理由：进来点一下就有东西拿
+      adGrant('gift', () => {
+        const r = Shop.grantGift(G.wallet);
+        adToast('\u{1F381} +' + r.coins + '\u{1FA99}' + (r.angels ? '  +' + r.angels + '\u{1F47C}' : ''));
+      });
+      return;
+    case 'AD_BOOST':
+      // 🚀 开局礼包：只在**这一局还没落子**时给（它是「开局」礼包，不是随时补给）
+      if (!canBoost()) return;
+      adGrant('boost', () => {
+        Shop.grantBoost(G.items);
+        adToast('\u{1F680} +' + Shop.AD_REWARD.boost.undo + '\u{21B6}  +' + Shop.AD_REWARD.boost.refresh + '\u{27F3}');
+      });
+      return;
+    case 'BUY_BOOST':
+      // 不想看广告的人的出口（也是金币的去处）
+      if (!canBoost()) return;
+      if (Shop.buyWithCoins(G.wallet, 'boost')) {
+        Shop.grantBoost(G.items);
+        saveWallet();
+        adToast('\u{1F680} +' + Shop.AD_REWARD.boost.undo + '\u{21B6}  +' + Shop.AD_REWARD.boost.refresh + '\u{27F3}');
+      }
+      break;
+    case 'AD_SKIN':
+      // 🎨 皮肤解锁：看广告直接永久解锁一款未解锁的金币皮肤（每天 1 款）
+      if (!nextLockedSkin()) return;
+      adGrant('skin', () => {
+        const t = nextLockedSkin();
+        if (!t) return;
+        if (!Array.isArray(G.wallet.themes)) G.wallet.themes = [];
+        G.wallet.themes.push(t.id);
+        G.theme = t.id;                       // 解锁即穿上（所见即所得）
+        Render.applyTheme(t.id);
+        try { Platform.storage.set(K_THEME(), t.id); } catch (e) {}
+        adToast('\u{1F3A8} ' + T('blockblast.theme.' + t.id));
+      });
+      return;
+    case 'AD_QUEST':
+      // 📋 任务加速：直接完成一个今日任务（奖励与自己打完**完全一致**）
+      adGrant('quest', () => {
+        const q = Quests.forceComplete(G.profile, Daily.dayNo(new Date()));
+        if (!q) return;
+        G.wallet.coins += Quests.REWARD.coins;
+        Shop.earnAngels(G.wallet, Quests.REWARD.angels);
+        saveProfile();
+        adToast('\u{1F4CB} +' + Quests.REWARD.coins + '\u{1FA99}  +' + Quests.REWARD.angels + '\u{1F47C}');
+      });
+      return;
+    case 'AD_GALLERY':
+      // 👼 图鉴加速：+5 张画像（长线收集的加速器，纯外观、不碰玩法）
+      adGrant('gallery', () => {
+        const n = Shop.grantGallery(G.wallet);
+        adToast('\u{1F47C} +' + n);
+      });
+      return;
+    case 'BUY_GALLERY':
+      if ((G.wallet.angels | 0) >= Shop.ANGELS.total) return;
+      if (Shop.buyWithCoins(G.wallet, 'gallery')) {
+        const n = Shop.grantGallery(G.wallet);
+        saveWallet();
+        adToast('\u{1F47C} +' + n);
+      }
+      break;
     case 'SHOW_GC':
       GC.show(data && data.board);
       return;
@@ -661,10 +792,53 @@ function dispatch(action, data) {
 }
 function onPlace(slot, r, c) {
   G.scoreBefore = G.s.score;                  // 天使榜局中超越检测要「落子前的分」
+  // 教练：评价和复盘都要**落子前**的局面 ⇒ 先拍快照、先判分，再真的落子
+  const snap = Coach.clone(G.s);
+  const verdict = Coach.judge(G.s, { slot, r, c });
   const evs = Core.place(G.s, slot, r, c);
-  if (evs) Shop.onTurn(G.items);            // 每落一子给「换一手」充能
+  if (evs) {
+    Shop.onTurn(G.items);                     // 每落一子给「换一手」充能
+    noteCoach(snap, { slot, r, c }, verdict);
+  }
   consume(evs);
   renderAll();
+}
+
+/**
+ * 记一手的教练账（DESIGN §2 的延伸：不但要「失败可归因」，还要「赢在哪、错在哪」可归因）。
+ * ⛔ 只在**妙手**时出声。失误一律静默记账 ——「每一手都点评」的教练是烦人精，不是教练；
+ *    失误的用途是死亡复盘那一句话 + 「我的弱点」页，不是当场戳玩家。
+ */
+function noteCoach(snap, mv, verdict) {
+  G.coachHint = null;                         // 落了子，提示作废
+  G.history.push({ s: snap, mv, turn: snap.stats.turns + 1 });
+  if (G.history.length > 3) G.history.shift();
+  if (!verdict) return;
+  if (verdict.grade === 'brilliant') {
+    G.profile.brilliants = (G.profile.brilliants || 0) + 1;
+    FX.toast('✨ ' + T('blockblast.brilliant'), Render.L.cx, Render.L.boardY - 24,
+             '#ffe08a', 'bold 17px sans-serif', 1.1);
+    saveProfile();
+  } else if (verdict.grade === 'miss' && verdict.tag) {
+    if (!G.profile.faults) G.profile.faults = { missLine: 0, isolate: 0 };
+    G.profile.faults[verdict.tag] = (G.profile.faults[verdict.tag] || 0) + 1;
+    saveProfile();
+  }
+}
+
+/**
+ * 死亡复盘：死亡序列已经证明了「剩下的每一块确实都放不下」，这里回答**为什么会走到这一步**。
+ * ⚠ 异步跑（几百毫秒的模拟），趁死亡动画播放期间算完；算不出「其实还有救」就**不编故事**。
+ */
+function scheduleReview() {
+  G.review = null;
+  const hist = G.history.slice();
+  if (!hist.length) return;
+  setTimeout(() => {
+    // ⚠ 参数是量过的：单测里 judge≈0ms、这一次复盘≈3ms（死亡序列本身要播 1-2s）⇒ 深一点也无感
+    try { G.review = Coach.postmortem(hist, { top: 4, limit: 20, min: 3 }); } catch (e) { G.review = null; }
+    renderAll();
+  }, 50);
 }
 
 // ── 主循环：只在「有动画 / 正在拖拽 / 有脉冲状态」时逐帧重画，静止时不烧电 ──
@@ -704,6 +878,10 @@ async function boot() {
   // Game Center / 推送提醒 / 反馈补发：原生才生效，web 静默 no-op；不 await —— 不阻塞首屏。
   GC.signIn();
   FB.flush();
+  // 天使画像的 manifest（共享素材，engine/angels.js）：**这里只开始下载、绝不 renderAll**
+  // —— 此时 initCanvas() 还没跑，ctx 不存在（E2E 抓到：`createLinearGradient of undefined`）。
+  // 补帧放在 boot 末尾（load 幂等，第二次调用拿的是同一个 promise）。
+  Angels.load();
   I18N.onChange(() => { Controls.render(); renderAll(); });
   await I18N.setLang(I18N.detect());
   initCanvas();
@@ -747,7 +925,8 @@ async function boot() {
   Notify.reschedule(G.opts, G.profile);    // 每日/streak 提醒（要 profile 就位后才能排，故放 boot 尾部）
   Controls.render();
   renderAll();
-  if (qseed !== null) {          // 挑战局开场提示（toast 依赖 renderAll 先把布局算出来）
+  Angels.load().then(() => renderAll());     // manifest 到了补一帧（此时 ctx 已就位）
+  if (qseed !== null) {        // 挑战局开场提示（toast 依赖 renderAll 先把布局算出来）
     FX.toast(T('blockblast.challengeRun'), Render.L.cx, Render.L.boardY - 24, '#ffd6e7', 'bold 15px sans-serif', 1.5);
   }
   requestAnimationFrame(loop);

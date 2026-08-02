@@ -118,7 +118,11 @@
       "gold": "Gold",
       "rose": "Rose",
       "grape": "Traube",
-      "slate": "Schiefer"
+      "slate": "Schiefer",
+      "aurora": "Aurora",
+      "volcano": "Vulkan",
+      "galaxy": "Galaxie",
+      "cotton": "Zuckerwatte"
     },
     "coins": "{n}",
     "refresh": "Neue Steine",
@@ -235,6 +239,36 @@
     "ladderYou": "Dein Rekord: {n}",
     "shareSeedTip": "Seed #{n} — installiere die App und gib diesen Seed ein, um exakt denselben Blockstrom zu bekommen.",
     "angelsGot": "{n} / {m} gesammelt",
-    "homePlay": "Spielen"
+    "homePlay": "Spielen",
+    "rank": {
+      "t1": "Neuling",
+      "t2": "Baumeister",
+      "t3": "Taktiker",
+      "t4": "Stratege",
+      "t5": "Großmeister",
+      "t6": "Legende"
+    },
+    "brilliant": "Glanzzug!",
+    "adSkin": "Skin freischalten",
+    "adLeft": "Heute noch {n}",
+    "adGallery": "+{n} Engel",
+    "adQuest": "Aufgabe abschließen",
+    "boost": "Startpaket",
+    "hint": "Tipp",
+    "weakTitle": "Meine Schwächen",
+    "weakBrilliantSub": "Bester möglicher Zug",
+    "weakNeedMore": "Spiele noch {n} Züge, dann kann dir der Coach sagen, was du üben solltest.",
+    "weak": {
+      "missLine": "Verpasste Reihen",
+      "isolate": "Erzeugte Sackgassen"
+    },
+    "weakTip": {
+      "missLine": "Es gab einen Platz, der eine Reihe geräumt hätte, du hast woanders gesetzt. Räumen hält die Serie am Leben, und aus der Serie kommen die Punkte.",
+      "isolate": "Dieser Zug hat einzelne Felder eingeschlossen. Ein Loch mit vier Wänden füllt nur ein 1x1-Teil, und die kommen selten."
+    },
+    "weakFrom": "Bewertet vom selben Solver, der prüft, dass jedes Level lösbar ist. Er sieht nur dein Feld und den öffentlichen Teilestrom.",
+    "reviewLine": "Zug {t}: An einer anderen Stelle hätte es {n} Züge länger gehalten.",
+    "stBrilliant": "Glanzzüge",
+    "stLevel": "Stufe"
   }
 }

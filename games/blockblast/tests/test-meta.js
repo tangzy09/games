@@ -253,3 +253,45 @@ const Daily = require('../js/daily.js');
   assert(fresh.includes('daily7'), '连续 7 天');
   console.log('test-meta: 成就 × 关卡/每日 联动 OK');
 }
+
+// ════════ 等级 / 称号（engine/meta.js + Achievements.xpOf）════════
+{
+  const Meta = require('../../../engine/meta.js');
+  const Achievements = require('../js/achievements.js');
+  const p = Achievements.emptyProfile();
+  assert.strictEqual(Achievements.xpOf(p, 0), 0, '新档从 0 开始');
+  assert.strictEqual(Meta.levelOf(0), 1);
+  // xp 只吃既有计数器，权重按「有多难」排
+  p.turns = 143; p.lines = 30;
+  const oneGame = Achievements.xpOf(p, 1);
+  assert(oneGame > 200 && oneGame < 400, '中位一局（143 落子 / 30 消行）应该给几百 xp，实得 ' + oneGame);
+  // 曲线单调 + 尾部够长（尾部太短 = 一周就顶级，等级就没了意义）
+  for (let l = 1; l < 30; l++) assert(Meta.xpNeed(l + 1) > Meta.xpNeed(l), '升级门槛必须单调递增');
+  assert(Meta.levelOf(oneGame * 40) >= 10, '40 局左右应该到两位数等级');
+  assert(Meta.levelOf(oneGame * 40) < 25, '40 局不该封顶（尾部要留几个月的空间）');
+  // 进度条两端自洽
+  const lp = Meta.levelProgress(oneGame * 40);
+  assert(lp.cur >= 0 && lp.cur <= lp.span && lp.pct >= 0 && lp.pct <= 1);
+  assert.strictEqual(lp.title, Meta.titleKey(lp.level));
+  assert.strictEqual(Meta.TITLES.length, 6, '六档称号（locales 的 rank.t1..t6 必须一一对应）');
+  console.log('test-meta: 等级 / 称号 OK');
+}
+
+// ════════ 任务加速：与自己打完的**奖励口径完全一致**（否则是第二套经济）════════
+{
+  const Quests = require('../js/quests.js');
+  const Achievements = require('../js/achievements.js');
+  const p = Achievements.emptyProfile();
+  const day = 20260801;
+  const q1 = Quests.forceComplete(p, day);
+  assert(q1, '有未完成任务时必须能完成一个');
+  const st = Quests.status(p, day);
+  assert.strictEqual(st.filter(q => q.done).length, 1);
+  assert.strictEqual(st.find(q => q.done).prog, st.find(q => q.done).target, '进度必须写满（不能只标 done）');
+  Quests.forceComplete(p, day); Quests.forceComplete(p, day);
+  assert.strictEqual(Quests.status(p, day).filter(q => q.done).length, 3);
+  assert.strictEqual(Quests.forceComplete(p, day), null, '全完成后返回 null（不许重复发奖）');
+  // 再 bump 已完成的任务不该再次「完成」
+  assert.strictEqual(Quests.bump(p, day, st[0].t, 999).length, 0);
+  console.log('test-meta: 任务加速 OK');
+}

@@ -54,6 +54,37 @@
       accent: '#ffd6e7',
       blocks: ['#e11d48', '#fb7185', '#f9a8d4', '#f472b6', '#c084fc', '#fda4af', '#fbbf24'],
     },
+    // ── 高价位金币皮肤（2026-08-01 加）：老玩家的金币**必须有地方去**。
+    //    原来只有 neon/sakura 两款（2000 币封顶），玩到中期金币就开始溢出 ——
+    //    溢出的货币 = 死货币，「看广告领币」那个位当场变成没人点的死位。
+    {
+      id: 'aurora', coins: 1600,
+      bg1: '#0b2d3a', bg2: '#125c62',
+      boardBg: 'rgba(2,24,32,0.52)', cellEmpty: 'rgba(255,255,255,0.08)',
+      accent: '#99f6e4',
+      blocks: ['#2dd4bf', '#22d3ee', '#38bdf8', '#a78bfa', '#4ade80', '#f0abfc', '#fde047'],
+    },
+    {
+      id: 'volcano', coins: 2000,
+      bg1: '#3f0d0d', bg2: '#7f1d1d',
+      boardBg: 'rgba(30,4,4,0.52)', cellEmpty: 'rgba(255,255,255,0.08)',
+      accent: '#fdba74',
+      blocks: ['#f87171', '#ef4444', '#f97316', '#fbbf24', '#fca5a5', '#dc2626', '#fde68a'],
+    },
+    {
+      id: 'galaxy', coins: 2600,
+      bg1: '#160b34', bg2: '#3b1d78',
+      boardBg: 'rgba(6,2,22,0.55)', cellEmpty: 'rgba(255,255,255,0.07)',
+      accent: '#c4b5fd',
+      blocks: ['#818cf8', '#a78bfa', '#c084fc', '#e879f9', '#38bdf8', '#f472b6', '#fef08a'],
+    },
+    {
+      id: 'cotton', coins: 3200,
+      bg1: '#b0568c', bg2: '#e8a7cd',
+      boardBg: 'rgba(70,20,52,0.48)', cellEmpty: 'rgba(255,255,255,0.10)',
+      accent: '#fff1f2',
+      blocks: ['#fda4af', '#f9a8d4', '#d8b4fe', '#a5b4fc', '#99f6e4', '#fde68a', '#fbcfe8'],
+    },
     // ── 盘数皮肤（`games` 字段 = 玩满 N 盘解锁，输赢都算）——「很容易收集到」的一档：
     //    2~40 盘的阶梯，头几天几乎每天都有新皮肤开，白送的持续正反馈。──
     { id: 'lavender', games: 2, bg1: '#7c6bb8', bg2: '#a394d6', boardBg: 'rgba(40,26,74,0.45)', cellEmpty: 'rgba(255,255,255,0.07)', accent: '#ffe9a8',
@@ -79,10 +110,14 @@
   ];
 
   const byId = id => THEMES.find(t => t.id === id) || THEMES[0];
-  /** 三条解锁赛道：星星（stars 字段）/ 金币（coins 字段，认钱包已购）/ 盘数（games 字段，玩满即开）*/
+  /**
+   * 三条解锁赛道：星星（stars 字段）/ 金币（coins 字段，认钱包已购）/ 盘数（games 字段，玩满即开）。
+   * ⚠ 盘数皮肤**也认 owned**：激励视频「皮肤解锁」位会把还没玩够盘数的那款提前塞进 owned
+   *   （广告只提前给外观，绝不绕过星星赛道 —— 星星是三星通关的兑现，不卖）。
+   */
   const isUnlocked = (t, stars, owned, games) =>
     (t.coins ? !!owned && owned.includes(t.id)
-      : t.games != null ? (games | 0) >= t.games
+      : t.games != null ? ((games | 0) >= t.games || (!!owned && owned.includes(t.id)))
       : stars >= t.stars);
   const unlockedList = (stars, owned, games) => THEMES.filter(t => isUnlocked(t, stars, owned, games));
 

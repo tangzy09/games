@@ -118,7 +118,11 @@
       "gold": "Oro",
       "rose": "Rosa",
       "grape": "Uva",
-      "slate": "Pizarra"
+      "slate": "Pizarra",
+      "aurora": "Aurora",
+      "volcano": "Volcán",
+      "galaxy": "Galaxia",
+      "cotton": "Algodón de azúcar"
     },
     "coins": "{n}",
     "refresh": "Nuevas piezas",
@@ -235,6 +239,36 @@
     "ladderYou": "Tu récord: {n}",
     "shareSeedTip": "Semilla n.º {n}: instala la app e introduce esta semilla para obtener exactamente la misma secuencia de piezas.",
     "angelsGot": "{n} / {m} coleccionados",
-    "homePlay": "Jugar"
+    "homePlay": "Jugar",
+    "rank": {
+      "t1": "Novato",
+      "t2": "Constructor",
+      "t3": "Táctico",
+      "t4": "Estratega",
+      "t5": "Gran maestro",
+      "t6": "Leyenda"
+    },
+    "brilliant": "¡Jugada brillante!",
+    "adSkin": "Desbloquear un tema",
+    "adLeft": "Quedan {n} hoy",
+    "adGallery": "+{n} ángeles",
+    "adQuest": "Completar una misión",
+    "boost": "Impulso",
+    "hint": "Pista",
+    "weakTitle": "Mis puntos débiles",
+    "weakBrilliantSub": "Mejor jugada posible",
+    "weakNeedMore": "Juega {n} movimientos más y el entrenador podrá decirte qué practicar.",
+    "weak": {
+      "missLine": "Líneas desaprovechadas",
+      "isolate": "Huecos muertos creados"
+    },
+    "weakTip": {
+      "missLine": "Tenías una posición que completaba una línea y jugaste en otro sitio. Completar líneas mantiene la racha, y la racha es de donde sale la puntuación.",
+      "isolate": "Esa jugada dejó celdas vacías aisladas. Un hueco rodeado por los cuatro lados solo lo llena una pieza de 1x1, y salen pocas."
+    },
+    "weakFrom": "Evaluado por el mismo solucionador que verifica que cada nivel se puede ganar. Solo ve tu tablero y la secuencia pública de piezas.",
+    "reviewLine": "Jugada {t}: otra posición allí habría durado {n} movimientos más.",
+    "stBrilliant": "Jugadas brillantes",
+    "stLevel": "Nivel"
   }
 }
