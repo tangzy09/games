@@ -12,7 +12,21 @@
 <div id="controls"></div>
 
 <script>
-  window.GAME_CONFIG = { id: 'c4', languages: ['en', 'zh-CN'] };
+  window.GAME_CONFIG = {
+    id: 'c4', languages: ['en', 'zh-CN'],
+    // ⛔ 全部由 tools/gen-sfx.js **合成**（npm run gen:c4sfx），零外部素材：
+    //    实体玩具那声「咔嗒」属于孩之宝的 trade dress（DESIGN §6.3 / §0.1）。
+    // ⭐ land0..land5 是**六个**音，随落点深度变调（land0 = 最底行 = 最低音）。
+    //    门禁 tests/test-sfx.js 会解 wav 反查基频，确认梯子真的在。
+    sfx: {
+      drop: 'assets/audio/drop.wav',
+      land0: 'assets/audio/land0.wav', land1: 'assets/audio/land1.wav',
+      land2: 'assets/audio/land2.wav', land3: 'assets/audio/land3.wav',
+      land4: 'assets/audio/land4.wav', land5: 'assets/audio/land5.wav',
+      fork: 'assets/audio/fork.wav', win: 'assets/audio/win.wav',
+      lose: 'assets/audio/lose.wav', undo: 'assets/audio/undo.wav',
+    },
+  };
 </script>
 <!-- ⚠ engine/ 也必须带缓存版本号 —— 另外四个游戏一直是这么写的，只有本文件（T1）漏了。
      ⛔ 漏了要命：T3 刚给 engine/input.js 加了按住预览三件套，老玩家命中旧缓存 =

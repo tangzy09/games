@@ -8,6 +8,10 @@
 *.png -text
 *.jpg -text
 *.mp3 -text
+# wav 更危险：里面**大量** 0x0A（16bit PCM 的采样字节天然会撞上），而它又常常
+# 不含足够的 NUL 让 git 自动判成二进制 ⇒ 一次 CRLF 转换就把波形改了、data 块长度
+# 与文件大小对不上，播出来是噼啪声或干脆不播。钉死。
+*.wav -text
 *.mp4 -text
 *.aab -text
 *.ipa -text

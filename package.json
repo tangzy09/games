@@ -19,6 +19,8 @@
     "test:c4:worker": "node games/connect4/tests/e2e-worker.cjs",
     "test:c4:render": "node games/connect4/tests/e2e-render.cjs",
     "test:c4:e2e": "node games/connect4/tests/e2e-p2a.cjs",
+    "test:c4:sfx": "node games/connect4/tests/test-sfx.js",
+    "gen:c4sfx": "node games/connect4/tools/gen-sfx.js",
     "gen:c4book": "node games/connect4/tools/gen-book.js --ply=10",
     "verify:c4book": "node games/connect4/tests/test-book.js --k=400",
     "verify:c4truth": "node games/connect4/tools/test-truth.js",
