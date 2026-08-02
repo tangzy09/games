@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<!-- snake App Preview 舞台页（886×1920 = App Store 6.7" 预览片槽位）
+     照 language-study 的 preview 管线做：iframe 装真 app（443×960 ×2 放大），
+     用 window.eval 驱动真实游戏状态，外层叠字幕/转场/彩纸/结尾卡。
+     ⭐ 关键：**开 AI 代打让它真的自己玩** —— 蛇真的在走、真的在揭图，
+        比手工摆盘面真实得多（这游戏本来就自带免费 AI，零作弊）。
+     window.__done=true 时录制结束；window.__sfx 是给 mux 铺音轨的时间戳。 -->
+<html>
+<head>
+<meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;background:#FDF0F6;width:886px;height:1920px;overflow:hidden;
+            font-family:'Baloo 2',sans-serif}
+  #appwrap{position:absolute;left:0;top:0;width:886px;height:1920px;overflow:hidden}
+  #app{width:443px;height:960px;border:0;transform:scale(2);transform-origin:0 0}
+  /* 进度点 */
+  #dots{position:absolute;top:26px;left:0;right:0;display:flex;justify-content:center;gap:14px;z-index:30}
+  #dots i{width:16px;height:16px;border-radius:50%;background:rgba(224,80,140,.22);transition:.3s}
+  #dots i.on{background:#e0508c;transform:scale(1.25)}
+  /* 黑幕：盖住 app 初始化预滚，t0 掀开（mux 再按 blackdetect 切头） */
+  #cover{position:absolute;inset:0;background:#000;z-index:200}
+  /* 字幕：半透明底板，压在任何画面上都干净 */
+  #cap{position:absolute;left:40px;right:40px;bottom:120px;z-index:40;text-align:center;
+       font-size:62px;font-weight:800;color:#fff;line-height:1.28;
+       -webkit-text-stroke:3px #4a2740;paint-order:stroke fill;text-shadow:0 6px 24px rgba(74,39,64,.35);
+       background:rgba(74,39,64,.32);border-radius:30px;padding:20px 26px;backdrop-filter:blur(4px)}
+  #cap .w{display:inline-block;opacity:0;transform:translateY(24px) scale(.8);animation:pop .3s forwards}
+  @keyframes pop{to{opacity:1;transform:none}}
+  #cap .hl{display:inline-block;padding:2px 20px;border-radius:18px;transform:rotate(-2deg);
+           -webkit-text-stroke:0;color:#fff}
+  #cap .hl.p{background:#e0508c}#cap .hl.y{background:#f5b800;color:#4a2740}#cap .hl.g{background:#2fa46b}
+  /* 天使飞过转场 */
+  #angel{position:absolute;top:42%;left:-340px;width:300px;z-index:50;border-radius:40px;
+         filter:drop-shadow(0 12px 34px rgba(224,80,140,.45))}
+  #angel.fly{animation:fly .6s ease-in forwards}
+  @keyframes fly{0%{left:-340px;transform:rotate(-8deg)}100%{left:1006px;transform:rotate(10deg)}}
+  /* 彩纸 */
+  .cf{position:absolute;width:18px;height:26px;z-index:45;opacity:0}
+  @keyframes cfall{0%{opacity:1;transform:translate(0,0) rotate(0)}100%{opacity:0;transform:translate(var(--dx),var(--dy)) rotate(var(--rr))}}
+  /* 贴纸 */
+  #stick{position:absolute;top:33%;left:50%;transform:translateX(-50%) scale(0);z-index:46;
+         background:#2fa46b;color:#fff;font-size:66px;font-weight:800;padding:14px 46px;border-radius:999px;
+         box-shadow:0 12px 40px rgba(47,164,107,.45)}
+  #stick.show{animation:stick .5s forwards}
+  @keyframes stick{0%{transform:translateX(-50%) scale(0) rotate(-12deg)}
+                   70%{transform:translateX(-50%) scale(1.15) rotate(3deg)}
+                   100%{transform:translateX(-50%) scale(1) rotate(-2deg)}}
+  /* 结尾卡 */
+  #end{position:absolute;inset:0;z-index:60;display:none;align-items:center;justify-content:center;
+       flex-direction:column;gap:34px;background:rgba(253,240,246,.62);backdrop-filter:blur(6px)}
+  #end img{width:320px;height:320px;border-radius:72px;box-shadow:0 20px 60px rgba(224,80,140,.42);transform:scale(0)}
+  #end.show{display:flex}
+  #end.show img{animation:stick .6s forwards}
+  #end .star{position:absolute;font-size:60px;opacity:0;animation:pop .4s forwards}
+  #endcap{font-size:74px;font-weight:800;color:#fff;-webkit-text-stroke:3px #4a2740;paint-order:stroke fill;
+          text-shadow:0 6px 24px rgba(74,39,64,.35);text-align:center;line-height:1.2}
+  #endsub{font-size:44px;font-weight:800;color:#fff;background:#e0508c;padding:12px 44px;border-radius:999px;
+          box-shadow:0 10px 34px rgba(224,80,140,.45)}
+  /* 玩法幕的品牌带（盖住 canvas 画的 AI 按钮；盘面在它上方，绝不遮挡） */
+  #lower{position:absolute;left:0;right:0;top:1105px;height:170px;z-index:35;display:none;
+         align-items:center;justify-content:center;
+         background:linear-gradient(180deg,rgba(253,240,246,0) 0%,#FDF0F6 22%,#FDF0F6 78%,rgba(253,240,246,0) 100%)}
+  #lower span{font-size:54px;font-weight:800;color:#d2497f;letter-spacing:1px;
+              text-shadow:0 4px 18px rgba(224,80,140,.25)}
+  #lower.on{display:flex}
+</style>
+</head>
+<body>
+<div id="appwrap"><iframe id="app" src="/games/snake/index.html"></iframe></div>
+<!-- 玩法幕的下三分之一压一条品牌带：盖住底部那颗按钮（AI 代打开关是 canvas 画的，CSS 藏不掉），
+     顺便当 lower-third。⚠ 只盖按钮区，**绝不盖盘面**——盘面是这片子的全部内容。 -->
+<div id="lower"><span>Angel Snake</span></div>
+<div id="cover"></div>
+<div id="dots"><i></i><i></i><i></i><i></i><i></i></div>
+<div id="cap" style="display:none"></div>
+<img id="angel" src="">
+<div id="stick">3 ★</div>
+<div id="end"><img src="/games/snake/resources/icon.png">
+  <div id="endcap">500 angels.<br>One snake.</div>
+  <div id="endsub">Snake Angel · free to play</div>
+</div>
+
+<script>
+window.__caps = []; window.__sfx = [];
+let t0 = 0;
+const $ = s => document.querySelector(s);
+const ifr = $('#app');
+const E = code => { try { return ifr.contentWindow.eval(code); } catch (e) { console.error('E:', code, e); } };
+const sfx = (t, type) => window.__sfx.push({ t, type });
+
+function cap(html) {
+  const el = $('#cap');
+  el.style.display = html ? '' : 'none';
+  if (!html) { el.innerHTML = ''; return; }
+  // ⚠ 高亮块可以含空格（{g:it is yours}）⇒ **先整体切出高亮段**再逐词包 .w。
+  //   老写法「按空格拆完再匹配 ^{g:...}$」对多词高亮永远匹配不上，
+  //   片子里会原样出现 `{g:it is yours forever}`（实拍抓到）。
+  const parts = html.split(/(\{[gyp]:[^}]+\})/).filter(Boolean);
+  let wi = 0, out = '';
+  for (const part of parts) {
+    const m = part.match(/^\{(g|y|p):([^}]+)\}$/);
+    if (m) {
+      out += '<span class="w" style="animation-delay:' + (wi++) * 0.09 + 's">'
+           + '<span class="hl ' + m[1] + '">' + m[2] + '</span></span> ';
+    } else {
+      out += part.trim().split(/\s+/).filter(Boolean)
+        .map(w => '<span class="w" style="animation-delay:' + (wi++) * 0.09 + 's">' + w + '</span>')
+        .join(' ') + ' ';
+    }
+  }
+  el.innerHTML = out;
+  window.__caps.push({ t: (performance.now() - t0) / 1000, text: html.replace(/\{(g|y|p):(.+?)\}/g, '$2') });
+}
+function dot(n) { document.querySelectorAll('#dots i').forEach((d, i) => d.classList.toggle('on', i <= n)); }
+function angel(file) {
+  const a = $('#angel');
+  if (file) a.src = '/games/snake/assets/angels/' + file;
+  a.classList.remove('fly'); void a.offsetWidth; a.classList.add('fly');
+}
+function confetti() {
+  const colors = ['#e0508c', '#f5b800', '#2fa46b', '#4aa3df', '#b678e0'];
+  for (let i = 0; i < 28; i++) {
+    const c = document.createElement('div'); c.className = 'cf';
+    c.style.background = colors[i % 5];
+    c.style.left = (360 + Math.random() * 160) + 'px'; c.style.top = '640px';
+    c.style.setProperty('--dx', (Math.random() * 700 - 350) + 'px');
+    c.style.setProperty('--dy', (420 + Math.random() * 520) + 'px');
+    c.style.setProperty('--rr', (Math.random() * 720 - 360) + 'deg');
+    c.style.animation = `cfall ${0.9 + Math.random() * 0.5}s ease-out forwards`;
+    document.body.appendChild(c);
+  }
+}
+
+// ===== 时间轴（总长 ~24s，App Store 预览片要求 15–30s）=====
+const T = [
+  // S1 0–5.5 真实玩法：AI 代打自己走，天使图一格格被揭开
+  [0.0, () => { dot(0); $('#lower').classList.add('on'); cap('500 angels hidden {p:under the grid}'); }],
+  [4.6, () => { cap('Every tile you cross {y:reveals the art}'); }],
+
+  // S2 5.5–10 吃苹果 → 一次揭 9 格（连吃还会奏音阶）
+  [5.5, () => { dot(1); cap('One apple = {p:9 tiles} at once'); sfx(5.6, 'eat'); }],
+  [7.0, () => sfx(7.0, 'eat')],
+  [8.4, () => sfx(8.4, 'eat')],
+
+  // S3 10–14.5 过关：完整天使 + 三星 + 彩纸
+  [10.0, () => {
+    dot(2); $('#lower').classList.remove('on');
+    E(`(function(){var r=G.run;r.revealed.fill(1);r.revealedCount=r.cols*r.rows;
+        r.level=15;G.lastClearStars=3;G.phase='LEVEL_DONE';G.doubledThisLevel=true;initLayers(G.img);renderAll();})()`);
+    cap('Clear it — {g:it is yours forever}');
+    confetti(); $('#stick').classList.add('show'); sfx(10.05, 'level');
+  }],
+  [13.2, () => { $('#stick').classList.remove('show'); angel('0bep0x.webp'); }],
+
+  // S4 14.5–18.5 图鉴：500 张收集墙
+  [14.3, () => {
+    dot(3);
+    E(`G.phase='READY';hideHome();openGallery();
+       setTimeout(function(){var c=document.getElementById('controls');if(c)c.style.display='none';
+         document.querySelectorAll('.gal-ad,#gal-ad').forEach(function(e){e.remove()});},60);`);
+    cap('{y:500} to collect. One per level.'); sfx(14.35, 'special');
+  }],
+  [16.6, () => { E(`var b=document.querySelector('#panel-body');if(b)b.scrollTo({top:200,behavior:'smooth'});`); }],
+
+  // S5 18.5–21 皮肤快闪
+  [18.4, () => {
+    dot(4);
+    E(`var p=document.getElementById('panel');if(p)p.classList.add('hidden');openSkins();
+       setTimeout(function(){var c=document.getElementById('controls');if(c)c.style.display='none';},60);`);
+    cap('Four {p:dreamy} themes'); sfx(18.45, 'milestone');
+  }],
+
+  // S6 21–24 结尾卡
+  [20.9, () => {
+    $('#end').classList.add('show'); cap(''); sfx(21.0, 'level');
+    [[170, 430], [660, 390], [230, 1300], [640, 1350], [430, 250]].forEach(([x, y], i) => {
+      const s = document.createElement('div'); s.className = 'star'; s.textContent = '✨';
+      s.style.cssText = `left:${x}px;top:${y}px;animation-delay:${0.15 * i}s`;
+      $('#end').appendChild(s);
+    });
+  }],
+  [24.0, () => { window.__done = true; }],
+];
+
+/** app 预置：造一份「玩了很久」的存档 + 开 AI 代打真跑 + 藏掉网页味的控件 */
+function prep() {
+  E(`
+    (function(){
+      var list = G.imgList || [];
+      G.save.gallery.unlocked = list.slice(0, 137);
+      G.save.gallery.stars = {};
+      G.save.gallery.unlocked.forEach(function(f,i){ G.save.gallery.stars[f] = (i%3)+1; });
+      G.save.stats.distinctImgs = 137; G.save.stats.levelsCleared = 137;
+      G.save.stats.apples = 2140; G.save.stats.totalScore = 186000; G.save.stats.maxCombo = 18;
+      G.save.daily.giftStreak = 12;
+      G.save.ach.unlocked = ['img_1','img_2','img_3','aic_1','aic_2','death_1','combo_1'];
+      persist();
+      hideHome();
+      // 已经揭开约三成 —— 一开场就看得出「图正在被画出来」，而不是一片空格子
+      var r = G.run, n = r.cols*r.rows;
+      for (var i=0;i<n;i++){ var y=(i/r.cols)|0; if (y*r.cols+(i%r.cols) < n*0.30) r.revealed[i]=1; }
+      r.revealedCount = r.revealed.reduce(function(a,v){return a+v;},0);
+      r.score = 3120;
+      initLayers(G.img);
+      var c = document.getElementById('controls'); if (c) c.style.display='none';
+      var t = document.getElementById('toasts'); if (t) t.innerHTML='';
+      // ⚠ 片子里不要出现网页味/广告位的控件：引擎语言栏、面板里的「看广告」条，
+      //   以及 AI 代打的按钮与 HUD 标记 —— 画面只留玩法本身（游戏内容 100% 真实，只是没画这个钮）。
+      var st = document.createElement('style');
+      // ⚠ #toasts 必须整幕禁掉，不能只清一次：AI 一开始玩就会不断解锁累计成就、
+      //   「Unlocked! …」会一条条糊在片子顶部（实拍抓到）。
+      st.textContent = '#controls{display:none!important}'
+        + '.gal-ad,#gal-ad,.skin-ad,#skin-ad{display:none!important}'
+        + '#toasts{display:none!important}';
+      document.head.appendChild(st);
+      // ⭐ 开 AI 代打：让它真的自己玩（本作自带的免费功能，画面 100% 真实）
+      G.aiOn = true; G.phase='PLAYING'; loopState.last = 0;
+    })()
+  `);
+}
+function play() {
+  prep();
+  setTimeout(() => {
+    t0 = performance.now();
+    T.forEach(([s, fn]) => { if (s === 0) fn(); else setTimeout(fn, s * 1000); });
+    $('#cover').remove();
+  }, 700);
+}
+window.addEventListener('load', () => {
+  ifr.addEventListener('load', () => setTimeout(play, 1600));
+  if (ifr.contentDocument && ifr.contentDocument.readyState === 'complete') setTimeout(play, 1600);
+});
+</script>
+</body>
+</html>

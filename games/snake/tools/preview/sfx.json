@@ -1,0 +1,30 @@
+[
+ {
+  "t": 5.6,
+  "type": "eat"
+ },
+ {
+  "t": 7,
+  "type": "eat"
+ },
+ {
+  "t": 8.4,
+  "type": "eat"
+ },
+ {
+  "t": 10.05,
+  "type": "level"
+ },
+ {
+  "t": 14.35,
+  "type": "special"
+ },
+ {
+  "t": 18.45,
+  "type": "milestone"
+ },
+ {
+  "t": 21,
+  "type": "level"
+ }
+]
