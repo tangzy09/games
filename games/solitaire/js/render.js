@@ -1305,12 +1305,16 @@
     // ⚠ Spider 不进可解池 ⇒ 绝不打「✓ 有解」（打了就是系统性撒谎，措辞死线同理）
     const verified = !fc && !sp && Pool.isVerified(s.drawCount, s.seed);
     // 分数胶囊 = 本轮连关累计(含当前关进行分×倍率);点开公平页（✓=已验证可解,措辞死线不变）
+    //   ⚠ **不能死居中**：360 宽机型上 cx-75 会压住左边第三个图标钮 🎨（验图实拍），
+    //     胶囊底色不透明 ⇒ 把它盖掉一半。⇒ 先算左钮右缘,撞上就整块右移。
     const shown = (G.runScore || 0) + Math.round(s.score * Math.min(G.stage || 1, 5));
-    const pillW = 150;
-    fillRR(L.cx - pillW / 2, r1y, pillW, 28, 14, 'rgba(0,0,0,0.32)');
-    iconText('trophy', '🏆', shown + (verified ? ' ✓' : ''), L.cx, r1y + 14,
+    const availL = L.playX + 118 + 8, availR = L.playX + L.playW - 8;
+    const pillW = Math.min(150, Math.max(80, availR - availL));
+    const pillX = Math.min(Math.max(L.cx - pillW / 2, availL), availR - pillW);
+    fillRR(pillX, r1y, pillW, 28, 14, 'rgba(0,0,0,0.32)');
+    iconText('trophy', '🏆', shown + (verified ? ' ✓' : ''), pillX + pillW / 2, r1y + 14,
              'bold 15px sans-serif', verified ? '#ffd84d' : '#fff', 17);
-    addHit(L.cx - pillW / 2, r1y, pillW, 28, 'FAIR', {});
+    addHit(pillX, r1y, pillW, 28, 'FAIR', {});
 
     // ── HUD 行2:Stage ×M | #局号(FC 带 supermove 容量) | 步数 · 用时 ──
     const r2y = L.hud2Y + L.hud2H / 2;
