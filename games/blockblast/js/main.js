@@ -237,7 +237,7 @@ function adGrant(kind, apply) {
 /** 奖励要看得见 —— 发了什么当场说清楚（看不见的奖励等于没给）*/
 function adToast(text) {
   FX.toast(text, Render.L.cx, GameGlobal.SH * 0.42, '#ffe08a', 'bold 20px sans-serif', 1.4);
-  Sound.sweep('sweep');
+  Sound.coin(3);                                // 奖励到账 = 叮当，不是又一次 SWEEP
   if (Haptics.medium) Haptics.medium(); else Haptics.light();
 }
 /** 开局礼包只在「这一局还没落子」时给（它是开局礼包，不是随时补给）*/
@@ -260,6 +260,7 @@ function nextLockedSkin() {
 function announce(freshIds) {
   if (!freshIds || !freshIds.length) return;
   saveProfile();
+  Sound.levelUp();                              // 解锁成就原来是**完全没有声音**的
   const Lo = Render.L;
   freshIds.slice(0, 2).forEach((id, i) => {
     FX.toast('🏆 ' + T('blockblast.ach.' + id), Lo.cx, Lo.boardY + 40 + i * 30,
@@ -370,7 +371,7 @@ function consume(events) {
         const { x, y } = Render.cellXY(r, c);
         FX.burst(x + Lo.cell / 2, y + Lo.cell / 2, '#67e8f9', 6);
       }
-      Sound.sweep('sweep');
+      Sound.collect();                          // 水晶 = 玻璃质感，和 SWEEP 分得开
 
     } else if (e.t === 'win') {
       const prev = G.progress[s.levelId] || 0;
@@ -455,7 +456,7 @@ function consume(events) {
       const g = crossed[crossed.length - 1];        // 一步跨多档只报最高那个
       FX.toast('✨ ' + T('blockblast.ghostBeat', { name: g.name }), Render.L.cx, Render.L.boardY - 64,
                '#fbcfe8', 'bold 16px sans-serif', 1.3);
-      Sound.pick();
+      Sound.collect();
     }
   }
   G.scoreBefore = null;
@@ -480,7 +481,7 @@ function consume(events) {
     }
     FX.toast('\u{1F4CB} ' + T('blockblast.questDone') + '  +' + (Quests.REWARD.coins * qdone.length) + '\u{1FA99}',
              Render.L.cx, Render.L.boardY - 44, '#7ef2a0', 'bold 15px sans-serif', 1.3);
-    Sound.sweep('sweep');
+    Sound.coin(qdone.length + 1);
     saveWallet();
     saveProfile();
   }
@@ -499,7 +500,12 @@ function consume(events) {
  */
 function challengeUrl() { return Share.link(); }
 
+// 按钮点击音：⛔ 排除**自己就会发声**的那几个（叠在一起会糊），其余一律给一声轻 tap ——
+// 原来除了道具键，整个菜单/商店/图鉴/设置**一个反馈音都没有**，点下去像坏了。
+const QUIET_ACTIONS = { SKIP_OVERANIM: 1, UNDO: 1, REFRESH: 1, HINT: 1, CHEST: 1, EQUIP: 1, BUY_SKIN: 1 };
+
 function dispatch(action, data) {
+  if (!QUIET_ACTIONS[action]) Sound.tap();
   switch (action) {
     case 'RESTART': {
       // ⛔ 无尽转场插屏：**绝不盖在死亡瞬间**——只在玩家已点「再来一局」、决定继续之后的转场里，
@@ -582,7 +588,7 @@ function dispatch(action, data) {
       const ch = Levels.CHAPTERS.find(x => x.id === data.id);
       if (ch && Shop.claimChest(G.wallet, G.progress, ch)) {
         saveWallet();
-        Sound.sweep('perfect');
+        Sound.coin(5);                          // 宝箱 = 一把金币
         FX.toast('\u{1F381} +' + ch.chest, Render.L.cx, GameGlobal.SH * 0.4, '#ffe08a', 'bold 26px sans-serif', 1.4);
         if (Haptics.heavy) Haptics.heavy();
       }
@@ -818,6 +824,7 @@ function noteCoach(snap, mv, verdict) {
     G.profile.brilliants = (G.profile.brilliants || 0) + 1;
     FX.toast('✨ ' + T('blockblast.brilliant'), Render.L.cx, Render.L.boardY - 24,
              '#ffe08a', 'bold 17px sans-serif', 1.1);
+    Sound.brilliant();
     saveProfile();
   } else if (verdict.grade === 'miss' && verdict.tag) {
     if (!G.profile.faults) G.profile.faults = { missLine: 0, isolate: 0 };
@@ -858,6 +865,15 @@ function loop(ts) {
   const dt = last ? Math.min((ts - last) / 1000, 0.05) : 0;
   last = ts;
   G.animClock = (G.animClock + dt) % 3600;
+  // 濒死心跳：视觉早就有（fill≥75% 的脉冲），听觉一直是空的。
+  // ⚠ 音量必须很轻、间隔 1.6s —— 它是**氛围**，不是警报（做成警报会把人吓跑）。
+  {
+    const s0 = G.s;
+    const dying = G.phase === 'PLAYING' && s0 && !s0.over && !G.overAnim
+                  && Core.fillCount(s0.board) >= 54;
+    if (!dying || G.animClock < (G.hbAt || 0)) G.hbAt = -9;    // 不濒死 / 时钟回绕 ⇒ 复位
+    if (dying && G.animClock - G.hbAt > 1.6) { G.hbAt = G.animClock; Sound.heartbeat(); }
+  }
   if (G.overAnim) {
     G.overAnim.t += dt;
     if (G.overAnim.t >= G.overAnim.total) { G.overAnim = null; renderAll(); }   // 播完补一帧：结算浮层登场

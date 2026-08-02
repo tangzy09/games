@@ -49,6 +49,22 @@
   - **主视觉每次进 HOME 换一张**（`G.heroIdx`，从已解锁的天使里随机；`renderAll` 里离开 HOME 就清空 —— renderHome 每帧都跑，每帧重抽会疯狂闪）。
   - 验收：`node games/blockblast/tools/shot-ui.cjs` —— 一次截主界面/地图三章/胜三星/胜一星/
     失败/无尽结算 × 两种屏（414×896 + 360×640），先注入进度存档，产物 `C:/tmp/blockblast/ui/`。
+- **🔊 音效打磨（2026-08-02，web 待部署）**：`js/sound.js` 从「6 个单振荡器 blip」重做成一套小合成器。
+  - **总线**：master → **压缩器** → destination，外加一条并行**混响**（IR 也是合成的白噪声衰减，零素材）。
+    ⚠ **短促的 UI 音（落子/点击/非法）必须走 `dry: 1` 绕开混响** —— 0.9s 的混响尾挂在 0.05s 的点击上，
+    每次操作都"嗡"一下，连点就糊成一片（audit 量出来 place 发声 0.49s，改后 0.08s）。
+  - **响度**：原来各音峰值只有 0.03~0.29，玩家得把系统音量开到很大 ⇒ master 推到 3.2 让压缩器兜底
+    （标准响度链路，不是各处调 gain 猜）。现在最响的 PERFECT ≈0.72、最轻的 tap ≈0.12，阶梯由工具量。
+  - **6 → 12 个音**：原来收水晶/领奖/任务完成/榜上超越**全在复用 `sweep('sweep')`** ⇒ 听感上"什么都一样"。
+    新增 `coin`（金币叮当，n 越多越密）· `collect`（玻璃质感）· `brilliant`（妙手）· `levelUp`（解锁，
+    原来**完全没有声音**）· `heartbeat`（濒死氛围，视觉早有、听觉一直空着）· `tap`（菜单按钮，
+    原来整个菜单/商店/图鉴**一个反馈音都没有**）。
+  - **每次播放微随机**（±1.2% 音高 / ±6% 时长）——同一个音听两百遍只剩噪音感（snake 实锤）。
+    ⚠ `Sound.setJitter(false)` 关掉它，离线渲染要确定性。
+  - ⭐ **`AudioContext` 可注入** ⇒ 同一份代码能跑在 `OfflineAudioContext` 上：
+    **`node games/blockblast/tools/audit-sfx.cjs`** 把 16 个音渲染成 wav 到 `C:/tmp/blockblast/sfx/`
+    （外加一个 `all.wav` 顺序播全部），并断言**峰值不削顶 / 不是静音 / 拖尾不超时**。
+    ⛔ 机器只能挡这三类翻车，**好不好听必须真的听一遍** —— 音效是典型的「测试全绿也可能很难听」。
 - **🔍 教练 + 变现加厚 + 去重批（2026-08-01，web 待部署；iOS 随下个包）**：
   - **⭐ `js/coach.js` —— 把验关卡的求解器搬进运行时**（本作最独有的一层）。原来那套参考 AI
     只跑在 `tools/verify-levels.js`（构建期算通关率），玩家一辈子见不到；现在同一套东西长出四样：
@@ -134,6 +150,7 @@ stream(seed, i) -> piece      // 第 i 块是什么，完全由 (seed, i) 决定
 npm run test:block        # 单测（pieces/dealer/core/levels/meta/shop/coach）
 npm run test:block:e2e    # 五个 E2E（P1 玩法 / P2 关卡 / P3 元层 / P4 广告红线 / rewards 激励八位）
 npm run test:block:home   # 🏠 主界面（启动落点 / 智能续继 / 入口角标 / 刘海）
+node games/blockblast/tools/audit-sfx.cjs   # 🔊 音效：渲染 16 个 wav 到 C:/tmp/blockblast/sfx（含 all.wav）+ 峰值/拖尾断言
 npm run sim:block         # 手感回归基线：mid 中位落子 ~143 / 中位分 ~2971 / SWEEP 局 ~23.7%
 npm run verify:levels     # 20 关通关率（<80% 不许进包）
 node games/blockblast/tools/capture-shots.cjs   # App Store 截图（24 张）
