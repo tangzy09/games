@@ -163,6 +163,35 @@ async function click(page, action, dm){
   ok(hres.progress, '⭐⭐ 走完提示那一步，胜利指标真的变好了（收组/翻暗牌/空列），不是随手一指');
   ok(hres.win === false, '⛔ 开局阶段没证明必胜 ⇒ 标 GUESS，绝不吹成「通往胜利」');
 
+  // ── ⭐ 音效：蜘蛛的两个关键时刻**不许是哑的**（声音按 move 类型分派，而蜘蛛只有 tt/deal10）──
+  //   ⚠ 无头浏览器听不到声音 ⇒ 把 Snd 的方法换成计数器，验证**分派路径**走对了。
+  const snd = await page.evaluate(() => {
+    const hit = {};
+    ['set','dealRow','place','run','cell'].forEach(k => { const o = Snd[k]; Snd[k] = function(){ hit[k]=(hit[k]||0)+1; }; });
+    // ① 发一排
+    G.spiderSuits = 1; G.stage = 1; newGame(undefined, 'spider'); G.phase = 'PLAY';
+    // 先塞一个「凑齐一组只差一张」的局面，再单独试发牌
+    const c = (r, su) => r * 4 + su;
+    const a = []; for (let r = 12; r >= 1; r--) a.push(c(r, 0));
+    G.s.tableau = Array.from({ length: 10 }, () => ({ cards: [], up: 0 }));
+    G.s.tableau[0] = { cards: a, up: a.length };
+    G.s.tableau[1] = { cards: [c(0, 0)], up: 1 };
+    G.s.foundations = []; G.s.moves = []; G.s.won = false;
+    doMove({ t: 'tt', ti: 1, idx: 0, tj: 0 });          // ② 凑齐一组
+    const afterSet = Object.assign({}, hit);
+    return { hit: afterSet, sets: G.s.foundations.length };
+  });
+  ok(snd.sets === 1 && snd.hit.set === 1,
+     '⭐ 凑齐一组 K→A 会播**专属音效**（不是随手挪牌那记闷响）');
+  const snd2 = await page.evaluate(() => {
+    const hit = {};
+    ['set','dealRow','place'].forEach(k => { Snd[k] = function(){ hit[k]=(hit[k]||0)+1; }; });
+    G.stage = 1; newGame(undefined, 'spider'); G.phase = 'PLAY';
+    doMove({ t: 'deal10' });
+    return hit;
+  });
+  ok(snd2.dealRow === 1 && !snd2.place, '⭐ 发一排牌播「铺一排」的音效，不是一记落牌声');
+
   ok(errs.length===0, '全程零 error'+(errs.length?': '+errs.join(' | '):''));
   await browser.close(); srv.close();
   console.log(process.exitCode?'\nX Spider E2E 有失败项':'\nOK Spider E2E 全绿');

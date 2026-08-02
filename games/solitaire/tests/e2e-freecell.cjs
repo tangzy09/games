@@ -98,6 +98,23 @@ async function clickAction(page, action, dataMatch) {
   ok(JSON.stringify(menuModes) === JSON.stringify(['freecell','spider']),
      '菜单里也是三选一（当前项不可点）：' + menuModes.join('/'));
 
+  // ── ⭐ 音效：FreeCell 的三类动作都要有声（进自由格是「架起来」，不是落桌）──
+  const snd = await page.evaluate(() => {
+    const hit = {};
+    ['cell','place','found','combo','run'].forEach(k => { Snd[k] = function(){ hit[k]=(hit[k]||0)+1; }; });
+    G.stage = 1; newGame(undefined, 'freecell'); G.phase = 'PLAY';
+    const ms = Core.rules(G.s).legalMoves(G.s);
+    const tc = ms.find(m => m.t === 'tc');            // 牌 → 自由格
+    if (tc) doMove(tc);
+    // ⚠ 别假定「刚放进格子的牌一定能回到某一列」（常常无处可放）——
+    //   要验的是「非自由格动作照常有落牌声」，那就找**任何**非 tc 的合法着法。
+    const other = Core.rules(G.s).legalMoves(G.s).find(m => m.t !== 'tc');
+    if (other) doMove(other);
+    return Object.assign(hit, { other: other && other.t });
+  });
+  ok(snd.cell >= 1, '⭐ 牌进自由格有专属音效');
+  ok((snd.place || 0) + (snd.run || 0) >= 1, '自由格出牌/搬牌照常有落牌声');
+
   ok(errs.length===0, '全程零 error' + (errs.length?': '+errs.join(' | '):''));
   await browser.close(); srv.close();
   console.log(process.exitCode ? '\n✗ FreeCell E2E 有失败项' : '\n✓ FreeCell E2E 全绿');

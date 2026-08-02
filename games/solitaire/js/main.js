@@ -305,7 +305,18 @@ function doMove(m) {
     }
   }
   // 声音按**动作**分（纸牌的质感全在这里；此前全程静音）
-  if (m.t === 'draw' || m.t === 'recycle') Snd.draw();
+  // ⭐ 但**先按事件分**：Spider 只有 tt/deal10 两种 move ⇒ 只看 move 类型的话，
+  //   「凑齐一组 K→A」（全场最大的正反馈，13 张一次飞走）跟随手挪一张牌是同一记闷响。
+  const doneSets = ev.filter(e => e.t === 'complete');
+  if (doneSets.length) {
+    Snd.set(G.s.foundations.length);
+    const last = doneSets[doneSets.length - 1];
+    const L2 = Layout.L;
+    FX.float('+100', L2.colX(last.ti) + L2.cardW / 2, L2.tabY + 10, '#ffd84d');
+  }
+  else if (m.t === 'deal10') Snd.dealRow();
+  else if (m.t === 'tc') Snd.cell();               // FreeCell：进自由格是「架起来」，不是落桌
+  else if (m.t === 'draw' || m.t === 'recycle') Snd.draw();
   else if (m.t === 'tf' || m.t === 'wf' || m.t === 'cf' || m.t === 'jk') {
     // ⭐ 连击：4s 窗口内连续收 foundation ⇒ 音阶上扬 + ×N 浮字（正反馈要越滚越爽）
     const now = Date.now();
