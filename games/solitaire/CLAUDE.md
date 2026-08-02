@@ -7,7 +7,12 @@ root `CLAUDE.md`（引擎契约、部署铁律、git 纪律、iOS 流水线）�
 
 ## 当前状态（2026-08-01）
 
-**iOS 1.0 已上架**（2026-07-14 提交 → **2026-07-23 过审 READY_FOR_SALE**，itunes lookup 实证）。商店名 **`Fair Deal: Patience & Cards`**
+**iOS 1.0 已上架**（2026-07-14 提交 → **2026-07-23 过审 READY_FOR_SALE**，itunes lookup 实证）。
+**1.0.1 出包中（2026-08-02）**：`package.json` 已 bump 到 1.0.1（⚠ Capacitor 的营销版本号恒 1.0，
+codemagic 从 package.json 读它写进 Info.plist；不 bump 会被 90062 拒），Codemagic workflow
+`solitaire-ios-testflight` 已触发；ASC 版本 1.0.1 已建（`6b920737-…`）+ 两语 whatsNew 已填；
+**截图沿用 1.0 的（用户 2026-08-02 明确「不要改截图」）**。差的只有：build 转 VALID → 挂 build → 送审。
+商店名 **`Fair Deal: Patience & Cards`**
 （中文「公平发牌：接龙与空当接龙」），Apple ID `6790861224`，Bundle `com.aispeeds.solitaireproven`。
 线上 <https://cards.ai-speeds.com>。
 
