@@ -70,7 +70,12 @@ var G = {
   // ⭐ 只给 E2E / 调试看的计数与最近一次记录（⛔ 不是真值源）。
   //   forkCount 存在的理由就是「不刷屏」那条门禁要能**数**：连续两手都是双威胁时它必须还是 1。
   forkCount: 0,
-  lastFork: null      // { player, cells:[{c,r}], ply }
+  lastFork: null,     // { player, cells:[{c,r}], ply }
+  // ── 竖屏留白（P2b T7 · DESIGN §6.9）──
+  // ⭐ HOME 上每一块排完的 { k, y, h }，**只给 E2E / 调试看**（⛔ 不是真值源，每帧重排）。
+  //   门禁靠它断言「块与块不重叠、都不出屏」—— ⛔ 少了它，「小屏 + 舒适模式四行压成一坨」
+  //   这种事只有肉眼抓得到（改之前就是这样：脚本全绿、截图一眼是坏的）。
+  homeRows: []
 };
 
 // ════════ 无障碍：减弱动态 / 舒适模式（P2b Task 6 · DESIGN §6.8）════════
@@ -146,8 +151,11 @@ function btn(x, y, w, h, label, action, data, style) {
   if (style.outline) strokeRR(x + 0.5, y + 0.5, w - 1, h - 1, 12, style.outline, 1.5);
   // ⭐ 舒适模式（§6.8）：**所有**按钮的字号在这里统一放大，⛔ 别让各处调用方各乘一次
   //   （漏一个的表现是「一屏字大小不一」，而且没人会发现是漏了乘）。
+  // ⚠ style.px = 已经算好的字号（drawHome 的块栈在矮屏上会把整栈一起缩）；
+  //   没给就照旧走 fsz()。
   fitTxt(label, x + w / 2, y + h / 2, w - 16,
-         on ? (style.fg || '#fff') : 'rgba(38,74,61,0.45)', style.weight || 'bold', fsz(style.size || 16));
+         on ? (style.fg || '#fff') : 'rgba(38,74,61,0.45)', style.weight || 'bold',
+         style.px || fsz(style.size || 16));
   if (on) addHit(x, y, w, h, action, data || {});
 }
 
@@ -652,12 +660,13 @@ const TIER_PRESETS = [
  * ⚠ 标签与值都会被压到装得下为止：德/俄膨胀 + 舒适模式（×1.3）叠加时，
  *   canvas 的 fillText 不换行也不截断，两串会直接压在一起。
  */
-function settingRow(bx, y, bw, h, label, value, hot, action, icon) {
+function settingRow(bx, y, bw, h, label, value, hot, action, icon, px) {
   fillRR(bx, y, bw, h, 12, 'rgba(255,255,255,0.92)');
   strokeRR(bx + 0.5, y + 0.5, bw - 1, h - 1, 12, C4Render.PAL.hudEdge, 1.5);
   const gy = y + h / 2;
   const tx = icon ? icon(bx, gy, h) : bx + 14;
-  const f = 'bold ' + fsz(14) + 'px sans-serif';
+  // ⚠ px 由 drawHome 的块栈给（矮屏上整栈会一起缩，⛔ 字号不跟着缩就会互相压，见 drawHome）
+  const f = 'bold ' + (px || fsz(14)) + 'px sans-serif';
   ctx.font = f;
   const vw = Math.min(bw * 0.5, ctx.measureText(clean(value)).width);
   txtR(wrapLines(value, bw * 0.5, 1)[0], bx + bw - 14, gy,
@@ -667,65 +676,115 @@ function settingRow(bx, y, bw, h, label, value, hot, action, icon) {
   addHit(bx, y, bw, h, action, {});
 }
 
+/**
+ * ⭐⭐ HOME 的竖向排版（P2b T7 · DESIGN §6.9）——**显式的块栈**。
+ *
+ * 每一块自报**高度**（由它自己的字号/按钮高算出来），间距是唯一可伸缩的东西：
+ *   · 装得下还有富余 ⇒ 间距**撑开**（k 最大 1.8）—— 这就是 P2a 点名的「HOME 下半屏
+ *     留白较大」的解：844 高的机器上原来内容排到 y=616 就没了，下面 220 px 全空；
+ *   · 装不下 ⇒ 间距先收（k → 0）；**还装不下才整栈缩尺寸**（hk，含字号与按钮高）。
+ *
+ * ⛔⛔ 改之前那版是「间距 = 一串常数 × 系数 k，**字号却不跟着缩**」，于是
+ *   360×640 + 舒适模式（§6.8 那两条叠加）下标题、两枚棋子图示、「Opponent」「Level 3」
+ *   四块**互相压在一起**（截图肉眼一眼看得出，而脚本全绿 —— 本仓最怕的失败模式）。
+ *   现在高度由字号算出来、位置由高度累加 ⇒ **重叠在结构上不可能发生**，
+ *   k 只决定「呼吸多大」。⛔ 别再往这里塞「魔数间距」。
+ *
+ * ⭐ `G.homeRows` 把排完的结果记下来（**只给 E2E / 调试看**，⛔ 不是真值源）：
+ *   门禁靠它逐块断言「不重叠 + 不出屏」，⛔ 否则「四行压成一坨」这种事只有肉眼抓得到。
+ */
+const K_MAX = 2.0;      // 间距最多撑到理想值的 2 倍（再大就散了，见下面 ⛔）
+function homeStack(L) {
+  const build = hk => {
+    const F = px => Math.max(9, Math.round(fsz(px) * hk));
+    const B = px => Math.max(30, Math.round(bht(px) * hk));
+    const it = [
+      { k: 'title',  h: Math.round(F(30) * 1.22), gap: 18, px: F(30) },
+      { k: 'glyphs', h: Math.round(F(44) * 1.10), gap: 10, px: F(44) },
+      { k: 'tierLb', h: Math.round(F(13) * 1.60), gap: 8,  px: F(13) },
+      { k: 'tiers',  h: B(40),                    gap: 6,  px: F(14) },
+      { k: 'level',  h: Math.round(F(12) * 1.60), gap: 10, px: F(12) },
+      { k: 'ai',     h: B(52),                    gap: 12, px: F(16) },
+      { k: 'human',  h: B(52),                    gap: 18, px: F(16) },
+      { k: 'set1',   h: B(46),                    gap: 8,  px: F(14) },
+      { k: 'set2',   h: B(46),                    gap: 8,  px: F(14) },
+      { k: 'set3',   h: B(46),                    gap: 14, px: F(14) },
+      { k: 'note',   h: Math.round(F(12) * 2.8),  gap: 0,  px: F(12) }
+    ];
+    return { it: it, fixed: it.reduce((s, i) => s + i.h, 0), gaps: it.reduce((s, i) => s + i.gap, 0) };
+  };
+  const top0 = L.hud.y, bot = L.SH - L.safeBottom - 14;
+  let hk = 1, P = build(1);
+  let k = (bot - top0 - P.fixed) / P.gaps;
+  // ⚠ 迭代缩而不是一次算：按钮/字号都有下限（B 的 30、F 的 9），闭式解会算错。
+  for (let i = 0; i < 14 && k < 0.06; i++) { hk *= 0.94; P = build(hk); k = (bot - top0 - P.fixed) / P.gaps; }
+  k = Math.max(0, Math.min(K_MAX, k));
+  // ⭐ 撑到 K_MAX 还有富余（高屏 / 平板）⇒ **整栈往下挪到接近垂直居中**（0.45 略偏上）。
+  //   ⛔ 别把富余全塞进间距：k 再大就是「一屏五个孤零零的元素」，读起来不是一组东西。
+  //   ⛔ 也别一直贴着顶排 —— 那就是 P2a 点名的「HOME 下半屏留白较大」本身
+  //     （改之前 844 高的机器上内容 132..616 结束，下面 220 px 全空）。
+  const spare = Math.max(0, (bot - top0) - (P.fixed + P.gaps * k));
+  const top = top0 + Math.round(spare * 0.45);
+  let y = top;
+  for (const b of P.it) { b.y = Math.round(y); y += b.h + Math.round(b.gap * k); }
+  return { it: P.it, k: k, hk: hk, top: top, at: key => P.it.find(b => b.k === key) };
+}
+
 function drawHome(L) {
-  const SW = L.SW, SH = L.SH;
+  const SW = L.SW;
   const es = EngineClient.state();
   const dead = es.worker === 'dead';
 
   const bw = Math.min(300, SW - 60), bx = (SW - bw) / 2;
-  const tierH = bht(40), mainH = bht(52), setH = bht(46);
-  const yTitle = L.hud.y + 46;
+  const S = homeStack(L);
+  G.homeRows = S.it.map(b => ({ k: b.k, y: b.y, h: b.h }));
+  const mid = b => b.y + b.h / 2;
 
-  // ⭐⭐ 竖向预算：先按理想尺寸排一遍，装不下就把**所有间距**整体压。
-  //   ⚠ 这一段是舒适模式（§6.8）逼出来的：字与按钮放大 1.3 倍之后，小屏（iPhone SE 类，
-  //     667 逻辑高）上［对战电脑］会被挤出屏幕 —— 而「把按钮挤出屏幕」恰恰是
-  //     「大字更好按」的反面。⛔ 别靠「反正测试机是 896 高」蒙混过去。
-  const IDEAL = 62 + 48 + 18 + 6 + 26 + 10 + 16 + 8 * 2 + 14 + 30;   // 全部间距之和
-  const fixed = tierH + mainH * 2 + setH * 3;
-  const k = Math.min(1, Math.max(0.45, (SH - L.safeBottom - 12 - yTitle - fixed) / IDEAL));
-  const s = v => Math.round(v * k);
+  let b = S.at('title');
+  txt(T('app.title'), SW / 2, mid(b), '#1f6e4d', 'bold ' + b.px + 'px sans-serif');
 
-  txt(T('app.title'), SW / 2, yTitle, '#1f6e4d', 'bold ' + fsz(30) + 'px sans-serif');
   // 两枚棋子当门面：进游戏前就先看见「两方不是同一个圆换色」
-  const yGlyph = yTitle + s(62);
-  C4Render.drawGlyph(0, SW / 2 - 34, yGlyph, fsz(44));
-  C4Render.drawGlyph(1, SW / 2 + 34, yGlyph, fsz(44));
+  // ⚠ 左右偏移跟着图示自己的尺寸走（⛔ 别写死 ±34：整栈缩小时两枚会分家）
+  b = S.at('glyphs');
+  C4Render.drawGlyph(0, SW / 2 - b.px * 0.78, mid(b), b.px);
+  C4Render.drawGlyph(1, SW / 2 + b.px * 0.78, mid(b), b.px);
 
-  let y = yGlyph + s(48);
-  txt(T('menu.tier'), SW / 2, y, C4Render.PAL.hudSub, fsz(13) + 'px sans-serif');
-  y += s(18);
+  b = S.at('tierLb');
+  txt(T('menu.tier'), SW / 2, mid(b), C4Render.PAL.hudSub, b.px + 'px sans-serif');
+
+  b = S.at('tiers');
   const cw = (bw - 16) / 3;
   TIER_PRESETS.forEach((p, i) => {
     const sel = G.tier === p.tier;
-    btn(bx + i * (cw + 8), y, cw, tierH, T(p.key), 'TIER', { tier: p.tier }, {
+    btn(bx + i * (cw + 8), b.y, cw, b.h, T(p.key), 'TIER', { tier: p.tier }, {
       bg: sel ? C4Render.PAL.accent : 'rgba(255,255,255,0.92)',
       fg: sel ? '#fff' : C4Render.PAL.hudText,
       outline: sel ? null : C4Render.PAL.hudEdge,
-      size: 14, disabled: dead
+      px: b.px, disabled: dead
     });
   });
-  y += tierH + s(6);
-  txt(T('game.level', { n: G.tier }), SW / 2, y + 8, C4Render.PAL.hudSub, fsz(12) + 'px sans-serif');
-  y += s(26);
 
-  btn(bx, y, bw, mainH, T('menu.vsAI'), 'PLAY_AI', {}, { disabled: dead });
-  y += mainH + s(10);
-  btn(bx, y, bw, mainH, T('menu.vsHuman'), 'PLAY_HUMAN', {}, { bg: '#61776f' });
-  y += mainH + s(16);
+  b = S.at('level');
+  txt(T('game.level', { n: G.tier }), SW / 2, mid(b), C4Render.PAL.hudSub, b.px + 'px sans-serif');
+
+  b = S.at('ai');
+  btn(bx, b.y, bw, b.h, T('menu.vsAI'), 'PLAY_AI', {}, { disabled: dead, px: b.px });
+  b = S.at('human');
+  btn(bx, b.y, bw, b.h, T('menu.vsHuman'), 'PLAY_HUMAN', {}, { bg: '#61776f', px: b.px });
 
   // ⭐ 设置入口（P2b T4 一行 + T6 两行）。⚠ 这里仍然不做完整设置页 —— 三行还压得住，
   //   做成页反而多一次点击（⚠ 再多就该收进页里了）。
   // ⭐ 威胁提示那行左边直接把**两个标记本身**画出来当图例：玩家第一次进游戏就知道 ▲ / ◇ 是什么，
   //   ⛔ 别只写一行「威胁提示」——那样标记的含义要靠猜（而这功能就是给读不出局面的人做的）。
   const hintsOn = C4Settings.get('threatHints');
-  settingRow(bx, y, bw, setH, T('menu.threatHints'), T(hintsOn ? 'menu.on' : 'menu.off'),
-             hintsOn, 'TOGGLE_HINTS', (x, gy) => {
-               const gs = fsz(28);                       // ⭐ 图例也跟着舒适模式放大
+  b = S.at('set1');
+  settingRow(bx, b.y, bw, b.h, T('menu.threatHints'), T(hintsOn ? 'menu.on' : 'menu.off'),
+             hintsOn, 'TOGGLE_HINTS', (x, gy, h) => {
+               const gs = Math.min(fsz(28), Math.round(h * 0.66));   // ⭐ 跟着舒适模式放大，但不超过行高
                C4Render.drawThreatGlyph(0, x + 12 + gs / 2, gy, gs);
                C4Render.drawThreatGlyph(1, x + 16 + gs * 1.5, gy, gs);
                return x + 24 + gs * 2;
-             });
-  y += setH + s(8);
+             }, b.px);
 
   // ⭐⭐ 减弱动态（§6.8）：**三态**。右侧显示的是「当前档」，且 'auto' 那档把**实际结果**
   //   也写出来（「跟随系统 · 开」）—— ⛔ 只写「跟随系统」的话，玩家根本不知道现在到底动不动，
@@ -735,14 +794,14 @@ function drawHome(L) {
   const modeTxt = mode === 'auto'
     ? T('menu.motionAuto') + ' · ' + T(eff ? 'menu.on' : 'menu.off')
     : T(mode === 'on' ? 'menu.on' : 'menu.off');
-  settingRow(bx, y, bw, setH, T('menu.reduceMotion'), modeTxt, eff, 'CYCLE_MOTION', null);
-  y += setH + s(8);
+  b = S.at('set2');
+  settingRow(bx, b.y, bw, b.h, T('menu.reduceMotion'), modeTxt, eff, 'CYCLE_MOTION', null, b.px);
 
   // ⭐ 舒适模式（§6.8）：大字 + 更大点击窗。用户画像 4 岁到 80 岁。
   const cmf = comfortOn();
-  settingRow(bx, y, bw, setH, T('menu.comfort'), T(cmf ? 'menu.on' : 'menu.off'),
-             cmf, 'TOGGLE_COMFORT', null);
-  y += setH + s(14);
+  b = S.at('set3');
+  settingRow(bx, b.y, bw, b.h, T('menu.comfort'), T(cmf ? 'menu.on' : 'menu.off'),
+             cmf, 'TOGGLE_COMFORT', null, b.px);
 
   // ⭐ 引擎状态如实写出来（DESIGN §2.4：降级必须**可见**）
   let note = '';
@@ -751,10 +810,12 @@ function drawHome(L) {
   else if (es.book === 'loading') note = T('game.bookLoading');
   else if (es.book === 'failed') note = T('game.engineSlow');
   if (note) {
-    const f = fsz(12) + 'px sans-serif';
+    b = S.at('note');
+    const f = b.px + 'px sans-serif';
     ctx.font = f;
+    const lh = Math.round(b.px * 1.35);
     wrapLines(note, bw, 2).forEach((ln, i) =>
-      txt(ln, SW / 2, y + i * 16, dead ? '#a33' : C4Render.PAL.hudSub, f));
+      txt(ln, SW / 2, b.y + lh * 0.7 + i * lh, dead ? '#a33' : C4Render.PAL.hudSub, f));
   }
 }
 
@@ -866,6 +927,34 @@ function drawSettleStats(x, y, w, h) {
 /** 占位符：⛔ 别换成 "0%" / "—%"（会被读成「你这局 0 分」，那是编出来的信息）。 */
 const SETTLE_PENDING = '—';
 
+/**
+ * ⭐⭐ 盘下那块净空（`L.tray`）里到底怎么排（P2b T7 · DESIGN §6.9）。
+ *
+ * 对局中 = 一行［撤销］［菜单］；结算 = **数据条 + 两行按钮**（§6.5 + §6.6）：
+ *   数据条给 §6.6 的「精准度 / 转折点」留位；第一行只放主 CTA［再来一局］+ 第二个按钮；
+ *   ［撤销］［菜单］退到第二行 —— 「再来一局」必须是一眼看到的那一个，不是三选一。
+ *
+ * ⚠ tray 的高度由 layout 保证 ≥ `C4Render.TRAY_MIN`（够一行**舒适模式**按钮），
+ *   但**结算屏那三块**在矮屏（640 高）与横屏（1024×768）上仍然放不下 ⇒ 必须退让。
+ * ⭐⭐ 退让的**顺序是承重的**：
+ *   ① 先收间距（12 → 8）；
+ *   ② 再丢**数据条** —— 它现在画的是两个「—」的**留位**，让路的成本最低；
+ *   ③ 最后才缩行高，且**下限 36 px**。
+ *   ⛔ 绝不许反过来先缩按钮：舒适模式（§6.8）存在的全部理由就是按钮更大、点得中；
+ *     为了给一个占位卡片腾地方把按钮缩回去，等于把 §6.8 削掉一半。
+ *   ⛔ 更不许「挤不下就往上顶」—— 往上就是棋盘（这正是改之前的 bug）。
+ */
+function trayPlan(L, over) {
+  const avail = Math.max(0, L.tray.h - 10);      // 盘底与第一行之间留一点呼吸
+  const rows = over ? 2 : 1;
+  let gap = 12, rowH = bht(46), statH = over ? bht(40) : 0;
+  const H = () => rowH * rows + gap * (rows - 1) + (statH ? statH + gap : 0);
+  if (H() > avail) gap = 8;
+  if (H() > avail && statH) statH = 0;
+  if (H() > avail) rowH = Math.max(36, Math.floor((avail - gap * (rows - 1)) / rows));
+  return { gap: gap, rowH: rowH, statH: statH, h: H() };
+}
+
 function drawPlay(L) {
   const g = G.g;
   const bd = C4State.boardOf(g);
@@ -910,24 +999,22 @@ function drawPlay(L) {
 
   drawDropBand(L);
 
-  // 按钮行：钉在盘面下方的留白里（⛔ 别压在盘上——赢局那条连线必须一直看得见）
-  const gap = 12;
-  const rowH = bht(46);                     // ⭐ 舒适模式 = 更高的按钮 = 更大的点击窗（§6.8）
-  const statH = G.phase === 'OVER' ? bht(40) : 0;
-  // ⭐ 结算是**数据条 + 两行按钮**（§6.5 + §6.6）：
-  //   数据条给 §6.6 的「精准度 / 转折点」留位；第一行只放主 CTA［再来一局］+ 第二个按钮；
-  //   ［撤销］［菜单］退到第二行 —— 「再来一局」必须是一眼看到的那一个，不是三选一。
-  const rows = G.phase === 'OVER' ? 2 : 1;
-  const blockH = rows * rowH + (rows - 1) * gap + (statH ? statH + gap : 0);
-  let ry = L.boardY + L.boardH + 16;
-  const maxY = L.SH - L.safeBottom - 12 - blockH;
-  if (ry > maxY) ry = maxY;
-  const marg = 14;
-  const full = L.SW - marg * 2;
+  // ⭐⭐ 按钮 / 结算内容一律排进 layout 给的 **L.tray**（盘底之下的净空，P2b T7 · §6.9）。
+  //   ⛔ 别再自己从盘底往下量：改之前那版是「ry = 盘底 + 16，装不下就往上顶」，
+  //     于是**顶到盘上**去了 —— 实测 1024×768 对局中按钮压着盘底 15 px 还掉出屏幕，
+  //     五视口 × 结算屏 10 个组合里 6 个在压盘。而「赢局那条连线必须一直看得见」是 §6.3。
+  const plan = trayPlan(L, G.phase === 'OVER');
+  const gap = plan.gap, rowH = plan.rowH, statH = plan.statH;
+  // ⭐ **底部对齐**：结算多出来的两块（数据条 + 主 CTA 行）从**棋盘那一侧**长出来，
+  //   ［撤销］［菜单］原地不动 —— 玩家刚才在看的那两个按钮不会在结算那一刻跳走。
+  //   ⚠ 同时按钮贴着底部安全区 = 竖屏手机上拇指最舒服的位置。
+  let ry = L.tray.y + Math.max(0, L.tray.h - plan.h);
+  const marg = L.tray.x;
+  const full = L.tray.w;
 
   if (G.phase === 'OVER') {
     drawSettleStats(marg, ry, full, statH);
-    ry += statH + gap;
+    if (statH) ry += statH + gap;
     // ⭐ 主 CTA：庆祝一播完就进焦点态（⛔ 但从终局第一帧起就**点得动** —— 热区在这里注册，
     //    与 overReady 无关；「庆祝期间点得动」由 e2e-p2b 用真实鼠标钉死）。
     const wMain = Math.round((full - gap) * 0.60);

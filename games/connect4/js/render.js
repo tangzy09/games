@@ -77,7 +77,38 @@
 
   const HUD_H = 54;
   const MARGIN = 14;
-  const BOARD_MAXW = 560;
+
+  // ══ ⭐⭐ P2b T7 · DESIGN §6.9「竖屏留白」════════════════════════════════
+  // §6.9：「7×6 棋盘在竖屏手机上偏宽，上下留白大 ⇒ 放对手角色立绘、威胁提示条、
+  //         精准度条。**别浪费。**」
+  //
+  // ⚠⚠ 先说一件量出来的事实，它决定了这一节能做什么、不能做什么：
+  //   **手机竖屏上棋盘是被「宽」封顶的，不是被「高」** —— 三个手机视口实测
+  //   （safeTop=44 / ctrlH=34）：
+  //     360×640  宽给 45.6 / 高给 52.4 → cell 45（盘宽 327 = 屏宽的 **91%**）
+  //     390×844  宽给 49.7 / 高给 76.0 → cell 49
+  //     414×896  宽给 53.0 / 高给 87.0 → cell 53
+  //   ⇒ 竖向那一大块留白**变不成更大的棋盘**（盘已经贴着左右边距了）。
+  //     ⛔ 别再想「把上下留白让给棋盘」这条路，它在手机上不存在。留白只能被**分配**。
+  //
+  // ⛔ 而 `BOARD_MAXW = 560` 那条死上限是**纯浪费**：768×1024 的平板竖屏上它把盘钉在
+  //   560 宽，同时 HUD 与盘顶之间空着 205 px。删掉之后同一台平板 cell 76 → 96（+26%）。
+  //   宽、高两条约束本来就够，⛔ 不需要第三条常数来「以防万一」。
+  //
+  // ⭐⭐ `tray` = 盘底之下的**净空**，是本 task 最重要的一个数：按钮行、结算的数据条、
+  //   §6.9 的精准度条全排在这里。⛔⛔ 它**必须进 cell 的高度预算** —— 少了这一条，
+  //   棋盘会一路长到把按钮挤到自己身上，而这不是假设：改之前实测
+  //     · 1024×768 **对局中**［撤销］［菜单］就压着盘底 15 px 且掉出屏幕下沿；
+  //     · 五视口 × 结算屏（含舒适模式）**10 个组合里有 6 个**按钮压在盘上。
+  //   「⛔ 别压在盘上 —— 赢局那条连线必须一直看得见」是 §6.3 写死的，而它一直在被违反。
+  const TRAY_MIN  = 92;    // 硬底线：一行**舒适模式**按钮（46×1.32≈61）+ 上下间隙
+  const TRAY_MAX  = 176;   // 结算屏常规块高（数据条 40 + 12 + 46 + 12 + 46）+ 呼吸
+  const TRAY_FRAC = 0.18;
+  // 上方（HUD 与盘之间）的留白 = §6.9 的**立绘 / 威胁提示条留位**。
+  // ⚠ 有上限，⛔ 不许把余量全给它：全给上面的话 HUD 会与盘拉开半屏，
+  //   下面那条「HUD 贴顶栏钉住、⛔ 别飘在半空」等于反过来失效。
+  const RESERVE_FRAC  = 0.34;
+  const RESERVE_CELLS = 1.7;
 
   // ════════ ① 几何：纯函数，不碰 canvas ════════
   /**
@@ -92,6 +123,14 @@
    *   `#controls`（fixed / z-index 20）的地盘：画在它下面的 canvas 内容不但被盖住，
    *   **而且点不动**（solitaire 的「✓ 有解」角标实踩，只有真实鼠标点击的 E2E 抓得出来）。
    *   canvas.js 的注释给的就是这个补法，这里照办并由 e2e-render.cjs 钉死。
+   *
+   * ⭐⭐ 竖向余量（§6.9）在这里被**显式分成三块并具名导出**，⛔ 不再是一个匿名的
+   *   `slack * 0.38`：
+   *     `L.reserve`  HUD 与悬停带之间的留白带 —— §6.9 的**对手立绘 / 威胁提示条**留位
+   *     盘（悬停带 + 盘体）
+   *     `L.tray`     盘底到底部安全区的净空 —— 按钮行 / 结算数据条 / §6.9 的**精准度条**
+   *   ⚠ 具名不是为了好看：`tray` 进了 cell 的预算（见上面 TRAY_MIN 那段），
+   *     调用方（main.js）也只许在 `L.tray` 里排东西 ⇒ 「按钮压到盘上」在结构上不可能。
    */
   function layout(SW, SH, safeTop, safeBottom) {
     const GG = (typeof GameGlobal !== 'undefined') ? GameGlobal : null;
@@ -100,13 +139,23 @@
     const ctrlH = GG ? GG.ctrlH : 34;
 
     const top0 = st + ctrlH + 8;                 // ⭐ 顶栏禁区之下
-    const availW = Math.min(SW - MARGIN * 2, BOARD_MAXW);
+    // ⛔ 不再有 BOARD_MAXW：宽度只受左右边距约束（见文件上方那段 ⛔）。
+    const availW = SW - MARGIN * 2;
 
-    // 竖向预算：HUD + 间隙 + 悬停带 + 盘体。盘体高 = 6*cell + 2*pad，pad = 0.14*cell，
-    // 悬停带 = 1.05*cell ⇒ 总高 ≈ 7.33*cell；横向 ≈ 7.28*cell。取两边的较小者。
+    // ⚠ HUD **贴顶栏钉住**，⛔ 别跟着盘面一起垂直居中 —— 竖屏手机上 7×6 的盘偏宽、
+    //   上下留白很大（DESIGN §6.9），把 HUD 也居中的话它会飘在半空、跟屏幕顶完全脱开
+    //   （第一版截图肉眼看出来的：HUD 落在 y=224，像一张浮在空中的卡片）。
     const gapHud = 10;
-    const availH = SH - sb - MARGIN - top0 - HUD_H - gapHud;
-    const cell = Math.max(18, Math.floor(Math.min(availW / 7.28, availH / 7.33)));
+    const hud = { x: MARGIN, y: top0, w: SW - MARGIN * 2, h: HUD_H };
+    const belowHud = hud.y + hud.h + gapHud;
+    const bottomLimit = SH - sb - MARGIN;
+    const availH = Math.max(80, bottomLimit - belowHud);
+
+    // 竖向预算：**盘下净空（tray）先扣掉**，剩下的才归盘。
+    // 盘体高 = 6*cell + 2*pad，pad = 0.14*cell，悬停带 = 1.05*cell ⇒ 总高 ≈ 7.33*cell；
+    // 横向 ≈ 7.28*cell。取两边的较小者。
+    const trayBudget = Math.max(TRAY_MIN, Math.min(TRAY_MAX, Math.round(availH * TRAY_FRAC)));
+    const cell = Math.max(18, Math.floor(Math.min(availW / 7.28, (availH - trayBudget) / 7.33)));
 
     const pad = Math.max(3, Math.round(cell * 0.14));
     const boardW = W * cell + pad * 2;
@@ -114,20 +163,23 @@
     const dropH = Math.round(cell * 1.05);
     const boardX = Math.round((SW - boardW) / 2);
 
-    // ⚠ HUD **贴顶栏钉住**，⛔ 别跟着盘面一起垂直居中 —— 竖屏手机上 7×6 的盘偏宽、
-    //   上下留白很大（DESIGN §6.9），把 HUD 也居中的话它会飘在半空、跟屏幕顶完全脱开
-    //   （第一版截图肉眼看出来的：HUD 落在 y=224，像一张浮在空中的卡片）。
-    //   盘面自己在 HUD 之下的剩余空间里略偏上居中，下方留白留给 §6.9 的精准度条/立绘。
-    const hud = { x: MARGIN, y: top0, w: SW - MARGIN * 2, h: HUD_H };
-    const belowHud = hud.y + hud.h + gapHud;
-    const slack = Math.max(0, (SH - sb - MARGIN - belowHud) - (dropH + boardH));
-    const drop = { x: boardX, y: Math.round(belowHud + slack * 0.38), w: boardW, h: dropH };
+    // ⭐ 余量分配（§6.9）。⚠ 第三项 `freeH - trayBudget` 是**硬约束**：无论比例怎么算，
+    //   盘下都必须先留够 trayBudget，⛔ 上方那块只能拿它剩下的。
+    const freeH = Math.max(0, availH - dropH - boardH);
+    const reserve = Math.max(0, Math.round(Math.min(
+      freeH * RESERVE_FRAC, cell * RESERVE_CELLS, freeH - trayBudget)));
+    const drop = { x: boardX, y: belowHud + reserve, w: boardW, h: dropH };
     const boardY = drop.y + drop.h;
+    const trayY = boardY + boardH;
 
     const L = {
       SW, SH, safeTop: st, safeBottom: sb, ctrlH,
       cell, pad, boardX, boardY, boardW, boardH,
       hud, drop,
+      // ⭐ §6.9 的两块留白（具名 ⇒ E2E 能直接问、P3/P5 直接往里填）
+      reserve: { x: MARGIN, y: belowHud, w: SW - MARGIN * 2, h: reserve },
+      tray:    { x: MARGIN, y: trayY,    w: SW - MARGIN * 2, h: Math.max(0, bottomLimit - trayY) },
+      bottomLimit,
       W, H
     };
 
@@ -689,20 +741,35 @@
       tx += gs + 10;
     }
     const rightFont = Math.round(12 * k) + 'px sans-serif';
-    let rightW = 0;
-    if (info.right) { ctx.font = rightFont; rightW = ctx.measureText(String(info.right)).width + 16; }
-    const leftMaxW = h.w - (tx - h.x) - 14 - rightW;
+    // ⭐ P2b T7：右侧那串是**次要信息**（档位 / 第几局先手），先给它一个宽度上限，
+    //   装不下由它自己截断。⛔ 别再让它把左边的主句挤掉：360 宽 + 舒适模式实测，
+    //   「Player 1 to play」被压成了「Play…」—— 而那是全屏最该读到的一行（截图肉眼可见）。
+    let rightW = 0, rightStr = '';
+    if (info.right) {
+      ctx.font = rightFont;
+      rightStr = wrapLines(String(info.right), h.w * 0.42, 1)[0];
+      rightW = ctx.measureText(clean(rightStr)).width + 16;
+    }
+    const leftMaxW = Math.max(40, h.w - (tx - h.x) - 14 - rightW);
     if (info.left) {
-      const f = 'bold ' + Math.round(16 * k) + 'px sans-serif';
+      // ⭐ 主句**先缩字号、再截断**：截断丢的是信息，缩字号丢的只是几个像素。
+      //   ⚠ 下限 11px（再小就该让它截断了，读不清的字不算信息）。
+      let px = Math.round(16 * k);
+      let f = 'bold ' + px + 'px sans-serif';
       ctx.font = f;
+      while (px > 11 && ctx.measureText(clean(info.left)).width > leftMaxW) {
+        px -= 1; f = 'bold ' + px + 'px sans-serif'; ctx.font = f;
+      }
       txtL(wrapLines(info.left, leftMaxW, 1)[0], tx, cy, PAL.hudText, f);
     }
-    if (info.right) txtR(String(info.right), h.x + h.w - 14, cy, PAL.hudSub, rightFont);
+    if (rightStr) txtR(rightStr, h.x + h.w - 14, cy, PAL.hudSub, rightFont);
     return h;
   }
 
   const API = {
     W, H, PAL, HEX_R, RING_R, RING_I, TRI_R, DIA_R, DIA_W, FORK_R0, FORK_R1,
+    // ⭐ P2b T7 · §6.9：门禁要拿这几个数当判据（⛔ 别在测试里手抄魔数）
+    MARGIN, HUD_H, TRAY_MIN, TRAY_MAX,
     layout, drawBackground, drawBoard, drawHUD, drawGlyph, drawPiece,
     drawThreat, drawThreats, drawThreatGlyph, drawFork,
     cellOwner, landingRow
