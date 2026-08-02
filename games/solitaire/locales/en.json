@@ -251,6 +251,10 @@
     "adPick": "Watch an ad → unlock any one free",
     "pickFree": "Pick any one — it's free 👇",
     "freeGot": "Unlocked — enjoy!",
-    "dailyGift": "Today's gift: +{c} coins, +{a} angels"
+    "dailyGift": "Today's gift: +{c} coins, +{a} angels",
+    "hintGoalSet": "This move completes a K→A run.",
+    "hintGoalFlip": "This move uncovers a face-down card.",
+    "hintGoalEmpty": "This move frees up a column.",
+    "hintGoalSeq": "This move links a longer same-suit run."
   }
 }

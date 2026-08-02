@@ -251,6 +251,10 @@
     "adPick": "Video ansehen → eins gratis freischalten",
     "pickFree": "Wähle eins – gratis 👇",
     "freeGot": "Freigeschaltet!",
-    "dailyGift": "Heutiges Geschenk: +{c} Münzen, +{a} Engel"
+    "dailyGift": "Heutiges Geschenk: +{c} Münzen, +{a} Engel",
+    "hintGoalSet": "Dieser Zug vervollständigt eine K→A-Reihe.",
+    "hintGoalFlip": "Dieser Zug deckt eine verdeckte Karte auf.",
+    "hintGoalEmpty": "Dieser Zug macht eine Spalte frei.",
+    "hintGoalSeq": "Dieser Zug verlängert eine Reihe derselben Farbe."
   }
 }

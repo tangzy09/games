@@ -251,6 +251,10 @@
     "adPick": "Ver anúncio → desbloqueie um grátis",
     "pickFree": "Escolha um — é grátis 👇",
     "freeGot": "Desbloqueado!",
-    "dailyGift": "Presente de hoje: +{c} moedas, +{a} anjos"
+    "dailyGift": "Presente de hoje: +{c} moedas, +{a} anjos",
+    "hintGoalSet": "Esta jogada completa uma sequência K→A.",
+    "hintGoalFlip": "Esta jogada revela uma carta virada para baixo.",
+    "hintGoalEmpty": "Esta jogada libera uma coluna.",
+    "hintGoalSeq": "Esta jogada estende uma sequência do mesmo naipe."
   }
 }

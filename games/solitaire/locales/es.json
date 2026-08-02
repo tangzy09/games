@@ -251,6 +251,10 @@
     "adPick": "Ver anuncio → desbloquea uno gratis",
     "pickFree": "Elige uno, es gratis 👇",
     "freeGot": "¡Desbloqueado!",
-    "dailyGift": "Regalo de hoy: +{c} monedas, +{a} ángeles"
+    "dailyGift": "Regalo de hoy: +{c} monedas, +{a} ángeles",
+    "hintGoalSet": "Esta jugada completa una serie K→A.",
+    "hintGoalFlip": "Esta jugada descubre una carta boca abajo.",
+    "hintGoalEmpty": "Esta jugada libera una columna.",
+    "hintGoalSeq": "Esta jugada alarga una serie del mismo palo."
   }
 }

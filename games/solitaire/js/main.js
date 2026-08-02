@@ -992,7 +992,24 @@ function dispatch(action, data) {
       // ⭐⭐ 提示的目标是**赢**，不是「现在有什么能走」。
       //   我们有求解器 ⇒ 提示就该是**解法的下一步**（别家给不了：他们只有启发式）。
       //   ⛔ 仍然永远免费、永远不看广告（变现红线 §0）。
-      //   Spider 不进求解器（104 张状态空间超出能力）⇒ 只能退回启发式。
+      // ⭐ Spider（2026-08-01 用户点名「蜘蛛的提示要向胜利走」）：整局求解不现实，
+      //   但「向胜利推进」是可搜的 —— 收组 > 翻暗牌 > 空列 > 接同花，取最短那条线的第一步。
+      //   ⛔ 只有**残局搜到真必胜线**才标 WIN；推进线一律标 GUESS（同 unknown 口径，不许吹）。
+      if (s.mode === 'spider') {
+        const sh = SolverS.hint(s);
+        if (sh) {
+          G.hintMove = sh.move;
+          G.hintWin = !!sh.win;
+          const key = { set: 'sol.hintGoalSet', flip: 'sol.hintGoalFlip',
+                        empty: 'sol.hintGoalEmpty', seq: 'sol.hintGoalSeq' }[sh.kind];
+          if (key) {                                 // 说清这一步在推进什么（不说，玩家看不出「向胜利」）
+            G.toast = { msg: T(key), until: Date.now() + 2400 };
+            setTimeout(renderAll, 2500);
+          }
+          break;
+        }
+        // 搜不到推进 ⇒ 落到下面的启发式（并且 hintWin 保持 false ⇒ 画成 GUESS）
+      }
       if (s.mode !== 'spider') {
         const P = Prover.st;
         if (P.phase === 'done' && P.result === 'solvable' && P.solMoves && P.solMoves.length) {
@@ -1013,6 +1030,7 @@ function dispatch(action, data) {
       }
       // ⭐ 用盲打 AI 的打分挑「像好棋」的一步（翻暗牌>清列>收牌），不是 legalMoves[0] 随手一指。
       //   FreeCell 的 AI 打分不适用（全明牌），按 收牌 > 搬牌 > 出格 > 进格 排。
+      G.hintWin = false;                           // ⛔ 启发式一律 GUESS：猜的就得写「猜的」
       let best = ms[0], bv = -Infinity;
       for (const m of ms) {
         const v = s.mode === 'freecell'

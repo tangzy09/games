@@ -140,6 +140,29 @@ async function click(page, action, dm){
     kinds:new Set([...G.s.tableau.flatMap(c=>c.cards),...G.s.stock].map(RulesS.st)).size }));
   ok(s4.suits===4&&s4.mode==='spider'&&s4.kinds===4, `⭐ 切到 4 花色档（牌里真有 ${s4.kinds} 种花色）`);
 
+  // ── ⭐ 提示要「向胜利走」，不是「现在能走什么」（2026-08-01 用户点名）──
+  //   在真页面里点提示，然后**真走那一步**，看四个胜利指标是不是真的变好了。
+  await page.evaluate(()=>{ G.spiderSuits=1; G.stage=1; newGame(undefined,'spider'); G.phase='PLAY'; });
+  await page.waitForTimeout(400);
+  const hres = await page.evaluate(()=>{
+    const met = s => { let f=s.foundations.length, down=0, empty=0;
+      s.tableau.forEach(c=>{ down+=c.cards.length-c.up; if(!c.cards.length) empty++; });
+      return {f,down,empty}; };
+    const before = met(G.s);
+    G.hintMove=null; G.hintWin=false;
+    dispatch('HINT');
+    const m = G.hintMove, win = G.hintWin;
+    if (!m) return { none:true };
+    const legal = Core.rules(G.s).legalMoves(G.s).some(x=>JSON.stringify(x)===JSON.stringify(m));
+    Core.apply(G.s, m);
+    const after = met(G.s);
+    return { m, win, legal,
+             progress: after.f>before.f || after.down<before.down || after.empty>before.empty };
+  });
+  ok(!hres.none && hres.legal, '蜘蛛的提示给了一步合法着法：'+JSON.stringify(hres.m));
+  ok(hres.progress, '⭐⭐ 走完提示那一步，胜利指标真的变好了（收组/翻暗牌/空列），不是随手一指');
+  ok(hres.win === false, '⛔ 开局阶段没证明必胜 ⇒ 标 GUESS，绝不吹成「通往胜利」');
+
   ok(errs.length===0, '全程零 error'+(errs.length?': '+errs.join(' | '):''));
   await browser.close(); srv.close();
   console.log(process.exitCode?'\nX Spider E2E 有失败项':'\nOK Spider E2E 全绿');

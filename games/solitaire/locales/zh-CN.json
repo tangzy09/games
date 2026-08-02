@@ -251,6 +251,10 @@
     "adPick": "看广告 → 任选一款免费解锁",
     "pickFree": "任选一款，免费解锁 👇",
     "freeGot": "解锁成功！",
-    "dailyGift": "今日礼物：+{c} 金币 +{a} 天使"
+    "dailyGift": "今日礼物：+{c} 金币 +{a} 天使",
+    "hintGoalSet": "这一步能凑齐一组 K→A。",
+    "hintGoalFlip": "这一步能翻开一张暗牌。",
+    "hintGoalEmpty": "这一步能空出一列。",
+    "hintGoalSeq": "这一步把同花序列接得更长。"
   }
 }
