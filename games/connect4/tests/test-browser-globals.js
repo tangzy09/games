@@ -35,13 +35,19 @@ const JS_DIR = path.resolve(__dirname, '..', 'js');
 
 // ⭐ **这就是 index.html 里 <script> 的顺序**（顺序错了是「X is undefined」当场炸）。
 //    ⛔ 将来加模块必须同时加到这里，否则新模块的浏览器路径又变成零覆盖。
+// ⚠ state.js 必须排在 ai.js **之后**（它要 ConnectAI.paramsDigest）；
+//   render.js 无跨模块依赖，但它的 `root.C4Render = API` 分支同样只有这里覆盖得到。
+// ⛔ engine-client.js / main.js 不在这里：前者没有跨模块引用要验（它只 postMessage），
+//    后者要 document / Worker，属于真浏览器 E2E 的活。
 const LOAD_ORDER = [
   path.join(ROOT, 'engine', 'prng.js'),
   path.join(JS_DIR, 'bitboard.js'),
   path.join(JS_DIR, 'rules-classic.js'),
   path.join(JS_DIR, 'solver.js'),
   path.join(JS_DIR, 'book.js'),
-  path.join(JS_DIR, 'ai.js')
+  path.join(JS_DIR, 'ai.js'),
+  path.join(JS_DIR, 'state.js'),
+  path.join(JS_DIR, 'render.js')
 ];
 
 /** 造一个尽量像浏览器的沙箱：有 self、有 console，⛔ **没有 module / require / exports**
@@ -58,7 +64,7 @@ const sandbox = makeBrowserSandbox();
 for (const f of LOAD_ORDER) {
   vm.runInContext(fs.readFileSync(f, 'utf8'), sandbox, { filename: f });
 }
-console.log('test-browser: 6 个 <script> 按序求值完毕（无 module / 无 require）OK');
+console.log('test-browser: ' + LOAD_ORDER.length + ' 个 <script> 按序求值完毕（无 module / 无 require）OK');
 
 // ─────────── ① 沙箱确实是「浏览器」而不是偷偷走了 node 分支 ───────────
 {
@@ -79,12 +85,13 @@ console.log('test-browser: 6 个 <script> 按序求值完毕（无 module / 无 
     '裸标识符 PRNG 必须可用（后续 <script> 靠它拿到 PRNG）');
   assert.strictEqual(vm.runInContext('typeof PRNG.create', sandbox), 'function');
   // 反过来，五个游戏模块用的是 `root.X = API` ⇒ 必须是 self 的属性
-  for (const name of ['Bitboard', 'RulesClassic', 'Solver', 'Book', 'ConnectAI']) {
+  const NAMES = ['Bitboard', 'RulesClassic', 'Solver', 'Book', 'ConnectAI', 'C4State', 'C4Render'];
+  for (const name of NAMES) {
     assert.strictEqual(vm.runInContext('typeof self.' + name, sandbox), 'object',
       'self.' + name + ' 没挂上（模块结尾的 root.' + name + ' = API 没生效？）');
   }
   console.log('test-browser: ⭐ self.PRNG === undefined 且裸 PRNG 可用；'
-    + '五个模块全局名（Bitboard/RulesClassic/Solver/Book/ConnectAI）齐 OK');
+    + NAMES.length + ' 个模块全局名（' + NAMES.join('/') + '）齐 OK');
 }
 
 // ─────────── ③ ⭐⭐ 跨模块引用真的解析得到 —— **真调一次**，且与 node 逐位相同 ───────────
@@ -95,6 +102,8 @@ console.log('test-browser: 6 个 <script> 按序求值完毕（无 module / 无 
   const R = require('../js/rules-classic.js');
   const S = require('../js/solver.js');
   const AI = require('../js/ai.js');
+  const St = require('../js/state.js');
+  const Rd = require('../js/render.js');
 
   const CASES = [
     {
@@ -137,6 +146,51 @@ console.log('test-browser: 6 个 <script> 按序求值完毕（无 module / 无 
       name: 'ConnectAI.paramsDigest().hash（明面参数表两侧必须同一张）',
       browser: 'ConnectAI.paramsDigest().hash',
       node: () => AI.paramsDigest().hash
+    },
+    // ─── state.js：它跨模块吃 Bitboard / RulesClassic / **ConnectAI**（paramsDigest + TIER_MAX）───
+    // ⭐ seed 显式给，否则 autoSeed 两端不同（那是设计，不是 bug）。
+    {
+      name: 'C4State.newGame（顶档强制玩家先手 + paramsHash 来自 ConnectAI）',
+      browser: 'JSON.stringify(C4State.newGame({mode:"ai",tier:20,gameNo:1,seed:7}))',
+      node: () => JSON.stringify(St.newGame({ mode: 'ai', tier: 20, gameNo: 1, seed: 7 }))
+    },
+    {
+      name: 'C4State.serialize(play(...))（存档往返，吃 Bitboard.play 的守卫）',
+      browser: 'C4State.serialize(C4State.play(C4State.newGame({mode:"human",gameNo:1,seed:-5}),3))',
+      node: () => St.serialize(St.play(St.newGame({ mode: 'human', gameNo: 1, seed: -5 }), 3))
+    },
+    {
+      name: 'C4State.isOver / turnOf / isHumanTurn（吃 RulesClassic.terminal）',
+      browser: 'JSON.stringify((function(){var g=C4State.newGame({mode:"ai",tier:1,gameNo:0,seed:1});'
+        + '[3,0,4,1,5,0,2].forEach(function(c){g=C4State.play(g,c);});'
+        + 'return [C4State.isOver(g),C4State.turnOf(g),C4State.isHumanTurn(g),C4State.humanPlayer(g)];})())',
+      node: () => {
+        let g = St.newGame({ mode: 'ai', tier: 1, gameNo: 0, seed: 1 });
+        [3, 0, 4, 1, 5, 0, 2].forEach(c => { g = St.play(g, c); });
+        return JSON.stringify([St.isOver(g), St.turnOf(g), St.isHumanTurn(g), St.humanPlayer(g)]);
+      }
+    },
+    // ─── render.js：几何是纯函数 ⇒ 不画一个像素也能在沙箱里逐位对拍 ───
+    // （⚠ 沙箱里没有 GameGlobal，layout 的 typeof 兜底必须成立，否则浏览器首帧就 ReferenceError）
+    {
+      name: 'C4Render.layout(414,896) 的几何 + colAt（沙箱里无 GameGlobal，走 typeof 兜底）',
+      browser: 'JSON.stringify((function(){var L=C4Render.layout(414,896);'
+        + 'return [L.cell,L.pad,L.boardX,L.boardY,L.drop.y,L.hud.y,L.colAt(200,500),L.colAt(-1,-1)];})())',
+      node: () => {
+        const L = Rd.layout(414, 896);
+        return JSON.stringify([L.cell, L.pad, L.boardX, L.boardY, L.drop.y, L.hud.y, L.colAt(200, 500), L.colAt(-1, -1)]);
+      }
+    },
+    {
+      name: 'C4Render.cellOwner / landingRow（读 Bitboard 的掩码，⛔ 不 require Bitboard）',
+      browser: 'JSON.stringify((function(){var bd=Bitboard.fromMoves([3,3,4]);'
+        + 'return [C4Render.cellOwner(bd,3,0),C4Render.cellOwner(bd,3,1),C4Render.cellOwner(bd,0,0),'
+        + 'C4Render.landingRow(bd,3),C4Render.landingRow(bd,9)];})())',
+      node: () => {
+        const bd = B.fromMoves([3, 3, 4]);
+        return JSON.stringify([Rd.cellOwner(bd, 3, 0), Rd.cellOwner(bd, 3, 1), Rd.cellOwner(bd, 0, 0),
+          Rd.landingRow(bd, 3), Rd.landingRow(bd, 9)]);
+      }
     }
   ];
 

@@ -2,6 +2,16 @@
   "lang": { "name": "English", "toggle": "Language" },
   "ads": { "simWatch": "[Ad simulation] Watch a rewarded ad?", "simInterstitial": "[Ad simulation] Interstitial ad" },
   "app": { "title": "Four in a Row" },
-  "menu": { "vsAI": "Play vs Computer", "vsHuman": "Two Players", "tier": "Opponent" },
-  "game": { "yourTurn": "Your turn", "thinking": "Thinking…", "win": "You win", "lose": "You lose", "draw": "Draw", "again": "Play again" }
+  "menu": { "vsAI": "Play vs Computer", "vsHuman": "Two Players", "tier": "Opponent",
+            "easy": "Easy", "medium": "Advanced", "perfect": "Perfect" },
+  "game": { "yourTurn": "Your turn", "thinking": "Thinking", "win": "You win", "lose": "You lose",
+            "draw": "Draw", "again": "Play again", "undo": "Undo", "menu": "Menu",
+            "stopped": "Stopped",
+            "turnOf": "{p} to play", "wins": "{p} wins",
+            "p1": "Player 1", "p2": "Player 2",
+            "level": "Level {n}", "gameLine": "Game {n} · {p} starts",
+            "enginePrep": "Getting the engine ready…",
+            "bookLoading": "Loading opening book…",
+            "engineDown": "Engine unavailable on this device — computer play is off",
+            "engineSlow": "Opening book unavailable: this level would take minutes per move, so it is paused" }
 }

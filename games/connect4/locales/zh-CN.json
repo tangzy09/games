@@ -2,6 +2,16 @@
   "lang": { "name": "中文", "toggle": "语言" },
   "ads": { "simWatch": "【广告模拟】观看激励视频？", "simInterstitial": "【广告模拟】插屏广告" },
   "app": { "title": "四子棋" },
-  "menu": { "vsAI": "对战电脑", "vsHuman": "双人对战", "tier": "对手难度" },
-  "game": { "yourTurn": "轮到你了", "thinking": "思考中…", "win": "你赢了", "lose": "你输了", "draw": "平局", "again": "再来一局" }
+  "menu": { "vsAI": "对战电脑", "vsHuman": "双人对战", "tier": "对手难度",
+            "easy": "轻松", "medium": "进阶", "perfect": "完美" },
+  "game": { "yourTurn": "轮到你了", "thinking": "思考中", "win": "你赢了", "lose": "你输了",
+            "draw": "平局", "again": "再来一局", "undo": "撤销", "menu": "菜单",
+            "stopped": "已中断",
+            "turnOf": "轮到{p}", "wins": "{p} 获胜",
+            "p1": "玩家 1", "p2": "玩家 2",
+            "level": "第 {n} 级", "gameLine": "第 {n} 局 · {p} 先手",
+            "enginePrep": "引擎准备中…",
+            "bookLoading": "开局库加载中…",
+            "engineDown": "本机引擎不可用 —— 人机对战暂不可用",
+            "engineSlow": "开局库不可用：这一档每手要几秒到几分钟，已暂停" }
 }
