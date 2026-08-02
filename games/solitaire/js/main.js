@@ -618,10 +618,21 @@ function dispatch(action, data) {
     }
     case 'MODE': {                             // 切玩法 = 换一局（玩法是开局前属性）
       // ⭐ 三合一轮转：Klondike → FreeCell → Spider → Klondike
+      //   ⚠ 这是**旧入口**（E2E 与老习惯还在用）。玩家侧现在一律走 MODE_SET 直选，
+      //     因为「轮转」在三个玩法上必然产生撒谎的按钮标签（见 MODE_SET 的注释）。
       const next = s.mode === 'klondike' ? 'freecell' : s.mode === 'freecell' ? 'spider' : 'klondike';
-      G.stage = 1; G.runScore = 0;             // 换玩法 = 新一轮连关
-      newGame(undefined, next);
-      goPhase('PLAY');                         // 入口在菜单 chip,切完回牌桌
+      setMode(next);
+      break;
+    }
+    // ⭐ 直选玩法（2026-08-01）：三个玩法并排，点哪个是哪个。
+    //   ⛔ 换掉的旧做法是「一个 chip 轮转」，而标签写的是二元三目
+    //     （`当前是 FreeCell ? 显示 Klondike : 显示 FreeCell`）—— 三个玩法上必然对不上：
+    //     在 FreeCell 里写着「Klondike」却跳去 Spider，在 Spider 里写着「FreeCell」却跳去 Klondike。
+    //     **三态的东西不要用二元标签 + 轮转**，玩家点下去得到的必须就是标签上写的那个。
+    case 'MODE_SET': {
+      const m = data && data.m;
+      if (!m || m === s.mode || !['klondike', 'freecell', 'spider'].includes(m)) break;
+      setMode(m);
       break;
     }
     case 'FAIR': goPhase('FAIR'); break;
@@ -1206,6 +1217,13 @@ const AD_GIVE = {
 };
 /** 结算屏礼包的金币数（`×3` 但有保底 —— 脏赢基础只有 10 币，×3 也不够看） */
 const winAdCoins = () => Math.max(AD_GIVE.winMin, (G.lastWinCoins || 0) * 3);
+
+/** 换玩法 = 换一局（玩法是开局前属性）；连关轮从头开始。MODE / MODE_SET 共用一份口径。 */
+function setMode(m) {
+  G.stage = 1; G.runScore = 0;
+  newGame(undefined, m);
+  goPhase('PLAY');                             // 选完直接回牌桌，别把人留在菜单里
+}
 
 /** 收藏品点选：已有=换上 / 有免费券=白拿（券作废）/ 否则金币买。三个 tab 共用一份口径。 */
 function pickSkin(kind, id) {

@@ -230,18 +230,32 @@
     const gh = tall ? 46 : 40;                    // 菜单格
     const sh2 = tall ? 38 : 32;                   // 底部小钮
     const titleH = tall ? 34 : 27, tagH = tall ? 30 : 24;
+    const mh = (tall ? 30 : 26) + 8;              // 玩法三选一（Klondike/FreeCell/Spider）
     // 🎁 每日礼物条（1 次/天，领过就不占位）—— 高度要**算进 fixed**，否则底部间隙被它挤走
     const giftOn = !Money.noAds && adLeft('gift') > 0;
     const fh = giftOn ? (tall ? 34 : 30) + 8 : 0;
-    const fixed = hs + 10 + titleH + tagH + ch + bh + dh + fh + 3 * gh + 2 * 8 + sh2;
-    const GAPS = 7, base = tall ? 12 : 7;
+    const fixed = hs + 10 + titleH + tagH + ch + mh + bh + dh + fh + 3 * gh + 2 * 8 + sh2;
+    const GAPS = 7;
+    let base = tall ? 12 : 7;
     // ⛔ 右上角是引擎 DOM 控制栏（#controls: safeTop+8，高 ctrlH）的地盘 —— canvas 画到那儿
     //   会被盖住且点不动。hero 是整屏最宽的一块 ⇒ **整体起在 ctrlH 之下**，从根上避开。
     const top0 = GameGlobal.safeTop + GameGlobal.ctrlH + (tall ? 6 : 2);
-    const slack = SH - top0 - 12 - fixed - GAPS * base;
+    // ⛔ 高度**不够**时也得有办法（加了玩法三选一那行后，360×640 上底栏被顶出屏幕，实拍抓到）：
+    //   富余高度平摊进间隙只解决了「太高」，「太矮」得反过来收 —— 先压主视觉（最能压的一块），
+    //   还不够再收间隙。⚠ 只压 hero 不动别的：它是装饰，其余每一行都是功能。
+    let hs2 = hs;
+    let slack = SH - top0 - 12 - fixed - GAPS * base;
+    if (slack < 0) {
+      const cut = Math.min(Math.round(hs * 0.38), -slack);
+      hs2 -= cut; slack += cut;
+    }
+    if (slack < 0) {
+      const cutGap = Math.min(base - 3, Math.ceil(-slack / GAPS));
+      base -= cutGap; slack += cutGap * GAPS;
+    }
     const gap = base + Math.max(0, Math.min(22, slack / GAPS));
     let y = top0;
-    const hx = cx - hs / 2;
+    const hx = cx - hs2 / 2;
     // ⭐ **每次进主界面换一张**（2026-08-01 用户定）：从**已解锁的**里随机抽 ——
     //   它是「我的收藏」不是装饰画。⚠ 只在 heroIdx 为空时抽一次（renderHome 每帧都跑，
     //   每帧重抽图会疯狂闪）；离开 HOME 时由 renderAll 清空，下次进来才换。
@@ -250,23 +264,23 @@
     }
     const file = G0.angels > 0 ? Angels.fileAt(G0.heroIdx) : null;
     const im = file ? Angels.img(file) : null;
-    fillRR(hx - 5, y - 5, hs + 10, hs + 10, 22, 'rgba(255,255,255,0.88)');
+    fillRR(hx - 5, y - 5, hs2 + 10, hs2 + 10, 22, 'rgba(255,255,255,0.88)');
     if (im) {
       ctx.save();
-      Sprite.rr(ctx, hx, y, hs, hs, 18); ctx.clip();
-      const sc = Math.max(hs / im.width, hs / im.height);
-      ctx.drawImage(im, hx + (hs - im.width * sc) / 2, y + (hs - im.height * sc) / 2,
+      Sprite.rr(ctx, hx, y, hs2, hs2, 18); ctx.clip();
+      const sc = Math.max(hs2 / im.width, hs2 / im.height);
+      ctx.drawImage(im, hx + (hs2 - im.width * sc) / 2, y + (hs2 - im.height * sc) / 2,
                     im.width * sc, im.height * sc);
       ctx.restore();
     } else {
-      fillRR(hx, y, hs, hs, 18, '#f4f7f5');
-      const q = hs / 2;
+      fillRR(hx, y, hs2, hs2, 18, '#f4f7f5');
+      const q = hs2 / 2;
       [['\u2660', '#1b1b1b'], ['\u2665', '#d33344'], ['\u2663', '#177a3a'], ['\u2666', '#2166c9']]
         .forEach((sv, i) => txt(sv[0], hx + q * (0.5 + (i % 2)), y + q * (0.5 + Math.floor(i / 2)),
                                 sv[1], Math.round(q * 0.62) + 'px sans-serif'));
     }
-    addHit(hx, y, hs, hs, 'GALLERY', {});         // 点大图 = 进图鉴
-    y += hs + gap;
+    addHit(hx, y, hs2, hs2, 'GALLERY', {});         // 点大图 = 进图鉴
+    y += hs2 + gap;
 
     // ── 标题 + 一句话卖点（这一句就是产品的整个差异化）──
     txt('Fair Deal', cx, y + (tall ? 14 : 12), '#ffd84d', 'bold ' + (tall ? 30 : 25) + 'px sans-serif');
@@ -292,6 +306,10 @@
       txtR(T('sol.coins', { n: Money.coins }), cx + w / 2 - 12, y + 42, '#ffd84d', 'bold 10px sans-serif');
     }
     y += ch + gap;
+
+    // ── 🎴 玩法三选一：**开局前属性**，所以摆在主按钮正上方（选完再按 Play）──
+    //   ⚠ 点非当前项 = 直接换一局并回牌桌（换玩法本来就等于换局）。
+    y = modeRow(cx, w, y, mh - 8) + 8;
 
     // ── ▶ 主按钮：**智能续继**（局中未完 ⇒ 继续这一局，别把人扔回新局）──
     const resuming = G0.s && !G0.s.won && G0.s.moves.length > 0;
@@ -381,6 +399,27 @@
     drawToast();
   }
 
+  /**
+   * ⭐ 玩法三选一（主界面与菜单共用）：Klondike / FreeCell / Spider 并排，当前的高亮，
+   *   点哪个就是哪个 —— **点下去得到的必须就是标签上写的那个**。返回下一行的 y。
+   *   ⚠ 换玩法 = 换一局（玩法是开局前属性），所以点了会直接回牌桌开新局。
+   */
+  function modeRow(cx, w, y, h) {
+    const cur = (root.G.s && root.G.s.mode) || 'klondike';
+    const MODES = [['klondike', 'sol.klondike'], ['freecell', 'sol.freecell'], ['spider', 'sol.spider']];
+    const cw = Math.floor((w - 12) / 3);
+    MODES.forEach(function (m, i) {
+      const x = cx - w / 2 + i * (cw + 6);
+      const on = cur === m[0];
+      fillRR(x, y, cw, h, 9, on ? '#22c55e' : 'rgba(0,0,0,0.30)');
+      ctx.font = 'bold 11px sans-serif';                 // ⚠ wrapLines 按当前 font 量宽
+      txt(wrapLines(T(m[1]), cw - 8, 1)[0], x + cw / 2, y + h / 2,
+          on ? '#fff' : 'rgba(255,255,255,0.75)', 'bold 11px sans-serif');
+      if (!on) addHit(x, y, cw, h, 'MODE_SET', { m: m[0] });
+    });
+    return y + h;
+  }
+
   /** 菜单：档案头 / 每日锦标赛 / 每日 / 图鉴 / 统计 / 成就 / 收藏 / 公平 / 设置 */
   function renderMenu() {
     const L = page(T('sol.menu'), 'scroll', '📋');
@@ -389,13 +428,13 @@
     const tall0 = GameGlobal.SH >= 760;
     let y = GameGlobal.safeTop + 56;
 
-    // 模式切换 chip（标题旁 —— 工具条腾位后 MODE 落这里）
+    // ⭐ 玩法三选一（2026-08-01 换掉原来那个「轮转 chip」）
+    //   ⛔ 旧写法：一个 chip + 二元标签（`是 FreeCell ? 写 Klondike : 写 FreeCell`）配三态轮转 ⇒
+    //     在 FreeCell 里写着「Klondike」却跳去 Spider、在 Spider 里写着「FreeCell」却跳去 Klondike。
+    //     三个玩法是产品的主要内容，不该藏在一个会撒谎的小角标里。
     const G0 = root.G;
-    const fcNow = G0.s && G0.s.mode === 'freecell';
-    fillRR(cx + w / 2 - 78, GameGlobal.safeTop + 14, 78, 26, 9, 'rgba(0,0,0,0.28)');
-    txt(fcNow ? '♠ ' + T('sol.klondike') : '⬛ ' + T('sol.freecell'),
-        cx + w / 2 - 39, GameGlobal.safeTop + 27, '#fff', 'bold 10px sans-serif');
-    addHit(cx + w / 2 - 78, GameGlobal.safeTop + 14, 78, 26, 'MODE', {});
+    y = modeRow(cx, w, y, 30);
+    y += 8;
 
     // 👤 档案头:头像(图鉴天使/⭐) + 称号 Lvl + XP 条 + 金币（照竞品顶栏）
     const lvl = levelOf(G0.xp || 0);

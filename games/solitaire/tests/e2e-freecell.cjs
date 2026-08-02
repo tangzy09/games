@@ -42,11 +42,11 @@ async function clickAction(page, action, dataMatch) {
   await page.evaluate(() => { if (G.phase === 'INTRO') dispatch('INTRO_GO'); });
   await page.waitForTimeout(80);
 
-  // ── 切到 FreeCell（真实点工具条按钮）──
-  // 真实路径：PLAY 的 '‹' 回 🏠 主界面 → 主界面「⋯ 更多」进菜单 → MODE chip 在菜单标题旁
+  // ── 切到 FreeCell（真实点按钮）──
+  // ⭐ 2026-08-01 起玩法是**三选一直选**（主界面主按钮上方那一行，菜单里也有一份）：
+  //   点哪个是哪个，不再是「一个 chip 轮转」——旧写法的标签在三个玩法上必然撒谎。
   await clickAction(page,'HOME'); await page.waitForTimeout(250);
-  await clickAction(page,'MENU'); await page.waitForTimeout(150);
-  ok(await clickAction(page,'MODE'), '「模式」按钮可点(菜单 chip)');
+  ok(await clickAction(page,'MODE_SET',{m:'freecell'}), '主界面「FreeCell」可直选');
   await page.waitForTimeout(200);
   const st = await page.evaluate(() => ({ mode:G.s.mode, seed:G.s.seed, cols:G.s.tableau.length,
     free:G.s.free.length, down:G.s.tableau.reduce((n,c)=>n+(c.cards.length-c.up),0) }));
@@ -84,17 +84,19 @@ async function clickAction(page, action, dataMatch) {
     `⭐ FreeCell 开局 → 「${v.result}」（微软 32000 局里只有 #11982 无解 ⇒ 几乎必然 solvable，${v.ms}ms）`);
   await page.screenshot({ path: path.join(SHOT,'p4-03-freecell-solvable.png') });
 
-  // ── 切回 Klondike（同上：PLAY '‹' → HOME → 「⋯ 更多」→ MODE chip）──
+  // ── 直选 Spider，再直选回 Klondike（⛔ 标签写什么就必须去哪：这条钉的正是旧 bug）──
   await clickAction(page,'HOME'); await page.waitForTimeout(250);
-  await clickAction(page,'MENU'); await page.waitForTimeout(150);
-  // ⚠ MODE 是**三合一轮转** Klondike→FreeCell→Spider→Klondike（不是两态开关）⇒ 要点两次才转回来
-  await clickAction(page,'MODE'); await page.waitForTimeout(200);
-  ok(await page.evaluate(() => G.s.mode==='spider'), 'FreeCell → Spider（轮转第二跳）');
+  await clickAction(page,'MODE_SET',{m:'spider'}); await page.waitForTimeout(250);
+  ok(await page.evaluate(() => G.s.mode==='spider'), '点「Spider」就去 Spider');
   await clickAction(page,'HOME'); await page.waitForTimeout(250);
-  await clickAction(page,'MENU'); await page.waitForTimeout(150);
-  await clickAction(page,'MODE');
-  await page.waitForTimeout(200);
-  ok(await page.evaluate(() => G.s.mode==='klondike' && G.s.tableau.length===7), '切回 Klondike（7 列）');
+  await clickAction(page,'MODE_SET',{m:'klondike'}); await page.waitForTimeout(250);
+  ok(await page.evaluate(() => G.s.mode==='klondike' && G.s.tableau.length===7), '点「Klondike」就去 Klondike（7 列）');
+  // ⛔ 菜单里那一份也必须是直选（两处共用同一个 modeRow）
+  await clickAction(page,'HOME'); await page.waitForTimeout(250);   // ⚠ MENU 入口在 HOME 底栏，不在牌桌上
+  await clickAction(page,'MENU'); await page.waitForTimeout(200);
+  const menuModes = await page.evaluate(() => hitAreas.filter(h => h.action === 'MODE_SET').map(h => h.data.m).sort());
+  ok(JSON.stringify(menuModes) === JSON.stringify(['freecell','spider']),
+     '菜单里也是三选一（当前项不可点）：' + menuModes.join('/'));
 
   ok(errs.length===0, '全程零 error' + (errs.length?': '+errs.join(' | '):''));
   await browser.close(); srv.close();
