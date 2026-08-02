@@ -182,12 +182,24 @@
    * @param mode 'solid'（正常）| 'ghost'（落点虚影：虚线轮廓 + 极淡填充）
    * ⭐ ghost 与 solid **共用同一条路径** —— 虚影必须和真落下去的那一枚形状一致，
    *   否则「预演」预演的是另一个东西（这正是按住预览白送教学的前提）。
+   *
+   * @param opts.sx,sy squash & stretch（DESIGN §6.3，来自 C4Fx.pose()）。默认 1/1 ⇒
+   *   ⛔ 老调用方一个像素都不变（剪影门禁 e2e-render ⑤ 量的就是那份剪影）。
+   *   ⭐ 缩放的**支点在棋子底沿**不是中心：压扁的时候底边得钉在它砸到的那个面上，
+   *     绕中心缩的话棋子会在撞底那一瞬往上飘半格，看起来像弹起而不是被压扁。
    */
   function drawPiece(player, cx, cy, cell, opts) {
     opts = opts || {};
     const mode = opts.mode || 'solid';
     const a = opts.alpha == null ? 1 : opts.alpha;
+    const sx = opts.sx == null ? 1 : opts.sx, sy = opts.sy == null ? 1 : opts.sy;
     ctx.save();
+    if (sx !== 1 || sy !== 1) {
+      const Rv = cell * (player === 0 ? HEX_R : RING_R);     // 半高 = 底沿到中心
+      ctx.translate(cx, cy + Rv);
+      ctx.scale(sx, sy);
+      cx = 0; cy = -Rv;
+    }
     ctx.globalAlpha = a;
     if (opts.glow) { ctx.shadowColor = PAL.glow; ctx.shadowBlur = cell * 0.55; }
 
@@ -292,12 +304,22 @@
    *   lastMove  {c,r} 上一手的小标记
    *   action    热区的 action 名（默认 'COL'，data = {col}）
    *   noHits    true = 不注册热区（截图/预览用）
+   *   anim      ⭐ `C4Fx.pose()` 的返回值：[{c,r,player,dy,sx,sy}]，正在**下落中**的棋子。
+   *             这些格子在静态那一遍里**跳过**（否则同一枚会同时出现在格心和半空中），
+   *             改画在 `center(c,r).y + dy*cell` 上，带 squash & stretch。
+   *             ⚠ dy 的单位是**格**不是像素 —— 动画中途转屏时 cell 会变，用像素存会跳一下。
    * }
    */
   function drawBoard(bd, opts) {
     opts = opts || {};
     const L = opts.L || layout(GameGlobal.SW, GameGlobal.SH);
     const line = normLine(opts.winLine);
+    const anim = Array.isArray(opts.anim) && opts.anim.length ? opts.anim : null;
+    const animAt = (c, r) => {
+      if (!anim) return null;
+      for (const p of anim) if (p && p.c === c && p.r === r) return p;
+      return null;
+    };
     const inLine = (c, r) => !!(line && line.some(p => p.c === c && p.r === r));
     const dimA = opts.dim === true ? 0.62 : (typeof opts.dim === 'number' ? opts.dim : 0);
 
@@ -317,15 +339,16 @@
              landing < 0 ? 'rgba(0,0,0,0.20)' : 'rgba(255,255,255,0.13)');
     }
 
-    // 棋子
+    // 棋子（⚠ 正在下落的那些跳过，下面单独画在半空中）
     for (let c = 0; c < W; c++) {
       for (let r = 0; r < H; r++) {
         const o = cellOwner(bd, c, r);
-        if (o < 0) continue;
+        if (o < 0 || animAt(c, r)) continue;
         const p = L.center(c, r);
         drawPiece(o, p.x, p.y, L.cell);
       }
     }
+
 
     // 上一手的小标记（一个细亮点，不改变剪影）
     if (opts.lastMove && !line) {
@@ -362,6 +385,7 @@
       ctx.restore();
 
       for (const p of line) {
+        if (animAt(p.c, p.r)) continue;   // 这一枚还在半空中，下面那一段会画（⛔ 别画两遍）
         const q = L.center(p.c, p.r), o = cellOwner(bd, p.c, p.r);
         drawPiece(o, q.x, q.y, L.cell, { backing: PAL.well });
         // 光晕沿这枚棋子**自己的**外轮廓走：赢的时候玩家看到的仍然是「我的六边形」/「我的圆环」
@@ -383,6 +407,17 @@
       ctx.strokeStyle = 'rgba(180,255,228,0.60)';
       ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
       ctx.restore();
+    }
+
+    // ⭐ 下落中的棋子（DESIGN §6.3）。⚠ 画在**赢局那一段之后**：
+    //   ① 它可能压在下面已有的那一枚上；② 赢的一手落地前不该被 dim 一起压暗
+    //   （玩家刚松手的这一枚是全屏最该看清的东西）。
+    if (anim) {
+      for (const p of anim) {
+        if (!p || !Number.isFinite(p.dy)) continue;   // ⛔ NaN 会把棋子静默画到画布外
+        const q = L.center(p.c, p.r);
+        drawPiece(p.player === 1 ? 1 : 0, q.x, q.y + p.dy * L.cell, L.cell, { sx: p.sx, sy: p.sy });
+      }
     }
 
     // ⭐ 悬停预览（DESIGN §6.1）：落点虚影 + 悬在列上方的半透明棋子。

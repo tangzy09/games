@@ -47,7 +47,8 @@ const LOAD_ORDER = [
   path.join(JS_DIR, 'book.js'),
   path.join(JS_DIR, 'ai.js'),
   path.join(JS_DIR, 'state.js'),
-  path.join(JS_DIR, 'render.js')
+  path.join(JS_DIR, 'render.js'),
+  path.join(JS_DIR, 'fx.js')
 ];
 
 /** 造一个尽量像浏览器的沙箱：有 self、有 console，⛔ **没有 module / require / exports**
@@ -85,7 +86,7 @@ console.log('test-browser: ' + LOAD_ORDER.length + ' 个 <script> 按序求值�
     '裸标识符 PRNG 必须可用（后续 <script> 靠它拿到 PRNG）');
   assert.strictEqual(vm.runInContext('typeof PRNG.create', sandbox), 'function');
   // 反过来，五个游戏模块用的是 `root.X = API` ⇒ 必须是 self 的属性
-  const NAMES = ['Bitboard', 'RulesClassic', 'Solver', 'Book', 'ConnectAI', 'C4State', 'C4Render'];
+  const NAMES = ['Bitboard', 'RulesClassic', 'Solver', 'Book', 'ConnectAI', 'C4State', 'C4Render', 'C4Fx'];
   for (const name of NAMES) {
     assert.strictEqual(vm.runInContext('typeof self.' + name, sandbox), 'object',
       'self.' + name + ' 没挂上（模块结尾的 root.' + name + ' = API 没生效？）');
@@ -190,6 +191,20 @@ console.log('test-browser: ' + LOAD_ORDER.length + ' 个 <script> 按序求值�
         const bd = B.fromMoves([3, 3, 4]);
         return JSON.stringify([Rd.cellOwner(bd, 3, 0), Rd.cellOwner(bd, 3, 1), Rd.cellOwner(bd, 0, 0),
           Rd.landingRow(bd, 3), Rd.landingRow(bd, 9)]);
+      }
+    },
+    // ─── fx.js：曲线是闭式纯函数 ⇒ 沙箱里也能逐位对拍（浏览器分支的唯一覆盖）───
+    {
+      name: 'C4Fx.start/step/pose（浏览器分支：root.C4Fx = API 真的能跑一段动画）',
+      browser: 'JSON.stringify((function(){C4Fx.reset();C4Fx.start("drop",{c:3,r:0,player:0});'
+        + 'var e=C4Fx.step(150).concat(C4Fx.step(150));var p=C4Fx.pose()[0];C4Fx.reset();'
+        + 'return [e.length,e[0].type,e[0].r,p.phase,p.dy,p.sx,p.sy];})())',
+      node: () => {
+        const Fx = require('../js/fx.js');
+        Fx.reset(); Fx.start('drop', { c: 3, r: 0, player: 0 });
+        const e = Fx.step(150).concat(Fx.step(150));
+        const p = Fx.pose()[0]; Fx.reset();
+        return JSON.stringify([e.length, e[0].type, e[0].r, p.phase, p.dy, p.sx, p.sy]);
       }
     }
   ];

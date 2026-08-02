@@ -49,7 +49,11 @@ var G = {
   result: null,       // { t, winner, line }
   lastAiMs: 0,        // 实测用：上一次 AI 落子耗时
   lastAiHeavy: false, // 实测用：上一次是不是真的转了菊花
-  L: null             // 本帧的 layout（输入回调用它算列号，⛔ 别各算各的）
+  L: null,            // 本帧的 layout（输入回调用它算列号，⛔ 别各算各的）
+  // ── 落子动画（P2b T2）。⭐ rafId 是**可检查的状态**：没有动画在跑时它必须是 null
+  //    （⛔ 空转烧电是这个 rAF 唯一的失败模式，而它不报错 ⇒ 必须能被 E2E 问到）。
+  rafId: null,
+  fxLast: 0           // 上一帧的时间戳（ms，与 rAF 的 ts 同一时基）
 };
 
 // ════════ 小工具 ════════
@@ -113,20 +117,95 @@ function setThinking(on) {
   renderAll();
 }
 
+// ════════ 落子动画（P2b Task 2 · DESIGN §6.3）════════
+// 一局落 20 次子、一天几百次 —— **这一个动作的手感就是这个游戏的手感**。
+// 曲线全在 js/fx.js（闭式解、node 里逐位可测），这里只做三件事：驱动、停下、发声。
+//
+// ⛔⛔ 本节最重要的一条：**动画期间不许锁输入。**
+//   `interactive()` 里**没有** C4Fx 的影子，这是故意的（casual-game-meta §6 铁律；
+//   solitaire 实踩：发牌动画 1 秒内点击全被吞，快手玩家的反馈是「点不动」）。
+//   落子动画只是表现，玩家想在上一枚还在飞的时候落下一枚 ⇒ **就得让他落**
+//   （C4Fx 支持多枚同时在飞正是为这条）。⇒ e2e-p2b.cjs 用真实鼠标钉死了它。
+//
+// ⚠ T6（§6.8 减弱动态）将来要门控的就是 `startDropFx` 里那一次 `C4Fx.start`：
+//   reduceMotion 打开时**跳过 start**，直接走 `onPieceLanded`（音 + 震动 + 静态帧）——
+//   下面那条 `if (id == null)` 的 fail-safe 分支就是它现成的入口。
+
+const MAX_FRAME_DELTA = 100;   // 切后台回来的第一帧 ts 是真实墙钟 ⇒ 夹住，最坏只是慢放一点
+
+function nowMs() {
+  return (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+}
+
+/** 从悬停带到落点的真实距离（**格**，不是像素——转屏时 cell 会变）。 */
+function fallCells(L, col, row) {
+  if (!L || !L.cell) return null;
+  const d = (L.center(col, row).y - (L.drop.y + L.drop.h / 2)) / L.cell;
+  return d > 0 ? d : null;
+}
+
+/** 落定的那一瞬：⭐ 音随深度变调（land0 = 最底行 = 最低音）+ 震动。 */
+function onPieceLanded(row) {
+  const r = Math.max(0, Math.min(C4Render.H - 1, row | 0));
+  Sfx.play('land' + r);
+  // 掉得深 = 砸得重：震动跟着深度分两档（与音高的梯子同一个意思，触觉上也读得出来）。
+  // ⚠ Haptics 自己吃 AudioState.sfxOn 的门 ⇒ 🔊 关掉时震动一起停（engine/audio.js 的约定）。
+  if (r <= 1) Haptics.medium(); else Haptics.light();
+}
+
+function fxFrame(ts) {
+  G.rafId = null;
+  const now = (typeof ts === 'number' && isFinite(ts)) ? ts : nowMs();
+  const dt = Math.min(Math.max(0, now - G.fxLast), MAX_FRAME_DELTA);
+  G.fxLast = now;
+  const evs = C4Fx.step(dt);
+  for (const e of evs) if (e.type === 'land') onPieceLanded(e.r);
+  renderAll();
+  // ⛔ 没有动画在跑就**必须停**（别空转烧电）。判据是 C4Fx.done()，不是别的标志。
+  if (!C4Fx.done()) G.rafId = requestAnimationFrame(fxFrame);
+}
+
+function fxKick() {
+  if (G.rafId != null || C4Fx.done()) return;
+  G.fxLast = nowMs();
+  G.rafId = requestAnimationFrame(fxFrame);
+}
+
+/** ⛔ 撤销 / 换局 / 回菜单必须调：不然一枚**已经不在盘上**的棋子还在半空中飞。 */
+function fxStop() {
+  if (G.rafId != null) { cancelAnimationFrame(G.rafId); G.rafId = null; }
+  C4Fx.reset();
+}
+
+/** 起一枚棋子的下落。row/player 必须是**落子之前**读到的（落完就读不到了）。 */
+function startDropFx(col, row, player) {
+  const L = G.L || curLayout();
+  const params = { c: col, r: row, player: player };
+  const f = fallCells(L, col, row);
+  if (f !== null) params.fall = f;
+  const id = C4Fx.start('drop', params);
+  // ⛔ 动画起不来（参数坏了 / 将来 T6 的减弱动态）也**必须有落定反馈**：
+  //    静默丢掉音与震动 = 玩家以为这一手没落上。
+  if (id == null) { onPieceLanded(row); return; }
+  Sfx.play('drop');
+  fxKick();
+}
+
 // ════════ 状态机 ════════
 
+// ⛔ 别在这里加 `&& C4Fx.done()`（见上节）：落子动画期间点击必须照常生效。
 function interactive() {
   return G.phase === 'PLAYING' && !!G.g && !G.thinking && C4State.isHumanTurn(G.g);
 }
 
 function goHome() {
-  G.aiSeq++; setThinking(false);
+  G.aiSeq++; setThinking(false); fxStop();
   G.phase = 'HOME'; G.g = null; G.result = null; G.hoverCol = -1; G.holdCol = -1; G.notice = '';
   renderAll();
 }
 
 function startGame(mode, tier) {
-  G.aiSeq++; setThinking(false);
+  G.aiSeq++; setThinking(false); fxStop();
   G.result = null; G.hoverCol = -1; G.holdCol = -1; G.notice = '';
   const opts = { mode: mode, gameNo: G.gameNo };
   // ⛔ 别在这里算 humanFirst：交替先手 + 「顶档必须玩家先手」两条都写在 state.js 的
@@ -161,8 +240,13 @@ function checkOver() {
 /** 落一子（人或 AI 都走这里）。⚠ 先问 canPlay —— C4State.play 对非法列是**抛**的。 */
 function applyMove(col) {
   if (!G.g || !C4State.canPlay(G.g, col)) return false;
+  // ⚠ 落点与执子方必须在 play **之前**读：落完盘面就变了，那时候 h[col] 已经加过一。
+  //   ⭐ 这个 row 直接就是落定音的编号（land0 = 最底行 = 最低音，DESIGN §6.3）。
+  const row = C4Render.landingRow(C4State.boardOf(G.g), col);
+  const player = C4State.turnOf(G.g);
   G.g = C4State.play(G.g, col);
   G.hoverCol = -1;
+  if (row >= 0) startDropFx(col, row, player);
   const over = checkOver();
   renderAll();
   if (!over) maybeAI();
@@ -174,7 +258,7 @@ function applyMove(col) {
 function doUndo() {
   const g = G.g;
   if (!g || !g.moves.length) return;
-  G.aiSeq++; setThinking(false); G.notice = '';
+  G.aiSeq++; setThinking(false); fxStop(); G.notice = '';
   let n = g.moves.length - 1;
   if (g.mode === 'ai') {
     while (n > 0 && (n % 2) !== C4State.humanPlayer(g)) n--;
@@ -416,7 +500,8 @@ function drawPlay(L) {
     hoverPlayer: C4State.turnOf(g),
     winLine: line,
     dim: line ? true : 0,
-    lastMove: null
+    lastMove: null,
+    anim: C4Fx.pose()      // ⭐ 正在下落的棋子（空数组 = 没有动画，drawBoard 一切照旧）
   });
 
   const info = hudInfo(g);
