@@ -188,7 +188,11 @@
     }
     s.score -= 1;                       // 微软计分:每走一步 −1(含 undo,那是重放出来的)
     collect(s, ev);                     // ⚠ 复合动作②:自动收走完成的组
-    if (isWon(s)) ev.push({ t: 'win' });
+    // ⛔ **`s.won` 必须在这里置位**（2026-08-01 实测 bug）：core.apply 对 Spider 是**提前 return**
+    //   的分支，走不到它末尾那句 `if (R.isWon(s)) s.won = true` ⇒ 集齐 8 组后 won 恒 false，
+    //   结算屏（画在 `s.won` 上）**永远不出**，玩家赢了却像卡在空盘面上。
+    //   FreeCell 的规则里有这一行，Spider 漏了 —— 三种玩法各自 return 的结构就是这么埋雷的。
+    if (isWon(s)) { s.won = true; ev.push({ t: 'win' }); }
     return ev;
   }
 

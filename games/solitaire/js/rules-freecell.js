@@ -180,6 +180,14 @@
       ev.push({ t: 'move', n });
     } else return null;
 
+    // ⭐ 计分（2026-08-01 补）：FreeCell 原来**恒为 0** —— 不只是结算屏难看，
+    //   `lastStageScore = score × 连关倍率` 也恒为 0 ⇒ **FreeCell 赢局对等级/锦标赛/连关零贡献**，
+    //   而且伪社交榜上永远垫底（赢了却排最后一名，比不显示还伤）。
+    //   口径与另两种玩法同气质、且**只由 move list 决定**（撤销=重放，必须可复现）：
+    //     收进 foundation +25 / 取回 −25 / 每步 −2 ⇒ 一局 100 手左右的胜局 ≈ 1100 分。
+    if (m.t === 'tf' || m.t === 'cf') s.score += 25;
+    else if (m.t === 'ft') s.score -= 25;
+    s.score = Math.max(0, s.score - 2);
     // ⚠ **不在这里 push moves** —— 那是 core 的职责（core.replay 会 push，这里再 push 会重复）
     if (isWon(s)) { s.won = true; ev.push({ t: 'win' }); }
     return ev;

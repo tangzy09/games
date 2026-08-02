@@ -397,9 +397,24 @@ function onWin() {
   if (!G.reduceFx) {
     const L = Layout.L;
     const cards = [];
-    for (let r = 12; r >= 0; r--) {              // K 先飞
-      for (let fi = 0; fi < 4; fi++) {
-        cards.push({ id: r * 4 + fi, x: L.foundX(fi), y: L.topY });
+    if (s.mode === 'spider') {
+      // ⚠ Spider 的「地基」不是 4 门花色，而是**已完成的 8 组**，位置也在右上角一排 ——
+      //   照 Klondike 那样从 foundX(0..3) 起飞，牌会从**盘面上根本没有东西的地方**冒出来。
+      //   ⇒ 按真实的 8 个组标记位起飞，每组 13 张（K 先飞，与经典瀑布同向）。
+      for (let r = 12; r >= 0; r--) {
+        for (let k = 0; k < 8; k++) {
+          const grp = s.foundations[k];
+          if (!grp) continue;
+          cards.push({ id: grp[grp.length - 1 - r] != null ? grp[grp.length - 1 - r] : grp[0],
+                       x: L.playX + L.playW - L.gap - (8 - k) * Math.round(L.cardW * 0.42),
+                       y: L.topY });
+        }
+      }
+    } else {
+      for (let r = 12; r >= 0; r--) {            // K 先飞
+        for (let fi = 0; fi < 4; fi++) {
+          cards.push({ id: r * 4 + fi, x: L.foundX(fi), y: L.topY });
+        }
       }
     }
     FX.startCascade(cards);

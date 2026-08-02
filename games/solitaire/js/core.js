@@ -101,7 +101,8 @@
       const sev = RS.apply(s, m);
       if (!sev) return null;
       if (rec) s.moves.push(m);
-      return sev;
+      if (RS.isWon(s)) s.won = true;         // ⛔ 双保险：这三条分支都提前 return，
+      return sev;                            //    末尾那句统一置位**够不着**（Spider 曾因此永不结算）
     }
     const ev = [];
 

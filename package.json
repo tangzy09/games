@@ -13,7 +13,7 @@
     "test:block:e2e": "node games/blockblast/tests/e2e-p1.cjs && node games/blockblast/tests/e2e-p2.cjs && node games/blockblast/tests/e2e-p3.cjs && node games/blockblast/tests/e2e-p4.cjs && node games/blockblast/tests/e2e-rewards.cjs",
     "sim:block": "node games/blockblast/tools/sim.js",
     "verify:levels": "node games/blockblast/tools/verify-levels.js",
-    "test:sol": "node games/solitaire/tests/test-klondike.js && node games/solitaire/tests/test-spider.js && node games/solitaire/tests/test-money.js && node games/solitaire/tests/test-spider-hint.js",
+    "test:sol": "node games/solitaire/tests/test-klondike.js && node games/solitaire/tests/test-spider.js && node games/solitaire/tests/test-money.js && node games/solitaire/tests/test-spider-hint.js && node games/solitaire/tests/test-win.js",
     "test:sol:e2e": "node games/solitaire/tests/e2e-p1.cjs",
     "sim:sol": "node games/solitaire/tools/sim-blind.js",
     "test:sol:pool": "node games/solitaire/tools/test-prover.js",

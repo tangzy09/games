@@ -1583,7 +1583,23 @@
       fillRR(L.cx - wcw / 2, wy0, wcw, winCardH || SH * 0.58, 22, 'rgb(7,45,28)');
       strokeRR(L.cx - wcw / 2, wy0, wcw, winCardH || SH * 0.58, 22, 'rgba(255,255,255,0.16)', 1.5);
       let wy = SH * 0.28;
-      txt(T('sol.youWin'), L.cx, wy, '#fff', 'bold 30px sans-serif'); wy += 46;
+      // 🏆 奖杯 + 标题（三种玩法共用同一张卡：两套结算风格比丑更糟）
+      uiIcon('trophy', '🏆', L.cx, wy - 30, 34);
+      txt(T('sol.youWin'), L.cx, wy, '#fff', 'bold 30px sans-serif'); wy += 26;
+      // ⭐ 玩法胶囊：赢完先告诉玩家「你赢的是哪一局」——FreeCell 的**局号**是老玩家的接头暗号，
+      //   Spider 的**花色档**是它唯一诚实的难度刻度，Klondike 是翻 1/翻 3。三种玩法各说各的。
+      {
+        const modeLine = s.mode === 'freecell'
+          ? T('sol.freecell') + '  #' + s.seed
+          : s.mode === 'spider'
+            ? T('sol.spider') + '  ' + T('sol.spSuit' + (root.G.spiderSuits || 1)) + '  ·  8/8'
+            : T('sol.klondike') + '  ' + T('sol.draw' + (s.drawCount === 1 ? 1 : 3));
+        ctx.font = 'bold 12px sans-serif';
+        const mw = ctx.measureText(modeLine).width + 28;
+        fillRR(L.cx - mw / 2, wy - 13, mw, 24, 12, 'rgba(255,216,77,0.18)');
+        txt(modeLine, L.cx, wy, '#ffd84d', 'bold 12px sans-serif');
+      }
+      wy += 30;
       const multW = Math.min(G.stage || 1, 5);
       txt(T('sol.finalScore', { n: G.lastStageScore || s.score }) + (multW > 1 ? '  ×' + multW : ''),
           L.cx, wy, '#ffd84d', 'bold 22px sans-serif'); wy += 20;
