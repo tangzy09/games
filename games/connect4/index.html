@@ -23,6 +23,9 @@
 <script src="../../engine/canvas.js"></script>
 <script src="../../engine/input.js"></script>
 <script src="../../engine/controls.js"></script>
+<!-- 求解器门面（Task 4）。⚠ 主线程这一侧**不加载** bitboard/solver/ai/book ——
+     它们全在 js/solver.worker.js 里，主线程一行搜索代码都不该有。 -->
+<script src="js/engine-client.js?v=1"></script>
 <script src="js/main.js?v=1"></script>
 </body>
 </html>
