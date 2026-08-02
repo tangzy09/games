@@ -16,6 +16,7 @@
 const { chromium } = require('playwright');
 const http = require('http'), fs = require('fs'), path = require('path');
 
+const { CAPS, RAWLANG } = require('./shot-caps.cjs');   // 39 语文案 + raw 语言映射
 const ROOT = path.resolve(__dirname, '../../..');
 const DIR = 'C:/tmp/snake/store-shots';
 const RAW = path.join(DIR, 'raw'), FIN = path.join(DIR, 'final');
@@ -81,20 +82,29 @@ const SEED_STATE = () => {
   persist();
 };
 
-async function pass1(pad) {
+/** 某个 locale 的第 i 张文案（标题/高亮词/副标 + 胶囊）*/
+function cap(locale, i) {
+  const c = CAPS[locale] || CAPS['en-US'];
+  const [h, hl, s2] = c.t[i];
+  const pills = i === 0 ? c.pills1 : i === 3 ? c.pills4 : null;
+  return { h, hl, s: s2, pills: pills ? pills.map(t => ({ t })) : null };
+}
+
+async function pass1(pad, lang) {
   const srv = await serve();
   const br = await chromium.launch();
   const errs = [];
   const vp = pad ? { width: 1024, height: 1366 } : { width: 430, height: 932 };
   const dsf = pad ? 2 : 3;
   const tag = pad ? 'pad-' : '';
+  const outRaw = path.join(RAW, lang); fs.mkdirSync(outRaw, { recursive: true });
 
   async function fresh() {
     const pg = await br.newPage({ viewport: vp, deviceScaleFactor: dsf });
     pg.on('pageerror', e => errs.push(e.message));
     await pg.goto(`http://127.0.0.1:${PORT}/games/snake/`, { waitUntil: 'load' });
     await pg.waitForFunction(() => window.G && window.G.imgList && window.G.imgList.length, null, { timeout: 20000 });
-    await pg.evaluate(() => I18N.setLang('en'));
+    await pg.evaluate(l => I18N.setLang(l), lang);
     await pg.waitForTimeout(500);
     await pg.evaluate(SEED_STATE);
     await pg.evaluate(() => { hideHome(); });
@@ -132,7 +142,7 @@ async function pass1(pad) {
         return { x, y, width: w, height: h };
       });
     }
-    await pg.screenshot({ path: path.join(RAW, tag + id + '.png'), ...(clip ? { clip } : {}) });
+    await pg.screenshot({ path: path.join(outRaw, tag + id + '.png'), ...(clip ? { clip } : {}) });
     await pg.close();
   };
 
@@ -206,12 +216,12 @@ async function pass1(pad) {
   await snap(pg, '08-skins', 900);
 
   await br.close(); srv.close();
-  console.log(`pass1 ${pad ? 'iPad' : 'iPhone'} done. pageerrors:`, errs.length ? [...new Set(errs)].join(' | ') : '0');
+  console.log(`pass1 ${pad ? 'iPad' : 'iPhone'} [${lang}] done. pageerrors:`, errs.length ? [...new Set(errs)].join(' | ') : '0');
 }
 
 // ── 真机边框（黑 bezel + 状态栏；iPhone 带灵动岛，iPad 不带）──
 function phoneHTML(rawId, o) {
-  const src = 'file:///' + path.join(RAW, rawId + '.png').replace(/\\/g, '/');
+  const src = 'file:///' + path.join(RAW, o.lang, rawId + '.png').replace(/\\/g, '/');
   const pos = (o.left !== undefined ? `left:${o.left}px;` : '') + (o.right !== undefined ? `right:${o.right}px;` : '') + (o.cx ? 'left:50%;' : '');
   const tf = `${o.cx ? 'translateX(-50%) ' : ''}rotate(${o.rot || 0}deg)`;
   const isl = o.pad ? '' : `<span class="isl" style="width:${o.islW}px;height:${o.islH}px;top:${Math.round((o.sbH - o.islH) / 2)}px"></span>`;
@@ -223,7 +233,10 @@ function phoneHTML(rawId, o) {
       </div><img src="${src}" style="width:100%"></div></div></div>`;
 }
 
-function stageHTML(shot, pad) {
+function stageHTML(shot, pad, locale) {
+  const lang = RAWLANG[locale] || 'en';
+  const cp = cap(locale, SHOTS.indexOf(shot));
+  shot = { ...shot, ...cp };
   const W = pad ? 2048 : 1290, H = pad ? 2732 : 2796;
   const k = pad ? 1.42 : 1;                       // iPad 上文字/元素整体放大
   const r = id => (pad ? 'pad-' : '') + id;
@@ -247,13 +260,13 @@ function stageHTML(shot, pad) {
   //    iPad 1440/700→2672、1340/820→2658、hero 1300/880→2665（都 <2732）。改宽度自己重算。
   const phones = pad
     ? (shot.raw2
-        ? phoneHTML(r(shot.raw), { ...sbBase, w: 1300, left: 120, top: 880, rot: shot.tilt || -2 })
-          + phoneHTML(r(shot.raw2), { ...sbBase, w: 800, right: -60, top: 1900, rot: 6, z: 5, sbH: 44, sbF: 20, sbP: 32 })
-        : phoneHTML(r(shot.raw), { ...sbBase, w: shot.pills ? 1340 : 1440, cx: 1, top: shot.pills ? 820 : 700, rot: shot.tilt || 0 }))
+        ? phoneHTML(r(shot.raw), { lang, ...sbBase, w: 1300, left: 120, top: 880, rot: shot.tilt || -2 })
+          + phoneHTML(r(shot.raw2), { lang, ...sbBase, w: 800, right: -60, top: 1900, rot: 6, z: 5, sbH: 44, sbF: 20, sbP: 32 })
+        : phoneHTML(r(shot.raw), { lang, ...sbBase, w: shot.pills ? 1340 : 1440, cx: 1, top: shot.pills ? 820 : 700, rot: shot.tilt || 0 }))
     : (shot.raw2
-        ? phoneHTML(r(shot.raw), { ...sbBase, w: 950, left: 45, top: 660, rot: shot.tilt || -2 })
-          + phoneHTML(r(shot.raw2), { w: 620, right: -46, top: 1700, rot: 6, z: 5, sbH: 60, sbF: 24, sbP: 36, islW: 170, islH: 44 })
-        : phoneHTML(r(shot.raw), { ...sbBase, w: shot.pills ? 960 : 1000, cx: 1, top: shot.pills ? 620 : 560, rot: shot.tilt || 0 }));
+        ? phoneHTML(r(shot.raw), { lang, ...sbBase, w: 950, left: 45, top: 660, rot: shot.tilt || -2 })
+          + phoneHTML(r(shot.raw2), { lang, w: 620, right: -46, top: 1700, rot: 6, z: 5, sbH: 60, sbF: 24, sbP: 36, islW: 170, islH: 44 })
+        : phoneHTML(r(shot.raw), { lang, ...sbBase, w: shot.pills ? 960 : 1000, cx: 1, top: shot.pills ? 620 : 560, rot: shot.tilt || 0 }));
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&display=swap" rel="stylesheet">
@@ -315,20 +328,23 @@ function stageHTML(shot, pad) {
 </body></html>`;
 }
 
-async function pass2(pad) {
+async function pass2(pad, locales) {
   const br = await chromium.launch();
-  const W = pad ? 2048 : 2796 && 1290, H = pad ? 2732 : 2796;
+  const H = pad ? 2732 : 2796;
   const pg = await br.newPage({ viewport: { width: pad ? 2048 : 1290, height: H }, deviceScaleFactor: 1 });
-  const out = path.join(FIN, pad ? 'ipad' : 'iphone');
-  fs.mkdirSync(out, { recursive: true });
-  for (const f of fs.readdirSync(out)) fs.unlinkSync(path.join(out, f));   // 清旧成品防串号
-  for (const shot of SHOTS) {
-    const f = path.join(DIR, (pad ? 'pad-' : '') + 'stage-' + shot.id + '.html');
-    fs.writeFileSync(f, stageHTML(shot, pad), 'utf8');
-    await pg.goto('file:///' + f.replace(/\\/g, '/'), { waitUntil: 'networkidle' });
-    await pg.waitForTimeout(350);
-    await pg.screenshot({ path: path.join(out, shot.id + '.png') });
-    console.log('final:', (pad ? 'ipad/' : 'iphone/') + shot.id);
+  const dev = pad ? 'ipad' : 'iphone';
+  for (const locale of locales) {
+    const out = path.join(FIN, locale, dev);
+    fs.mkdirSync(out, { recursive: true });
+    for (const f of fs.readdirSync(out)) fs.unlinkSync(path.join(out, f));   // 清旧成品防串号
+    for (const shot of SHOTS) {
+      const f = path.join(DIR, 'stage.html');
+      fs.writeFileSync(f, stageHTML(shot, pad, locale), 'utf8');
+      await pg.goto('file:///' + f.replace(/\\/g, '/'), { waitUntil: 'networkidle' });
+      await pg.waitForTimeout(260);
+      await pg.screenshot({ path: path.join(out, shot.id + '.png') });
+    }
+    console.log('final:', locale + '/' + dev, '8 张');
   }
   await br.close();
 }
@@ -337,9 +353,13 @@ async function pass2(pad) {
   fs.mkdirSync(RAW, { recursive: true }); fs.mkdirSync(FIN, { recursive: true });
   const onlyPhone = process.argv.includes('--phone'), onlyPad = process.argv.includes('--pad');
   const devices = onlyPhone ? [false] : onlyPad ? [true] : [false, true];
+  // --locale=xx 只出一个 locale（调设计时用）；默认全部 39 个
+  const only = (process.argv.find(a => a.startsWith('--locale=')) || '').split('=')[1];
+  const locales = only ? [only] : Object.keys(CAPS);
+  const langs = [...new Set(locales.map(l => RAWLANG[l] || 'en'))];
   for (const pad of devices) {
-    if (!process.argv.includes('--stage-only')) await pass1(pad);
-    await pass2(pad);
+    if (!process.argv.includes('--stage-only')) for (const lang of langs) await pass1(pad, lang);
+    await pass2(pad, locales);
   }
-  console.log('ALL DONE →', FIN);
+  console.log('ALL DONE →', FIN, '|', locales.length, 'locale ×', devices.length, '设备 × 8 张');
 })().catch(e => { console.error('ERR', e); process.exit(1); });
