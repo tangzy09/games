@@ -42,7 +42,14 @@ execSync([
   '-f lavfi -i anullsrc=channel_layout=stereo:sample_rate=48000',
   `-ss ${trim.toFixed(3)} -t ${dur.toFixed(3)}`,
   '-map 0:v -map 1:a -shortest',
-  '-r 30 -c:v libx264 -profile:v high -pix_fmt yuv420p -crf 20 -preset slow',
+  // ⛔ **背景在闪**（用户 2026-08-01 实际看片反馈，实测确认）：牌桌是一整片平滑绿渐变，
+  //   而 Chrome recordVideo 出的 webm 本身是 VP8 有损 —— 静止画面上每帧的量化噪声不同，
+  //   平坦大色块就会**逐帧微微跳亮度**（实测同一块 60×60 felt：帧间跳变 >0.15 的有 118 帧）。
+  //   ⚠ 不是我们这道 x264 的锅：crf 20/16/14 三档实测完全一样（所以别靠调 crf 去治）。
+  //   解法 = **只做时间域降噪**（空间域给 0，一点不糊）：hqdn3d 把逐帧噪声抹平 ⇒ 118 → 8 帧。
+  //   实拍对照过滑牌那一帧：牌面与文字锐度无差别。
+  '-vf "fps=30,hqdn3d=0:0:6:6"',
+  '-c:v libx264 -profile:v high -pix_fmt yuv420p -crf 18 -preset slow',
   '-c:a aac -b:a 96k -ar 48000 -ac 2',
   '-movflags +faststart',
   `"${OUT}"`,
@@ -57,7 +64,22 @@ const d = +probe.format.duration;
 console.log(`成片 → ${OUT}`);
 console.log(`  ${v.width}×${v.height} · ${v.codec_name} · ${eval(v.r_frame_rate)}fps · ${d.toFixed(1)}s`
   + ` · ${(probe.format.size / 1048576).toFixed(1)}MB · 音轨 ${a ? a.codec_name + ' ' + a.channels + 'ch（静音）' : '无'}`);
+// ⭐ 闪烁门禁：在两块**应该恒定**的牌桌区域上量逐帧亮度跳变。平坦大色块的闪烁肉眼一眼能看出来，
+//   但「编码成功」四个字看不出来 —— 用户就是这么发现的，所以把它写成可执行的检查。
+function flickerFrames(crop) {
+  const out = execSync(
+    `ffmpeg -hide_banner -nostats -i "${OUT}" -vf "crop=${crop},signalstats,metadata=print:key=lavfi.signalstats.YAVG" -f null - 2>&1`,
+    { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const ys = [...out.matchAll(/YAVG=([\d.]+)/g)].map(m => +m[1]);
+  let n = 0;
+  for (let i = 1; i < ys.length; i++) if (Math.abs(ys[i] - ys[i - 1]) > 0.15) n++;   // 场景切换本身也会计入几帧
+  return n;
+}
+const fa = flickerFrames('60:60:24:1180'), fb = flickerFrames('200:200:640:1000');
+console.log(`  闪烁自检：牌桌左侧 ${fa} 帧 / 中部 ${fb} 帧 有 >0.15 的亮度跳变（治好前是 118 / 41）`);
+
 let bad = 0;
+if (fa > 30 || fb > 30) { console.error('⛔ 平坦区域逐帧亮度在跳 —— 背景会看着发闪，检查时间域降噪那一步'); bad = 1; }
 if (v.width !== 886 || v.height !== 1920) { console.error('⛔ 分辨率不是 886×1920'); bad = 1; }
 if (d < 15 || d > 30) { console.error('⛔ 时长不在 15–30s'); bad = 1; }
 if (eval(v.r_frame_rate) > 30) { console.error('⛔ 帧率超过 30'); bad = 1; }
