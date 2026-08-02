@@ -68,8 +68,11 @@
 // ⚠ `--keep`（S.setKeepTable(true)，跨局面复用置换表）默认**关**，且**本轮校准全程没开**
 //   （上面那些数字都是关着跑的）。它在这里是合法的 —— 这是离线校准不是门禁，而且本文件
 //   **任何地方都不读 nodes**，所以开不开只影响墙钟、不影响任何一个胜率。
-//   ⚠ 但**别想当然以为它一定赚**：solver.js 那个 5.08× 是在「一个根 + 它的全部近邻后代」上
-//   量的，而这里是**互不相关的一万六千局**（solver.js 自己记了：随机散点上它一分不赚）。
+//   ⚠ 但**别想当然以为它一定赚**：那个 5.08× 出自 **gen-book.js 抬头**（离线批量建库的口径），
+//   ⛔ 不是 solver.js —— solver.js 自己记的是 **4.53× 节点 / 4.81× 墙钟**（n=14 的根 + 3 层内
+//   全部 287 个去重非终局后代）。两处口径不同、数字不同，别混着引。
+//   两者的共同前提都是「一个根 + 它的全部近邻后代」，而这里是**互不相关的一万六千局**
+//   （solver.js 自己也记了：随机散点上它一分不赚）。
 //   同一局内的连续局面确实重叠，跨局基本不重叠 —— 收益上限约等于「每局省一点」，
 //   ⛔ 没实测过，别把它写成结论。⛔ worker 退出前无条件关回去。
 // ════════════════════════════════════════
@@ -434,11 +437,16 @@ async function modeLadder(o) {
     + o.seedBase + ' · 标准误 ≈ ' + se(o.games).toFixed(3) + '）');
   console.log('级别  模式    p/blunder  q3    参考玩家 胜/和/负        得分率  ⭐送头率  ⭐变盘失误/局  有变盘失误的局');
   let prev = null;
+  const rows = [];
   for (const t of tiers) {
     const a = acc['t' + t], pr = AI.params(t);
     // ⚠ 阶梯必须**单调**（级别越高，参考玩家越难赢）。倒挂就在行尾标出来 —— 相邻级差在
     //   噪声里是正常的（DESIGN 说相邻角色五五开是对的），但**方向性的倒挂**是阶梯错了。
-    const inv = (prev !== null && a.score > prev + 2 * se(o.games)) ? '  ⚠倒挂' : '';
+    const inverted = prev !== null && a.score > prev + 2 * se(o.games);
+    const inv = inverted ? '  ⚠倒挂' : '';
+    // ⭐ 门禁与这个 ⚠倒挂 标记**读同一个变量** —— ⛔ 别让门禁自己再算一遍判据：
+    //   两份判据迟早漂移，那时屏幕上标着 ⚠倒挂 而退出码是 0（或反过来），谁都不知道该信哪个。
+    rows.push({ tier: t, score: a.score, inverted: inverted, prevScore: prev });
     prev = a.score;
     // ⚠ 「p/blunder」一列对求解器档是 p、对轻松档是 blunder —— 两者是**同一件事在两段的
     //   不同实现**（都是「这一手打算走坏」的意图概率），并排读才看得出整条阶梯的走势。
@@ -454,7 +462,104 @@ async function modeLadder(o) {
   console.log('（' + wall.toFixed(1) + 's · ' + o.workers + ' worker · '
     + (wall * o.workers / (tiers.length * o.games) * 1000).toFixed(0) + ' ms/局·核）');
   if (o.json) console.log('JSON ' + JSON.stringify(tiers.map(t => ({ tier: t, p: AI.params(t).p, score: acc['t' + t].score }))));
-  return acc;
+  return { acc: acc, gate: ladderGate(o, rows) };
+}
+
+// ════════ ⭐ 退出码门禁（本仓铁律：结论类脚本用**退出码**裁决，⛔ 不靠人读输出）════════
+//
+// 基线（2026-08-01 本机实测，`npm run sim:c4` = ladder · basic · 800 局/级 · seed 20260801 ·
+// 参数表指纹 da3c3d1d · 809.9s）：
+//   级别  1     2     3     4     5  |  6     7     8     9    10    11    12
+//   得分 .885  .786  .694  .607  .498| .370  .338  .354  .296  .304  .278  .231
+//   级别 13    14    15    16    17   18    19    20
+//   得分 .191  .171  .121  .109  .086 .032  .026  .000
+//
+// ⚠⚠ **下界不是产品目标本身**，这一条最容易被后人改错，所以写清楚：
+//   DESIGN §3.1 的锚点是「第 1 级 ≈ 参考玩家 90%」，而实测点估计是 **.885**（同处已记：
+//   4,000 局复测 .892 / SE .008，目标 .90 落在 CI 内但点估计低 1-1.5 个百分点）。
+//   ⇒ 直接 `assert score1 >= 0.90` 会**当场红**，而那不是回归，是**已知且已被产品接受的现状**。
+//     把门禁写成一条明知会红的断言，等于第二天就被人注释掉 —— 那才是最坏的结果。
+//   ⇒ 下界取 **.86** = 4,000 局复测点估计 .892 − 4×SE(.008)，再向下取到百分位。
+//     它的含义是「第 1 级比今天**显著**退步了」才红，⛔ 不是「没打到 .90 就红」。
+//   ⭐ **什么时候必须收紧**：产品若采纳 DESIGN §3.1 里那条「第 1 级改偏边路」（实测 w=[10,14,20,28]
+//     给 .938），这个下界要跟着抬到 .90 以上 —— 否则它就退化成一条永远绿的摆设。
+//
+// ⚠ 锚点只在 `--ref=basic` 上判：solid 是第二把**更强**的尺子，同一条阶梯在它上面整体高一大截
+//   （ai.js 记的接缝实测 solid t5 .610 → t6 .603），拿 basic 的数字去卡 solid 是纯粹的假红。
+//   ⛔ 但**单调性对两把尺子都判** —— 「单尺子上漂亮的阶梯可能对另一半玩家是倒的」正是本文件
+//   抬头那条实锤，只在 basic 上判单调性等于把那条教训扔了。solid 的锚点要等它自己的基线跑出来。
+const GATE = Object.freeze({
+  MIN_GAMES: 400,          // 少于这个局数噪声太大（SE > .025），判不动，只打印不裁决
+  T1_MIN: 0.86,            // 第 1 级下界（推导见上）
+  TOP_MAX: 0.02,           // 顶档上界：第 20 级零失误 ⇒ 实测 0/0/800，给 16 个半分的余量
+  MIN_SPAN: 0.75,          // 第 1 级 − 第 20 级（实测 .885）
+  CHECKPOINTS: [1, 5, 10, 15, 20],
+  MIN_CHECKPOINT_DROP: 0.05 // 相邻检查点之间必须真的降（实测最小一段 .121→.000 = .121）
+});
+
+function ladderGate(o, rows) {
+  const fails = [];
+  const skips = [];
+  const full = GATE.CHECKPOINTS.every(t => rows.some(r => r.tier === t));
+  if (o.games < GATE.MIN_GAMES) {
+    skips.push('--games=' + o.games + ' < ' + GATE.MIN_GAMES + '（SE=' + se(o.games).toFixed(3)
+      + '，噪声太大，判不动）');
+  } else {
+    // ① ⭐ 单调性：**任何 ladder 跑都判**，包括 --pset/--bset 的候选曲线。
+    //    ⚠ 第一版只在出厂表上判，是**写反了**：候选曲线恰恰是最需要这条的场合 ——
+    //      T9 那个「p(6)=1.0 在 solid 上倒挂」就是拿候选曲线跑出来的。把它豁免掉，
+    //      等于让门禁在唯一可能发现倒挂的场合闭眼。
+    //    ⚠ 也正因为它对候选曲线生效，这条判据才**可测**：给一条故意倒挂的 --pset
+    //      就能验证门禁真的会红（⛔ 否则唯一的验证办法是改 ai.js 源码，正是本仓的事故源）。
+    for (const r of rows) {
+      if (r.inverted) {
+        fails.push('第 ' + r.tier + ' 级倒挂：得分率 ' + r.score.toFixed(3)
+          + ' > 第 ' + (r.tier - 1) + ' 级 ' + r.prevScore.toFixed(3) + ' + 2×SE('
+          + (2 * se(o.games)).toFixed(3) + ') ⇒ 级别越高反而越好赢，阶梯方向错了');
+      }
+    }
+    // ② 锚点与量程：只对**出厂表 + basic + 跑满检查点**判 —— 它们是「和基线比」，
+    //    而候选曲线本来就不该等于基线。
+    if (o.pset || o.bset) skips.push('用了 --pset/--bset 候选曲线 ⇒ 只判单调性，不判锚点/量程（锚点是出厂表的基线）');
+    else if (o.ref !== 'basic') skips.push('--ref=' + o.ref + '：锚点/量程只在 basic 上有基线，本次只判了单调性');
+    else if (!full) skips.push('本次没跑满第 ' + GATE.CHECKPOINTS.join('/') + ' 级，锚点/量程跳过');
+    else {
+        const at = t => rows.find(r => r.tier === t).score;
+        if (at(1) < GATE.T1_MIN) {
+          fails.push('第 1 级得分率 ' + at(1).toFixed(3) + ' < 下界 ' + GATE.T1_MIN
+            + ' ⇒ 最容易的一档比基线显著退步了（DESIGN §3.1 锚点：新手该赢约九成）');
+        }
+        if (at(AI.TIER_MAX) > GATE.TOP_MAX) {
+          fails.push('第 ' + AI.TIER_MAX + ' 级得分率 ' + at(AI.TIER_MAX).toFixed(3) + ' > 上界 '
+            + GATE.TOP_MAX + ' ⇒ 顶档不再是零失误（它是完美求解器，参考玩家本不该赢得下来）');
+        }
+        const span = at(1) - at(AI.TIER_MAX);
+        if (span < GATE.MIN_SPAN) {
+          fails.push('阶梯量程只有 ' + span.toFixed(3) + ' < ' + GATE.MIN_SPAN
+            + ' ⇒ 20 个级挤在太窄的胜率区间里，玩家分不出来');
+        }
+        for (let i = 1; i < GATE.CHECKPOINTS.length; i++) {
+          const a = at(GATE.CHECKPOINTS[i - 1]), b = at(GATE.CHECKPOINTS[i]);
+          if (a - b < GATE.MIN_CHECKPOINT_DROP) {
+            fails.push('第 ' + GATE.CHECKPOINTS[i - 1] + '→' + GATE.CHECKPOINTS[i] + ' 级只降了 '
+              + (a - b).toFixed(3) + ' < ' + GATE.MIN_CHECKPOINT_DROP + ' ⇒ 这一段是平的，不是阶梯');
+          }
+        }
+      }
+  }
+  for (const s of skips) console.log('\n⚠ 门禁部分跳过：' + s);
+  if (fails.length) {
+    console.log('\n⛔ 门禁未通过（' + fails.length + ' 条）：');
+    for (const f of fails) console.log('   · ' + f);
+    console.log('⛔ 别改这里的下界让它变绿 —— 先确认是不是真的改坏了阶梯；'
+      + '确实是有意的产品改动，就连同上面 GATE 那段的推导一起重写。');
+    return { ok: false, fails: fails };
+  }
+  console.log('\n✅ 门禁通过：单调（无倒挂）'
+    + (o.ref === 'basic' && !o.pset && !o.bset && o.games >= GATE.MIN_GAMES && full
+      ? ' · 第 1 级 ≥ ' + GATE.T1_MIN + ' · 第 ' + AI.TIER_MAX + ' 级 ≤ ' + GATE.TOP_MAX
+        + ' · 量程 ≥ ' + GATE.MIN_SPAN : ''));
+  return { ok: true, fails: [] };
 }
 
 async function modeSweep(o) {
@@ -552,13 +657,25 @@ async function main() {
   if (o.mode === 'weights') o.needBook = false;
   console.log('sim-ai · mode=' + o.mode + ' · ref=' + o.ref + ' · workers=' + o.workers + ' · seed=' + o.seedBase
     + ' · 参数表指纹 ' + AI.paramsDigest().hash);
-  if (o.mode === 'ladder') await modeLadder(o);
-  else if (o.mode === 'sweep') await modeSweep(o);
-  else if (o.mode === 'weights') await modeWeights(o);
+  if (o.mode === 'ladder') return (await modeLadder(o)).gate;
+  else if (o.mode === 'sweep') { await modeSweep(o); return null; }
+  else if (o.mode === 'weights') { await modeWeights(o); return null; }
   else throw new Error('不认识的 --mode=' + o.mode + '（ladder | sweep | weights）');
 }
 
 if (isMainThread && require.main === module) {
-  main().then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); });
+  // ⭐ **退出码即结论**（DESIGN §10 / 本仓铁律，与 tools/test-truth.js 同一条纪律）：
+  //   0 = 阶梯还是那条阶梯 · 1 = 门禁不过或跑挂了。⛔ 别退回无条件 exit(0)：
+  //   那样 `npm run sim:c4` 挂进 CI 之后**永远是绿的**，而它守的是「20 级阶梯真的是 20 级」。
+  //   ⚠ sweep / weights 是**探索**模式（没有基线可比），它们返回 null ⇒ 恒 0，这是有意的。
+  main()
+    .then(g => process.exit(g && g.ok === false ? 1 : 0))
+    .catch(e => { console.error(e); process.exit(1); });
 }
-module.exports = { refMove, playVsRef, playAiVsAi, REF_W, W_ARITH };
+// ⛔ 这里原本有一行 `module.exports = { refMove, playVsRef, playAiVsAi, REF_W, W_ARITH }` ——
+//   **死导出，已删**（全仓零 require：worker 走的是 `new Worker(__filename, {workerData})`，
+//   那是重新执行整个文件，不是 require）。留着的害处不是占地方，是它**看起来是被支持的 API**：
+//   下一个人会以为可以 require 进来复用参考玩家，而 refMove 依赖本文件的模块级状态与
+//   workerData 约定，require 进去大概率静默拿到错的尺子 —— 而尺子错了，本文件所有数字全废。
+//   ⇒ 真要复用，先给它写消费者和测试，再连同这段注释一起删。
+//   （同源纪律：bitboard.js 明确不导出 maskOf，也是「没有非它不可的用途就不导出」。）

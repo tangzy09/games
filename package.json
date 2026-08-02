@@ -14,7 +14,7 @@
     "sim:block": "node games/blockblast/tools/sim.js",
     "verify:levels": "node games/blockblast/tools/verify-levels.js",
     "test:sol": "node games/solitaire/tests/test-klondike.js",
-    "test:c4": "node games/connect4/tests/test-bitboard.js && node games/connect4/tests/test-rules.js && node games/connect4/tests/test-solver.js && node games/connect4/tests/test-book.js && node games/connect4/tests/test-ai-determinism.js",
+    "test:c4": "node games/connect4/tests/test-bitboard.js && node games/connect4/tests/test-rules.js && node games/connect4/tests/test-solver.js && node games/connect4/tests/test-book.js && node games/connect4/tests/test-ai-determinism.js && node games/connect4/tests/test-browser-globals.js",
     "test:c4:deep": "node games/connect4/tests/test-solver.js --deep",
     "gen:c4book": "node games/connect4/tools/gen-book.js --ply=10",
     "verify:c4book": "node games/connect4/tests/test-book.js --k=400",

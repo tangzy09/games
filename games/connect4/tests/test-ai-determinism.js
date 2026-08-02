@@ -745,7 +745,10 @@ function playScripted(startMoves, aiTier, seed, plies, humanRnd) {
     '第 ' + AI.SOLVER_FROM + ' 级（接缝）的 p 只有 ' + AI.params(AI.SOLVER_FROM).p
     + ' ⇒ 求解器档一上来就太强，与第 5 级之间会断档');
   assert.strictEqual(AI.params(AI.SOLVER_FROM).q3, 1,
-    'q3=1 才有那 .29→.45 的弱端量程，接缝全靠它（见 ai.js 的 Q3 那段）');
+    // ⚠ 括号里这对数字是**复算过的**（2026-08-01，第 12 级 · p=1 · 3,200 局/点 · basic）：
+    //   q3=.35 → .303，q3=1 → .476。⛔ 同一段旧注释里曾写过 q3=1 给「.398」，那个数复现不出来，
+    //   已在 ai.js 的 Q3 那段订正 —— 引它之前先看那里。
+    'q3=1 才有那 .30→.48 的弱端量程，接缝全靠它（见 ai.js 的 Q3 那段）');
   // ⭐ 轻松档的送头率必须逐级下降、且第 1 级足够高（产品锚点：第 1 级 ≈ 参考玩家 90%）
   for (let t = 2; t < AI.SOLVER_FROM; t++) {
     assert.ok(AI.params(t).blunder <= AI.params(t - 1).blunder,

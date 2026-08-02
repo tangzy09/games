@@ -82,7 +82,17 @@
   const B = inNode ? require('./bitboard.js') : root.Bitboard;
   const R = inNode ? require('./rules-classic.js') : root.RulesClassic;
   const S = inNode ? require('./solver.js') : root.Solver;
-  const PRNG = inNode ? require('../../../engine/prng.js') : root.PRNG;
+  // ⛔⛔ **`root.PRNG` 是错的，别改回去**（P1 终审实锤：整条 AI 阶梯在浏览器里 100% 不可用，
+  //   而 node 侧 14 条门禁全绿 —— 因为 P1 的测试全在 node 跑，这条 else 分支零消费者）。
+  //   `engine/prng.js` 顶层是 `const PRNG = {...}`：经典 <script> 里顶层 const 是**全局词法
+  //   环境的绑定，不是 self/window 的属性** ⇒ `root.PRNG` 恒 undefined，第一次 aiMove 就
+  //   `TypeError: ... (reading 'create')`。必须取**裸标识符** PRNG（后续 <script> 看得见它）。
+  //   ⚠ 而上面四个模块结尾是 `root.X = API`（属性）⇒ 它们**必须**走 root.X。
+  //     两种暴露方式混在同一个加载序列里，正是这个坑的来源。
+  //   ⚠ 局部名必须换成 PRNG_：写 `const PRNG = inNode ? require(...) : PRNG;` 是自我遮蔽，
+  //     同一作用域的 const 在初始化前不可读 ⇒ 当场 ReferenceError（TDZ）。
+  //   ⭐ 同样的写法见 games/snake/js/core.js:3-4；门禁见 tests/test-browser-globals.js。
+  const PRNG_ = inNode ? require('../../../engine/prng.js') : PRNG;
 
   const TIER_MIN = 1, TIER_MAX = 20;
   const SOLVER_FROM = 6;                       // 第 6 级起用求解器；1-5 级只看 2 手
@@ -274,11 +284,20 @@
   // 故意走次优时，挑「第 3 好」而不是「第 2 好」的概率（第 3 好存在时才有意义）。
   // ⭐ **2026-08-01 从 .35 改成 1** —— 它是把求解器档**弱端量程**拉开的唯一旋钮，而轻松档
   //   放开送头之后，接缝（第 5 级 → 第 6 级）落在哪里就由这个量程说了算：
-  //     实测（第 12 级 · 800 局/点 · basic 尺子）p=1 时 q3=.35 给 .291，q3=1 给 **.398**；
-  //     solid 尺子同样一对是 .499 → **.714**。
-  //   ⇒ q3=1 把整条求解器档能覆盖的胜率区间**多拉开三分之一**（.29 → .40），15 个级摊在
-  //     更宽的区间上 = 每一级之间更容易被玩家分辨。⛔ 别为了「看起来温和」把它调回 .35，
-  //     那等于白扔掉 11 个百分点的量程，而且没有任何一处会报错。
+  //     复算（第 12 级 · p=1 · **800 局 × 4 家族 = 3,200 局/点**，合并标准误 ≈ .009；
+  //     命令见下）参考玩家得分率，括号内是四个家族的区间：
+  //       basic  q3=.35 → **.303**（.292-.310）    q3=1 → **.476**（.443-.494）
+  //       solid  q3=.35 → **.511**（.502-.526）    q3=1 → **.727**（.706-.744）
+  //     `node tools/sim-ai.js --mode=sweep --knob=p --tier=12 --q3=<Q> --ps=1 --games=800 --ref=<R>`
+  //   ⇒ q3=1 把求解器档能覆盖的胜率区间**多拉开一半以上**（basic .30 → .48，+17 个百分点；
+  //     solid .51 → .73），15 个级摊在更宽的区间上 = 每一级之间更容易被玩家分辨。
+  //     ⛔ 别为了「看起来温和」把它调回 .35，那等于白扔掉 17 个百分点的量程，且零报错。
+  //   ⚠⚠ **订正**：本行原写「q3=1 给 .398 / 多拉开三分之一」—— 那个数**复现不出来**
+  //     （3,200 局复算 .476，四个家族最低的一个都有 .443，离 .398 有 2.5 个标准误以上）。
+  //     同一段里另外三个数（.291/.499/.714）以及上面响应表里的 **.452** 都复现得上
+  //     （.452 落在 .443-.494 区间内）⇒ 结论是 **.398 是旧轮次的残留，.452 那条才是对的**，
+  //     本行按新复算重写。⛔ 本仓第四次踩这个坑：**标着「实测」的数字必须是此刻的代码
+  //     能复现的数字**，改这两个旋钮前先把上面那条命令跑一遍，别信注释。
   // ⚠ q3=1 **不等于**「每手都走第 3 好」：它只在**已经决定要失误**（概率 p）且第 3 好存在时
   //   才生效 ⇒ 顶档（p 很小）该零失误还是零失误。
   const Q3 = 1;
@@ -546,7 +565,7 @@
       throw new Error('已终局的局面没有着法（terminal = ' + term + '）');
     }
     const pr = _tiers[t - 1];
-    const rnd = PRNG.create(mixSeed(sd, posHash(bd), t));
+    const rnd = PRNG_.create(mixSeed(sd, posHash(bd), t));
 
     const base = { tier: t, seed: sd, n: bd.n };
 
