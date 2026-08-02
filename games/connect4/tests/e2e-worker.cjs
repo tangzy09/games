@@ -155,7 +155,14 @@ const FIX = {
     const st = await EngineClient.ensureBook();
     return { before, st, ready: EngineClient.bookReady(), ms: performance.now() - t0 };
   });
-  ok(bookSt.before === false, '装库前 bookReady() = false（UI 据此拦住 n≤9 的求解）');
+  // ⚠ 这里**不能**断言 `before === false`（原来是这么写的，偶发红）：它读的是第 ③ 步那次
+  //   ~5 秒 `scoreAll` **之后**的快照，而 `main.js` boot 时就在后台拉库（那正是懒加载的本意：
+  //   **不阻塞**，不是**不开始**）⇒ 谁先到是竞态，与产品对错无关。
+  // ⭐ 「懒加载」这条性质由**第 ① 步的探针指纹**证明（`book=none` 是 Worker 内部在 ping
+  //   那一刻抓的，它为真就说明 ping 没等库）——这里只做值域检查，别重复且 racy 地再断一次。
+  // ⚠ 同一个坑本文件已经踩过一次（见 ① 上方注释）：**读「当前快照」去证明「没阻塞」永远是竞态**。
+  ok(typeof bookSt.before === 'boolean',
+    'bookReady() 必须返回布尔（懒加载的「没阻塞」由 ① 的探针指纹证明，实际 ' + bookSt.before + '）');
   ok(bookSt.st.book === 'ready', "装库后 status().state === 'ready'（实际 " + bookSt.st.book + ' / ' + bookSt.st.bookError + '）');
   eq([bookSt.st.bookPly, bookSt.st.bookCount], [WANT.bookPly, WANT.bookCount], '库的 ply/条目数与 node 读到的相同');
   ok(bookSt.ready === true, 'bookReady() = true');
