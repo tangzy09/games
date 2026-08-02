@@ -142,15 +142,20 @@ async function clickAction(page, action) {
   ok(!/blockblast\./.test(ach.sample), '成就名有 locale');
   await page.screenshot({ path: path.join(SHOT_DIR, 'p3-06-achievements.png') });
 
-  // ── 成就分页：34 条 = 2 页，翻页有界（原来「放不下就不画」，矮屏看不到后半）──
+  // ── 成就分页：翻页有界（原来「放不下就不画」，矮屏看不到后半）
+  //    ⚠ 别把页数写死：成就条数会随内容增长（30 关 → 300 关那批就加了 6 条，2 页变 3 页）
   const pg = await page.evaluate(() => {
+    const pages = Math.max(1, Math.ceil(Achievements.total() / 20));
     const r = [G.achPage];
     dispatch('ACH_PAGE', { d: 1 }); r.push(G.achPage);
-    dispatch('ACH_PAGE', { d: 1 }); r.push(G.achPage);   // 只有 2 页 ⇒ 停在 1
+    for (let i = 0; i < pages + 2; i++) dispatch('ACH_PAGE', { d: 1 });   // 一路翻到底，应被钳住
+    r.push(G.achPage);
     dispatch('ACH_PAGE', { d: -1 }); r.push(G.achPage);
-    return r;
+    return { r, pages };
   });
-  ok(pg.join(',') === '0,1,1,0', `成就分页翻页 + 边界钳制（${pg.join('→')}）`);
+  ok(pg.r[0] === 0 && pg.r[1] === Math.min(1, pg.pages - 1)
+     && pg.r[2] === pg.pages - 1 && pg.r[3] === Math.max(0, pg.pages - 2),
+     `成就分页翻页 + 边界钳制（${pg.pages} 页：${pg.r.join('→')}）`);
 
   // ── 设置页：预览/粒子开关翻转并持久化 ──
   await page.evaluate(() => { G.phase = 'HOME'; renderAll(); });

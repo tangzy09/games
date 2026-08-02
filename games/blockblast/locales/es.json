@@ -100,7 +100,13 @@
       "lvl30": "Todos los capítulos",
       "star90": "Todas las estrellas",
       "cry50": "Acaparador de gemas",
-      "cry200": "Barón del cristal"
+      "cry200": "Barón del cristal",
+      "lvl60": "Sesenta superados",
+      "lvl150": "Héroe a mitad",
+      "lvl300": "Los 300 niveles",
+      "star300": "300 estrellas",
+      "star600": "600 estrellas",
+      "star900": "Todas las estrellas"
     },
     "theme": {
       "candy": "Caramelo",
@@ -269,6 +275,8 @@
     "weakFrom": "Evaluado por el mismo solucionador que verifica que cada nivel se puede ganar. Solo ve tu tablero y la secuencia pública de piezas.",
     "reviewLine": "Jugada {t}: otra posición allí habría durado {n} movimientos más.",
     "stBrilliant": "Jugadas brillantes",
-    "stLevel": "Nivel"
+    "stLevel": "Nivel",
+    "chapterN": "Capítulo {n}",
+    "blocks": "Bloques"
   }
 }

@@ -54,10 +54,17 @@
     { id: 'lvl10',      cat: 'cum', need: p => p.levelsWon >= 10 },
     { id: 'lvl20',      cat: 'cum', need: p => p.levelsWon >= 20 },
     { id: 'lvl30',      cat: 'cum', need: p => p.levelsWon >= 30 },   // 三章全通
+    // ── 300 关（2026-08-02 扩容）之后的长线档：原来的顶档 lvl30/star90 在第 3 章就封顶了 ──
+    { id: 'lvl60',      cat: 'cum', need: p => p.levelsWon >= 60 },
+    { id: 'lvl150',     cat: 'cum', need: p => p.levelsWon >= 150 },
+    { id: 'lvl300',     cat: 'cum', need: p => p.levelsWon >= 300 },  // 全 300 关通关
     { id: 'star10',     cat: 'cum', need: p => p.stars >= 10 },
     { id: 'star30',     cat: 'cum', need: p => p.stars >= 30 },
     { id: 'star60',     cat: 'cum', need: p => p.stars >= 60 },
-    { id: 'star90',     cat: 'cum', need: p => p.stars >= 90 },   // 30 关全三星
+    { id: 'star90',     cat: 'cum', need: p => p.stars >= 90 },   // 前 30 关全三星
+    { id: 'star300',    cat: 'cum', need: p => p.stars >= 300 },
+    { id: 'star600',    cat: 'cum', need: p => p.stars >= 600 },
+    { id: 'star900',    cat: 'cum', need: p => p.stars >= 900 },  // 300 关全三星 = 天花板
     { id: 'cry50',      cat: 'cum', need: p => sumCrystals(p) >= 50 },    // 图鉴联动
     { id: 'cry200',     cat: 'cum', need: p => sumCrystals(p) >= 200 },
     { id: 'noUndo10',   cat: 'cum', need: p => p.cleanWins >= 10 },  // 不用撤销通关

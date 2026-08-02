@@ -71,6 +71,9 @@ function serve() {
     // 3) 关卡地图（第 3 章：全锁）
     await page.evaluate(() => { G.chapter = 3; });
     await shot('menu-ch3');
+    // 3.2) 深处的章（300 关 = 30 章：验章节选择器在两位数章号下也排得住）
+    await page.evaluate(() => { G.chapter = 17; });
+    await shot('menu-ch17');
 
     // 3.5) 全部二级页（图标/排版都在这些页上，不截就等于没验）
     for (const ph of ['ACH', 'SKIN', 'SHOP', 'SET', 'CAL', 'DEX', 'ANG', 'QUESTS', 'STATS', 'WEAK', 'LADDER', 'FAIR']) {

@@ -100,7 +100,13 @@
       "lvl30": "Alle Kapitel",
       "star90": "Alle Sterne",
       "cry50": "Juwelensammler",
-      "cry200": "Kristallbaron"
+      "cry200": "Kristallbaron",
+      "lvl60": "Sechzig geschafft",
+      "lvl150": "Halbzeit-Held",
+      "lvl300": "Alle 300 Level",
+      "star300": "300 Sterne",
+      "star600": "600 Sterne",
+      "star900": "Alle Sterne"
     },
     "theme": {
       "candy": "Bonbon",
@@ -269,6 +275,8 @@
     "weakFrom": "Bewertet vom selben Solver, der prüft, dass jedes Level lösbar ist. Er sieht nur dein Feld und den öffentlichen Teilestrom.",
     "reviewLine": "Zug {t}: An einer anderen Stelle hätte es {n} Züge länger gehalten.",
     "stBrilliant": "Glanzzüge",
-    "stLevel": "Stufe"
+    "stLevel": "Stufe",
+    "chapterN": "Kapitel {n}",
+    "blocks": "Blöcke"
   }
 }

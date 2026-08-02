@@ -212,6 +212,76 @@
     });
   }
 
+  // ════════════════════════════════════════
+  // 🏠 主界面装饰层（"可可爱爱"批，照 snake 的天国开场做 canvas 版）
+  //
+  // ⚠ 一切位置都走**确定性散列**，⛔ 禁 Math.random —— 每帧重抽的话星星会疯狂乱跳（snake 实锤）。
+  // ⚠ 动效受设置里的「粒子/动态」开关门控（FX.enabled）：关掉 = 一张静止的漂亮背景，不是白屏。
+  // ⚠ 预算：整层 < 60 个图元。主界面为它进入了每帧重画，别往里堆东西。
+  // ════════════════════════════════════════
+  function hash2(i) {
+    let h = Math.imul(i + 1, 2654435761) >>> 0;
+    h = Math.imul(h ^ (h >>> 15), 2246822519) >>> 0;
+    return (h ^ (h >>> 13)) >>> 0;
+  }
+  function drawHomeDeco(SW, SH, t) {
+    // ── 极光：三条横向柔光带，缓慢起伏 ──
+    const AUR = ['255,214,240', '186,230,253', '253,230,138'];
+    for (let i = 0; i < 3; i++) {
+      const yy = SH * (0.09 + i * 0.085) + Math.sin(t * (0.16 + i * 0.05) + i * 2.1) * SH * 0.022;
+      const hgt = SH * 0.085;
+      const g = ctx.createLinearGradient(0, yy - hgt, 0, yy + hgt);
+      // ⚠ alpha 别抠：0.15 在紫色底上肉眼几乎看不见（实拍），要 0.26 才"有那么点极光的意思"
+      g.addColorStop(0, 'rgba(' + AUR[i] + ',0)');
+      g.addColorStop(0.5, 'rgba(' + AUR[i] + ',0.26)');
+      g.addColorStop(1, 'rgba(' + AUR[i] + ',0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, yy - hgt, SW, hgt * 2);
+    }
+    // ── 星星：确定性位置，各自节奏地眨 ──
+    for (let i = 0; i < 26; i++) {
+      const h = hash2(i);
+      const x = (h % 997) / 997 * SW;
+      const y = ((h >>> 10) % 991) / 991 * SH * 0.78;
+      const tw = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(t * 1.5 + i * 1.7));
+      const r = 0.9 + (h % 3) * 0.55;
+      ctx.fillStyle = 'rgba(255,255,255,' + (0.55 * tw).toFixed(2) + ')';
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    }
+    // ── 云海：底部两层交叠的圆顶（上下必须交叠，否则层间会露出一条横带 —— snake 踩过）──
+    for (let layer = 0; layer < 2; layer++) {
+      const baseY = SH * (0.875 + layer * 0.06) + Math.sin(t * 0.1 + layer) * 3;
+      ctx.fillStyle = 'rgba(255,255,255,' + (0.16 + layer * 0.1).toFixed(2) + ')';
+      ctx.beginPath();
+      ctx.moveTo(0, SH);
+      for (let k = 0; k <= 6; k++) {
+        const cxk = (k / 6) * SW + Math.sin(t * 0.12 + k * 1.3 + layer) * 8;
+        ctx.arc(cxk, baseY, SW * 0.13, Math.PI, 0);
+      }
+      ctx.lineTo(SW, SH); ctx.closePath(); ctx.fill();
+    }
+  }
+  /** hero 背后的圣光：径向光晕 + 缓慢转的光芒线（点题：这是天使画像）*/
+  function drawHalo(cx, cy, r, t) {
+    const g = ctx.createRadialGradient(cx, cy, r * 0.35, cx, cy, r * 1.15);
+    g.addColorStop(0, 'rgba(255,246,200,0.34)');
+    g.addColorStop(0.6, 'rgba(255,224,180,0.14)');
+    g.addColorStop(1, 'rgba(255,224,180,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(cx, cy, r * 1.15, 0, Math.PI * 2); ctx.fill();
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(t * 0.06);
+    for (let i = 0; i < 12; i++) {
+      ctx.rotate(Math.PI / 6);
+      ctx.fillStyle = 'rgba(255,250,220,' + (i % 2 ? 0.05 : 0.09) + ')';
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.035, r * 0.62); ctx.lineTo(r * 0.035, r * 0.62);
+      ctx.lineTo(0, r * 1.12); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
+
   /** 画水晶：有生成图用图（目标条/图鉴等大尺寸处），没有回退矢量 drawCrystal。
    *  ⚠ 用图时**仍要叠一枚形状角标** —— 5 张生成图之间只有颜色不同，
    *    对色盲玩家来说「收集目标是哪一种」在这些地方就成了猜谜。*/
@@ -307,20 +377,23 @@
     const grad = ctx.createLinearGradient(0, 0, SW, SH);
     grad.addColorStop(0, PAL.bg1); grad.addColorStop(1, PAL.bg2);
     ctx.fillStyle = grad; ctx.fillRect(0, 0, SW, SH);
+    // 🌈 装饰层（极光 / 星星 / 云海）。⚠ 画在最底，之后所有 UI 都盖在它上面。
+    //    动效关掉时用一个**固定时刻**去画 —— 静止但依然好看，不是白背景。
+    drawHomeDeco(SW, SH, FX.enabled ? (root.G.animClock || 0) : 8.5);
 
     const cx = L.cx, w = Math.min(L.playW - 36, 360);
     const tall = SH >= 760;
 
     // ── 先量 ──
-    const hs = Math.min(w * 0.58, SH * (tall ? 0.225 : 0.205));
+    const hs = Math.min(w * 0.55, SH * (tall ? 0.21 : 0.185));
     const ch = tall ? 64 : 56;            // 收集卡（天使进度 + 等级/称号 XP 条）
-    const bh = tall ? 52 : 44;            // 主按钮
+    const bh = tall ? 52 : 44;            // 主按钮（▶ 玩 / 🗺 关卡 —— 两颗同样大）
     const dh = tall ? 40 : 34;            // 每日
-    const gh = tall ? 46 : 40;            // 入口格
+    const gh = tall ? 44 : 38;            // 入口格
     const sh2 = tall ? 38 : 32;           // 底部小钮
-    const titleH = tall ? 34 : 27, tagH = tall ? 28 : 22;
-    const fixed = hs + 10 + titleH + tagH + ch + bh + dh + 3 * gh + 2 * 8 + sh2;
-    const GAPS = 7, base = tall ? 12 : 7;
+    const titleH = tall ? 32 : 25, tagH = tall ? 26 : 0;   // ⚠ 矮屏直接砍掉 tagline，给两颗大按钮腾地方
+    const fixed = hs + 10 + titleH + tagH + ch + bh * 2 + 8 + dh + 3 * gh + 2 * 8 + sh2;
+    const GAPS = 8, base = tall ? 10 : 5;
     const top0 = GameGlobal.safeTop + GameGlobal.ctrlH + (tall ? 6 : 2);
     const slack = SH - top0 - 12 - fixed - GAPS * base;
     const gap = base + Math.max(0, Math.min(22, slack / GAPS));
@@ -337,6 +410,7 @@
     if (G.heroIdx == null || G.heroIdx < 0 || G.heroIdx >= got) {
       G.heroIdx = got > 0 ? Math.floor(Math.random() * got) : -1;
     }
+    drawHalo(cx, y + hs / 2, hs * 0.78, FX.enabled ? (G.animClock || 0) : 8.5);   // 圣光在卡片之前画
     fillRR(hx - 5, y - 5, hs + 10, hs + 10, 22, 'rgba(255,255,255,0.88)');
     if (got > 0) {
       drawAngel(G.heroIdx, hx, y, hs, hs, 18);
@@ -355,9 +429,11 @@
     txt(T('blockblast.title'), cx, y + (tall ? 14 : 12), '#fff', 'bold ' + (tall ? 30 : 25) + 'px sans-serif');
     y += titleH;
     // ⚠ 标题居中 ⇒ tagline 也必须居中（txtLWrap 是**左**对齐的，混用一眼就不齐）
-    ctx.font = '11px sans-serif';                 // ⚠ wrapLines 按当前 font 量宽
-    wrapLines(T('blockblast.tagline'), w - 10, 2)
-      .forEach((ln, i) => txt(ln, cx, y + 8 + i * 14, PAL.sub, '11px sans-serif'));
+    if (tagH) {
+      ctx.font = '11px sans-serif';               // ⚠ wrapLines 按当前 font 量宽
+      wrapLines(T('blockblast.tagline'), w - 10, 2)
+        .forEach((ln, i) => txt(ln, cx, y + 8 + i * 14, PAL.sub, '11px sans-serif'));
+    }
     y += tagH + gap - base;
 
     // ── 收集进度卡（天使 n/500 + 条 + 星星/金币）。图标一律走**共享 UI 库**，别用系统 emoji ──
@@ -392,17 +468,35 @@
     //    ⚠ 有未完局时旁边必须给一个 ↻「新开一局」—— 否则想重开的人**没有出口**
     //      （关卡地图瘦身后这个入口只剩这里了；e2e-p1 有断言钉死两个入口同时在）──
     const rs = resumableScore();
-    const mw = rs !== null ? 168 : 210;
-    fillRR(cx - 105, y, mw, bh, 14, rs !== null ? '#f59e0b' : '#22c55e');
+    const BW = Math.min(w, 232);                  // 两颗大按钮同宽同高（用户：关卡要和 Play 一样大）
+    const bx0 = cx - BW / 2;
+    const mw = rs !== null ? BW - 42 : BW;
+    fillRR(bx0, y, mw, bh, 14, rs !== null ? '#f59e0b' : '#22c55e');
     txt(rs !== null ? T('blockblast.continueRun') + '  ' + rs : T('blockblast.homePlay'),
-        cx - 105 + mw / 2, y + bh / 2, '#fff', 'bold ' + (tall ? 18 : 16) + 'px sans-serif');
-    addHit(cx - 105, y, mw, bh, 'PLAY_ENDLESS', {});
+        bx0 + mw / 2, y + bh / 2, '#fff', 'bold ' + (tall ? 18 : 16) + 'px sans-serif');
+    addHit(bx0, y, mw, bh, 'PLAY_ENDLESS', {});
     if (rs !== null) {
-      fillRR(cx + 71, y, 34, bh, 12, 'rgba(255,255,255,0.18)');
-      txt('↻', cx + 88, y + bh / 2, '#fff', 'bold 17px sans-serif');
-      addHit(cx + 71, y, 34, bh, 'NEW_RUN', {});
+      // ⚠ 有未完局时这颗「新开一局」**别删** —— 不然想重开的人没有出口（e2e-p1 钉死两个入口同时在）
+      fillRR(bx0 + BW - 34, y, 34, bh, 12, 'rgba(255,255,255,0.18)');
+      txt('↻', bx0 + BW - 17, y + bh / 2, '#fff', 'bold 17px sans-serif');
+      addHit(bx0 + BW - 34, y, 34, bh, 'NEW_RUN', {});
     }
-    y += bh + Math.min(gap, 14);
+    y += bh + 8;
+
+    // ── 🗺 关卡：和 ▶ 一样大的第二颗主按钮（原来它只是六格里的一小格 —— 关卡是主玩法之一，不该那么小）
+    {
+      const totalStars = Levels.count() * 3;
+      const starsNow = Object.values(G.progress).reduce((a, v) => a + v, 0);
+      fillRR(bx0, y, BW, bh, 14, '#7c3aed');
+      ctx.font = 'bold ' + (tall ? 18 : 16) + 'px sans-serif';
+      const lab = T('blockblast.levels');
+      const lw = ctx.measureText(lab).width;
+      uiIcon('star', '⭐', bx0 + BW / 2 - lw / 2 - 15, y + bh / 2 - 6, 21);
+      txtL(lab, bx0 + BW / 2 - lw / 2, y + bh / 2 - 6, '#fff', 'bold ' + (tall ? 18 : 16) + 'px sans-serif');
+      txt(starsNow + ' / ' + totalStars, bx0 + BW / 2, y + bh - 12, 'rgba(255,255,255,0.72)', '10px sans-serif');
+      addHit(bx0, y, BW, bh, 'MENU', {});
+    }
+    y += bh + Math.min(gap, 12);
 
     // ── 📅 每日谜题（回访钩子：连续天数摆在按钮上）──
     const doneToday = Daily.playedToday(G.profile, new Date());
@@ -446,7 +540,8 @@
     const cells = [
       // \u26a0 \u56fe\u6807\u4e00\u5f8b\u53d6**\u5171\u4eab UI \u5e93**\uff08engine/assets/ui\uff09\uff1a\u7cfb\u7edf emoji \u6bcf\u4e2a\u5e73\u53f0\u957f\u5f97\u90fd\u4e0d\u4e00\u6837\u3001
       //   \u8ddf\u6e38\u620f\u4e16\u754c\u89c2\u4e5f\u6ca1\u5173\u7cfb\u3002\u7b2c\u4e8c\u4e2a\u53c2\u6570\u662f\u7f3a\u56fe\u65f6\u7684\u56de\u9000 emoji\uff08drawArtIcon \u7684\u8001\u89c4\u77e9\uff09\u3002
-      ['star', '\u2b50', T('blockblast.levels'), String(stars), 'MENU'],
+      // \u26a0 \u300c\u5173\u5361\u300d\u5df2\u63d0\u6210\u4e0a\u9762\u90a3\u9897\u5927\u6309\u94ae \u21d2 \u8fd9\u4e00\u683c\u6362\u6210\u539f\u6765**\u6839\u672c\u6ca1\u6709\u5165\u53e3**\u7684\u5929\u4f7f\u699c
+      ['medal', '\u{1F3C5}', T('blockblast.ladder'), String(Ghosts.beatenCount(G.best)) + '/' + Ghosts.LADDER.length, 'PAGE_LADDER'],
       ['frame', '\u{1F47C}', T('blockblast.angels'), String(got), 'PAGE_ANG'],
       ['trophy', '\u{1F3C6}', T('blockblast.achievements'), G.profile.unlocked.length + '/' + Achievements.total(), 'PAGE_ACH'],
       ['scroll', '\u{1F4CB}', T('blockblast.quests'), qd + '/3', 'PAGE_QUESTS'],
@@ -523,8 +618,9 @@
     const slack = SH - top0 - 20 - (headH + tabH + gridH + chestH) - GAPS * 12;
     const slot = Math.max(0, Math.min(44, slack / (GAPS + 1)));
     const gap = 12 + slot;
-    // 喂完间隙还剩的高度：上下分（上略少），底部那块交给 drawFooterArt 补白
-    let y = top0 + slot + Math.max(0, slack - slot * (GAPS + 1)) * 0.35;
+    // 喂完间隙还剩的高度：**大部分留给底部**（那儿有 drawFooterArt 的装饰），顶部只让一点点 ——
+    // ⚠ 系数原来是 0.35，高屏上把整块推到了半屏以下，顶部一大片死白（实拍抓到）
+    let y = top0 + slot + Math.max(0, slack - slot * (GAPS + 1)) * 0.1;
 
     // ── 顶栏：‹ 返回主页 · 「关卡」 · 总星数 ──
     fillRR(x0, y, 62, headH, 10, 'rgba(255,255,255,0.16)');
@@ -538,27 +634,40 @@
     txtL(totalStars + '/' + Levels.LEVELS.length * 3, x0 + w - pw + 31, y + headH / 2, '#ffe08a', 'bold 12px sans-serif');
     y += headH + gap;
 
-    // ── 章节页签：章徽（生成美术）+ 名字 + ★n/30；未解锁的章挂锁 ──
-    const tabW = (w - 16) / 3;
-    chs.forEach((c2, i) => {
-      const x = x0 + i * (tabW + 8), on = ch.id === c2.id;
-      let st = 0; for (let id = c2.from; id <= c2.to; id++) st += G.progress[id] || 0;
-      const open = openLv(c2.from);
-      fillRR(x, y, tabW, tabH, 14, on ? hexA(c2.accent, 0.34) : 'rgba(0,0,0,0.22)');
-      if (on) strokeRR(x, y, tabW, tabH, 14, c2.accent, 2);
-      const im = ART.get(CH_ART[c2.id]);
-      ctx.globalAlpha = open ? (on ? 1 : 0.6) : 0.3;
-      if (im) ctx.drawImage(im, x + tabW / 2 - 13, y + 5, 26, 26);
-      else drawCrystal(x + tabW / 2 - 13, y + 5, 26, ['blue', 'pink', 'green'][i] || 'blue');
+    // ── 章节选择器：**‹ 当前章 ›**（2026-08-02 从「3 个并排页签」改过来）
+    //    ⚠ 关卡扩到 300 关 = 30 章，30 个并排页签是不可能的；一次只显示当前章 + 左右翻，
+    //      信息量反而更大（章徽/章名/★n/10 关全放得下）。
+    const ARROW = 44, tabW = w - (ARROW + 8) * 2;
+    {
+      const prev = chs.find(c2 => c2.id === ch.id - 1), next = chs.find(c2 => c2.id === ch.id + 1);
+      const arrow = (bx, label, target, enabled) => {
+        fillRR(bx, y, ARROW, tabH, 12, enabled ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.05)');
+        txt(label, bx + ARROW / 2, y + tabH / 2, enabled ? '#fff' : 'rgba(255,255,255,0.25)', 'bold 20px sans-serif');
+        if (enabled) addHit(bx, y, ARROW, tabH, 'CHAPTER', { id: target });
+      };
+      arrow(x0, '‹', prev && prev.id, !!prev);
+      arrow(x0 + w - ARROW, '›', next && next.id, !!next);
+
+      const tx = x0 + ARROW + 8;
+      let st = 0; for (let id = ch.from; id <= ch.to; id++) st += G.progress[id] || 0;
+      const open = openLv(ch.from);
+      fillRR(tx, y, tabW, tabH, 14, hexA(ch.accent, 0.34));
+      strokeRR(tx, y, tabW, tabH, 14, ch.accent, 2);
+      const im = ART.get(CH_ART[ch.id]);
+      ctx.globalAlpha = open ? 1 : 0.35;
+      if (im) ctx.drawImage(im, tx + tabW / 2 - 14, y + 5, 28, 28);
+      else drawCrystal(tx + tabW / 2 - 14, y + 5, 28, Levels.KINDS[(ch.id - 1) % Levels.KINDS.length]);
       ctx.globalAlpha = 1;
-      if (!open) uiIcon('lock', '\u{1F512}', x + tabW / 2 + 13, y + 11, 15);
-      txt(T('blockblast.chapter' + c2.id), x + tabW / 2, y + 38, on ? '#fff' : PAL.sub, 'bold 10px sans-serif');
-      // ★n/30（全通 30 星换成皇冠）
-      if (st >= 30) uiIcon('crown', '\u{1F451}', x + tabW / 2 - 17, y + 50, 15);
-      else drawStar(x + tabW / 2 - 17, y + 50, 6.5, st > 0);
-      txtL(st + '/30', x + tabW / 2 - 7, y + 50, on ? c2.accent : 'rgba(255,255,255,0.45)', 'bold 9px sans-serif');
-      addHit(x, y, tabW, tabH, 'CHAPTER', { id: c2.id });
-    });
+      if (!open) uiIcon('lock', '\u{1F512}', tx + tabW / 2 + 16, y + 12, 16);
+      // 前三章有专名，之后统一「第 N 章」（30 个专名没意义，也没法十语维护）
+      const nm = ch.id <= 3 ? T('blockblast.chapter' + ch.id) : T('blockblast.chapterN', { n: ch.id });
+      txt(nm, tx + tabW / 2, y + 40, '#fff', 'bold 12px sans-serif');
+      const per = (ch.to - ch.from + 1) * 3;
+      if (st >= per) uiIcon('crown', '\u{1F451}', tx + tabW / 2 - 22, y + 53, 16);
+      else drawStar(tx + tabW / 2 - 22, y + 53, 7, st > 0);
+      txtL(st + '/' + per, tx + tabW / 2 - 11, y + 53, ch.accent, 'bold 10px sans-serif');
+      txtR(chs.length > 1 ? ch.id + '/' + chs.length : '', tx + tabW - 10, y + 12, 'rgba(255,255,255,0.5)', '9px sans-serif');
+    }
     y += tabH + gap;
 
     // ── 当前章的 10 关（2 行 × 5）：通关 = 章节色 + 三颗星点；当前关 = 白底 + 呼吸描边；
@@ -1618,27 +1727,30 @@
     // ── 道具条：撤销 / 换一手。标签直接显示「免费 / 看广告 / 多少金币」——
     //    玩家永远先拿到不花钱的选项（DESIGN §9；原作的撤销要 1300 金币是逼氪价，不学）。
     if (!s.over) {
-      const gap2 = 8, bh2 = 36, uy = L.trayY + L.trayH + 6;
-      const bw2 = Math.min(108, (L.boardW - gap2 * 2) / 3);
+      const gap2 = 6, bh2 = 36, uy = L.trayY + L.trayH + 6;
+      const bw2 = Math.min(96, (L.boardW - gap2 * 3) / 4);
       // \u7B2C\u4E09\u4E2A\u4F4D\u7F6E**\u4E00\u683C\u4E24\u7528**\uFF08\u540C\u4E00\u4F4D\u7F6E\u3001\u8BED\u4E49\u90FD\u662F\u300C\u5C40\u5185\u589E\u76CA\u300D\u21D2 \u4E0D\u4F1A\u6296\u52A8\uFF09\uFF1A
-      //   \u8FD8\u6CA1\u843D\u5B50 \u21D2 \uD83D\uDE80 \u5F00\u5C40\u793C\u5305\uFF08\u770B\u5E7F\u544A\u6216 200 \u5E01\uFF09\uFF1B\u5DF2\u7ECF\u5F00\u6253 \u21D2 \uD83D\uDCA1 \u6559\u7EC3\u63D0\u793A\uFF08\u6BCF\u5C40\u9996\u6B21\u514D\u8D39\uFF09
+      //   \u8FD8\u6CA1\u843D\u5B50 \u21D2 \uD83D\uDE80 \u5F00\u5C40\u793C\u5305\uFF08\u770B\u5E7F\u544A\u6216 200 \u5E01\uFF09\uFF1B\u5DF2\u7ECF\u5F00\u6253 \u21D2 \uD83E\uDDF1 \u9001\u65B9\u5757\uFF08\u76D8\u9762\u8D8A\u6EE1\u8D8A\u6551\u547D\uFF09
       const boostable = s.stats.turns === 0 && G.items;
-      const boostMode = Shop.adMode(G.wallet, 'boost', Date.now()) !== 'no' ? 'ad'
-                      : (G.wallet.coins >= Shop.COIN_PRICE.boost ? 'coins' : 'no');
+      const md = (kind, coinKind) => (Shop.adMode(G.wallet, kind, Date.now()) !== 'no' ? 'ad'
+                 : (G.wallet.coins >= Shop.COIN_PRICE[coinKind || kind] ? 'coins' : 'no'));
       const hintMode = (G.items && G.items.hintFree > 0) ? 'free' : Shop.adMode(G.wallet, 'hint', Date.now()) === 'no' ? 'no' : 'ad';
+      const blocksOk = !s.daily && !s.challenge;         // \u26D4 \u6BCF\u65E5/\u6311\u6218\u7981\u7528\uFF1A\u540C\u79CD\u5B50\u7684\u5206\u6570\u5FC5\u987B\u53EF\u6BD4
       const items = [
         { act: 'UNDO', on: !!s.undo, label: '\u21A9 ' + T('blockblast.undo'),
           mode: Shop.undoMode(G.wallet, G.items), price: Shop.PRICE.undo },
         { act: 'REFRESH', on: true, label: '\u21BB ' + T('blockblast.refresh'),
           mode: Shop.refreshMode(G.wallet, G.items), price: Shop.PRICE.refresh },
         boostable
-          ? { act: boostMode === 'coins' ? 'BUY_BOOST' : 'AD_BOOST', on: true,
-              label: '\u{1F680} ' + T('blockblast.boost'), mode: boostMode, price: Shop.COIN_PRICE.boost }
-          : { act: 'HINT', on: true, label: '\u{1F4A1} ' + T('blockblast.hint'),
-              mode: hintMode, price: 0 },
+          ? { act: md('boost') === 'coins' ? 'BUY_BOOST' : 'AD_BOOST', on: true,
+              label: '\u{1F680} ' + T('blockblast.boost'), mode: md('boost'), price: Shop.COIN_PRICE.boost }
+          : { act: md('blocks') === 'coins' ? 'BUY_BLOCKS' : 'AD_BLOCKS', on: blocksOk,
+              label: '\u{1F9F1} ' + T('blockblast.blocks'), mode: blocksOk ? md('blocks') : 'no',
+              price: Shop.COIN_PRICE.blocks },
+        { act: 'HINT', on: true, label: '\u{1F4A1} ' + T('blockblast.hint'), mode: hintMode, price: 0 },
       ];
       items.forEach((it, i) => {
-        const x = L.cx - (bw2 * 3 + gap2 * 2) / 2 + i * (bw2 + gap2);
+        const x = L.cx - (bw2 * 4 + gap2 * 3) / 2 + i * (bw2 + gap2);
         const usable = it.on && it.mode !== 'no';
         fillRR(x, uy, bw2, bh2, 10, usable ? 'rgba(255,255,255,0.20)' : 'rgba(0,0,0,0.18)');
         txt(it.label, x + bw2 / 2, uy + 12, usable ? '#fff' : 'rgba(255,255,255,0.35)', '11px sans-serif');

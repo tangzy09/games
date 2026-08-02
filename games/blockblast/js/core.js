@@ -103,6 +103,7 @@
       over: false,
       stats: { turns: 0, lines: 0, sweeps: 0, deeps: 0, perfects: 0, maxStreak: 0, bestL: 0 },
       undo: null,                     // 只存 1 步
+      bonusHands: 0,                  // 🧱 礼包手剩余数（激励视频给的「三个单格块」；期间不从块流取）
       // ── 关卡模式（无尽模式下这些是空的，逻辑完全不受影响）──
       mode: 'endless',
       stone: null,                    // 不可消除的惰性格
@@ -196,8 +197,28 @@
     return 1;
   }
 
-  /** 当前托盘：已放下的槽位为 null */
-  const tray = s => Dealer.hand(s.seed, s.streamIndex).map((p, i) => (s.placed[i] ? null : p));
+  /**
+   * 🧱 礼包手（激励视频「送三个单格块」）：接下来 n 手托盘**全是 1×1**。
+   *
+   * ⛔ 它**绝不碰块流**：礼包手期间 `streamIndex` 一动不动，用完之后从**原来那一块**继续，
+   *   一块不差、一块不换。⇒ `stream(seed, i)` 的公平承诺完全不受影响（tests/test-core 有断言）。
+   *   这也是为什么它不是「重抽/改发牌」：它是**暂时不从流里取**。
+   * ⛔ 每日谜题 / 种子挑战禁用（同种子的分数必须可比）——由调用方门控。
+   */
+  const BONUS_PIECE = 'i1';
+  function grantBonusHands(s, n) {
+    if (!s || s.over || s.daily || s.challenge) return false;
+    s.bonusHands = Math.max(0, (s.bonusHands | 0)) + Math.max(1, n | 0);
+    s.placed = [false, false, false];       // 立刻换成礼包手（当前这手作废，不推进块流）
+    return true;
+  }
+
+  /** 当前托盘：已放下的槽位为 null；礼包手期间三格全是 1×1 */
+  const tray = s => (
+    (s.bonusHands | 0) > 0
+      ? [0, 1, 2].map(i => (s.placed[i] ? null : Pieces.byId(BONUS_PIECE)))
+      : Dealer.hand(s.seed, s.streamIndex).map((p, i) => (s.placed[i] ? null : p))
+  );
   /** 下一手预览（块流是预生成的 ⇒ 预览天然成立，且绝不会被偷偷换掉）*/
   const nextHand = s => Dealer.hand(s.seed, s.streamIndex + 3);
   /** 托盘里还没放下的块 */
@@ -219,6 +240,7 @@
 
   const snapshot = s => ({
     streamIndex: s.streamIndex, board: s.board.slice(), placed: s.placed.slice(),
+    bonusHands: s.bonusHands | 0,                            // 撤销必须把礼包手一起回滚
     score: s.score, streak: s.streak, dryTurns: s.dryTurns, stats: Object.assign({}, s.stats),
     crystal: s.crystal ? s.crystal.slice() : null,           // 关卡：撤销必须把已收集的水晶吐回来
     collected: s.collected ? Object.assign({}, s.collected) : null,
@@ -241,7 +263,8 @@
 
     for (const [dr, dc] of piece.cells) s.board[idx(r + dr, c + dc)] = 1;
     // 拼块驮着的水晶落到棋盘上（之后和预置水晶完全同权：被消行/列清除时才收集）
-    const pc = s.mode === 'level' ? pieceCrystalAt(s, s.streamIndex + slot) : null;
+    // ⚠ 礼包手的块不在块流里 ⇒ 不驮水晶（否则它的序号会和真块撞，同一颗水晶发两次）
+    const pc = (s.mode === 'level' && !(s.bonusHands | 0)) ? pieceCrystalAt(s, s.streamIndex + slot) : null;
     if (pc) s.crystal[idx(r + pc.cell[0], c + pc.cell[1])] = pc.kind;
     s.placed[slot] = true;
     s.score += piece.size;
@@ -294,7 +317,9 @@
 
     // 三块全放完 → 补下一手（这是唯一的补牌时机）
     if (s.placed.every(Boolean)) {
-      s.streamIndex += 3;
+      // ⛔ 礼包手不从块流取 ⇒ **streamIndex 一动不动**，用完之后从原来那一块继续
+      if ((s.bonusHands | 0) > 0) s.bonusHands--;
+      else s.streamIndex += 3;
       s.placed = [false, false, false];
       events.push({ t: 'refill' });
     }
@@ -326,7 +351,9 @@
   function refreshHand(s) {
     if (s.over) return false;
     s.undo = null;                       // 换过手就不能撤销回去了（否则可以来回刷）
-    s.streamIndex += 3;
+    // 礼包手期间换手 = 放弃这手礼包，**不推进块流**（它本来就不是从流里取的）
+    if ((s.bonusHands | 0) > 0) s.bonusHands--;
+    else s.streamIndex += 3;
     s.placed = [false, false, false];
     if (isOver(s)) { s.over = true; return true; }   // 极端情况：新的一手也放不下
     return true;
@@ -337,6 +364,7 @@
     if (!s.undo) return false;
     const u = s.undo;
     s.streamIndex = u.streamIndex; s.board = u.board.slice(); s.placed = u.placed.slice();
+    s.bonusHands = u.bonusHands | 0;
     s.score = u.score; s.streak = u.streak; s.dryTurns = u.dryTurns;
     s.stats = Object.assign({}, u.stats);
     if (u.crystal) s.crystal = u.crystal.slice();
@@ -352,6 +380,7 @@
     findFullLines, comboTier, streakMult, clearScore, sweepOf,
     newGame, tray, nextHand, remaining, isOver, place, undo, snapshot,
     newLevel, goalsMet, isUnwinnable, starsFor, levelFill, refreshHand,
+    grantBonusHands, BONUS_PIECE,
     pieceCrystalAt,
   };
   if (isNode) module.exports = API;

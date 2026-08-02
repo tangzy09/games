@@ -287,3 +287,59 @@ assert.deepStrictEqual(s4.board, finalBoard, '同种子 + 同操作 = 同棋盘'
 assert.strictEqual(s4.score, finalScore, '同种子 + 同操作 = 同分数');
 assert.strictEqual(s4.streamIndex, finalIdx);
 console.log('test-core: 同种子同操作完全可复现 OK');
+
+// ════════ 🧱 礼包手（激励视频「送三个单格块」）════════
+// ⛔ 最重要的一条：它**绝不碰块流** —— 用完之后从原来那一块继续，一块不差、一块不换。
+{
+  const s = Core.newGame(31337);
+  const streamBefore = [];
+  for (let i = 0; i < 24; i++) streamBefore.push(Dealer.stream(31337, i).id);
+  const idxBefore = s.streamIndex;
+
+  assert(Core.grantBonusHands(s, 2), '无尽局可以领礼包手');
+  assert.strictEqual(s.bonusHands, 2);
+  const tray = Core.tray(s);
+  assert.strictEqual(tray.length, 3);
+  for (const p of tray) assert.strictEqual(p.id, Core.BONUS_PIECE, '礼包手三格全是 1×1');
+  assert.strictEqual(s.streamIndex, idxBefore, '领礼包手不推进块流');
+
+  // 放完第一手礼包 ⇒ bonusHands--，streamIndex 仍不动
+  Core.place(s, 0, 0, 0); Core.place(s, 1, 0, 1); Core.place(s, 2, 0, 2);
+  assert.strictEqual(s.bonusHands, 1);
+  assert.strictEqual(s.streamIndex, idxBefore, '礼包手用掉一手，块流依然一动不动');
+  // 放完第二手 ⇒ 回到真实块流，且**正是原来那一手**
+  Core.place(s, 0, 1, 0); Core.place(s, 1, 1, 1); Core.place(s, 2, 1, 2);
+  assert.strictEqual(s.bonusHands, 0);
+  assert.strictEqual(s.streamIndex, idxBefore, '礼包手用完，回到原来那一块');
+  assert.deepStrictEqual(Core.tray(s).map(p => p.id),
+    [0, 1, 2].map(i => Dealer.stream(31337, idxBefore + i).id),
+    '⛔ 礼包手结束后拿到的，正是当初那一手 —— 块流一块没被吃掉');
+
+  const streamAfter = [];
+  for (let i = 0; i < 24; i++) streamAfter.push(Dealer.stream(31337, i).id);
+  assert.deepStrictEqual(streamAfter, streamBefore, '⛔ 公平承诺：stream(seed,i) 逐块不变');
+  console.log('test-core: 礼包手不动块流 OK');
+}
+
+// ════════ 礼包手：撤销要回滚、每日/挑战禁用 ════════
+{
+  const s = Core.newGame(99);
+  Core.grantBonusHands(s, 2);
+  Core.place(s, 0, 0, 0);
+  assert(Core.undo(s), '礼包手期间可以撤销');
+  assert.strictEqual(s.bonusHands, 2, '撤销必须把礼包手一起回滚（否则撤销能刷出更多礼包手）');
+
+  const d = Core.newGame(5); d.daily = 20260802;
+  assert.strictEqual(Core.grantBonusHands(d, 2), false, '⛔ 每日谜题禁用（同种子分数必须可比）');
+  const c = Core.newGame(5); c.challenge = true;
+  assert.strictEqual(Core.grantBonusHands(c, 2), false, '⛔ 种子挑战同理');
+
+  // 换一手：礼包手期间只消耗礼包手，同样不推进块流
+  const r = Core.newGame(7);
+  const i0 = r.streamIndex;
+  Core.grantBonusHands(r, 2);
+  Core.refreshHand(r);
+  assert.strictEqual(r.bonusHands, 1);
+  assert.strictEqual(r.streamIndex, i0, '礼包手期间换手不吃块流');
+  console.log('test-core: 礼包手的撤销/禁用/换手 OK');
+}

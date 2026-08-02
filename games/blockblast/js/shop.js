@@ -46,16 +46,17 @@
   // ⚠ 跨天重置必须**按 AD_CAPS 全量清**（下面的循环）：手写清 key 必漏，
   //   漏掉的那个位会永久卡在首日额度（skin 上限 1 ⇒ 玩家一辈子只能广告解锁一款皮肤）。
   // ════════════════════════════════════════
-  const AD_CAPS = { coins: 5, gift: 1, boost: 1, skin: 1, quest: 2, gallery: 3, hint: 3 };
+  const AD_CAPS = { coins: 5, gift: 1, boost: 1, skin: 1, quest: 2, gallery: 3, hint: 3, blocks: 3 };
   const AD_REWARD = {
     coins: 25,                          // 🏪 商店「看广告领币」
     gift: { coins: 60, angels: 2 },     // 🎁 每日礼物（HOME，每天一次）
     boost: { undo: 1, refresh: 2 },     // 🚀 开局礼包（本局多一次免费撤销 + 两次换手）
     gallery: 5,                         // 👼 图鉴加速（直接 +5 张画像）
+    blocks: 2,                          // 🧱 送方块：接下来 2 手托盘**全是 1×1**（共 6 个单格块）
     // skin / quest 的奖励是「一款皮肤」「一个今日任务」，没有数值
   };
   /** 同样的东西也能用金币买 —— 不想看广告的人必须有出口，金币也必须有去处（C6）*/
-  const COIN_PRICE = { boost: 200, gallery: 150 };
+  const COIN_PRICE = { boost: 200, gallery: 150, blocks: 250 };
 
   const ymd = now => {
     const d = now == null ? new Date() : new Date(now);

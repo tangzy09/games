@@ -54,6 +54,7 @@ function saveRun() {
       v: Core.SAVE_VERSION, seed: s.seed, streamIndex: s.streamIndex, board: s.board,
       placed: s.placed, score: s.score, streak: s.streak, dryTurns: s.dryTurns,
       over: s.over, stats: s.stats, cellColor: G.cellColor,
+      bonusHands: s.bonusHands | 0,      // 看广告换来的礼包手：切出去再回来得还在（不然玩家白看）
     }));
   } catch (e) {}
 }
@@ -70,6 +71,8 @@ function loadRun() {
     Object.assign(s, {
       streamIndex: d.streamIndex, board: d.board, placed: d.placed,
       score: d.score, streak: d.streak, dryTurns: d.dryTurns, stats: d.stats || s.stats,
+      // ⚠ 老存档没有这个字段 ⇒ undefined|0 = 0（＝没有礼包手），形状天然兼容，不必 bump SAVE_VERSION
+      bonusHands: d.bonusHands | 0,
     });
     G.cellColor = Array.isArray(d.cellColor) && d.cellColor.length === Core.N ? d.cellColor : new Array(Core.N).fill(null);
     return s;
@@ -244,6 +247,11 @@ function adToast(text) {
 function canBoost() {
   const s = G.s;
   return !!(G.phase === 'PLAYING' && s && !s.over && s.stats.turns === 0 && G.items);
+}
+/** 🧱 送方块：局中随时可用，但**每日/挑战局禁用** —— 同一条块流的分数必须可比 */
+function canBlocks() {
+  const s = G.s;
+  return !!(G.phase === 'PLAYING' && s && !s.over && !s.daily && !s.challenge);
 }
 /**
  * 下一款可被广告解锁的皮肤：**先给盘数款**（本来就是白送的，只是提前），没有了才给金币款。
@@ -715,6 +723,24 @@ function dispatch(action, data) {
       adGrant('hint', give);
       return;
     }
+    case 'AD_BLOCKS':
+    case 'BUY_BLOCKS': {
+      // 🧱 送方块：接下来 2 手托盘全是 1×1 —— 盘面越满它越救命。
+      // ⛔ 它**不动块流**（Core.grantBonusHands：礼包手期间 streamIndex 一动不动，用完从原来那块继续）
+      //    ⇒ 公平承诺一个字不用改。⛔ 每日/挑战局禁用（同种子的分数必须可比）——core 里也拦了一道。
+      if (!canBlocks()) return;
+      const give = () => {
+        if (!Core.grantBonusHands(G.s, Shop.AD_REWARD.blocks)) return;
+        adToast('\u{1F9F1} ×' + (Shop.AD_REWARD.blocks * 3));
+        if (G.s.mode === 'endless' && !G.s.daily && !G.s.challenge) saveRun();
+      };
+      if (action === 'BUY_BLOCKS') {
+        if (Shop.buyWithCoins(G.wallet, 'blocks')) { give(); saveWallet(); }
+        break;
+      }
+      adGrant('blocks', give);
+      return;
+    }
     case 'PAGE_WEAK': G.phase = 'WEAK'; break;         // 「我的弱点」：教练账本的读出口
     case 'UNDO': useItem('undo'); return;              // 走 Shop 的三段阶梯（免费/广告/金币）
     case 'REFRESH': useItem('refresh'); return;
@@ -853,6 +879,9 @@ function scheduleReview() {
  *  都是短时状态（几秒到几十秒），不构成常驻耗电。*/
 function pulseActive() {
   if (G.overAnim) return true;
+  // 🏠 主界面的装饰层（极光/星星/云海/圣光）是动的 ⇒ 停在这一屏时要逐帧重画。
+  // ⚠ 关掉「粒子/动态」就退回静止（renderHome 用固定时刻画），此时不必再烧电。
+  if (G.phase === 'HOME') return !!(G.opts && G.opts.fx);
   const s = G.s;
   if (G.phase !== 'PLAYING' || !s || s.over) return false;
   if (G.hint) return true;

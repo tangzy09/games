@@ -38,6 +38,7 @@
     "test:sol:boost": "node games/solitaire/tests/e2e-boost.cjs",
     "test:share": "node tools/test-share-links.cjs",
     "test:block:home": "node games/blockblast/tests/e2e-home.cjs",
-    "test:snake:meta": "node games/snake/tests/e2e-meta.js"
+    "test:snake:meta": "node games/snake/tests/e2e-meta.js",
+    "fix:levels": "node games/blockblast/tools/fix-levels.cjs --runs 200"
   }
 }

@@ -44,6 +44,7 @@ const ok = (c, m) => { if (!c) { console.error('X ' + m); process.exitCode = 1; 
     themes: (G.wallet.themes || []).length,
     quests: Quests.status(G.profile, Daily.dayNo(new Date())).filter(q => q.done).length,
     undoFree: G.items.undoFree, refresh: G.items.refreshCharge,
+    bonus: G.s.bonusHands | 0, streamIndex: G.s.streamIndex,
     ads: JSON.parse(JSON.stringify(G.wallet.ads || {})),
     calls: window.__adCalls,
   }));
@@ -56,9 +57,11 @@ const ok = (c, m) => { if (!c) { console.error('X ' + m); process.exitCode = 1; 
     { act: 'AD_SKIN', kind: 'skin', check: (a, b) => b.themes > a.themes, name: '🎨 皮肤解锁' },
     { act: 'AD_QUEST', kind: 'quest', check: (a, b) => b.quests > a.quests && b.coins > a.coins, name: '📋 任务加速' },
     { act: 'AD_BOOST', kind: 'boost', check: (a, b) => b.undoFree > a.undoFree && b.refresh > a.refresh, name: '🚀 开局礼包' },
+    // ⛔ 送方块的验收有**两条**：礼包手真的给了，而且 streamIndex **一动不动**（不动块流 = 公平承诺没破）
+    { act: 'AD_BLOCKS', kind: 'blocks', check: (a, b) => b.bonus > a.bonus && b.streamIndex === a.streamIndex, name: '🧱 送方块' },
   ];
   for (const p of POSITIONS) {
-    if (p.act === 'AD_BOOST') await page.evaluate(() => { dispatch('NEW_RUN'); G.phase = 'PLAYING'; });
+    if (p.act === 'AD_BOOST' || p.act === 'AD_BLOCKS') await page.evaluate(() => { dispatch('NEW_RUN'); G.phase = 'PLAYING'; });
     const a = await snap();
     await page.evaluate(act => dispatch(act, {}), p.act);
     await page.waitForTimeout(80);
@@ -86,7 +89,7 @@ const ok = (c, m) => { if (!c) { console.error('X ' + m); process.exitCode = 1; 
     G.wallet.angels = 10;
   });
   for (const p of POSITIONS) {
-    if (p.act === 'AD_BOOST') await page.evaluate(() => { dispatch('NEW_RUN'); G.phase = 'PLAYING'; });
+    if (p.act === 'AD_BOOST' || p.act === 'AD_BLOCKS') await page.evaluate(() => { dispatch('NEW_RUN'); G.phase = 'PLAYING'; });
     const a = await snap();
     await page.evaluate(act => dispatch(act, {}), p.act);
     await page.waitForTimeout(80);

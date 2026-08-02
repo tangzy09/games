@@ -100,7 +100,13 @@
       "lvl30": "All Chapters",
       "star90": "All Stars",
       "cry50": "Gem Hoarder",
-      "cry200": "Crystal Baron"
+      "cry200": "Crystal Baron",
+      "lvl60": "Sixty Cleared",
+      "lvl150": "Halfway Hero",
+      "lvl300": "All 300 Levels",
+      "star300": "300 Stars",
+      "star600": "600 Stars",
+      "star900": "Every Star"
     },
     "theme": {
       "candy": "Candy",
@@ -269,6 +275,8 @@
     "weakFrom": "Judged by the same solver that verifies every level is winnable. It only sees your board and the public piece stream.",
     "reviewLine": "Move {t}: a different spot there would have lasted {n} moves longer.",
     "stBrilliant": "Brilliant moves",
-    "stLevel": "Level"
+    "stLevel": "Level",
+    "chapterN": "Chapter {n}",
+    "blocks": "Blocks"
   }
 }
