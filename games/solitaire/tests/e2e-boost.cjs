@@ -166,14 +166,53 @@ const ok = (c, m) => { if (!c) { console.error('X ' + m); process.exitCode = 1; 
   });
   ok(c1.d === c1.want, `⭐ 金币位一次给 ${c1.d} 币（加厚前是 25）`);
 
-  // (b) 新位·外观：白送一款牌背
+  // (b) 外观位 = **任选一款免费解锁券**（加厚前是「白送最便宜的那款牌背」＝ 20 币的货）
   const b1 = await page.evaluate(async () => {
-    const n0 = Money.state.ownedBacks.length;
+    const n0 = Money.state.ownedFx.length, c0 = Money.state.coins;
     dispatch('AD_BACK');
     await new Promise(r => setTimeout(r, 400));
-    return { d: Money.state.ownedBacks.length - n0, left: adLeft('back') };
+    const voucher = G.freePick;
+    // 券对三个品类通用 ⇒ 拿最贵的瀑布特效试（confetti 300 币）
+    dispatch('PICK_FX', { id: 'confetti' });
+    await new Promise(r => setTimeout(r, 100));
+    return { voucher, owned: Money.owns('fx', 'confetti'),
+             d: Money.state.ownedFx.length - n0, dc: Money.state.coins - c0,
+             left: adLeft('back'), still: G.freePick };
   });
-  ok(b1.d === 1 && b1.left === 0, '⭐ 新位·外观：看广告白送一款牌背（1 次/天，用完即 0）');
+  ok(b1.voucher === 1 && b1.owned && b1.d === 1 && b1.dc === 0,
+     '⭐ 外观位：看广告拿券 → **任选一款**免费解锁（试的是 300 币那款，金币没扣）');
+  ok(b1.left === 0 && !b1.still, '⛔ 券 1 次/天且用完即作废（额度 0、freePick 归零）');
+
+  // (b2) ⭐ 结算屏礼包 —— 转化最高的位置必须是**给得最厚**的位置（加厚前只多给 10~25 币）
+  //   ⚠ G.angels 先摆到 1：gainAngels 每满 25 张会额外发 50 币，跨过整集会把币数断言测歪
+  const w1 = await page.evaluate(async () => {
+    G.angels = 1;
+    const c0 = Money.state.coins, a0 = G.angels;
+    G.s.won = true; G.lastWinCoins = 10; G.winDoubled = false;
+    dispatch('WIN_X2');
+    await new Promise(r => setTimeout(r, 400));
+    const dc1 = Money.state.coins - c0;
+    dispatch('WIN_X2');                                   // 连点第二下：一局只能领一次
+    await new Promise(r => setTimeout(r, 300));
+    G.s.won = false;                                      // ⚠ 摆完必须还原：留着 won=true 会把后面的局内位（透视）全判掉
+    return { dc: dc1, da: G.angels - a0, wantC: AD_GIVE.winMin, wantA: AD_GIVE.winAngels,
+             used: adsState().win, twice: Money.state.coins - c0 };
+  });
+  ok(w1.dc === w1.wantC && w1.da === w1.wantA,
+     `⭐ 结算礼包：+${w1.dc} 币 且 +${w1.da} 张天使（脏赢基础 10 币 ⇒ 保底 ${w1.wantC}）`);
+  ok(w1.used === 1 && w1.twice === w1.wantC, '⛔ 一局只能领一次（连点第二下零发放）');
+
+  // (b3) 🎁 主界面每日礼物（1 次/天）
+  const gf = await page.evaluate(async () => {
+    G.angels = 1;
+    const c0 = Money.state.coins, a0 = G.angels;
+    dispatch('DAILY_GIFT');
+    await new Promise(r => setTimeout(r, 400));
+    return { dc: Money.state.coins - c0, da: G.angels - a0, left: adLeft('gift'),
+             wantC: AD_GIVE.giftCoins, wantA: AD_GIVE.giftAngels };
+  });
+  ok(gf.dc === gf.wantC && gf.da === gf.wantA && gf.left === 0,
+     `🎁 每日礼物：+${gf.dc} 币 +${gf.da} 天使（1 次/天）`);
 
   // (c) 新位·局内增益：透视暗牌
   const p1 = await page.evaluate(async () => {
@@ -184,6 +223,16 @@ const ok = (c, m) => { if (!c) { console.error('X ' + m); process.exitCode = 1; 
   });
   ok(p1.on && p1.ms > 10000, `⭐ 新位·局内增益：透视暗牌 ${Math.round(p1.ms / 1000)} 秒`);
   ok(p1.used, '⛔ 透视要记 usedHint —— 它是外部帮助，**不算干净赢**（统计不能撒谎）');
+
+  // (c2) ⭐ 救场要**真能救回来**：万能牌一次拉满 + 附送透视（只给两张牌照样卡死在原地）
+  const j1 = await page.evaluate(async () => {
+    G.jokers = 0; G.peekUntil = 0;
+    dispatch('JOKER_AD');
+    await new Promise(r => setTimeout(r, 400));
+    return { j: G.jokers, peek: G.peekUntil - Date.now(), want: AD_GIVE.joker };
+  });
+  ok(j1.j === j1.want && j1.peek > 10000,
+     `⭐ 救场位：🃏×${j1.j}（拉满）+ 顺带透视 ${Math.round(j1.peek / 1000)} 秒`);
 
   // (d) ⛔ 额度用尽 ⇒ 零发放
   const cap = await page.evaluate(async () => {

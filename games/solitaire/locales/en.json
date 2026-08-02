@@ -246,6 +246,11 @@
     "galleryAdN": "Watch an ad → +{n} angels",
     "watchAdN": "Watch an ad → +{n} coins",
     "peekOn": "peeking",
-    "shareSeedTip": "Deal #{n} — install the app and type this number under Settings to play the very same deal."
+    "shareSeedTip": "Deal #{n} — install the app and type this number under Settings to play the very same deal.",
+    "adWinPack": "+{c} coins & +{a} angels",
+    "adPick": "Watch an ad → unlock any one free",
+    "pickFree": "Pick any one — it's free 👇",
+    "freeGot": "Unlocked — enjoy!",
+    "dailyGift": "Today's gift: +{c} coins, +{a} angels"
   }
 }

@@ -246,6 +246,11 @@
     "galleryAdN": "Ver anuncio → +{n} ángeles",
     "watchAdN": "Ver anuncio → +{n} monedas",
     "peekOn": "mirando",
-    "shareSeedTip": "Mano n.º {n}: instala la app y escribe este número en Ajustes para jugar exactamente la misma mano."
+    "shareSeedTip": "Mano n.º {n}: instala la app y escribe este número en Ajustes para jugar exactamente la misma mano.",
+    "adWinPack": "+{c} monedas y +{a} ángeles",
+    "adPick": "Ver anuncio → desbloquea uno gratis",
+    "pickFree": "Elige uno, es gratis 👇",
+    "freeGot": "¡Desbloqueado!",
+    "dailyGift": "Regalo de hoy: +{c} monedas, +{a} ángeles"
   }
 }

@@ -23,8 +23,10 @@ const G = window.G = {
   dailyHist: {},           // 每日挑战史 {YYYYMMDD: 1=来打过 2=赢了}（日历/连续天数用，只留最近 60 条）
   badges: {},              // 每日挑战月度奖牌 {YYYYMM: 'gold'|'silver'|'bronze'|'none'}（永久）
   ach: {},                 // 已解锁成就 {id:1}
-  lastWinCoins: 0,         // 上一次赢局发的金币（结算屏「×2」按它翻倍）
-  winDoubled: false,
+  lastWinCoins: 0,         // 上一次赢局发的金币（结算屏礼包按它 ×3 保底 80）
+  winDoubled: false,       // 本局的结算礼包领过了（一局一次）
+  lastWinAdCoins: 0,       // 结算礼包实际发了多少币（结算屏显示，别让玩家猜）
+  freePick: 0,             // 手上有一张「任选一款外观免费解锁」券（看广告得，1 次/天）
   angels: 0,               // 天使图鉴解锁数（顺序固定,只存计数;赢+1/每日赢+2/看广告+3）
   lastAngelGain: 0,        // 本次赢局解锁了几张（结算屏显示）
   galPage: 0,              // 图鉴当前页
@@ -101,7 +103,7 @@ const saveOpts = () => {
       difficulty: G.difficulty, dailyDone: G.dailyDone, dailyHist: G.dailyHist,
       badges: G.badges, ach: G.ach, angels: G.angels, seenIntro: G.seenIntro,
       spiderSuits: G.spiderSuits, diffLv: G.diffLv, diffBest: G.diffBest, insight: G.insight,
-      ads: G.ads,
+      ads: G.ads, freePick: G.freePick,
       lessonsDone: G.lessonsDone,
       stage: G.stage, runScore: G.runScore, dayScore: G.dayScore, dayId: G.dayId,
       xp: G.xp, avatarFile: G.avatarFile,
@@ -706,11 +708,16 @@ function dispatch(action, data) {
     case 'JOKER_AD': {
       if (s.mode === 'freecell' || G.jokers >= 3) break;
       watchAd('joker', () => {
-        G.jokers = Math.min(3, G.jokers + AD_GIVE.joker);   // 一次给 2 张（救场要给厚）
+        // ⭐ 救场要**真能救回来**：一次拉满 3 张 + 附送 30 秒透视。
+        //   只给两张牌 = 用完还是卡死在同一个地方，体验比不给还差（skill §1 实锤）。
+        G.jokers = Math.min(3, G.jokers + AD_GIVE.joker);
+        G.peekUntil = Date.now() + AD_GIVE.peek;
+        G.s.usedHint = true;                                // 透视 = 外部帮助，口径与 AD_PEEK 一致
         G.jokerOffer = 0;
         saveRun();
-        G.toast = { msg: '🃏 ' + T('sol.jokerReady'), until: Date.now() + 2400 };
-        setTimeout(renderAll, 2500);
+        G.toast = { msg: '🃏×' + G.jokers + '  👁 ' + Math.round(AD_GIVE.peek / 1000) + 's', until: Date.now() + 2600 };
+        setTimeout(renderAll, 2700);
+        setTimeout(renderAll, AD_GIVE.peek + 100);          // 透视到期重画
       });
       break;
     }
@@ -838,15 +845,32 @@ function dispatch(action, data) {
 
     // 激励视频 → 金币。⚠ **纯增益**：金币只能换外观，换不到提示/撤销（那是基本人权）
     case 'EARN_AD': {
-      watchAd('coins', () => Money.earnAd());
+      watchAd('coins', () => Money.earnAd(AD_GIVE.coins));
       break;
     }
-    // 新位·外观：白送一款牌背（1 次/天）。外观不影响强度 ⇒ 可以卖；额度低才不贬值。
+    // ⭐ 外观位·**免费解锁券**（1 次/天）：原来是「白送最便宜的那款牌背」＝ 20 币的货，
+    //   一条广告换 20 币的东西没人看。改成看完广告拿一张券，**牌背/桌布/瀑布特效任选一款**
+    //   （最贵的 500 币那款也行）。外观不影响强度 ⇒ 可以卖；额度 1/天 才不贬值。
     case 'AD_BACK': {
+      if (G.freePick) break;                                 // 手上已有一张券，先花掉
       watchAd('back', () => {
-        const id = Money.grantCheapestBack();
-        G.toast = { msg: id ? T('sol.adBackGot') : T('sol.adBackAll'), until: Date.now() + 2400 };
-        setTimeout(renderAll, 2500);
+        G.freePick = 1;
+        saveOpts();
+        goPhase('SHOP');
+        G.toast = { msg: '🎁 ' + T('sol.pickFree'), until: Date.now() + 3200 };
+        setTimeout(renderAll, 3300);
+      });
+      break;
+    }
+    // 🎁 每日礼物（主界面，1 次/天）：观感是「给我福利」而不是「拦我路」——
+    //   这类**玩家主动点开**的位置转化高于逼着看的位置（skill §0 的补位原则）。
+    case 'DAILY_GIFT': {
+      watchAd('gift', () => {
+        Money.state.coins += AD_GIVE.giftCoins;
+        Money.save();
+        const n = gainAngels(AD_GIVE.giftAngels);
+        G.toast = { msg: '🎁 +' + AD_GIVE.giftCoins + ' 🪙   +' + n + ' 👼', until: Date.now() + 2600 };
+        setTimeout(renderAll, 2700);
       });
       break;
     }
@@ -863,34 +887,21 @@ function dispatch(action, data) {
       });
       break;
     }
-    case 'PICK_BACK': {
-      const id = data.id;
-      if (Money.owns('back', id)) Money.equip('back', id);
-      else if (Money.buy('back', id)) checkAchievements();
-      break;
-    }
-    case 'PICK_TABLE': {
-      const id = data.id;
-      if (Money.owns('table', id)) Money.equip('table', id);
-      else if (Money.buy('table', id)) checkAchievements();
-      break;
-    }
-    case 'PICK_FX': {
-      const id = data.id;
-      if (Money.owns('fx', id)) Money.equip('fx', id);
-      else if (Money.buy('fx', id)) checkAchievements();
-      break;
-    }
-    // 赢局结算「金币 ×2」：转化最高的激励位（刚赢、情绪峰值）。纯增益：不看也拿基础金币。
+    // 三个 PICK 共用：已有 ⇒ 换上；手上有免费券 ⇒ 直接解锁（券只能用一次）；否则花金币买。
+    case 'PICK_BACK': pickSkin('back', data.id); break;
+    case 'PICK_TABLE': pickSkin('table', data.id); break;
+    case 'PICK_FX': pickSkin('fx', data.id); break;
+    // ⭐ 赢局结算礼包：**转化最高的位置**（刚赢、瀑布刚放完），所以也是**给得最厚**的位置。
+    //    金币 max(×3, 80) + 👼×3。纯增益：不看也照拿基础金币。
+    //    ⚠ 走统一的 watchAd（额度/回滚/冒烟都在里面）—— 原来它自己直连 Ads，口径漂在外面。
     case 'WIN_X2': {
       if (G.winDoubled || !G.lastWinCoins || !s.won) break;
-      Ads.showRewarded().then(got => {
-        if (got && !G.winDoubled) {
-          G.winDoubled = true;
-          Money.state.coins += G.lastWinCoins;
-          Money.save();
-        }
-        renderAll();
+      watchAd('win', () => {
+        G.winDoubled = true;
+        G.lastWinAdCoins = winAdCoins();
+        Money.state.coins += G.lastWinAdCoins;
+        Money.save();
+        G.lastAngelGain = (G.lastAngelGain || 0) + gainAngels(AD_GIVE.winAngels);
       });
       break;
     }
@@ -1180,8 +1191,36 @@ function hintFromProof() {
 //   (4) 拒绝观看 ⇒ **零发放且不扣额度**（写进冒烟测试）。
 //   (5) 发放口收敛成**一个函数**、入口统一成 dispatch('AD_*')，否则冒烟点不到、口径也会漂。
 //  绝不动的红线：撤销 / 提示 / 重开 / 换局 / 证明器**永远免费**。这里全是纯增益 + 救场。
-const AD_CAPS = { gallery: 6, coins: 5, joker: 3, back: 1, peek: 3, makeup: 1 };
-const AD_GIVE = { gallery: 8, coins: 60, joker: 2, peek: 15000 };   // peek 单位是毫秒
+//  ⭐ 2026-08-01 加厚（用户点名「看广告的回馈要更丰厚」）：改动的都是**给多少**，
+//     红线一个字没动（撤销/提示/重开/换局/证明器仍然永远免费，广告只买纯增益与救场）。
+//     四条口径：① **最贵的位置不许最薄** —— 结算屏原来只多给 10~25 币，比商店那条 60 币还少，
+//     现在是「金币 ×3 保底 80 + 👼×3」的礼包；② 每个位都要**一次见效**（金币位 60→100 = 一次
+//     买得动一款中级牌背，图鉴 8→12）；③ 救场要**真能救回来**（万能牌一次拉满 3 张 + 附送 30 秒
+//     透视，光给两张牌照样卡死）；④ 外观位从「白送最便宜的那款」（20 币的货）升级成
+//     **任选一款免费解锁券**（牌背/桌布/瀑布特效都行）。给厚 ⇒ 额度照旧兜底（见下）。
+const AD_CAPS = { gallery: 6, coins: 5, joker: 3, back: 1, peek: 3, makeup: 1, win: 6, gift: 1 };
+const AD_GIVE = {
+  gallery: 12, coins: 100, joker: 3, peek: 30000,   // peek 单位是毫秒
+  winMin: 80, winAngels: 3,                          // 结算屏礼包：金币 max(×3, 80) + 👼×3
+  giftCoins: 100, giftAngels: 5,                     // 主界面每日礼物（1 次/天）
+};
+/** 结算屏礼包的金币数（`×3` 但有保底 —— 脏赢基础只有 10 币，×3 也不够看） */
+const winAdCoins = () => Math.max(AD_GIVE.winMin, (G.lastWinCoins || 0) * 3);
+
+/** 收藏品点选：已有=换上 / 有免费券=白拿（券作废）/ 否则金币买。三个 tab 共用一份口径。 */
+function pickSkin(kind, id) {
+  if (!id) return;
+  if (Money.owns(kind, id)) { Money.equip(kind, id); return; }
+  if (G.freePick && Money.grantFree(kind, id)) {
+    G.freePick = 0;
+    saveOpts();
+    checkAchievements();
+    G.toast = { msg: '🎁 ' + T('sol.freeGot'), until: Date.now() + 2200 };
+    setTimeout(renderAll, 2300);
+    return;
+  }
+  if (Money.buy(kind, id)) checkAchievements();
+}
 
 function adsState() {
   G.ads = G.ads || { day: '' };

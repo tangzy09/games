@@ -246,6 +246,11 @@
     "galleryAdN": "Video ansehen → +{n} Engel",
     "watchAdN": "Video ansehen → +{n} Münzen",
     "peekOn": "Blick",
-    "shareSeedTip": "Blatt #{n} — installiere die App und gib diese Nummer in den Einstellungen ein, um genau dasselbe Blatt zu spielen."
+    "shareSeedTip": "Blatt #{n} — installiere die App und gib diese Nummer in den Einstellungen ein, um genau dasselbe Blatt zu spielen.",
+    "adWinPack": "+{c} Münzen & +{a} Engel",
+    "adPick": "Video ansehen → eins gratis freischalten",
+    "pickFree": "Wähle eins – gratis 👇",
+    "freeGot": "Freigeschaltet!",
+    "dailyGift": "Heutiges Geschenk: +{c} Münzen, +{a} Engel"
   }
 }

@@ -230,7 +230,10 @@
     const gh = tall ? 46 : 40;                    // 菜单格
     const sh2 = tall ? 38 : 32;                   // 底部小钮
     const titleH = tall ? 34 : 27, tagH = tall ? 30 : 24;
-    const fixed = hs + 10 + titleH + tagH + ch + bh + dh + 3 * gh + 2 * 8 + sh2;
+    // 🎁 每日礼物条（1 次/天，领过就不占位）—— 高度要**算进 fixed**，否则底部间隙被它挤走
+    const giftOn = !Money.noAds && adLeft('gift') > 0;
+    const fh = giftOn ? (tall ? 34 : 30) + 8 : 0;
+    const fixed = hs + 10 + titleH + tagH + ch + bh + dh + fh + 3 * gh + 2 * 8 + sh2;
     const GAPS = 7, base = tall ? 12 : 7;
     // ⛔ 右上角是引擎 DOM 控制栏（#controls: safeTop+8，高 ctrlH）的地盘 —— canvas 画到那儿
     //   会被盖住且点不动。hero 是整屏最宽的一块 ⇒ **整体起在 ctrlH 之下**，从根上避开。
@@ -318,7 +321,21 @@
       }
     }
     addHit(cx - 105, y, 210, dh, 'DAILY', {});
-    y += dh + gap;
+    y += dh + (giftOn ? 8 : gap);
+
+    // ── 🎁 今日礼物（看广告：金币 + 天使各一份）──
+    //   ⭐ 这类**玩家主动点开**的位置转化高于「拦路」的位置，观感也是「给我福利」。
+    if (giftOn) {
+      // ⚠ 用**整格宽**而不是 210（主按钮宽）：德/俄文案在 210 里必溢出（实拍：英文就已经出框）
+      const gyH = fh - 8;
+      fillRR(cx - w / 2, y, w, gyH, 11, 'rgba(255,216,77,0.26)');
+      const gl2 = T('sol.dailyGift', { c: AD_GIVE.giftCoins, a: AD_GIVE.giftAngels });
+      ctx.font = 'bold 12px sans-serif';                 // ⚠ wrapLines 按当前 font 量宽
+      iconText('gift', '\u{1F381}', wrapLines(gl2, w - 52, 1)[0], cx, y + gyH / 2,
+               'bold 12px sans-serif', '#ffd84d', 16);
+      addHit(cx - w / 2, y, w, gyH, 'DAILY_GIFT', {});
+      y += fh - 8 + gap;
+    }
 
     // ── 2×3 菜单网格：每格都挂一个「你在这儿有多少东西」的角标 ──
     const lessN = Object.keys(G0.lessonsDone || {}).length;
@@ -584,6 +601,15 @@
     txt(T('sol.coins', { n: Money.coins }), cx, y, '#ffd84d', 'bold 14px sans-serif');
     y += 22;
 
+    // 🎁 手上有「免费解锁券」（看广告得）⇒ 未拥有的全部标成 🎁，点哪款白拿哪款（含 500 币那档）
+    const free = !!root.G.freePick;
+    const tagOf = it => (free ? '🎁' : String(it.cost));
+    if (free) {
+      fillRR(cx - w / 2, y - 4, w, 26, 8, 'rgba(255,216,77,0.28)');
+      txt(T('sol.pickFree'), cx, y + 9, '#ffd84d', 'bold 12px sans-serif');
+      y += 28;
+    }
+
     // 页签
     const tab = root.G.shopTab || 'back';
     const tabs = [['back', T('sol.backs')], ['table', T('sol.tables')], ['fx', T('sol.cascades')]];
@@ -611,7 +637,8 @@
           // ⚠ 遮罩要**轻**：看不清自己要买什么，就没人愿意为它看广告（收集系统的命门）
           fillRR(x, by, cw, ch, 5, 'rgba(0,0,0,0.34)');
           fillRR(x + cw / 2 - 17, by + ch / 2 - 9, 34, 18, 9, 'rgba(0,0,0,0.75)');
-          txt(String(it.cost), x + cw / 2, by + ch / 2, '#ffd84d', 'bold 11px sans-serif');
+          txt(tagOf(it), x + cw / 2, by + ch / 2, '#ffd84d', 'bold 11px sans-serif');
+          if (free) { ctx.strokeStyle = '#ffd84d'; ctx.lineWidth = 2; Sprite.rr(ctx, x, by, cw, ch, 5); ctx.stroke(); }
         }
         if (on) { ctx.strokeStyle = '#7ef2a0'; ctx.lineWidth = 3; Sprite.rr(ctx, x, by, cw, ch, 5); ctx.stroke(); }
         addHit(x, by, cw, ch, 'PICK_BACK', { id: it.id });
@@ -632,7 +659,8 @@
         if (!own) {
           fillRR(x, ty, tw, 54, 7, 'rgba(0,0,0,0.30)');
           fillRR(x + tw / 2 - 17, ty + 18, 34, 18, 9, 'rgba(0,0,0,0.75)');
-          txt(String(it.cost), x + tw / 2, ty + 27, '#ffd84d', 'bold 11px sans-serif');
+          txt(tagOf(it), x + tw / 2, ty + 27, '#ffd84d', 'bold 11px sans-serif');
+          if (free) { ctx.strokeStyle = '#ffd84d'; ctx.lineWidth = 2; Sprite.rr(ctx, x, ty, tw, 54, 7); ctx.stroke(); }
         }
         if (on) { ctx.strokeStyle = '#7ef2a0'; ctx.lineWidth = 3; Sprite.rr(ctx, x, ty, tw, 54, 7); ctx.stroke(); }
         addHit(x, ty, tw, 54, 'PICK_TABLE', { id: it.id });
@@ -654,7 +682,8 @@
         uiIcon(FX_EMO[it.id] || 'sparkle', '✨', x + tw / 2, fy + (own ? 27 : 16), 22);
         if (!own) {
           fillRR(x + tw / 2 - 17, fy + 30, 34, 18, 9, 'rgba(0,0,0,0.75)');
-          txt(String(it.cost), x + tw / 2, fy + 39, '#ffd84d', 'bold 11px sans-serif');
+          txt(tagOf(it), x + tw / 2, fy + 39, '#ffd84d', 'bold 11px sans-serif');
+          if (free) { ctx.strokeStyle = '#ffd84d'; ctx.lineWidth = 2; Sprite.rr(ctx, x, fy, tw, 54, 7); ctx.stroke(); }
         }
         if (on) { ctx.strokeStyle = '#7ef2a0'; ctx.lineWidth = 3; Sprite.rr(ctx, x, fy, tw, 54, 7); ctx.stroke(); }
         addHit(x, fy, tw, 54, 'PICK_FX', { id: it.id });
@@ -662,11 +691,12 @@
       y += Math.ceil(Money.FXS.length / 4) * 60 + 12;
     }
 
-    // ⭐ 外观位：看一条广告白送一款牌背（1 次/天 —— 额度低才不贬值）
-    if (!Money.noAds && G.shopTab === 'back') {
+    // ⭐ 外观位：看一条广告 → **任选一款**免费解锁（1 次/天 —— 额度低才不贬值）。
+    //   ⚠ 三个页签都要出现：券对牌背/桌布/瀑布通用，只挂在牌背页 = 大半玩家看不见它。
+    if (!Money.noAds && !free) {
       const bl = adLeft('back');
       fillRR(cx - w / 2, y, w, 40, 10, bl ? 'rgba(255,216,77,0.22)' : 'rgba(255,255,255,0.10)');
-      iconText('gift', '🎁', T('sol.adBack') + '   ' + T('sol.adLeft', { n: bl }), cx, y + 20,
+      iconText('gift', '🎁', T('sol.adPick') + '   ' + T('sol.adLeft', { n: bl }), cx, y + 20,
                'bold 12px sans-serif', bl ? '#ffd84d' : 'rgba(255,255,255,0.45)', 16);
       addHit(cx - w / 2, y, w, 40, 'AD_BACK', {});
       y += 48;
@@ -1503,7 +1533,8 @@
           clean ? '#7ef2a0' : PAL.sub, '13px sans-serif'); wy += 22;
       // 本次赢的金币（×2 翻倍后带 ✓）+ 新解锁的天使
       {
-        const wl = T('sol.winCoins', { n: G.lastWinCoins || 0 }) + (G.winDoubled ? '  ×2 ✓' : '');
+        const wl = T('sol.winCoins', { n: (G.lastWinCoins || 0) + (G.winDoubled ? (G.lastWinAdCoins || 0) : 0) })
+                 + (G.winDoubled ? ' ✓' : '');
         if (G.lastAngelGain) iconText('frame', '👼', wl + '   +' + G.lastAngelGain, L.cx, wy, 'bold 13px sans-serif', '#ffd84d', 16);
         else txt(wl, L.cx, wy, '#ffd84d', 'bold 13px sans-serif');
       }
@@ -1549,12 +1580,16 @@
       iconText('share', '📤', T('sol.challenge'), L.cx, wy + 20, '13px sans-serif', '#fff', 15);
       addHit(L.cx - 90, wy, 180, 40, 'SHARE_CARD', {});
       wy += 48;
-      // ⭐ 「金币 ×2」：转化最高的激励位（刚赢、瀑布刚放完）。纯增益；买了去广告的不打扰。
+      // ⭐ 结算礼包：转化最高的位置（刚赢、瀑布刚放完）⇒ **也是给得最厚的位置**。
+      //   ⚠ 按钮上把**实得数量写出来**（不写数量等于没给）；额度剩几次也一并写清。
       if (!Money.noAds && G.lastWinCoins > 0 && !G.winDoubled) {
-        fillRR(L.cx - 90, wy, 180, 40, 12, 'rgba(255,216,77,0.24)');
-        txt('▶ ' + T('sol.adX2') + ' (+' + G.lastWinCoins + ')', L.cx, wy + 20, '#ffd84d', 'bold 13px sans-serif');
-        addHit(L.cx - 90, wy, 180, 40, 'WIN_X2', {});
-        wy += 48;
+        const wl2 = adLeft('win');
+        fillRR(L.cx - 108, wy, 216, 44, 12, wl2 ? 'rgba(255,216,77,0.26)' : 'rgba(255,255,255,0.12)');
+        txt('▶ ' + T('sol.adWinPack', { c: winAdCoins(), a: AD_GIVE.winAngels }), L.cx, wy + 17,
+            wl2 ? '#ffd84d' : 'rgba(255,255,255,0.45)', 'bold 13px sans-serif');
+        txt(T('sol.adLeft', { n: wl2 }), L.cx, wy + 33, 'rgba(255,255,255,0.6)', '9px sans-serif');
+        addHit(L.cx - 108, wy, 216, 44, 'WIN_X2', {});
+        wy += 52;
       }
       winCardH = wy - wy0 + 8;                 // 量给下一帧的卡片高度
     }

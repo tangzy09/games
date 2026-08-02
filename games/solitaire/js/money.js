@@ -64,8 +64,11 @@
   const WIN_COINS = 10;
   const CLEAN_BONUS = 15;                // 零撤销零提示赢 —— 奖励「真本事」
   // 激励视频要「一次见效」：25 币连最便宜的牌背都买不动 ⇒ 看了也没感觉（skill 实锤）。
-  //   60 币 = 三次广告换一款高级牌背，玩家读得懂这笔账。
-  const AD_COINS = 60;
+  //   2026-08-01 再加厚到 100：**一条广告就买得动一款中级牌背**（60-80 档），
+  //   「看一条 → 立刻换新牌背」这笔账玩家一眼算得清，比「攒三条」有力得多。
+  //   ⚠ 真正的发放量由 main.js 的 AD_GIVE.coins 传进来（按钮标签用的是同一个常量，
+  //     两处各写一份必然漂）；这里的值只是缺省。
+  const AD_COINS = 100;
 
   /** 赢局发金币。返回本次发放量 —— 结算屏「看广告 ×2」按它翻倍（纯增益，不看也拿基础金币）*/
   function earnWin(cleanWin) {
@@ -74,7 +77,7 @@
     save();
     return n;
   }
-  function earnAd() { state.coins += AD_COINS; save(); }
+  function earnAd(n) { state.coins += (n > 0 ? n : AD_COINS); save(); }
 
   // ── 收藏品（激励视频的消耗端）──
   const BACKS = [
@@ -146,7 +149,20 @@
     return true;
   }
 
-  /** 直接白送一款还没有的牌背（激励视频的外观位；挑最便宜的那款——先易后难才有收集节奏）*/
+  /**
+   * ⭐ 免费解锁券兑现：**任选**一款还没有的收藏品（牌背/桌布/瀑布特效都行，含 500 币那档）。
+   *   与 buy() 的唯一差别是不扣金币 —— 广告位给的是「你想要的那一款」，不是「最便宜的那款」。
+   */
+  function grantFree(kind, id) {
+    const item = itemsOf(kind).find(x => x.id === id);
+    if (!item || owns(kind, id)) return false;
+    KINDS[kind].owned().push(id);
+    equip(kind, id);
+    save();
+    return true;
+  }
+
+  /** 直接白送一款还没有的牌背（旧的外观位实现，红线测试仍在用；线上入口已换成 grantFree 券）*/
   function grantCheapestBack() {
     const cand = BACKS.filter(b => b.cost > 0 && !owns('back', b.id))
                       .sort((a, b) => a.cost - b.cost);
@@ -163,7 +179,7 @@
     load, save, state,
     canShowInterstitial, noteWin, adFree,
     earnWin, earnAd,
-    BACKS, TABLES, FXS, owns, itemsOf, buy, equip, buyNoAds, grantCheapestBack,
+    BACKS, TABLES, FXS, owns, itemsOf, buy, equip, buyNoAds, grantCheapestBack, grantFree,
     get coins() { return state.coins; },
     get noAds() { return state.noAds; },
   };

@@ -74,10 +74,14 @@ const winState=`(()=>{ const s=Core.newGame(7,3);
   const st1=await page.evaluate(()=>({won:G.s.won,base:G.lastWinCoins,coins:Money.coins,doubled:G.winDoubled}));
   ok(st1.won&&st1.base>0, `赢局结算:基础金币已发（+${st1.base}，不看广告也拿）`);
   await page.screenshot({path:path.join(SHOT,'p11-01-win-x2.png')});
-  ok(await click(page,'WIN_X2'), '⭐ 结算屏有「金币 ×2」按钮');
+  ok(await click(page,'WIN_X2'), '⭐ 结算屏有激励礼包按钮');
   await page.waitForTimeout(400);
-  const st2=await page.evaluate(()=>({coins:Money.coins,doubled:G.winDoubled,btn:hitAreas.some(h=>h.action==='WIN_X2')}));
-  ok(st2.doubled&&st2.coins===st1.coins+st1.base, `⭐ 看完广告金币翻倍（${st1.coins} -> ${st2.coins}）`);
+  // ⭐ 2026-08-01 加厚：结算屏是**转化最高**的位置 ⇒ 也是给得最厚的位置
+  //   （原来只多给 10~25 币，比商店那条广告还少）。现在 = 金币 max(×3, 80) + 👼×3。
+  const st2=await page.evaluate(()=>({coins:Money.coins,doubled:G.winDoubled,angels:G.angels,
+    want:winAdCoins(),wantA:AD_GIVE.winAngels,btn:hitAreas.some(h=>h.action==='WIN_X2')}));
+  ok(st2.doubled&&st2.coins>=st1.coins+st2.want,
+     `⭐ 结算礼包给厚了（${st1.coins} -> ${st2.coins}，至少 +${st2.want} 币）`);
   ok(!st2.btn, '翻过就收起按钮（不许重复领）');
 
   // ── ③ 成就:首胜自动解锁 + 发金币 + 专页可进 ──
