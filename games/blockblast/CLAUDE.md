@@ -16,6 +16,32 @@
 - **生成美术（2026-07-31，本机 Flux 管线首批 9 张）**：`assets/art/`——5 水晶（cry_*）+ 3 章徽（ch_candy/ocean/forest）+ 宝箱（chest），comfyui-flux-local 管线（schnell Q4 生图 → InSPyReNet 抠图 → 512webp）。接入走 engine `makeArt('art',[ids])` + `drawCrystalArt`（**缺图回退矢量 drawCrystal/emoji，零改码换图**）；用在目标条/图鉴/章徽（关卡 HUD）/宝箱条，**棋盘小格仍用矢量**（小尺寸矢量更脆）。⚠ 生图坑：prompt 带「badge/emblem」会诱发英文字（ch_candy 首版被画上 CHAPTER），重生成需去措辞+强化 no text。
 - **天使榜（2026-07-31，DESIGN §7 幽灵追赶的落地形态）**：`js/ghosts.js` 20 个预设分数角色（200→20000，头像复用天使画廊图）。⛔ §7 红线照守：**明确是游戏角色，文案绝不称「玩家」**（单测钉死名字不含 player/玩家）。进度零存档（由最高分推导 `beatenCount`）；局中超越即 toast、结算页对比行（x/20 + 下一个差多少，点进全榜）、目标条挂「差 ≤600 分」的追赶目标。
 - **广告模型（2026-07-31 定稿，取代此前所有插屏规则）**：**前 50 盘零插屏**（明面卖点，商店页 adPolicy 文案明示）→ 之后**每 10 盘至多 1 个**，只在通关结算 / 无尽「再来一局」转场，≥2min 间隔；失败/局中/每日永远零插屏。唯一闸门 `Shop.canShowInterstitial` + `notePlayed/noteAdShown`（盘数 = 关卡赢/输、无尽、每日、挑战都计）。**插屏是姿态不是收入，收入主力 = 自愿激励视频（×2/换手/撤销/领币）。**
+## 上架素材（1.0.1，全部已就位 —— **只差一个 build**）
+
+一条命令一件事，全部可重跑（幂等）：
+
+```bash
+node games/blockblast/tools/make-shots.cjs        # 624 张截图（39 语 × iPhone/iPad × 8）→ C:/tmp/blockblast/store-shots/final
+node games/blockblast/tools/upload-shots.cjs <verId>   # 传 ASC（转 JPEG q88；实测 190MB / 20.5 分钟）
+node games/blockblast/tools/aso-push.cjs          # 39 语 name/subtitle/keywords/whatsNew/promo/description + 回读校验
+node games/blockblast/tools/preview/capture.cjs   # 录预览片原片（教练自己下棋 ⇒ 画面是真的）
+node games/blockblast/tools/preview/mux.cjs       # 配音编码 → 886×1920 / 24s / 立体声 AAC
+node games/blockblast/tools/preview/upload-preview.cjs <verId>
+node games/blockblast/tools/asc-status.cjs        # 只读体检：还差什么
+```
+
+- **截图叙事线**：⛔ **第 1 张必须是公平页**（4.3(a) 的差异化要在第一屏 5 秒说清）→ 玩法/消行预览
+  → 300 关 → 教练 → 图鉴 500 → 每日 → 皮肤 → 主界面。文案在 `tools/shot-caps.cjs`（39 语，
+  `hl` 高亮词必须是标题子串，文件末尾有断言）。
+  ⚠ 三个实拍坑：`SEED_BOARD` 这类 node 侧函数要**单独 evaluate**（写进别的箭头函数体里浏览器看不到）；
+  商店图里不该出现「Watch Ad」⇒ 把免费额度摆满 + 当天广告额度摆成用完；
+  **不放天使贴纸** —— blockblast 界面上下都是满的，贴纸落哪都盖内容。
+- **ASO**：`docs/aso-1.0.1.cjs` 自带字段长度校验（首跑抓出 18 处超长）+ 两条红线断言
+  （商店名里 block 与 blast 不许连着；keywords 不许有竞品商标）。
+- **预览片**：⛔ 音轨**必须立体声**（单声道苹果转码直接拒，snake 四个 locale 全拒过）。
+  音效用 `tools/audit-sfx.cjs` 渲出的同一批 wav ⇒ 片子的声音和真机一致。
+- **⛔ 先传素材、后提交审核**：版本一进 `WAITING_FOR_REVIEW`，截图和预览片都锁死（删改 409）。
+
 - **iOS 1.0.1 待出包**（package.json 已 bump 1.0.1；⚠ 出包/提交必经批准）：
   - **ASC 1.0.1 版本载体已建（2026-07-31，PREPARE_FOR_SUBMISSION）**，并补上了缺失的 **marketingUrl = https://blocks.ai-speeds.com**（两 locale，已回读校验）。⛔ **为什么必须补**：AdMob 的 app-ads.txt 验证只认商店页的「Developer Website」(= 版本本地化的 marketingUrl 字段)，**不认「App Support」(= supportUrl 字段)**；1.0 只填了后者 ⇒ 商店页没有 Developer Website 那一行 ⇒ AdMob 无处可爬、Verify 永远失败。⚠ 该字段在 READY_FOR_SALE 版本上**锁死**（PATCH 报 409 STATE_ERROR「cannot be edited at this time」，supportUrl 同样锁），只能随 1.0.1 上架生效。**提交前还差 whatsNew（更新版必填）+ 新 build**。
   - **IAP `cubeblast_noads` 封存不提交**（ASC id 6796603142 元数据齐全 READY_TO_SUBMIT，放着；将来要上：随版提交 + 从 git 历史 b6c19aa 取回 `js/iap.js` + RC dashboard 建 app）。商店页「Remove Ads」按钮已撤（假按钮伤信任）；`wallet.noAds` 历史开关继续兑现不收回。**RevenueCat 不再需要 ⇒ 出包零手工步。**
