@@ -198,6 +198,16 @@ node tools/check-ui-icons.cjs             # 全仓一致性(引用可解析 / ma
 - ⚠ CSS 里要图标用 `background-image`,`content:'👑'` 塞不进图片资源(集齐皇冠)。
 - **回归**:`tools/check-ui-icons.cjs`(仓库级,扫全部游戏)静态查「引用的图标名都在库里 / manifest 与文件一一对应 / 没有游戏私建第二份 `assets/ui/` / 单张 <40KB」。**名字拼错不会报错**(退回 emoji 而已),功能测试和 E2E 都抓不到,只能靠这条。已挂进 `npm test`(顺带把一直漏在外面的 `test-quests` 也补进 `test:snake` 了)。
 
+## 商店截图 + ASO(1.0.2,39 语全套)
+
+- **截图管线**：`tools/make-shots.cjs`(出图) + `tools/shot-caps.cjs`(39 语文案) + `tools/upload-shots.cjs`(传 ASC)。
+  一条命令出 **39 locale × 2 槽位(iPhone 6.7" / iPad 12.9") × 8 张 = 624 张**，全部已上传 1.0.2 并回读校验。
+  设计公式照 language-study 的 `store-screenshots` skill(大字标题+关键词渐变 · 真机边框 · 真实 UI 占主体 · 波浪缎带跨页连续 · 天使图裁圆贴纸)。
+- ⚠ app UI 只有 10 语 ⇒ **8 套 raw**(en/zh-CN/ja/de/ru/hi/es/pt-BR) + 39 套本地化标题；其余 locale 用英文 UI 的 raw(苹果允许)。
+- ⚠ 出图四坑(全在脚本注释里)：注入存档会连锁弹成就 toast(截图前净场) · 局中态要用**不存在的 phase** 冻结(否则手摆的蛇几帧后自撞死) · `run.dir` 是字符串键不是向量 · iPad 面板要按 **`#panel-card`** 裁边(`#panel` 是 inset:0 全屏遮罩，裁了等于没裁)。
+- ⚠ 上传：**转 JPEG q88 再传**(PNG 全套 ≈1GB 传不完，实测 196MB/20 分钟传完 624 张)；上传器幂等(先删旧图)；⛔ 版本进 WAITING_FOR_REVIEW 后截图锁死 ⇒ **先传图后提审**。
+- **ASO**(`docs/aso-1.0.2.cjs`)：⛔ 去掉关键词里的 `nokia`(en-US/id/ms/th/vi —— 活商标，拒审风险)；18 个 locale 的关键词字段补满(平均 97.1/100)；补齐 39 语**更新说明**与**促销文本**。全部 PATCH 后回读校验过。
+
 ## 项目状态(上架)
 
 - **已上线 App Store**(`READY_FOR_SALE`)。ASC App「Snake Angel: Retro Arcade」Apple ID `6789757716`,bundle `com.aispeeds.angelsnake`。
