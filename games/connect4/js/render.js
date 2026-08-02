@@ -349,6 +349,81 @@
     }
   }
 
+  // ════════ ③c ⭐ 双威胁的专属特效（P2b T5 · DESIGN §6.4 下半）════════
+  // 「把整个游戏**最精彩的战术瞬间**变成一个**能看见能听见的事件**。」
+  //
+  // ⭐⭐ 形状是承重的：**在那两个落点上各炸开一圈光环**（+ 中心一下亮闪）。
+  //   · ⛔ 不是全屏闪 / 不是横幅 —— 这个特效的教学价值全在「**指着那两格**」
+  //     （§6.4：实战教学 + 旁观者也看得懂）。指错地方就只剩噪音。
+  //   · ⛔ 也**不是**在两格之间连一条线：那会与赢局那条白色连线读成同一个东西
+  //     （「他连成四了？」），在最需要说清楚的一帧上给出错的信息。
+  //   · ⭐⭐ 扩散的轮廓用的是**威胁标记那两个形状**（先手实心三角的轮廓 ▲ / 后手菱形 ◇），
+  //     ⛔ **绝不用棋子的形状**（六边形 / 圆环）。这条踩过两次才定下来：
+  //       ① 第一版是「实心软光斑 + 圆」，截图肉眼一看就是**一枚落在空格里的 teal 棋子**；
+  //       ② 第二版改成「沿触发方自己那枚棋子的轮廓」（照赢局光晕的规矩）—— 先手还好，
+  //          **后手就成了一圈圆环**：而圆环正是后手棋子的造型，灰度下（glow 灰度 ~217
+  //          vs 圆环 ~232，几乎同亮）那一格会被读成「这里已经有一枚后手的子了」。
+  //     ⇒ 赢局光晕沿棋子轮廓走是对的（那里**真有一枚棋子**）；这里落点恒是**空格**，
+  //       适用的是 drawThreat 那条：「⛔ 别把标记做成棋子的缩小版 —— 那样灰度下会读成
+  //       『这格已经有子了』，而这格恰恰是空的」。用 ▲/◇ 还白送一件事：
+  //       与常驻的威胁标记**同一套形状** ⇒ 观感上就是「那个记号刚刚被放大了一下」。
+  //   · ⭐ 必须**空心 + 细 + 透**，且画在棋子与标记之下（drawBoard 里的位置是承重的）。
+  //     ⚠ 环扩到 0.74 格（> 半格）会探进邻格，那是刻意的「涟漪」，但因此更不许粗、不许实。
+  //
+  // ⚠ 曲线全部来自 `C4Fx.poseFork()`（闭式解、node 里逐位可测），⛔ 这里不算时间。
+  const FORK_R0 = 0.18;   // 光环起始半径（格）
+  const FORK_R1 = 0.74;   // 散到的半径（⛔ 别再调大：越界压到邻格的棋子上）
+
+  /** ⭐ 触发方的**威胁标记**形状（⛔ 不是棋子的形状，也别退回成一律画圆，见上面那段）。 */
+  function forkPath(player, cx, cy, R) {
+    if (player === 1) diaPath(cx, cy, R);
+    else triPath(cx, cy, R);
+  }
+
+  /**
+   * @param fork `C4Fx.poseFork()` 的返回值：{ cells:[{c,r}], rings:[0..1], flash:0..1, player }
+   * ⚠ 传 null / 形状不对一律**什么都不画**（⛔ 别抛：动画层坏掉不该把一局对弈带走）。
+   */
+  function drawFork(L, fork) {
+    if (!fork || !Array.isArray(fork.cells) || !fork.cells.length) return;
+    const rings = Array.isArray(fork.rings) ? fork.rings : [];
+    const flash = typeof fork.flash === 'number' ? clamp01(fork.flash) : 0;
+    const pl = fork.player === 1 ? 1 : 0;
+    for (const q of fork.cells) {
+      if (!q || !Number.isFinite(q.c) || !Number.isFinite(q.r)) continue;
+      if (q.c < 0 || q.c >= W || q.r < 0 || q.r >= H) continue;
+      const p = L.center(q.c, q.r);
+      ctx.save();
+      // ① 中心那一下亮闪：短、**软而淡**、只在开头。⚠ 中心必须仍然透出井底
+      //   （最内那档只有 0.16 ⇒ 灰度上它读不成「这格有子了」，这正是第一版翻车的地方）。
+      if (flash > 0.01) {
+        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, L.cell * 0.42);
+        g.addColorStop(0.00, 'rgba(143,240,205,' + (0.16 * flash).toFixed(3) + ')');
+        g.addColorStop(0.62, 'rgba(143,240,205,' + (0.22 * flash).toFixed(3) + ')');
+        g.addColorStop(1.00, 'rgba(143,240,205,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(p.x, p.y, L.cell * 0.42, 0, Math.PI * 2); ctx.fill();
+      }
+      // ② 两圈**空心**光环，一前一后散开（⭐「两条路」在观感上也是一二拍）
+      for (const u0 of rings) {
+        const u = clamp01(u0);
+        if (u <= 0 || u >= 1) continue;              // 还没起 / 已经散完 ⇒ 一个像素都不画
+        const e = 1 - (1 - u) * (1 - u);             // easeOut：起手快、末尾慢（涟漪）
+        const rad = L.cell * (FORK_R0 + (FORK_R1 - FORK_R0) * e);
+        const a = (1 - u) * (1 - u);                 // 淡出（⛔ 别线性：末尾会「啪」一下没）
+        ctx.globalAlpha = a;
+        ctx.strokeStyle = PAL.glow;
+        // ⚠ 光晕半径压得很小：blur 一大，轮廓就被糊成一团，整格又变回一个亮斑 ——
+        //   门禁量的「剪影 IoU vs 两方棋子」对这个数很敏感（blur 0.14 → 0.08 让 IoU 掉了一截）。
+        ctx.shadowColor = PAL.glow; ctx.shadowBlur = L.cell * 0.08 * a;
+        ctx.lineWidth = Math.max(1.5, L.cell * 0.075 * (1 - 0.55 * u));
+        forkPath(pl, p.x, p.y, rad);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+
   // ════════ ④ 背景与盘体 ════════
   function drawBackground(L) {
     const g = ctx.createLinearGradient(0, 0, 0, L.SH);
@@ -404,6 +479,9 @@
    *   threats   ⭐ [{c,r,players}]（来自 C4Threats.cells）：一步就能成四的格子，两方不同标记。
  *             ⚠ render **不自己算**（它连 Bitboard 都不 require）—— 调用方算好递进来，
  *             这样「零搜索」那条红线只有 threats.js 一个地方要守。有 winLine 时自动忽略。
+   *   fork      ⭐ `C4Fx.poseFork()` 的返回值（P2b T5 · §6.4 下半）：形成双威胁那一刻，
+   *             在**那两个落点**上各炸开一圈光环。⚠ 与 threats 相互独立（一个是事件、
+   *             一个是常驻信息），有 winLine 时同样忽略。
  *   lastMove  {c,r} 上一手的小标记
    *   action    热区的 action 名（默认 'COL'，data = {col}）
    *   noHits    true = 不注册热区（截图/预览用）
@@ -459,6 +537,12 @@
     //   · 画在**棋子之后** —— 威胁格恒是空格，与棋子不重叠，这里只是顺序上省心；
     //   · 画在**赢局那一段与悬停预览之前** —— 终局不该再标（下面 `!line`），
     //     而悬停的落点虚影必须压在标记之上（玩家正指着的那一格，预览优先）。
+    // ⭐ 双威胁的光环（P2b T5）。⛔ 顺序是承重的：画在**威胁标记之前** ——
+    //   光环是转瞬即逝的动效，▲/◇ 是要一直读得清的信息，⛔ 不许被光环糊住
+    //   （P2a 实锤：赢局那圈圆形光晕把六边形盖住，双编码在最重要的一帧反过来骗人）。
+    // ⚠ 它**不吃** threatHints 开关：那个开关关的是「常驻标记」这份信息，
+    //   而这里是一个**事件**（§6.4 把两者分成了两条）—— 关掉标记的人照样该看见这一下。
+    if (!line) drawFork(L, opts.fork);
     if (!line) drawThreats(L, opts.threats);
 
     // 上一手的小标记（一个细亮点，不改变剪影）
@@ -614,9 +698,9 @@
   }
 
   const API = {
-    W, H, PAL, HEX_R, RING_R, RING_I, TRI_R, DIA_R, DIA_W,
+    W, H, PAL, HEX_R, RING_R, RING_I, TRI_R, DIA_R, DIA_W, FORK_R0, FORK_R1,
     layout, drawBackground, drawBoard, drawHUD, drawGlyph, drawPiece,
-    drawThreat, drawThreats, drawThreatGlyph,
+    drawThreat, drawThreats, drawThreatGlyph, drawFork,
     cellOwner, landingRow
   };
   // 与 P1 五个模块同样冻结：挡住 `C4Render.drawBoard = () => {}` 这类「整屏还在、

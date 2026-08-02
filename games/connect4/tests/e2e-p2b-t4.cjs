@@ -436,14 +436,20 @@ const truth = mv => Th.cells(B.fromMoves(mv));
     await playCol(col, 8000);
   }
   const cnt = await page.evaluate(() => ({ scores: window.__scores, ai: window.__ai,
-                                           phase: G.phase, moves: G.g.moves.length }));
+                                           phase: G.phase, moves: G.g.moves.length,
+                                           forks: G.forkCount }));
   ok(cnt.phase === 'OVER', '这一局真的下完了（' + cnt.moves + ' 手，phase=' + cnt.phase + '）');
   ok(cnt.ai > 0, '前提：整局里 EngineClient.ai 被调了 ' + cnt.ai + ' 次 ⇒ 引擎通道确实在用');
   ok(sawThreat > 0, '前提：途中 ' + sawThreat + '/' + plies +
     ' 手上真的算出过威胁 ⇒ 威胁这条路跑过了（⛔ 否则「零调用」是恒真的）');
   ok(cnt.scores === 0,
     '⭐⭐ **整局跑完 EngineClient.scores 调用 ' + cnt.scores + ' 次**（必须是 0）'
-    + ' —— 威胁判据只走 B.isWinningMove，⛔ 一次求解器都不许碰');
+    + ' —— 威胁判据只走 B.isWinningMove，⛔ 一次求解器都不许碰'
+    // ⭐ P2b T5 接上来的一句：双威胁判据（C4Threats.forkOf）也在**同一局**里跑过，
+    //   走的也是 isWinningMove ⇒ 这条「零调用」同时罩住 §6.4 的上下两半。
+    //   ⚠ 这里只报数不断言 >0：某一局恰好没形成双威胁是完全正常的；
+    //     「fork 那条路真的跑过」由 e2e-p2b-t5 用确定性夹具钉死。
+    + '（本局双威胁触发 ' + cnt.forks + ' 次，走的是同一批 isWinningMove）');
   console.log('   ' + (await shot('p2b-t4-07-vs-ai-over.png')));
 
   // ═══════════ ⑧ ⭐ 持久化：关 → **真的刷新** → 仍然是关 ═══════════

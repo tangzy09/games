@@ -1,8 +1,11 @@
 // ════════════════════════════════════════
-// threats.js —— 威胁格的计算（P2b Task 4 · DESIGN §6.4 上半）。
+// threats.js —— 威胁格的计算（P2b Task 4 · DESIGN §6.4）。
 //
 // 「新手读不出『我有个三连、他也有个三连』，所以他们玩的是一个平淡的游戏。」
 // ⇒ **一步就能成四的格子标出来，两方用不同标记。** 本文件只回答「哪些格」，怎么画在 render.js。
+// ⭐ P2b Task 5 把 §6.4 **下半**也放在这里：`forkOf(before, after)` = 「**形成**双威胁的那一刻」。
+//   同一个文件是故意的 —— 两个判据用的是同一批 `isWinningMove`，「零搜索」这条红线
+//   （连同 tests/test-threats.js 的源码级检查）就只有这一个文件要守。
 //
 // ⛔⛔ 本文件的头号红线：**判据必须是零搜索的。**
 //   DESIGN §9.2 的断崖：n=10..15 的 `scoreAll` 中位 1,678 ms / 尾部 3,952 ms，而这一段
@@ -70,7 +73,48 @@
     return cells(bd).filter(t => t.players.indexOf(player) >= 0);
   }
 
-  const API = { cells, forPlayer };
+  /**
+   * ⭐⭐ 「**形成**双威胁的那一刻」（P2b Task 5 · DESIGN §6.4 下半）——整个游戏最精彩的
+   * 战术瞬间。判据同样**零搜索**（≤14 次 isWinningMove），⛔ 与本文件其余部分同一条红线。
+   *
+   * @param before 落子**之前**的盘（bd.turn = 刚要落子的那一方）
+   * @param after  落子**之后**的盘（bd.turn = 对方）
+   * @returns null（不是双威胁）或 { player, cells:[{c,r}] }（cells 按列号升序，长度 ≥ 2）
+   *
+   * ⭐ 判据是**三条**，缺一条这个功能就会在真实对局里变成噪音：
+   *   ① after 里刚落子那一方有 **≥ 2 个**「一步成四」的落点 —— 这才叫双威胁
+   *      （重力四子棋里每列只有一个落点 ⇒ 两个落点必在两列 ⇒ 对方只堵得住一个）；
+   *   ② before 里他 **< 2** —— ⭐⭐ 这一条是「**形成**的那一刻」的全部含义：
+   *      ⛔ 只判 ①（计划里那句「用 winningMoves 的长度即可」的字面读法）的话，
+   *      双威胁一旦形成就**每一手都成立**（对方堵不掉两个），于是从这一手起
+   *      直到分出胜负，**每落一子都要放一次特效 + 响一次 fork 音** —— 这正是
+   *      「⚠ 别刷屏」那条要挡的东西，而且它是判据层的问题，用冷却只能盖住一半；
+   *   ③ after **非终局** —— 这一手直接连四了就归赢局庆祝（§6.3），⛔ 两套庆祝不许叠在一帧。
+   *
+   * ⚠ 这里判的是「**战术上的**双威胁」，不是「求解器认定的必胜」：对方可能自己也有一个
+   *   即将成四的点、可以抢先赢。要判「真的赢定了」就得搜 ⇒ 每手 1.7 秒的断崖（§9.2），
+   *   ⛔ 绝不做。§6.4 要的本来就是「让新手看见这个**局面形状**」，不是宣布胜负。
+   */
+  function forkOf(before, after) {
+    if (!before || !after || !before.h || !after.h) return null;
+    // 参数顺序反了 / 不是相邻的两个局面 ⇒ 什么都不报（⛔ 别硬算：那会在错的一帧放特效）
+    if (after.n !== before.n + 1) return null;
+    const mover = before.turn;
+    if (after.turn === mover) return null;
+    if (R.terminal(before) !== null) return null;
+    if (R.terminal(after) !== null) return null;              // ③ 连四了 ⇒ 归赢局庆祝
+    if (R.winningMoves(before).length >= 2) return null;      // ② 之前就已经是双威胁 ⇒ 不是「形成」
+    const ob = B.clone(after); ob.turn = mover;               // ⭐ 换回刚落子那一方的视角（同 cells）
+    const w = R.winningMoves(ob);
+    if (w.length < 2) return null;                            // ①
+    return {
+      player: mover,
+      // ⚠ winningMoves 是中路优先序 ⇒ 这里排成列序（渲染与门禁都要稳定的顺序）
+      cells: w.slice().sort((x, y) => x - y).map(c => ({ c: c, r: after.h[c] }))
+    };
+  }
+
+  const API = { cells, forPlayer, forkOf };
   // 与 P1 五个模块同样冻结（`C4Threats.cells = () => []` 会让高亮静默消失，画面照常）。
   Object.freeze(API);
   if (inNode) module.exports = API;

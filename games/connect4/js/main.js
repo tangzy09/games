@@ -65,7 +65,12 @@ var G = {
   // ⭐ 上一帧算出来的威胁格，**只给 E2E / 调试看**（⛔ 不是真值源：真值恒是 bd，每帧现算）。
   //   现算的代价是每帧 ≤14 次 B.isWinningMove + 一次 clone —— 微秒级，⛔ 不许改成缓存：
   //   缓存过期的表现是「标记停在上一手的位置」，画面照常、零报错，正是本仓最怕的失败模式。
-  threats: []
+  threats: [],
+  // ── 双威胁的专属时刻（P2b T5 · DESIGN §6.4 下半）──
+  // ⭐ 只给 E2E / 调试看的计数与最近一次记录（⛔ 不是真值源）。
+  //   forkCount 存在的理由就是「不刷屏」那条门禁要能**数**：连续两手都是双威胁时它必须还是 1。
+  forkCount: 0,
+  lastFork: null      // { player, cells:[{c,r}], ply }
 };
 
 // ════════ 小工具 ════════
@@ -230,6 +235,9 @@ function fxFrame(ts) {
   const evs = C4Fx.step(dt);
   for (const e of evs) {
     if (e.type === 'land') onPieceLanded(e.r);
+    // ⭐ 双威胁的音**挂在光环炸开那一瞬**（= 触发这次双威胁的那枚棋子落地那一刻），
+    //   ⛔ 不挂 maybeFork 那一刻：那时棋子还在半空，声音会早到 ~270 ms。
+    else if (e.type === 'fork') playForkSfx();
     // ⭐ 结算音挂在**连线开始画**那一瞬（= 赢的那枚落地那一刻），⛔ 不挂判出终局那一刻：
     //   那时棋子还在半空中（而且正在慢放），声音会比画面早半秒 —— 就是音画不同步。
     else if (e.type === 'winline') playResultSfx();
@@ -256,6 +264,73 @@ function fxStop() {
   C4Fx.reset();
 }
 
+// ════════ 双威胁的专属时刻（P2b Task 5 · DESIGN §6.4 下半）════════
+// §6.4：「⭐ **形成双威胁的那一刻给专属特效 + 音效** —— 把整个游戏最精彩的战术瞬间
+//        变成一个能看见能听见的事件。一箭三雕：即时爽感 + 实战教学（第 7 课的概念在
+//        真实对局里被看见）+ 旁观者也看得懂（双人对战时很重要）。」
+//
+// ⛔⛔ **零搜索**：判据整个在 `C4Threats.forkOf`（≤14 次 B.isWinningMove，微秒级）。
+//   ⛔ 这里绝不许出现 EngineClient.scores / Solver.* —— §9.2 的断崖是每手 1.7 秒，
+//     而这条判据**每落一子**都要跑。e2e-p2b-t5 用调用计数钉死（并接上 t4 ⑦ 的整局计数）。
+//
+// ⚠⚠ 「别刷屏」是**两道**，缺一道都不够：
+//   ① 判据层（threats.forkOf 的条件 ②）：**只在「形成」那一手**报，之后每一手都成立的
+//      「我现在有双威胁」不算 —— ⛔ 少了这条，双威胁一旦形成就每落一子响一次；
+//   ② 本节这两个状态：**同一局面只触发一次**（_forkKeys，撤销后重下同一手不再响）
+//      + **冷却**（_forkPly，见 FORK_MIN_GAP）。
+//   ⭐ 两道分工不同：① 挡「同一个双威胁反复报」，② 挡「两方连着各形成一个」——
+//     后者是真实存在的局面（门禁的 FIX_TWICE 就是随机对局里搜出来的），⛔ 别以为 ① 够了。
+const FORK_MIN_GAP = 3;      // 响过之后至少再过 3 手才可能再响（⚠ 改这个数门禁会红，那是故意的）
+let _forkKeys = new Set();   // 已经判过的局面（key = 手数列表；⛔ 别用盘面哈希，那反而更贵）
+let _forkPly = -99;          // 上一次真的响的手数
+
+/** ⛔ 换局 / 回菜单必须调。⚠ **撤销不调** —— 撤销后重下同一手不该再响一次（「同一局面只触发一次」）。 */
+function resetFork() { _forkKeys = new Set(); _forkPly = -99; G.forkCount = 0; G.lastFork = null; }
+
+/**
+ * ⭐⭐ 撤销时**只松开冷却**，⛔ 不动 `_forkKeys`。这一行是被一次变异实验逼出来的：
+ *   冷却比的是**手数**，而撤销会让手数**倒退** ⇒ `ply - _forkPly ≤ 0` 恒成立 ⇒
+ *   响过一次之后，撤销回去再怎么下都被冷却永久压住。表现有两个，都不报错：
+ *     ① 真正的 bug：撤销后换一手**新的**双威胁，特效再也不出现；
+ *     ② 更阴的一个：它把「同一局面只触发一次」那条门禁**变成恒绿的** ——
+ *        实测把 `_forkKeys` 整段删掉，e2e-p2b-t5 ⑤ 照样全绿（本仓「加了断言但抓不住」第六次，
+ *        当场被变异实验抓住）。⇒ 两道防线必须**各自独立可失败**：
+ *          · `_forkKeys` 管「同一局面」（跨撤销有效）
+ *          · `_forkPly`  管「连续两手」（撤销时释放）
+ */
+function forkRewind() { _forkPly = -99; }
+
+/** ⭐ 特效 + 音效。⚠ 声音挂在 fx 的 'fork' 事件上（= 那枚棋子落地那一刻），⛔ 不在这里响。 */
+function playForkSfx() {
+  Sfx.play('fork');
+  // ⛔ 这里**不加震动**：'fork' 与那一手的 land 音是**同一帧**发的（fx 的 lead 就是这么算的），
+  //   land 已经震过了 —— 再震一次只会糊成一下更长的震动，读不出「这是个事件」。
+}
+
+function startForkFx(f) {
+  const id = C4Fx.start('fork', { cells: f.cells, player: f.player });
+  // ⚠ 也是 T6 减弱动态的入口：**光环不放，但事件仍然听得见**（理由写在 fx.js 文件头）。
+  if (id == null) { playForkSfx(); return; }
+  fxKick();
+}
+
+/** 落完一子就问一次。bdBefore 必须是**落子之前**的盘（落完就读不到了）。 */
+function maybeFork(bdBefore, bdAfter) {
+  const g = G.g;
+  if (!g) return;
+  const key = g.moves.join(',');
+  if (_forkKeys.has(key)) return;           // 同一局面只判一次（撤销 → 重下同一手 ⇒ 不再响）
+  _forkKeys.add(key);
+  const f = C4Threats.forkOf(bdBefore, bdAfter);
+  if (!f) return;
+  const ply = g.moves.length;
+  if (ply - _forkPly < FORK_MIN_GAP) return;   // ⭐ 冷却（⛔ 别删：连续两手都双威胁是真会发生的）
+  _forkPly = ply;
+  G.forkCount++;
+  G.lastFork = { player: f.player, cells: f.cells, ply: ply };
+  startForkFx(f);
+}
+
 /** 起一枚棋子的下落。row/player 必须是**落子之前**读到的（落完就读不到了）。 */
 function startDropFx(col, row, player) {
   const L = G.L || curLayout();
@@ -278,13 +353,13 @@ function interactive() {
 }
 
 function goHome() {
-  G.aiSeq++; setThinking(false); fxStop();
+  G.aiSeq++; setThinking(false); fxStop(); resetFork();
   G.phase = 'HOME'; G.g = null; G.result = null; G.hoverCol = -1; G.holdCol = -1; G.notice = '';
   renderAll();
 }
 
 function startGame(mode, tier) {
-  G.aiSeq++; setThinking(false); fxStop();
+  G.aiSeq++; setThinking(false); fxStop(); resetFork();
   G.result = null; G.hoverCol = -1; G.holdCol = -1; G.notice = '';
   const opts = { mode: mode, gameNo: G.gameNo };
   // ⛔ 别在这里算 humanFirst：交替先手 + 「顶档必须玩家先手」两条都写在 state.js 的
@@ -322,11 +397,16 @@ function applyMove(col) {
   if (!G.g || !C4State.canPlay(G.g, col)) return false;
   // ⚠ 落点与执子方必须在 play **之前**读：落完盘面就变了，那时候 h[col] 已经加过一。
   //   ⭐ 这个 row 直接就是落定音的编号（land0 = 最底行 = 最低音，DESIGN §6.3）。
-  const row = C4Render.landingRow(C4State.boardOf(G.g), col);
+  const bdBefore = C4State.boardOf(G.g);      // ⭐ T5 的双威胁判据要「落子之前」那一份
+  const row = C4Render.landingRow(bdBefore, col);
   const player = C4State.turnOf(G.g);
   G.g = C4State.play(G.g, col);
   G.hoverCol = -1;
   if (row >= 0) startDropFx(col, row, player);
+  // ⭐ 双威胁（§6.4 下半）。⚠ 必须在 startDropFx **之后**：fx 要问「那枚棋子还差多久落地」
+  //   才能把光环与落地对齐（lead）；⛔ 也必须在 checkOver 之前 —— 判据自己会挡终局，
+  //   但顺序反了会让「这一手直接连四」的局面多算一遍。
+  if (row >= 0) maybeFork(bdBefore, C4State.boardOf(G.g));
   const over = checkOver();
   renderAll();
   if (!over) maybeAI();
@@ -338,7 +418,7 @@ function applyMove(col) {
 function doUndo() {
   const g = G.g;
   if (!g || !g.moves.length) return;
-  G.aiSeq++; setThinking(false); fxStop(); G.notice = '';
+  G.aiSeq++; setThinking(false); fxStop(); forkRewind(); G.notice = '';
   let n = g.moves.length - 1;
   if (g.mode === 'ai') {
     while (n > 0 && (n % 2) !== C4State.humanPlayer(g)) n--;
@@ -597,6 +677,7 @@ function drawPlay(L) {
   const poses = C4Fx.pose();
   const drops = poses.filter(p => p.kind === 'drop');
   const wfx = C4Fx.poseWin();   // 庆祝播完 / 没有庆祝 ⇒ null ⇒ 下面退回静态赢局帧
+  const ffx = C4Fx.poseFork();  // ⭐ T5：双威胁的光环（播完 ⇒ null ⇒ 一个像素都不画）
 
   // ⭐ 威胁高亮（DESIGN §6.4 上半）。⛔⛔ **零搜索**：C4Threats.cells 只做 ≤14 次
   //   B.isWinningMove（微秒级）。⛔ 这里绝不许出现 EngineClient.scores / Solver.*——
@@ -610,6 +691,9 @@ function drawPlay(L) {
     hoverPlayer: C4State.turnOf(g),
     winLine: line,
     threats: G.threats,
+    // ⭐ 双威胁的光环（§6.4 下半）。⚠ 它**不吃** threatHints 那个开关（那关的是常驻标记
+    //   这份信息，这里是一个事件）；要门控它的是 T6 的减弱动态，而门控点在 fx 的 start。
+    fork: ffx,
     // ⭐ 三条曲线全部来自 fx（⛔ 别在这里另算时间）：庆祝在跑时用它的，播完退回静态终态。
     dim: line ? (wfx ? wfx.dim : C4Fx.DIM_MAX) : 0,
     lineProg: wfx ? wfx.prog : 1,

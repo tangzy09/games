@@ -158,4 +158,109 @@ function bruteThreats(bd) {
   console.log('test-threats: forPlayer 分边 OK');
 }
 
+// ─────────── ⑦ ⭐ forkOf：「**形成**双威胁的那一刻」（P2b T5 · DESIGN §6.4 下半）───────────
+// ⚠ 判据的三条各配一个会红的反向对照 —— 「加了断言但抓不住」在本仓已经出现过五次。
+const forkTrace = mv => {
+  const out = [];
+  for (let i = 0; i < mv.length; i++) {
+    out.push(Th.forkOf(B.fromMoves(mv.slice(0, i)), B.fromMoves(mv.slice(0, i + 1))));
+  }
+  return out;
+};
+{
+  // ⭐ 教科书式的双威胁：底行 `O.XXX.O`，X 的三连**两端都开着** ⇒ 落点 (1,0) 与 (5,0)，
+  //   对方只堵得住一个。这也是门禁截图里那一张（旁观者一眼看得懂 = §6.4 的第三只雕）。
+  const FIX = [4, 0, 4, 4, 2, 6, 3];
+  const tr = forkTrace(FIX);
+  assert.strictEqual(tr.filter(x => x).length, 1, '这个夹具必须**恰好**触发一次：' + JSON.stringify(tr));
+  assert.ok(tr[6], '触发的必须是最后那一手（第 7 手）');
+  assert.strictEqual(tr[6].player, 0);
+  assert.deepStrictEqual(tr[6].cells, [{ c: 1, r: 0 }, { c: 5, r: 0 }],
+    '两个落点必须按列序给出：' + JSON.stringify(tr[6].cells));
+  // ⭐ 反向对照 ①：前 6 手一次都不许触发（其中第 5、6 手盘上已经有子，不是「空盘所以没有」）
+  assert.ok(tr.slice(0, 6).every(x => x === null), '前 6 手不该有任何触发：' + JSON.stringify(tr));
+  console.log('test-threats: ⭐ forkOf 夹具（底行两端开的三连）恰好触发一次 OK');
+}
+{
+  // ⭐⭐ 反向对照 ②（**判据层的「别刷屏」**）：双威胁**形成之后**还留在盘上，
+  //   之后每一手它都仍然成立 —— 只判「after ≥ 2」的实现会从这一手起**每落一子响一次**。
+  //   这个夹具第 9 手 before=2 且 after=2，⇒ 必须被条件 ② 压掉。
+  const FIX = [4, 0, 4, 4, 2, 6, 3, 0, 0];
+  const a = B.fromMoves(FIX.slice(0, 8)), b = B.fromMoves(FIX);
+  const ob = B.clone(b); ob.turn = a.turn;
+  assert.strictEqual(R.winningMoves(a).length, 2, '前提：第 9 手之前那一方**已经**有两个制胜点');
+  assert.strictEqual(R.winningMoves(ob).length, 2, '前提：走完之后仍然是两个（双威胁没被拆掉）');
+  assert.strictEqual(Th.forkOf(a, b), null,
+    '⛔ 双威胁**持续存在**不等于「形成」—— 只判 after≥2 的实现会在这里再响一次（刷屏）');
+  assert.strictEqual(forkTrace(FIX).filter(x => x).length, 1, '整段仍然只触发一次');
+  console.log('test-threats: ⭐⭐ 双威胁持续存在时不再触发（「形成的那一刻」）OK');
+}
+{
+  // 反向对照 ③：单威胁（after = 1）不许触发；④ 这一手直接连四（终局）归赢局庆祝
+  const one = B.fromMoves([4, 3, 4, 2, 4]);                 // X 有且只有 (4,3) 一个制胜点
+  const ob = B.clone(one); ob.turn ^= 1;
+  assert.strictEqual(R.winningMoves(ob).length, 1, '前提：这里恰好只有一个制胜点');
+  assert.strictEqual(Th.forkOf(B.fromMoves([4, 3, 4, 2]), one), null, '单威胁不许触发');
+  const wonMv = [3, 0, 4, 1, 5, 0, 2];
+  assert.strictEqual(R.terminal(B.fromMoves(wonMv)), R.WIN[0], '前提：这一手直接连四');
+  assert.strictEqual(Th.forkOf(B.fromMoves(wonMv.slice(0, -1)), B.fromMoves(wonMv)), null,
+    '终局那一手归赢局庆祝（§6.3），⛔ 两套庆祝不许叠在一帧');
+  // 参数顺序反了 / 不是相邻两个局面 ⇒ 一律 null（⛔ 别硬算：那会在错的一帧放特效）
+  const A = B.fromMoves([4, 0, 4, 4, 2, 6]), Bd = B.fromMoves([4, 0, 4, 4, 2, 6, 3]);
+  assert.strictEqual(Th.forkOf(Bd, A), null, '参数反了必须 null');
+  assert.strictEqual(Th.forkOf(B.fromMoves([4, 0, 4, 4, 2]), Bd), null, '差两手必须 null');
+  assert.strictEqual(Th.forkOf(null, Bd), null);
+  console.log('test-threats: forkOf 的四条反向对照（单威胁 / 终局 / 反序 / 非相邻）OK');
+}
+{
+  // ⭐ 与一份独立重写的定义随机对拍 + ⭐ 把「条件 ② 真的压掉了很多」写成断言
+  //   （⛔ 否则「持续双威胁不再触发」只有一个手搓夹具撑着）
+  let rng = 20260805;
+  const rnd = n => { rng = (rng * 1103515245 + 12345) & 0x7fffffff; return rng % n; };
+  let games = 0, cand = 0, fired = 0, suppressed = 0;
+  while (games < 300) {
+    let bd = B.newBoard();
+    while (R.terminal(bd) === null) {
+      const ms = R.moves(bd);
+      const before = bd, after = B.play(bd, ms[rnd(ms.length)]);
+      // 独立定义：真的替 mover 把每一列都落一遍看谁赢（与 forkOf 不共享 winningMoves）
+      const winCells = b => {
+        const out = [];
+        for (let c = 0; c < B.W; c++) {
+          if (!B.canPlay(b, c)) continue;
+          const t = B.clone(b); t.turn = before.turn;
+          if (B.winner(B.play(t, c)) === before.turn) out.push({ c: c, r: b.h[c] });
+        }
+        return out;
+      };
+      const want = (R.terminal(after) === null && winCells(after).length >= 2
+                    && winCells(before).length < 2)
+        ? { player: before.turn, cells: winCells(after) } : null;
+      assert.strictEqual(JSON.stringify(Th.forkOf(before, after)), JSON.stringify(want),
+        '与独立定义不同：mv=' + JSON.stringify(after.mv));
+      if (R.terminal(after) === null && winCells(after).length >= 2) {
+        cand++;
+        if (want) fired++; else suppressed++;
+      }
+      bd = after;
+    }
+    games++;
+  }
+  assert.ok(fired > 50, '随机对局里一次都没触发过（' + fired + '），这轮对拍等于没测');
+  assert.ok(suppressed > 50,
+    '条件 ②「形成的那一刻」几乎没压掉东西（' + suppressed + '/' + cand + '）—— '
+    + '那说明这条反向对照抓不到「每手都响」的实现');
+  console.log('test-threats: ⭐ forkOf 与独立定义随机对拍 ' + games + ' 局 OK（候选 ' + cand
+    + ' · 触发 ' + fired + ' · 被「形成」条件压掉 ' + suppressed + '）');
+}
+{
+  // ⛔ 不许改盘（同 ③）：forkOf 里有 clone + 两次 winningMoves
+  const a = B.fromMoves([4, 0, 4, 4, 2, 6]), b = B.fromMoves([4, 0, 4, 4, 2, 6, 3]);
+  const sa = JSON.stringify(a), sb = JSON.stringify(b);
+  assert.ok(Th.forkOf(a, b), '前提：这一对确实会触发');
+  assert.strictEqual(JSON.stringify(a), sa, 'forkOf 改了 before 盘');
+  assert.strictEqual(JSON.stringify(b), sb, 'forkOf 改了 after 盘');
+  console.log('test-threats: forkOf 算完两个盘面逐位未变 OK');
+}
+
 console.log('test-threats: 全部通过');

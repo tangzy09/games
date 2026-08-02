@@ -28,6 +28,13 @@
 //                        并立刻 markOverReady()（结算节奏一步到位，⛔ 不许因为没动画就没结算）；
 //     ⭐ 慢放时钟是 win 动画的一部分 ⇒ 不 start('win') 就**根本不会有慢放**，
 //        减弱动态下棋子照常按正常速度落 —— 这正是 T6 想要的，⛔ 别再单独加一个开关。
+//   · `start('fork')`  ⇒ ⭐ **要**被门控（它是动效不是信息）：关掉时 main 走
+//                        `id == null` 那条 —— **光环不放，但 `fork` 音照响**。
+//     ⚠ 声音留下是有理由的，别顺手一起关：减弱动态针对的是**视觉运动**（晕动症/前庭敏感），
+//       声音不引起晕动症；而 fork 音是这个事件在关掉动效后**唯一**的载体，一起关等于把
+//       §6.4 下半整条功能删掉。玩家要静音有独立入口（🔊 / AudioState.sfxOn）——
+//       ⛔ 别把两个正交的偏好耦合成一个开关。这也与 T2/T3 已确立的写法一致：
+//       两处 fail-safe 分支（onPieceLanded / playResultSfx）都是**照常出声**。
 //   ⛔ 别把门控写进 fx 内部（那样「动画到底跑没跑」就有两个真值了）。
 //
 // ⛔ 落子动画期间**不许锁输入**（casual-game-meta §6 / solitaire 实踩：发牌动画 1 秒内
@@ -39,6 +46,7 @@
   const inNode = (typeof module !== 'undefined' && module.exports);
 
   const H = 6;                  // 与 bitboard/render 同一套：r=0 是最底行
+  const W = 7;                  // ⚠ 只用来给 fork 的落点做范围校验（越界 = 静默画到画布外）
 
   // ── 手感常数（改这几个数 = 改整个游戏的手感，改完跑 tests/test-fx.js）──
   const G_ACC    = 1.728e-4;    // 重力，cells/ms²。定标：掉满 6.3 格 ≈ 270 ms
@@ -63,6 +71,18 @@
   const DIM_MAX    = 0.62;      // ⚠ 与 render 的 `dim === true` **同一个数**，⛔ 别各写各的
   const WIN_LEAD_MIN = 120;     // 再快也先给一拍（⛔ 别让连线与落地同一帧蹦出来）
   const WIN_LEAD_MAX = 700;     // 兜底上限：lead 是算出来的，⛔ 不许算飞了把结算拖长
+
+  // ── ⭐ 双威胁的专属时刻（P2b Task 5 · DESIGN §6.4 下半）──
+  // 「把整个游戏**最精彩的战术瞬间**变成一个**能看见能听见的事件**。」
+  // ⭐ 形状是「在**那两个落点**上各炸开一圈光环」——⛔ 不是全屏闪、不是弹一条横幅：
+  //   这个特效的教学价值全在「**指着那两格**」，指错地方就只剩噪音。
+  // ⚠ 总预算 ≈ lead + 660 ms：它发生在**局中**（不是结算），⛔ 不许长到挡住下一手的思考。
+  const FORK_RING  = 460;       // 一圈光环从起到散
+  const FORK_GAP   = 140;       // 第二圈比第一圈晚起多久（一二拍 ⇒ 听感/观感上都是「两条路」）
+  const FORK_RINGS = 2;
+  const FORK_FLASH = 220;       // 中心那一下亮闪的衰减时长
+  const FORK_HOLD  = 60;        // 散完再留一拍（⛔ 别留长，局中特效拖尾就是黏）
+  const FORK_LEAD_MAX = 700;    // 兜底上限（lead 是算出来的，⛔ 不许算飞了）
 
   // ── ⭐ 时间放慢（bullet time，DESIGN §6.3「时间放慢半秒」）──
   // ⛔ 「放慢」**不是**「卡住」：速率恒 ≥ SLOW_MIN > 0，棋子每一帧都在动。
@@ -226,6 +246,24 @@
     };
   }
 
+  // ════════ ②c ⭐ 双威胁的 pose：仍然是 **t 的闭式纯函数** ════════
+  // ⭐ 两条曲线，都只读 t：
+  //   rings[i] 第 i 圈的进度 0..1（0 = 还没起 / 1 = 已经散完 ⇒ render 直接跳过）
+  //   flash    中心那一下亮闪 1 → 0（⛔ 只在开头，别让它整段亮着把落点糊住）
+  // ⛔ 同文件头：不许写成「每帧 r += v*dt」的扩散——掉一帧光环就跳一截。
+  function poseForkOf(it) {
+    const t = it.t;
+    const rings = [];
+    for (let i = 0; i < FORK_RINGS; i++) rings.push(clamp01((t - it.lead - i * FORK_GAP) / FORK_RING));
+    return {
+      id: it.id, kind: 'fork', cells: it.cells, player: it.player,
+      rings: rings,
+      flash: t < it.lead ? 0 : clamp01(1 - (t - it.lead) / FORK_FLASH),
+      phase: t < it.lead ? 'lead' : (t >= it.total ? 'done' : 'burst'),
+      t: t, total: it.total, lead: it.lead
+    };
+  }
+
   // ════════ ③ 状态机 ════════
   let items = [];
   let seq = 0;
@@ -245,9 +283,9 @@
   }
 
   /**
-   * 起一段动画。目前只有 'drop'（T3 的赢局、T5 的双威胁将来往这里加 kind）。
-   * @param kind   'drop'
-   * @param params { c, r, player, fall? }
+   * 起一段动画。三种 kind：'drop'（T2 落子）· 'win'（T3 赢局）· 'fork'（T5 双威胁）。
+   * @param kind   'drop' | 'win' | 'fork'
+   * @param params 'drop' 时 { c, r, player, fall? }（另两种见 startWin / startFork）
    *   c,r     落点（r=0 最底行，与 bitboard 同一套）
    *   player  0|1（画哪种造型）
    *   fall    下落距离（格）。⭐ main 用**当前 layout** 真算；不给就按 r 兜底。
@@ -259,6 +297,7 @@
    */
   function start(kind, params) {
     if (kind === 'win') return startWin(params);
+    if (kind === 'fork') return startFork(params);
     if (kind !== 'drop') return null;
     const q = params || {};
     if (!num(q.c) || !num(q.r) || q.r < 0 || q.r >= H) return null;
@@ -293,20 +332,58 @@
    *     那正是 T2 交接里点名的「先飞完再看到连线」的镜像版，一样是音画不同步。
    *   ⚠ 慢放窗口就从这一刻开始 ⇒ lead 必须用**慢放后**的真实时间算（否则线会早到）。
    */
+  /** 还在飞的那些棋子里，离**撞底**最远的一枚还差多少**游戏时间**（ms）；没有就是 0。
+   *  ⭐ 赢局庆祝（T3）与双威胁特效（T5）都靠它对齐「那一枚落地」的瞬间 ——
+   *  ⛔ 写死一个 300 ms 的话，掉得浅的那些手会「特效先放完、棋子后落地」，就是音画不同步。 */
+  function remainFall() {
+    let remain = 0;
+    for (const it of items) {
+      if (it.kind === 'drop' && it.t < it.plan.tf) remain = Math.max(remain, it.plan.tf - it.t);
+    }
+    return remain;
+  }
+
   function startWin(params) {
     const q = params || {};
     const line = normLine(q.line);
     if (!line) return null;
     items = items.filter(it => it.kind !== 'win');   // ⛔ 一局只许有一个庆祝
     slowFrom = clock;                                // ⭐ 时间从这一刻开始放慢
-    let remain = 0;                                  // 还在飞的那枚离**撞底**还有多少游戏时间
-    for (const it of items) {
-      if (it.kind === 'drop' && it.t < it.plan.tf) remain = Math.max(remain, it.plan.tf - it.t);
-    }
+    const remain = remainFall();                     // 还在飞的那枚离**撞底**还有多少游戏时间
     const lead = Math.max(WIN_LEAD_MIN, Math.min(WIN_LEAD_MAX, warpInv(remain)));
     const it = { id: ++seq, kind: 'win', line: line, lead: lead,
                  draw: WIN_DRAW, t: 0, raw0: clock,
                  total: lead + WIN_DRAW + WIN_HOLD, drew: false, ended: false };
+    items.push(it);
+    return it.id;
+  }
+
+  /**
+   * ⭐ 起「形成双威胁」的专属特效（P2b Task 5 · DESIGN §6.4 下半）。
+   * @param params { cells: [{c,r} ×≥2], player }  那两个（或更多）落点 = 「他的两条路」
+   * @returns id 或 null（落点坏了 / 少于两个 ⇒ **什么都不做**，⛔ 别带着 NaN 去画）
+   *
+   * ⭐⭐ 与 startWin 同一条：`lead` 是**算出来的** —— 触发这次双威胁的那枚棋子此刻多半
+   *   还在半空中（drop 动画 ~270 ms），光环必须等它**落地那一刻**才炸开。
+   *   ⛔ 立刻炸 = 棋子还在飞就先庆祝，是 T3 那条「音画不同步」的同一个坑。
+   *   ⚠ 音效也挂在同一个瞬间（step 发 'fork' 事件），⛔ 别在 main 里 start 完就 Sfx.play。
+   *
+   * ⚠ 走**游戏时间**（同 drop，⛔ 不同于 win 的真实时间）：它是钉在「那枚棋子落地」上的，
+   *   棋子被慢放拖长时它必须跟着。⚠ 实际上双威胁恒非终局（threats.forkOf 的判据 ③）
+   *   ⇒ 慢放窗口不可能开着，这里是恒等映射；写成游戏时间只是让这条对齐关系不依赖那个前提。
+   */
+  function startFork(params) {
+    const q = params || {};
+    const raw = normLine(q.cells);                   // ⚠ 与连线同一条容错（≥2 个点、坏点一律 null）
+    if (!raw) return null;
+    for (const p of raw) {
+      if (p.c < 0 || p.c >= W || p.r < 0 || p.r >= H) return null;   // ⛔ 越界 = 静默画到画布外
+    }
+    items = items.filter(it => it.kind !== 'fork');   // ⛔ 同时只许有一个（别叠两圈光环）
+    const lead = Math.min(FORK_LEAD_MAX, remainFall());
+    const it = { id: ++seq, kind: 'fork', cells: raw, player: q.player === 1 ? 1 : 0,
+                 lead: lead, t: 0, g0: gameTime(clock), burst: false,
+                 total: lead + FORK_GAP * (FORK_RINGS - 1) + FORK_RING + FORK_HOLD };
     items.push(it);
     return it.id;
   }
@@ -320,6 +397,8 @@
    *   { type:'winline', id }            —— ⭐ 连线**开始画**的那一瞬（= 赢的那枚落地那一刻）
    *     ⇒ win/lose 的结算音挂这里，⛔ 不挂判出终局那一刻（那时棋子还在半空，声音早到半秒）
    *   { type:'winend', id }             —— ⭐ 庆祝播完 ⇒ main 把主 CTA［再来一局］点成焦点态
+   *   { type:'fork', id, cells, player } —— ⭐ 双威胁的光环**开始炸开**那一瞬（= 那枚棋子落地）
+   *     ⇒ `fork` 音挂这里，⛔ 不挂 start('fork') 那一刻（棋子还在半空，声音早到 ~270 ms）
    * ⭐ 事件对 dt 的切分同样免疫：无论 137 ms 切成几段，每种恰好发**一次**。
    * ⚠ 负 dt / NaN dt 一律当 0（切后台回来时 ts 有可能倒退）。
    */
@@ -339,6 +418,15 @@
         } else keep.push(it);
         continue;
       }
+      if (it.kind === 'fork') {
+        it.t = Math.min(gt - it.g0, it.total);        // ⭐ 走**游戏**时间（钉在那枚棋子落地上）
+        if (!it.burst && it.t >= it.lead) {
+          it.burst = true;                            // ⭐ 只发一次 ⇒ 对 dt 的切分免疫
+          evs.push({ type: 'fork', id: it.id, cells: it.cells, player: it.player });
+        }
+        if (it.t < it.total) keep.push(it);
+        continue;
+      }
       it.t = Math.min(gt - it.g0, it.plan.total);     // ⭐ 棋子走**游戏**时间（会被慢放拉长）
       if (!it.landed && it.t >= it.plan.tf) {
         it.landed = true;
@@ -355,12 +443,19 @@
    *  ⚠ 里面**混着两种 kind**：调用方按 `p.kind` 分流（main 就是这么把 drop 与 win 拆开的）。 */
   function pose() {
     const out = [];
-    for (const it of items) out.push(it.kind === 'win' ? poseWinOf(it) : poseOf(it));
+    for (const it of items) {
+      out.push(it.kind === 'win' ? poseWinOf(it) : (it.kind === 'fork' ? poseForkOf(it) : poseOf(it)));
+    }
     return out;
   }
   /** ⭐ 赢局庆祝的 pose，没有就 null（render 那侧用它拿 dim / prog / lit）。 */
   function poseWin() {
     for (const it of items) if (it.kind === 'win') return poseWinOf(it);
+    return null;
+  }
+  /** ⭐ 双威胁特效的 pose，没有就 null（render 那侧用它拿 cells / rings / flash）。 */
+  function poseFork() {
+    for (const it of items) if (it.kind === 'fork') return poseForkOf(it);
     return null;
   }
   /** ⭐ 这次庆祝一共多久（raw ms）；没有庆祝在跑时是 0。
@@ -398,14 +493,15 @@
   function reset() { items = []; clock = 0; slowFrom = Infinity; }
 
   const API = {
-    start, step, pose, poseWin, poseAt, sample, done, active, reset, winTotal,
+    start, step, pose, poseWin, poseFork, poseAt, sample, done, active, reset, winTotal,
     planDrop, dropDuration, fallForRow,
     // 慢放时钟（导出给 tests/test-fx.js 直接量 Φ 与 Φ⁻¹ 对不对）
     slowScale, warpInt, warpInv,
     // 常数导出给测试与 render 对表（⛔ 别在别处再抄一份数字）
-    G_ACC, REST, HOPS, BAND, FALL_MIN, STRETCH, SQUASH, MAX_ACTIVE, H,
+    G_ACC, REST, HOPS, BAND, FALL_MIN, STRETCH, SQUASH, MAX_ACTIVE, H, W,
     WIN_DRAW, WIN_LIT, WIN_HOLD, WIN_DIM_IN, DIM_MAX, WIN_LEAD_MIN, WIN_LEAD_MAX,
-    SLOW_MIN, SLOW_HOLD, SLOW_RAMP
+    SLOW_MIN, SLOW_HOLD, SLOW_RAMP,
+    FORK_RING, FORK_GAP, FORK_RINGS, FORK_FLASH, FORK_HOLD, FORK_LEAD_MAX
   };
   // 与 P1 六个模块同样冻结：挡住 `C4Fx.step = () => {}` 这类「不报错、只是不动了」的误用。
   Object.freeze(API);

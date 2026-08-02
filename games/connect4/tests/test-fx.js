@@ -487,6 +487,114 @@ const LINE = [{ c: 3, r: 0 }, { c: 3, r: 1 }, { c: 3, r: 2 }, { c: 3, r: 3 }];
     ' ms（§6.5 预算 ≤1500）OK');
 }
 
+// ═══ 14. ⭐ 双威胁的专属特效（P2b T5 · DESIGN §6.4 下半）═══
+// 三件事：① 光环与那枚棋子**落地对齐**（lead 是算出来的）；② 'fork' 事件恰好发一次且
+// 对 dt 的切分免疫；③ 曲线是闭式的 ⇒ 切 1/3/17 段结果逐位一致。
+const FORK_CELLS = [{ c: 1, r: 0 }, { c: 5, r: 0 }];
+{
+  // ① lead = 那枚棋子还差多久落地（⛔ 写死一个数就是音画不同步）
+  const leadOf = r => {
+    Fx.reset();
+    Fx.start('drop', { c: 3, r: r, player: 0 });
+    Fx.start('fork', { cells: FORK_CELLS, player: 0 });
+    const p = Fx.poseFork();
+    Fx.reset();
+    return p.lead;
+  };
+  const leads = ROWS.map(leadOf);
+  for (let r = 1; r < leads.length; r++) {
+    assert.ok(leads[r - 1] > leads[r],
+      '第 ' + (r - 1) + ' 行的 lead 应比第 ' + r + ' 行长（掉得更深）：' + r2(leads[r - 1]) + ' vs ' + r2(leads[r]));
+  }
+  // 与自由落体时长对得上（⭐ 就是「等它撞底」，不是随便一个数）
+  for (const r of ROWS) {
+    assert.ok(Math.abs(leads[r] - Fx.planDrop(Fx.fallForRow(r)).tf) < 1e-9,
+      'lead 与自由落体时长对不上（r=' + r + '）');
+  }
+  // 没有棋子在飞（撤销后重放 / 减弱动态兜底）⇒ lead = 0，立刻炸开
+  Fx.reset(); Fx.start('fork', { cells: FORK_CELLS, player: 0 });
+  assert.strictEqual(Fx.poseFork().lead, 0, '没棋子在飞时该立刻炸开');
+  const total0 = Fx.poseFork().total;
+  Fx.reset();
+  assert.ok(total0 > 300 && total0 < 900,
+    '⚠ 这是**局中**特效不是结算：' + Math.round(total0) + ' ms 超出「短促」的范围（300..900）');
+  console.log('test-fx: ⭐ 双威胁 lead = ' + leads.map(v => Math.round(v)).join('/') +
+    ' ms（= 那枚棋子撞底的时刻），总时长 ' + Math.round(total0) + ' ms OK');
+}
+{
+  // ② 'fork' 事件恰好发一次 + ③ dt 幂等（切 1/3/17 段）
+  const run = (T, n) => {
+    Fx.reset();
+    Fx.start('drop', { c: 3, r: 0, player: 0 });
+    Fx.start('fork', { cells: FORK_CELLS, player: 0 });
+    let forks = 0;
+    for (const dt of chunks(T, n)) for (const e of Fx.step(dt)) if (e.type === 'fork') forks++;
+    const p = Fx.poseFork();
+    const out = { forks: forks, pose: p ? { rings: p.rings.slice(), flash: p.flash, t: p.t } : null };
+    Fx.reset();
+    return out;
+  };
+  Fx.reset();
+  Fx.start('drop', { c: 3, r: 0, player: 0 });
+  Fx.start('fork', { cells: FORK_CELLS, player: 0 });
+  const FTOTAL = Fx.poseFork().total, FLEAD = Fx.poseFork().lead;
+  Fx.reset();
+  let worst = 0;
+  for (const cut of [{ n: '炸开前一瞬', T: FLEAD * 0.9 }, { n: '第一圈刚起', T: FLEAD + 40 },
+                     { n: '两圈都在散', T: FLEAD + Fx.FORK_GAP + Fx.FORK_RING * 0.5 },
+                     { n: '几乎播完', T: FTOTAL * 0.995 }]) {
+    const runs = [1, 3, 17].map(n => run(cut.T, n));
+    for (let i = 1; i < runs.length; i++) {
+      assert.strictEqual(runs[i].forks, runs[0].forks,
+        cut.n + '：切段数一变，fork 事件次数就变了（' + runs[0].forks + ' vs ' + runs[i].forks + '）');
+      assert.strictEqual(!!runs[i].pose, !!runs[0].pose, cut.n + '：pose 在不在都变了');
+      if (!runs[0].pose) continue;
+      for (const k of ['flash', 't']) {
+        const d = Math.abs(runs[0].pose[k] - runs[i].pose[k]);
+        worst = Math.max(worst, d);
+        assert.ok(d < 1e-9, '⭐⭐ fork 的 ' + k + ' 对 dt 不幂等（' + cut.n + '，差 ' + d + '）');
+      }
+      for (let j = 0; j < runs[0].pose.rings.length; j++) {
+        const d = Math.abs(runs[0].pose.rings[j] - runs[i].pose.rings[j]);
+        worst = Math.max(worst, d);
+        assert.ok(d < 1e-9, '⭐⭐ fork 的 rings[' + j + '] 对 dt 不幂等（' + cut.n + '）');
+      }
+    }
+    // 炸开之前一次都不许发，之后恰好一次
+    assert.strictEqual(runs[0].forks, cut.T < FLEAD ? 0 : 1,
+      cut.n + '：'+ (cut.T < FLEAD ? '棋子还没落地就先响了' : "'fork' 事件不是恰好一次") +
+      '（发了 ' + runs[0].forks + ' 次）');
+  }
+  console.log('test-fx: ⭐ fork 事件恰好一次、且切 1/3/17 段逐位一致（最大偏差 ' +
+    worst.toExponential(2) + '）OK');
+}
+{
+  // 参数校验：少于两个落点 / 越界 / 坏数 ⇒ **什么都不做**（⛔ 别带着 NaN 去画）
+  const bad = [undefined, {}, { cells: [] }, { cells: [{ c: 1, r: 0 }] },
+               { cells: [{ c: 1, r: 0 }, { c: 7, r: 0 }] },
+               { cells: [{ c: 1, r: 0 }, { c: 5, r: 6 }] },
+               { cells: [{ c: 1, r: 0 }, { c: NaN, r: 0 }] }];
+  for (const q of bad) {
+    Fx.reset();
+    assert.strictEqual(Fx.start('fork', q), null, '坏参数必须返回 null：' + JSON.stringify(q));
+    assert.strictEqual(Fx.poseFork(), null, '坏参数不许留下 item：' + JSON.stringify(q));
+  }
+  // 同时只许有一个（⛔ 别叠两圈光环）
+  Fx.reset();
+  Fx.start('fork', { cells: FORK_CELLS, player: 0 });
+  Fx.start('fork', { cells: [{ c: 0, r: 0 }, { c: 2, r: 0 }], player: 1 });
+  assert.strictEqual(Fx.pose().filter(p => p.kind === 'fork').length, 1, '同时只许有一个 fork 动画');
+  assert.strictEqual(Fx.poseFork().player, 1, '后起的那个说了算');
+  // pose() 里混着三种 kind —— 调用方按 kind 分流，⛔ 别让 fork 被当成 drop 画到 L.center(undefined)
+  Fx.start('drop', { c: 3, r: 0, player: 0 });
+  Fx.start('win', { line: LINE });
+  const kinds = Fx.pose().map(p => p.kind).sort();
+  assert.deepStrictEqual(kinds, ['drop', 'fork', 'win'], 'pose() 应同时给出三种：' + kinds);
+  Fx.reset();
+  assert.strictEqual(Fx.poseFork(), null, 'reset 之后必须一个不剩');
+  console.log('test-fx: fork 参数校验 / 只留一个 / 三种 kind 分流 OK');
+}
+
 // ═══ 8. 冻结：⛔ 别被「不报错只是不动了」的误用改掉 ═══
 {
   const orig = Fx.step;
