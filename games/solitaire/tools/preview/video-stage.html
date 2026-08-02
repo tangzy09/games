@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<!-- Fair Deal 的 App Preview 舞台页（886×1920 = App Store 6.7" 预览片槽位）
+     照 snake/language-study 的 preview 管线做：iframe 装**真 app**（443×960 ×2 矢量放大），
+     用 contentWindow.eval 驱动真实游戏（classic script 的顶层 const 不挂 window，只能 eval），
+     字幕/进度点/结尾卡全做在舞台层，绝不污染 app 的 DOM/canvas。
+     ⭐ 这片子里的每一步都是**真的**：真求解器在算、真解法在走、真结算屏 ——
+        纸牌这个品类的卖点就是「可验证」，画面本身也不该造假。
+     ⛔ 无音乐、无音效（用户 2026-08-01 定）：商店预览片默认静音播放，配乐反而抢戏。
+     window.__done=true 时录制结束。 -->
+<html>
+<head>
+<meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,700;9..144,800&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;background:#0B3B2A;width:886px;height:1920px;overflow:hidden;
+            font-family:'Fraunces','Segoe UI',sans-serif}
+  #appwrap{position:absolute;left:0;top:0;width:886px;height:1920px;overflow:hidden}
+  #app{width:443px;height:960px;border:0;transform:scale(2);transform-origin:0 0}
+  /* 黑幕：盖住 app 初始化 + 备料（求解器算解法）的预滚，t0 掀开；mux 再按 blackdetect 切头 */
+  #cover{position:absolute;inset:0;background:#000;z-index:200}
+  /* 进度点 */
+  #dots{position:absolute;top:28px;left:0;right:0;display:flex;justify-content:center;gap:14px;z-index:30}
+  #dots i{width:14px;height:14px;border-radius:50%;background:rgba(255,255,255,.25);transition:.3s}
+  #dots i.on{background:#FFD84D;transform:scale(1.3)}
+  /* 字幕：奶油胶囊 + 墨绿字（与商店截图同一套品牌色，压在深绿牌桌上最清楚） */
+  /* ⛔ 字幕默认压在底部会**盖住「这局还有解吗」那条**（片子最核心的一屏，实拍抓到）⇒
+       玩法幕一律用 .mid：抬到牌桌中段那片空绿上，既不遮盘面也不遮证明条。 */
+  #cap{position:absolute;left:44px;right:44px;bottom:132px;z-index:40;text-align:center;
+       font-size:58px;font-weight:800;color:#123D2B;line-height:1.22;
+       background:rgba(251,246,233,.95);border-radius:34px;padding:26px 30px;
+       box-shadow:0 16px 48px rgba(0,0,0,.45)}
+  #cap.mid{bottom:430px}
+  #cap .w{display:inline-block;opacity:0;transform:translateY(22px) scale(.86);animation:pop .3s forwards;
+          margin-right:.24em}
+  @keyframes pop{to{opacity:1;transform:none}}
+  #cap .hl{color:#C98A12}
+  /* 结尾卡 */
+  #end{position:absolute;inset:0;z-index:60;display:none;align-items:center;justify-content:center;
+       flex-direction:column;gap:38px;background:linear-gradient(165deg,#FBF6E9 0%,#F2EEDC 45%,#E7F0E4 100%)}
+  #end.show{display:flex}
+  #end img{width:300px;height:300px;border-radius:68px;box-shadow:0 20px 60px rgba(18,61,43,.42);transform:scale(0)}
+  #end.show img{animation:stick .55s forwards}
+  @keyframes stick{0%{transform:scale(0) rotate(-10deg)}70%{transform:scale(1.12) rotate(3deg)}100%{transform:scale(1) rotate(0)}}
+  #endcap{font-size:78px;font-weight:800;color:#123D2B;text-align:center;line-height:1.16}
+  #endcap b{color:#C98A12}
+  #endsub{font-size:40px;font-weight:700;color:#123D2B;background:#fff;padding:16px 46px;border-radius:999px;
+          border:3px solid rgba(201,138,18,.5);box-shadow:0 10px 34px rgba(18,61,43,.25)}
+</style>
+</head>
+<body>
+<div id="appwrap"><iframe id="app" src="/games/solitaire/index.html"></iframe></div>
+<div id="cover"></div>
+<div id="dots"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+<div id="cap" style="display:none"></div>
+<div id="end">
+  <img src="/games/solitaire/resources/icon.png">
+  <div id="endcap">Every deal has<br><b>a solution.</b></div>
+  <div id="endsub">Fair Deal · Patience &amp; Cards</div>
+</div>
+
+<script>
+window.__caps = [];
+let t0 = 0;
+const $ = s => document.querySelector(s);
+const ifr = $('#app');
+// ⚠ classic script 的顶层 const（G/dispatch/Core/Prover…）**不是 window 属性** ⇒ 只能 eval 求值
+const E = code => { try { return ifr.contentWindow.eval(code); } catch (e) { console.error('E:', code, e); } };
+const wait = ms => new Promise(r => setTimeout(r, ms));
+async function until(code, timeout = 40000) {
+  const t = Date.now();
+  while (Date.now() - t < timeout) { if (E(code)) return true; await wait(120); }
+  console.error('until timeout:', code);
+  return false;
+}
+function cap(html, pos) {
+  const el = $('#cap');
+  el.classList.toggle('mid', pos === 'mid');
+  el.style.display = html ? '' : 'none';
+  if (!html) { el.innerHTML = ''; return; }
+  const parts = html.split(/(\{y:[^}]+\})/).filter(Boolean);
+  let wi = 0, out = '';
+  for (const p of parts) {
+    const m = p.match(/^\{y:([^}]+)\}$/);
+    if (m) out += '<span class="w" style="animation-delay:' + (wi++) * 0.07 + 's"><span class="hl">' + m[1] + '</span></span>';
+    else out += p.trim().split(/\s+/).filter(Boolean)
+      .map(w => '<span class="w" style="animation-delay:' + (wi++) * 0.07 + 's">' + w + '</span>').join('');
+  }
+  el.innerHTML = out;
+  window.__caps.push({ t: (performance.now() - t0) / 1000, text: html.replace(/\{y:(.+?)\}/g, '$1') });
+}
+const dot = n => document.querySelectorAll('#dots i').forEach((d, i) => d.classList.toggle('on', i <= n));
+
+/** 备料（全在黑幕后面做）：进度存档 + 关掉广告位 + 用真解法把牌局走到画面最饱满的一步 */
+async function prep() {
+  await until('window.G && window.G.s', 30000);
+  E(`(function(){
+    G.angels = 137; G.xp = 42000; G.seenIntro = 1; G.diffLv = 3; G.stage = 3; G.runScore = 3200;
+    G.lessonsDone = {1:1,2:1}; G.ach = {first:1,clean:1,streak3:1};
+    G.stats = Object.assign(G.stats||{}, {played:86, won:41, cleanWon:23, streak:4, bestStreak:9, bestTime:254000, brilliantAll:12});
+    G.insight = { tf:9, tt:6, wt:4, ft:2, wf:1 };
+    Money.state.coins = 1240;
+    Money.state.ownedBacks = ['classic','cherry','sunset','ocean','sakura','mint','waves','koi'];
+    Money.state.back = 'koi';
+    Money.state.noAds = true;      // ⛔ 2.3.7：画面里不许出现「看广告 → 免费解锁」（本作因价格词被拒过）
+    G.reduceFx = 0;                // 视频要动效（截图才关）
+    G.phase = 'PLAY';
+    var c = document.getElementById('controls'); if (c) c.style.display = 'none';   // 引擎的网页语言栏
+    renderAll();
+  })()`);
+  // 真解法走到画面最饱满的一步（固定步数会把牌走进 foundation，桌面空一大片）
+  E('Prover.reset(); dispatch("PROVE")');
+  await until('Prover.st.phase === "done"');
+  E(`(function(){
+    var sol = Prover.st.solMoves || [], seed = G.s.seed, dc = G.s.drawCount, md = G.s.mode;
+    function score(s){ var c=0,l=0; s.tableau.forEach(function(t){ c+=t.cards.length;
+      l=Math.max(l,(t.cards.length-t.up)*0.10+Math.max(0,t.up-1)*0.28); }); return c*0.6+l*30; }
+    var best=6, bs=-1;
+    for (var k=6;k<=Math.min(24,sol.length);k++){
+      var st=Core.newGame(seed,dc,md); for(var i=0;i<k;i++) Core.apply(st,sol[i]);
+      var sc=score(st); if(sc>bs){bs=sc;best=k;}
+    }
+    var fin=Core.newGame(seed,dc,md); for(var i=0;i<best;i++) Core.apply(fin,sol[i]);
+    G.s=fin; G.s.usedHint=false; G.s.usedUndo=false; G.sel=null; G.drag=null;
+    Prover.reset(); FX.reset(); renderAll();
+  })()`);
+  await wait(400);
+}
+
+async function run() {
+  t0 = performance.now();
+  $('#cover').remove();
+
+  // ① 牌桌（真实局中）
+  dot(0); cap('Every deal has {y:a solution}', 'mid');
+  await wait(3200);
+
+  // ② 证明器：真的按下去、真的在算、真的给答案
+  dot(1); cap('Ask any time: {y:is this still winnable?}', 'mid');
+  E('Prover.reset(); dispatch("PROVE")');
+  await wait(900);
+  await until('Prover.st.phase === "done"');
+  await wait(2200);
+
+  // ③ 提示 = 解法的下一步（DEMO3 是产品自带的「演 3 步」，牌是真的在滑）
+  dot(2); cap('The hint is {y:the move that wins}', 'mid');
+  await wait(700);
+  E('dispatch("DEMO3")');
+  await wait(2800);
+
+  // ④ 三种玩法：切到 FreeCell，同样用真解法走一段
+  dot(3); cap('Klondike · {y:FreeCell} · Spider', 'mid');
+  E('G.stage = 1; newGame(undefined, "freecell"); renderAll()');
+  await wait(1100);
+  E('Prover.reset(); dispatch("PROVE")');
+  await until('Prover.st.phase === "done"');
+  E(`(function(){
+    var sol = Prover.st.solMoves || [];
+    for (var i=0;i<Math.min(8,sol.length);i++) Core.apply(G.s, sol[i]);
+    G.sel=null; FX.reset(); renderAll();
+  })()`);
+  await wait(1500);
+  // ⚠ 字幕写着三种玩法，就得三种都露脸 —— 只演 Klondike+FreeCell 等于文案在吹（片子不该有做不到的话）
+  // ⚠ 发牌动画期间 dispatch("STOCK") 会被吃掉（实拍：连发两次，底条仍写着「5 deals left」）
+  //   ⇒ 先等发牌落定，再一次一次发，中间留够动画时间。
+  E('newGame(undefined, "spider"); renderAll()');
+  await wait(700);
+  E('dispatch("STOCK")'); await wait(500);
+  E('dispatch("STOCK")'); await wait(1500);
+
+  // ⑤ 赢局结算（连关倍率 + 本局榜 + 新解锁的天使）
+  dot(4); cap('Win a deal, {y:collect an angel}');
+  E(`(function(){
+    G.s.won = true; G.s.score = 1240; G.s.usedUndo=false; G.s.usedHint=false; G.s.usedJoker=false;
+    G.lastStageScore = 3720; G.lastWinCoins = 25; G.lastAngelGain = 3; G.winDoubled = true;
+    G.tAcc = 254000; FX.reset(); renderAll();
+  })()`);
+  await wait(3000);
+
+  // ⑥ 500 张天使图鉴
+  dot(5); cap('{y:500 angels} to collect');
+  E('G.phase = "GALLERY"; G.galPage = 0; renderAll()');
+  await wait(3400);
+
+  // ⑦ 结尾卡
+  cap('');
+  $('#end').classList.add('show');
+  await wait(2600);
+  window.__done = true;
+}
+
+// 图标预解码 + 两拍 rAF 再开演（load 只保证下载完，不保证已光栅化 ⇒ 否则开场会录到灰屏）
+window.addEventListener('load', async () => {
+  try { await Promise.all([...document.images].map(i => i.decode().catch(() => {}))); } catch (e) {}
+  await prep();
+  requestAnimationFrame(() => requestAnimationFrame(run));
+});
+</script>
+</body>
+</html>
