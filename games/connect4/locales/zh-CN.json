@@ -1,0 +1,7 @@
+{
+  "lang": { "name": "中文", "toggle": "语言" },
+  "ads": { "simWatch": "【广告模拟】观看激励视频？", "simInterstitial": "【广告模拟】插屏广告" },
+  "app": { "title": "四子棋" },
+  "menu": { "vsAI": "对战电脑", "vsHuman": "双人对战", "tier": "对手难度" },
+  "game": { "yourTurn": "轮到你了", "thinking": "思考中…", "win": "你赢了", "lose": "你输了", "draw": "平局", "again": "再来一局" }
+}

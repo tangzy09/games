@@ -1,0 +1,12 @@
+/* games/connect4/css/game.css — page-level overrides on top of engine.css.
+   ⚠ IP note (DESIGN.md §0.1): the trade dress to avoid belongs to the board/discs
+   (no red/yellow disc pair, no blue frame) — that lands in the board renderer (later
+   task), not here. This file only themes the generic chrome (bg / control bar text). */
+:root {
+  --eng-bg: #eef3f0;
+  --eng-ctl-text: #2f5546;
+  --eng-menu-sel-bg: rgba(47, 143, 106, 0.18);
+  --eng-menu-sel-text: #1f6e4d;
+}
+
+body { background: #eef3f0; }
