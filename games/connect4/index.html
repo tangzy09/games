@@ -26,6 +26,8 @@
 <!-- 求解器门面（Task 4）。⚠ 主线程这一侧**不加载** bitboard/solver/ai/book ——
      它们全在 js/solver.worker.js 里，主线程一行搜索代码都不该有。 -->
 <script src="js/engine-client.js?v=1"></script>
+<!-- 盘面几何 + 绘制（Task 5）。⚠ 必须在 main.js **之前**：main 的 renderAll 要用 C4Render。 -->
+<script src="js/render.js?v=1"></script>
 <script src="js/main.js?v=1"></script>
 </body>
 </html>
