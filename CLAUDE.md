@@ -45,7 +45,7 @@ node tools/check-locales.js games/<name>/locales
 
 | 共用件 | 位置 | 复用方式 |
 |---|---|---|
-| **天使图鉴素材 501 张（25MB）** | `games/snake/assets/angels/` + `manifest.json`；**代码走 `engine/angels.js`** | ⛔ **绝不再拷第二份**：web 走相对路径 `../snake/assets/angels/`，iOS 出包走 package.json 的 `wwwExtras`。**`engine/angels.js` 是共享实现**（load/total/fileAt/img + LRU + 两端 base 运行时切换），blockblast 已接；solitaire 的 `js/angels.js` 是它的前身、下次动它时迁过来。✅ blockblast 那份 26MB 拷贝已于 2026-08-01 删除。<br>⚠ **换到共享素材 = 换了一批文件名和顺序**（snake 是 hash 名 + manifest 洗牌，不是 `a001..a500`）⇒ 只存计数的存档不会坏，但老玩家「我收集的图」会换脸，接的时候要认这一点。<br>⭐ **用法上的三条**（三款都这么做了）：主界面主视觉**每次进来从已解锁的里随机抽一张**（固定一张 = 静态海报；⚠ 只在「进入」时抽一次并缓存，renderHome 每帧都跑，每帧重抽会闪）；一局一张的收集品（snake 的揭图）**随机发且优先未解锁**（⚠ 顺手查有没有别的机制搭在序号上 —— snake 的奖励关原判 `imgPos%10`，图号一随机就成了 10% 随机撞上，改挂关数）；**伪社交榜的对手头像也用这批画像**，一眼看出是游戏角色不是真人。 |
+| **天使图鉴素材 501 张（25MB）** | `games/snake/assets/angels/` + `manifest.json`；**代码走 `engine/angels.js`** | ⛔ **绝不再拷第二份**：web 走相对路径 `../snake/assets/angels/`，iOS 出包走 package.json 的 `wwwExtras`。**`engine/angels.js` 是共享实现**（load/total/fileAt/img + LRU + 两端 base 运行时切换），blockblast 已接；solitaire 的 `js/angels.js` 是它的前身、下次动它时迁过来。✅ blockblast 那份 26MB 拷贝已于 2026-08-01 删除。<br>⚠ **换到共享素材 = 换了一批文件名和顺序**（snake 是 hash 名 + manifest 洗牌，不是 `a001..a500`）⇒ 只存计数的存档不会坏，但老玩家「我收集的图」会换脸，接的时候要认这一点。<br>⛔ **接完必须去 nginx 加一条 alias**，否则线上图鉴全空而本地全绿（见「部署」节，blockblast 部署当场踩）。<br>⭐ **用法上的三条**（三款都这么做了）：主界面主视觉**每次进来从已解锁的里随机抽一张**（固定一张 = 静态海报；⚠ 只在「进入」时抽一次并缓存，renderHome 每帧都跑，每帧重抽会闪）；一局一张的收集品（snake 的揭图）**随机发且优先未解锁**（⚠ 顺手查有没有别的机制搭在序号上 —— snake 的奖励关原判 `imgPos%10`，图号一随机就成了 10% 随机撞上，改挂关数）；**伪社交榜的对手头像也用这批画像**，一眼看出是游戏角色不是真人。 |
 | 引擎美术回退 | `engine/canvas.js` 的 `makeArt(dir,ids)` / `drawArtIcon` | 缺图自动回退矢量/emoji ⇒ **零改码换图**；生成素材见 `comfyui-flux-local` |
 | 十语 i18n | `engine/i18n.js` 默认集 + 各游戏 `locales/*.json` | 加语言 = **纯加 json**；`node tools/check-locales.js games/<name>/locales` 必 0 fail |
 | 广告闸门 / 激励视频 | 各游戏 `js/shop.js`（未抽取） | 参数与红线见 skill §1；blockblast 是最简闸门的参考实现 |
@@ -76,6 +76,20 @@ node tools/check-locales.js games/<name>/locales
 git push origin main
 ssh -i /c/Users/tangz/Documents/credentials/ec2_1.pem ec2-user@3.26.95.240 "sudo git -C /var/www/games pull"
 ```
+
+⛔ **接了共享天使画像的游戏，nginx 里必须补一条 alias**（2026-08-01 实锤，blockblast 部署当场踩）：
+每个游戏是**独立子域名 + 各自的 `root`**，所以代码里的相对路径 `../snake/assets/angels/` 会解析成
+`https://<本游戏域名>/snake/assets/angels/…` —— 不加 alias 就落进 `try_files … /index.html`，
+**返回 200 + 一份 HTML**（`r.json()` 静默抛 ⇒ 图鉴全空，`curl -o /dev/null -w '%{http_code}'` 还骗你说 200）。
+每个游戏的 server 块加一行（照 solitaire）：
+
+```nginx
+location /snake/assets/angels/ { alias /var/www/games/games/snake/assets/angels/; }
+```
+
+**验收看内容不看状态码**：`curl -s https://<域名>/snake/assets/angels/manifest.json | head -c 40` 必须是 JSON。
+⚠ 改 conf 别用 `sed` 拼 `&`/`#`（分隔符与替换符都会咬）——先 `cp` 备份、用 `python3` 精确插入、
+`nginx -t` 通过再 `systemctl reload`（`-t` 失败时旧配置仍在跑，是安全网）。
 
 ⛔ **部署前必须先问用户、拿到明确同意才执行（2026-07-31 用户定的，适用于所有游戏）**：
 `git commit` / `git push` **不用问**；但把代码放到线上（EC2 pull、nginx 改配置等一切影响
