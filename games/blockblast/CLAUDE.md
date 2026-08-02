@@ -4,9 +4,13 @@
 
 **规格是权威**：`DESIGN.md`（改核心前必查；数值全部由 `tools/sim.js` 跑模拟校准，不是拍脑袋）。
 
-## 当前状态（2026-08-01）
+## 当前状态（2026-08-02）
 
-**1.0 已上架（`READY_FOR_SALE`，7-13 过审）。** 线上 web：<https://blocks.ai-speeds.com>（领先于 iOS，含 1.0.1 全部改良）
+**1.0 已上架（`READY_FOR_SALE`，7-13 过审）。** 线上 web：<https://blocks.ai-speeds.com>
+（**领先 iOS 两个版本**：含 1.0.1 全部改良 + 1.0.2 的教练/激励八位/300 关/送方块/音效重做/画像去重）
+
+**iOS 待出包**：`package.json` 还停在 1.0.1 ⇒ 出包前先 bump 到 **1.0.2**（与 ASC 版本一字不差，否则 build 挂不上）。
+⛔ 出包/提交必经用户批准。
 
 - **留存批（2026-07-31）**：①**每日任务**（`js/quests.js` 纯函数：dayNo 确定性生成 3 个轻任务，进度挂 consume 事件流，完成自动发 +30🪙+1👼，profile 只存进度）；②**连续奖励阶梯** 3/7/14/30 天（`Daily.streakReward`，断签清零重来）+ **金币补签**（恰好漏 1 天可花 100 币接回，`repairStreak`，结算页按钮）；③**统计页**（14 项终身数据；`achievements.settle` 新增 bestStreak/sweepsTotal 累计）；④**每日 Wordle 式分享**（SHARE_DAILY，日期+分数+同种子链接）；⑤**菜单目标提示条**（宝箱>任务>临近皮肤>临近连续奖励）；⑥**推送提醒** `js/notify.js`（19:00 每日 + 21:30 streak 保护、玩过即撤、默认关、开关在设置）；⑦**求好评** `js/rate.js`（幸福时刻=三星通关/破纪录，15 盘门槛+90 天冷却+3 次/年，调用即记账）；⑧**反馈** `js/feedback.js`（DOM 底部表单 → feedback.ai-speeds.com 共享 hub，离线入队 boot 补发）。⑥⑦要新二进制；⚠ 新依赖 local-notifications@^6.1 / in-app-review@^6 首次云端构建盯 npm/pod。
 - **生成美术（2026-07-31，本机 Flux 管线首批 9 张）**：`assets/art/`——5 水晶（cry_*）+ 3 章徽（ch_candy/ocean/forest）+ 宝箱（chest），comfyui-flux-local 管线（schnell Q4 生图 → InSPyReNet 抠图 → 512webp）。接入走 engine `makeArt('art',[ids])` + `drawCrystalArt`（**缺图回退矢量 drawCrystal/emoji，零改码换图**）；用在目标条/图鉴/章徽（关卡 HUD）/宝箱条，**棋盘小格仍用矢量**（小尺寸矢量更脆）。⚠ 生图坑：prompt 带「badge/emblem」会诱发英文字（ch_candy 首版被画上 CHAPTER），重生成需去措辞+强化 no text。
@@ -49,7 +53,7 @@
   - **主视觉每次进 HOME 换一张**（`G.heroIdx`，从已解锁的天使里随机；`renderAll` 里离开 HOME 就清空 —— renderHome 每帧都跑，每帧重抽会疯狂闪）。
   - 验收：`node games/blockblast/tools/shot-ui.cjs` —— 一次截主界面/地图三章/胜三星/胜一星/
     失败/无尽结算 × 两种屏（414×896 + 360×640），先注入进度存档，产物 `C:/tmp/blockblast/ui/`。
-- **🏠🗺 门面 + 300 关 + 送方块（2026-08-02，web 待部署）**：
+- **🏠🗺 门面 + 300 关 + 送方块（2026-08-02，✅ web 已上线；iOS 随下个包）**：
   - **主界面可爱化**（用户：「做的可可爱爱的，类似 snake」）：canvas 版的天国开场 ——
     `drawHomeDeco()` 极光三带 + 26 颗各自节奏眨的星 + 两层交叠云海，`drawHalo()` 给 hero
     加圣光光晕 + 缓慢转的 12 道光芒。⚠ 位置一律**确定性散列**（⛔ 禁 `Math.random`，每帧重抽会乱跳）；
@@ -73,7 +77,7 @@
     + `e2e-rewards` 里 `streamIndex === before` 钉死）。⛔ 每日/挑战局禁用（同种子分数必须可比）；
     撤销要把礼包手一起回滚（否则撤销能刷礼包手）；礼包手的块**不驮拼块水晶**（它不在流里，序号会撞）。
     局内道具条因此从 3 格变 **4 格**：撤销 / 换手 / [🚀开局礼包→🧱送方块] / 💡提示。
-- **🔊 音效打磨（2026-08-02，web 待部署）**：`js/sound.js` 从「6 个单振荡器 blip」重做成一套小合成器。
+- **🔊 音效打磨（2026-08-02，✅ web 已上线）**：`js/sound.js` 从「6 个单振荡器 blip」重做成一套小合成器。
   - **总线**：master → **压缩器** → destination，外加一条并行**混响**（IR 也是合成的白噪声衰减，零素材）。
     ⚠ **短促的 UI 音（落子/点击/非法）必须走 `dry: 1` 绕开混响** —— 0.9s 的混响尾挂在 0.05s 的点击上，
     每次操作都"嗡"一下，连点就糊成一片（audit 量出来 place 发声 0.49s，改后 0.08s）。
@@ -89,7 +93,7 @@
     **`node games/blockblast/tools/audit-sfx.cjs`** 把 16 个音渲染成 wav 到 `C:/tmp/blockblast/sfx/`
     （外加一个 `all.wav` 顺序播全部），并断言**峰值不削顶 / 不是静音 / 拖尾不超时**。
     ⛔ 机器只能挡这三类翻车，**好不好听必须真的听一遍** —— 音效是典型的「测试全绿也可能很难听」。
-- **🔍 教练 + 变现加厚 + 去重批（2026-08-01，web 待部署；iOS 随下个包）**：
+- **🔍 教练 + 变现加厚 + 去重批（2026-08-01，✅ web 已上线；iOS 随下个包）**：
   - **⭐ `js/coach.js` —— 把验关卡的求解器搬进运行时**（本作最独有的一层）。原来那套参考 AI
     只跑在 `tools/verify-levels.js`（构建期算通关率），玩家一辈子见不到；现在同一套东西长出四样：
     **💡 提示**（局内第三个道具位，`Coach.best` 算**这一手的最优落点**，每局首次免费、之后广告）·
