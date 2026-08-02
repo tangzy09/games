@@ -125,6 +125,17 @@ const winState=`(()=>{ const s=Core.newGame(7,3);
   await page.evaluate(()=>{ Money.state.coins=2000; Money.save(); dispatch('SHOP'); });
   await page.waitForTimeout(200);
   await page.screenshot({path:path.join(SHOT,'p11-03-shop-premium.png')});
+  // ⚠ 牌背扩到 41 款后收藏页**分页**了 —— koi 不在第一页 ⇒ 先翻到它在的那页
+  //   （顺带把分页器本身也测了：翻不到就是分页坏了）
+  let koiPage = -1;
+  for (let p2 = 0; p2 < 6; p2++) {
+    const has = await page.evaluate(pp => {
+      dispatch('SHOP_PG', { p: pp }); renderAll();
+      return hitAreas.some(h => h.action === 'PICK_BACK' && h.data.id === 'koi');
+    }, p2);
+    if (has) { koiPage = p2; break; }
+  }
+  ok(koiPage >= 0, `分页能翻到「锦鲤」那一页（第 ${koiPage + 1} 页）`);
   ok(await click(page,'PICK_BACK',{id:'koi'}), '高级牌背可点');
   await page.waitForTimeout(150);
   ok(await page.evaluate(()=>Money.owns('back','koi')&&Money.state.back==='koi'),

@@ -109,6 +109,20 @@
     moon:     { a: '#5b6bb5', b: '#28305e', ink: 'rgba(255,240,170,0.80)', pat: 'moon' },
     sprinkle: { a: '#f7d9b0', b: '#dba86a', ink: 'rgba(255,255,255,0.80)', pat: 'sprinkle' },
     sweets:   { a: '#b7a4e8', b: '#7b64c0', ink: 'rgba(255,255,255,0.70)', pat: 'sweets' },
+    // ⭐ 可爱**高级**款 10 张（2026-08-01，本机 Flux schnell 生的无缝插画，assets/backs/*.jpg）。
+    //   与上面的矢量款分工：矢量款胜在任意尺寸都锐利、零体积（免费/低价档）；
+    //   插画款胜在**光影与笔触**（矢量画不出来）⇒ 放收集曲线后段，玩家攒币就是为了这张画。
+    //   ⛔ 生成 prompt 里绝不能出现 "playing card back"（会把点数/花色画到牌角，本仓废过一批 20 张）。
+    kitty:    { a: '#fbe3e0', b: '#f2c9c4', ink: 'rgba(190,90,90,0.35)', img: 1 },
+    bunny:    { a: '#eaf3e2', b: '#cfe3c4', ink: 'rgba(90,140,80,0.35)', img: 1 },
+    teatime:  { a: '#fbf0e2', b: '#f0d9c0', ink: 'rgba(190,110,90,0.35)', img: 1 },
+    starcat:  { a: '#1b2a52', b: '#0d1730', ink: 'rgba(255,240,170,0.45)', img: 1 },
+    garden:   { a: '#e6ecd9', b: '#c9d6b6', ink: 'rgba(90,120,70,0.35)', img: 1 },
+    cocoa:    { a: '#f7e6cf', b: '#e0c199', ink: 'rgba(140,80,40,0.38)', img: 1 },
+    whales:   { a: '#d8eef0', b: '#b3dbe0', ink: 'rgba(40,120,130,0.35)', img: 1 },
+    ribbon:   { a: '#f6eef7', b: '#e2d2e8', ink: 'rgba(150,100,160,0.35)', img: 1 },
+    peachy:   { a: '#fbeadb', b: '#f2cfae', ink: 'rgba(200,110,60,0.35)', img: 1 },
+    lanterns: { a: '#6b3f86', b: '#38204a', ink: 'rgba(255,220,150,0.45)', img: 1 },
   };
 
   /**

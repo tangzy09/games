@@ -130,6 +130,18 @@
     { id: 'moon',     cost: 40 },
     { id: 'sprinkle', cost: 45 },
     { id: 'sweets',   cost: 55 },
+    // ⭐ 可爱**高级**款 10 张（本机 Flux 无缝插画）：收集曲线的后段，定价接在 koi/peacock 那档之后。
+    //   ⚠ 有意**不送**这一档 —— 送掉的是「攒币的理由」；免费送的是上面那 6 张矢量可爱款。
+    { id: 'kitty',    cost: 150 },
+    { id: 'bunny',    cost: 170 },
+    { id: 'garden',   cost: 190 },
+    { id: 'whales',   cost: 210 },
+    { id: 'ribbon',   cost: 230 },
+    { id: 'teatime',  cost: 260 },
+    { id: 'peachy',   cost: 290 },
+    { id: 'cocoa',    cost: 320 },
+    { id: 'starcat',  cost: 380 },
+    { id: 'lanterns', cost: 440 },
   ];
   const TABLES = [
     { id: 'felt',    cost: 0 },

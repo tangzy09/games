@@ -39,8 +39,36 @@ ok(!missT.length, '每款桌布都有对应皮肤定义' + (missT.length ? '：�
 // ── ② 赠送 = 新增款的一半 ──
 const freeB = M0.BACKS.filter(b => b.cost === 0 && b.id !== 'classic');
 const freeT = M0.TABLES.filter(t => t.cost === 0 && t.id !== 'felt');
-ok(M0.BACKS.length === 31 && M0.TABLES.length === 16,
-   `款数：牌背 ${M0.BACKS.length} · 桌布 ${M0.TABLES.length}（可爱系新增 20）`);
+ok(M0.BACKS.length === 41 && M0.TABLES.length === 16,
+   `款数：牌背 ${M0.BACKS.length} · 桌布 ${M0.TABLES.length}（矢量可爱 12 + Flux 可爱高级 10）`);
+// ⛔ **id 不许重名**（2026-08-01 实锤）：新加的 Flux 牌背起名 `ocean` 撞上了已有的 `ocean`，
+//   结果是 ①商店里出现两格同 id ②BACK_STYLES 里后者覆盖前者，老牌背静默变成新图
+//   ③生成脚本还把 `assets/backs/ocean.jpg` 直接**覆盖**掉了。功能测试全绿，肉眼也不一定看得出。
+for (const [kind, list] of [['牌背', M0.BACKS], ['桌布', M0.TABLES], ['瀑布', M0.FXS]]) {
+  const ids = list.map(x => x.id);
+  const dup = ids.filter((x, i) => ids.indexOf(x) !== i);
+  ok(!dup.length, `⛔ ${kind} id 无重复` + (dup.length ? '：' + [...new Set(dup)].join(',') : ''));
+}
+// 图片款（img:1）必须真有文件 —— 缺文件只会静默退回渐变底色，看着「像另一款纯色牌背」
+// ⚠ 必须**按块**扫：牌背与桌布的 img:1 长得一模一样，整文件正则会把桌布的 walnut/marble
+//   当成牌背去 assets/backs 里找（第一版就这么误报了）。
+{
+  const fs2 = require('fs'), pathm = require('path');
+  // ⚠ 用 indexOf 切块，别再用正则拼字符串（转义经手一层脚本就废了，第一版 0 命中）
+  const blockOf = tag => {
+    const i = sprite.indexOf(tag);
+    if (i < 0) return '';
+    const j = sprite.indexOf('\n  };', i);
+    return sprite.slice(i, j < 0 ? undefined : j);
+  };
+  for (const [tag, dir, ext] of [['const BACK_STYLES', 'backs', '.jpg'], ['const TABLE_STYLES', 'tables', '.jpg']]) {
+    const ids = [...blockOf(tag).matchAll(/^\s{4}(\w+):\s*\{[^}]*img:\s*1/gm)].map(m => m[1]);
+    const d = pathm.join(__dirname, '../assets/' + dir);
+    const miss = ids.filter(id => !fs2.existsSync(pathm.join(d, id + ext)));
+    ok(ids.length > 0 && !miss.length,
+       `assets/${dir}：img:1 的 ${ids.length} 款都有文件` + (miss.length ? '：缺 ' + miss.join(',') : ''));
+  }
+}
 ok(freeB.length + freeT.length === 10,
    `开局赠送 ${freeB.length + freeT.length} 款 = 新增 20 款的一半（牌背 ${freeB.length} · 桌布 ${freeT.length}）`);
 

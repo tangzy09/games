@@ -52,7 +52,21 @@ E2E：`npm run test:sol:exp`。⚠ 撤销=按 seed 重放 ⇒ **手搓的 G.s �
 会误判）——`/etc/nginx/conf.d/solitaire.conf` 里加了
 `location /snake/assets/angels/ { alias …/games/snake/assets/angels/; }`（照 /engine/ 先例）。
 **验收要看 content-type 是 application/json,不是只看状态码。**
-**收藏页已分签**（back|table|fx，`G.shopTab`）——牌背 19 款后单页放不下。
+**收藏页已分签**（back|table|fx，`G.shopTab`）**+ 牌背分页**（41 款后一页放不下；
+⚠ 页数定了要**把余数摊平**：41/20 = 3 页，最后一页只剩 1 张，看着像做坏了 ⇒ 按页数反算每页 14）。
+
+**⭐ 牌背美术分两档（2026-08-01 定，两档各有各的活）**：
+- **矢量程序化**（`BACK_STYLES` 的 `pat:` 款，12 张可爱系）：任意尺寸都锐利、零仓库体积、
+  改色一行代码 ⇒ 放**免费/低价档**。判据同 UI 图标：缩到牌面大小（手机 54×77）还认得出。
+- **Flux 无缝插画**（`img:1` 款，24 张，`assets/backs/*.jpg` 360×512）：光影与笔触是矢量画不出来的
+  ⇒ 放**收集曲线后段**（150-500 币）。管线：`tools/gen-backs.cjs`（本机 ComfyUI，schnell
+  = Apache-2.0 可商用；同一个 STYLE 串保风格统一，seed 按索引固定便于只重做坏的那张）
+  → `tools/cut-backs.cjs`（中心裁 50% + `saturate(1.14) contrast(1.08)` → 360×512 JPEG）。
+  ⚠ **裁 62% 时浅色款在牌面上发白成空牌**（实拍）——缩放本身就是低通滤波，粉彩必须收紧裁切 + 补对比。
+- ⛔⛔ **新素材的 id 绝不能与既有 id 重名**（2026-08-01 实锤）：新牌背起名 `ocean` 撞上已有的
+  `ocean` ⇒ ①商店出现两格同 id ②`BACK_STYLES` 里后者**静默覆盖**前者 ③cut 脚本直接**覆盖**掉
+  `assets/backs/ocean.jpg` 这个老素材。功能测试全绿、肉眼也未必看得出 ⇒ `tests/test-money.js`
+  已加两条门禁：**三类收藏品 id 无重复** + **`img:1` 的款都真有文件**（缺文件只会静默退回渐变底）。
 **易收集牌背 10 款**（cherry…candy，20-80 金币）：⚠ Flux 生成牌背 prompt **绝不能带
 「playing card back」字样**——会把牌角点数一起画上（20 张全废过一轮）；
 要写「seamless repeating decorative pattern」+ 负面词点名 rank/suit/ace。

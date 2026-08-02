@@ -667,8 +667,11 @@
       const cw = Math.floor((w - 24) / 5), ch = Math.round(cw * 1.42);
       // ⛔ canvas 页面**不会滚动**：牌背扩到 31 款后一屏放不下（5 列 × 7 行 = 750px，
       //   360×640 上直接把返回键顶出屏幕）⇒ 分页，跟图鉴一个套路。
-      const PER = 20;                                   // 5 列 × 4 行
-      const pages = Math.ceil(Money.BACKS.length / PER);
+      // ⚠ 页数定了之后要**把余数摊平**：41 款 / 每页 20 = 3 页，最后一页只剩 1 张，
+      //   看着像做坏了。先算页数，再按页数反算每页张数 ⇒ 14/14/13。
+      const PER0 = 20;                                  // 5 列 × 4 行（一屏放得下的上限）
+      const pages = Math.ceil(Money.BACKS.length / PER0);
+      const PER = Math.ceil(Money.BACKS.length / pages);
       const pg = Math.max(0, Math.min(pages - 1, root.G.shopPage || 0));
       const list = Money.BACKS.slice(pg * PER, pg * PER + PER);
       const backY = y;
