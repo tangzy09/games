@@ -26,8 +26,13 @@ node games/snake/tools/preview/mux.cjs       # 配音编码 → C:/tmp/snake/pre
 立体声（左右微失谐拉开声场）· tanh 软限幅 + 首尾淡入淡出。
 吃果子的音效直接用**游戏内那条上行音阶**（连吃一级级升），片子的声音和真机一致。
 
-⚠ 没耳朵可用时怎么验：（看段落起伏与末尾解决）+ （看动态弧线）
-+ （看 LUFS / True peak）。三张图能把「有没有结构、会不会破音、响度对不对」全看出来。
+⚠ **没耳朵可用时怎么验**（三张图就够）：
+
+```bash
+ffmpeg -i out.mp4 -filter_complex "[0:a]showspectrumpic=s=1000x400:legend=1[v]" -map "[v]" -frames:v 1 spec.png   # 段落起伏 / 末尾有没有解决
+ffmpeg -i out.mp4 -filter_complex "[0:a]showwavespic=s=1000x220[v]"  -map "[v]" -frames:v 1 wave.png              # 动态弧线 / 有没有削顶
+ffmpeg -i out.mp4 -af ebur128=peak=true -f null -                                                                 # LUFS / True peak
+```
 
 ## 踩过的坑（都已写进代码注释）
 
