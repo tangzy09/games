@@ -1,11 +1,16 @@
 // games/snake/tools/preview/mux.cjs — 给原片配音并编码成 App Store 预览片
 //
-// ① BGM 由 music.cjs 合成（和声进行 + 音乐盒旋律 + 段落起伏 + 立体声，零外部素材）
-// ② 按 capture 出的 sfx.json 时间戳铺音效：吃果子用**和游戏内一样的上行音阶**（连吃会一级级升），
+// ① 按 capture 出的 sfx.json 时间戳铺音效：吃果子用**和游戏内一样的上行音阶**（连吃会一级级升），
 //    过关/解锁用游戏自己的 wav
-// ③ 切掉黑幕头 → -14 LUFS → H.264/yuv420p/30fps → 886×1920 mp4
+// ② 切掉黑幕头 → 限幅 → H.264/yuv420p/30fps → 886×1920 mp4
 //
-// 用法：node games/snake/tools/preview/mux.cjs [切头秒数]
+// ⛔ **默认不放背景音乐**（2026-08-01 用户定：「不要音乐，直接动画」）。片子只有画面 + 游戏
+//    自己的音效 —— 商店预览片本来大多是静音自动播放，BGM 反而抢戏。
+//    合成 BGM 的代码留在 music.cjs 里，`--bgm` 可以随时开回来。
+//
+// 用法：node games/snake/tools/preview/mux.cjs [切头秒数] [--bgm] [--silent]
+//   --bgm     叠上 music.cjs 合成的配乐（默认不叠）
+//   --silent  完全无声轨
 // ⚠ 无头浏览器录不到声音 ⇒ 音轨必须在这里另铺（整条管线的设计前提）。
 // ⚠ App Store 预览片硬性要求：15–30 秒、H.264/HEVC、槽位分辨率一致（6.7" = 886×1920 竖版）。
 const fs = require('fs'), path = require('path'), { execSync } = require('child_process');
@@ -17,13 +22,19 @@ const SNAKE = path.resolve(HERE, '../..');
 const TRIM = parseFloat(process.argv[2] || '2.45');
 const DUR = 24.0;
 
-// ── ① BGM（长度要盖满「切头 + 全片」，否则片尾是死寂）──
-const BGM = path.join(HERE, 'bgm.wav');
-fs.writeFileSync(BGM, music.render(DUR));
+const WANT_BGM = process.argv.includes('--bgm');
+const SILENT = process.argv.includes('--silent');
+
+// ── ① BGM（默认关；开的话长度要盖满全片，否则片尾是死寂）──
+const inputs = [`-i "${path.join(HERE, 'preview-raw.webm')}"`];
+if (WANT_BGM) {
+  const BGM = path.join(HERE, 'bgm.wav');
+  fs.writeFileSync(BGM, music.render(DUR));
+  inputs.push(`-i "${BGM}"`);
+}
 
 // ── ② 音效铺轨 ──
-const sfxList = JSON.parse(fs.readFileSync(path.join(HERE, 'sfx.json'), 'utf8'));
-const inputs = [`-i "${path.join(HERE, 'preview-raw.webm')}"`, `-i "${BGM}"`];
+const sfxList = SILENT ? [] : JSON.parse(fs.readFileSync(path.join(HERE, 'sfx.json'), 'utf8'));
 const legs = [];
 let eatStep = 3;   // 连吃的音阶从中段起步（听起来像已经连了一会儿）
 sfxList.forEach(s => {
@@ -45,44 +56,76 @@ sfxList.forEach(s => {
 });
 
 const fc = [];
-// ⚠ BGM 要延后 TRIM 才和画面对齐：-ss 是在滤镜之后砍头，音乐必须从「片子第一帧」开始，
-//   否则前奏被砍掉、段落全部错位、片尾淡出也落不到结尾卡上。
-fc.push('[1:a]adelay=' + Math.round(TRIM*1000) + '|' + Math.round(TRIM*1000) + ',volume=0.62[bgm]');
+const parts = [];
+if (WANT_BGM) {
+  // ⚠ BGM 要延后 TRIM 才和画面对齐：-ss 是在滤镜之后砍头，音乐必须从「片子第一帧」开始，
+  //   否则前奏被砍掉、段落全部错位、片尾淡出也落不到结尾卡上。
+  const ms = Math.round(TRIM * 1000);
+  fc.push(`[1:a]adelay=${ms}|${ms},volume=0.62[bgm]`);
+  parts.push('[bgm]');
+}
 legs.forEach((l, i) => {
   const ms = Math.round(l.t * 1000);
   fc.push(`[${l.idx}:a]adelay=${ms}|${ms},volume=${l.vol}[s${i}]`);
+  parts.push(`[s${i}]`);
 });
-const mixIn = ['[bgm]'].concat(legs.map((_, i) => `[s${i}]`)).join('');
-const MIX = `${mixIn}amix=inputs=${legs.length + 1}:duration=first:dropout_transition=0`;
 
-// ⚠ **loudnorm 要两遍**：单遍是自适应的，实测把这条片子推到 -11.2 LUFS（比目标吵了 3dB）。
-//   第一遍只测，第二遍把测到的值喂回去做线性修正 —— 这样才真的落在 -14。
-const probeCmd = ['ffmpeg -hide_banner -nostats', inputs.join(' '),
-  `-filter_complex "${fc.concat([MIX + ',loudnorm=I=-14:TP=-1.5:LRA=11:print_format=json[a]']).join(';')}"`,
-  '-map "[a]" -f null -'].join(' ');
-let M = {};
-try {
-  const out = execSync(probeCmd + ' 2>&1', { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-  M = JSON.parse(out.slice(out.lastIndexOf('{'), out.lastIndexOf('}') + 1));
-} catch (e) { console.error('loudnorm 测量失败，退回单遍'); }
-const LN = M.input_i
-  ? `loudnorm=I=-14:TP=-1.5:LRA=11:measured_I=${M.input_i}:measured_TP=${M.input_tp}`
-    + `:measured_LRA=${M.input_lra}:measured_thresh=${M.input_thresh}:offset=${M.target_offset}:linear=true`
-  : 'loudnorm=I=-14:TP=-1.5:LRA=11';
-fc.push(`${MIX},${LN}[aout]`);
+// ⛔ **没有 BGM 时不要跑 loudnorm**：整轨大半是静音，把「积分响度」拉到 -14 等于
+//   把几声音效轰到削顶。只做混音 + 限幅，保留游戏本来的动态。
+//   有 BGM 时才做两遍 loudnorm（单遍是自适应的，实测会推到 -11.2 LUFS，比目标吵 3dB）。
+let AUDIO = null;
+if (parts.length) {
+  // ⛔ 必须 duration=**longest**：写 first 时，没有 BGM 的情况下第一路是「第一个延迟过的音效」，
+  //   混音在它结束时就停 —— 实测整条音轨只剩 5.96s，后面的音效全没了（波形图一眼看出）。
+  const MIX = `${parts.join('')}amix=inputs=${parts.length}:duration=longest:dropout_transition=0`
+            + (WANT_BGM ? '' : `,volume=1.6`);
+  if (WANT_BGM) {
+    const probeCmd = ['ffmpeg -hide_banner -nostats', inputs.join(' '),
+      `-filter_complex "${fc.concat([MIX + ',loudnorm=I=-14:TP=-1.5:LRA=11:print_format=json[a]']).join(';')}"`,
+      '-map "[a]" -f null -'].join(' ');
+    let M = {};
+    try {
+      const out = execSync(probeCmd + ' 2>&1', { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+      M = JSON.parse(out.slice(out.lastIndexOf('{'), out.lastIndexOf('}') + 1));
+    } catch (e) { console.error('loudnorm 测量失败，退回单遍'); }
+    const LN = M.input_i
+      ? `loudnorm=I=-14:TP=-1.5:LRA=11:measured_I=${M.input_i}:measured_TP=${M.input_tp}`
+        + `:measured_LRA=${M.input_lra}:measured_thresh=${M.input_thresh}:offset=${M.target_offset}:linear=true`
+      : 'loudnorm=I=-14:TP=-1.5:LRA=11';
+    fc.push(`${MIX},${LN}[aout]`);
+  } else {
+    // ⛔ 纯音效轨不能只给个固定增益：源 wav 本来就轻，实测成片峰值只有 -18.9 dBFS ≈ 听不见。
+    //   用 volumedetect 先量真实峰值，再补到 -4 dBFS（**按峰值归一**，不是按积分响度——
+    //   大半是静音的轨用 loudnorm 会把那几声轰到削顶）。
+    const det = ['ffmpeg -hide_banner -nostats', inputs.join(' '),
+      `-filter_complex "${fc.concat([MIX + ',volumedetect[a]']).join(';')}"`,
+      '-map "[a]" -f null -'].join(' ');
+    let gain = 0;
+    try {
+      const out = execSync(det + ' 2>&1', { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+      const m = out.match(/max_volume:\s*(-?[\d.]+) dB/);
+      if (m) gain = Math.min(24, -4 - parseFloat(m[1]));   // 封顶 +24dB，防病态输入炸掉
+    } catch (e) { console.error('峰值测量失败，按 +12dB 兜底'); gain = 12; }
+    console.log(`  纯音效轨：补 ${gain.toFixed(1)} dB 到 -4 dBFS 峰值`);
+    // ⚠ 末尾补静音到全片长：最后一声在 21.5s，不补的话音轨比视频短 2.5s（有些上传/播放器较真）
+    fc.push(`${MIX},volume=${gain.toFixed(2)}dB,alimiter=limit=0.92,apad=whole_dur=${DUR + TRIM}[aout]`);
+  }
+  AUDIO = '[aout]';
+}
 
 const OUT = 'C:/tmp/snake/preview/snake-preview-en.mp4';
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
 execSync([
   'ffmpeg -y -loglevel error',
   inputs.join(' '),
-  `-filter_complex "${fc.join(';')}"`,
-  '-map 0:v -map "[aout]"',
+  AUDIO ? `-filter_complex "${fc.join(';')}"` : '',
+  AUDIO ? `-map 0:v -map "${AUDIO}"` : '-map 0:v -an',
   `-ss ${TRIM} -t ${DUR}`,   // ⚠ 切头后仍要留满 DUR，写 DUR-TRIM 会砍掉片尾结尾卡
   '-r 30 -c:v libx264 -profile:v high -pix_fmt yuv420p -crf 20 -preset slow',
-  '-c:a aac -b:a 192k -ar 44100 -movflags +faststart',
+  AUDIO ? '-c:a aac -b:a 192k -ar 44100' : '',
+  '-movflags +faststart',
   `"${OUT}"`,
-].join(' '), { stdio: 'inherit' });
+].filter(Boolean).join(' '), { stdio: 'inherit' });
 
 const probe = JSON.parse(execSync(
   `ffprobe -v quiet -print_format json -show_streams -show_format "${OUT}"`).toString());
