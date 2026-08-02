@@ -208,16 +208,42 @@ node tools/check-ui-icons.cjs             # 全仓一致性(引用可解析 / ma
 - ⚠ 上传：**转 JPEG q88 再传**(PNG 全套 ≈1GB 传不完，实测 196MB/20 分钟传完 624 张)；上传器幂等(先删旧图)；⛔ 版本进 WAITING_FOR_REVIEW 后截图锁死 ⇒ **先传图后提审**。
 - **ASO**(`docs/aso-1.0.2.cjs`)：⛔ 去掉关键词里的 `nokia`(en-US/id/ms/th/vi —— 活商标，拒审风险)；18 个 locale 的关键词字段补满(平均 97.1/100)；补齐 39 语**更新说明**与**促销文本**。全部 PATCH 后回读校验过。
 
+## 商店预览片(App Preview，`tools/preview/`)
+
+`capture.cjs`(录原片) → `mux.cjs`(配音编码) → `upload-preview.cjs`(传 ASC)。产物
+**886×1920 / 24.0s / H.264 / 2.7MB / 立体声 AAC**，海报帧 `00:00:11:00`(过关那一幕)，
+已传 1.0.2 的 en-US/en-GB/en-AU/en-CA 四个 locale(其余 locale 苹果自动回落)。管线细节
+见 `tools/preview/README.md`，通用手法见全局 skill `html-to-video`。
+
+- **画面是真的**：`video-stage.html` 用 iframe 装真 app(443×960 ×2 放大)，靠 `contentWindow.eval`
+  驱动；玩法幕**开 AI 代打让它自己玩** —— 蛇真的在走、图真的在被揭开。六幕：揭图 · 一果九格 ·
+  过关三星 · 图鉴 500 · 四款皮肤 · 结尾卡。
+- **⛔ 不放 BGM**(2026-08-01 用户定「不要音乐，直接动画」)。只有画面 + **游戏自己的音效**
+  (吃果子直接调 `music.cjs` 的 `eatTone`，和游戏内那条上行音阶同一个函数 ⇒ 声音与真机一致)。
+  `--bgm` 可开回配乐，`--silent` 完全无声。
+- ⛔ **音轨必须立体声**：单声道传上去苹果转码直接拒(`MOV_RESAVE_STEREO`，四个 locale 全拒，实锤)⇒ 编码显式 `-ac 2`。
+- ⛔ **纯音效轨不能跑 loudnorm**(大半是静音，会把那几声轰到削顶)⇒ `volumedetect` 量峰值补到 -4 dBFS；
+  `amix` 必须 `duration=longest`(写 `first` 时音轨只剩 5.96s)；末尾 `apad` 补到全片长。
+- ⛔ **先传片、后提审**：版本一进 `WAITING_FOR_REVIEW`，预览片和截图一样锁死(删改 409)。
+
 ## 项目状态(上架)
 
 - **已上线 App Store**(`READY_FOR_SALE`)。ASC App「Snake Angel: Retro Arcade」Apple ID `6789757716`,bundle `com.aispeeds.angelsnake`。
-- **1.0.1 已提交审核**(`WAITING_FOR_REVIEW`,2026-07-18):build#2(marketing 1.0.1)+ 39 语言商店页 + 10 语 UI(CFBundleLocalizations 自动注入)+ 本轮全部玩法/美术/反馈改良。releaseType=AFTER_APPROVAL(过审自动上架)。ASO 39 语文档 `C:\tmp\snake\aso-39-keywords.md`。
+- **⭐ 1.0.2 已提交审核**(`WAITING_FOR_REVIEW`，2026-08-02 03:06 UTC，submission `67a55f72`)：
+  build **#3**(marketing 1.0.2，2026-08-01 出，`VALID`) + **624 张截图**(39 语 × iPhone 6.7"/iPad 12.9" × 8) +
+  **英文预览片** + 39 语关键词/更新说明/促销文本。releaseType=`AFTER_APPROVAL`(过审自动上架)。
+  内容 = AI 代打免费 + 揭图提速 + 激励七位 + 页面视觉打磨 + 粘度层 + 随机天使图 + 复活加厚 + 连吃音阶。
+  ⚠ **提交前踩到的实锤**：**CI 出包成功、TestFlight 里看得到 ≠ 商店版本挂上了 build** ——
+  版本当时是 `PREPARE_FOR_SUBMISSION` 且 build 栏为空，必须显式
+  `PATCH /v1/appStoreVersions/{id}` 的 `relationships.build`。**每次提交前先跑预检**
+  打印「版本状态 / 挂的 build / 加密合规」三项。
+- **1.0.1 已过审上线**(2026-08-01 itunes lookup 实证):build#2 + 39 语言商店页 + 10 语 UI(CFBundleLocalizations 自动注入)。ASO 39 语文档 `C:\tmp\snake\aso-39-keywords.md`。
   - **⚠ 出更新版必踩(已在共享 codemagic 修好)**:Capacitor 工程 marketing 版本恒 1.0,`agvtool new-version` 只动 build 号 → 更新版 build **挂不上** ASC 目标版本。修法:codemagic 版本步 `plutil -replace CFBundleShortVersionString = 各游戏 package.json.version`。**上更新版先 bump 该游戏 package.json 到目标版本号**(与 ASC 版本一字不差),否则挂不上。
 - AdMob(iOS):App ID `ca-app-pub-2141208066469648~2322595323`,激励 `/4457804077`、插屏 `/5188431812`(在 `index.html` GAME_CONFIG.adUnits + `codemagic.yaml` GAD_APP_ID)。**app-ads.txt 已在 `snake.ai-speeds.com` 根**(全 5 游戏同一份,见 root/admob skill)。
 - 网页版 + 隐私页:`https://snake.ai-speeds.com/`(EC2)。tag 里程碑:`snake-p1-playable` → `p2a-fruits` → `p2b-achievements` → `p2c-gallery` → `p3a-ads`。
 - **界面已 10 语**(zh-CN/en/es/hi/bn/pt-BR/ru/ja/pa/de);**意见反馈已接生产 hub**。
-- **1.0.2 待出包**(2026-07-31 全仓元游戏对齐批,见上节):插屏闸门下调 + 每日任务 + 统计页 + 求好评 + 推送提醒。⚠ 出包前 bump package.json 到 `1.0.2`(与 ASC 版本一字不差,否则 build 挂不上)。
-- 未做(候选):P3b 游戏门户铺量、Android 打包、BGM、静态分数榜(见 casual-game-meta §4.4)。
+- ⚠ **出更新版必先 bump `package.json` 的 version 到目标版本号**(与 ASC 版本一字不差,否则 build 挂不上,见上面 codemagic 那条)。
+- 未做(候选):P3b 游戏门户铺量、Android 打包、非英文的本地化预览片。
 
 ## 粘度层（2026-08-01，`js/meta.js` + 十语）
 
