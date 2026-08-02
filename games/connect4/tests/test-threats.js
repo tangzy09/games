@@ -263,4 +263,127 @@ const forkTrace = mv => {
   console.log('test-threats: forkOf 算完两个盘面逐位未变 OK');
 }
 
+// ─────────── ⑧ ⭐ missedWin：§6.6「你差一手就赢了」（P2b Task 6）───────────
+// ⚠ 这句话会被**印在输局结算上**，说错就是编造 ⇒ 正反两个方向都要有会红的门禁。
+{
+  // 正向：X 底行 1/2/3 三连、两端都开着（(0,0) 与 (4,0) 都是制胜点），第 7 手轮到他却去了别处，
+  //   紧接着被 O 在第 6 列竖四。⇒ 「你差一手就赢了」在这一局上是**可当场核验的事实**。
+  const MV = [1, 6, 2, 6, 3, 6, 5, 6];
+  const bd = B.fromMoves(MV);
+  assert.strictEqual(R.terminal(bd), R.WIN[1], '前提：这一局是后手（O）赢的');
+  for (let i = 1; i < MV.length; i++) {
+    assert.strictEqual(R.terminal(B.fromMoves(MV.slice(0, i))), null, '前提：中途不许终局');
+  }
+  const pre = B.fromMoves(MV.slice(0, 6));
+  assert.strictEqual(pre.turn, 0, '前提：第 7 手轮到先手');
+  assert.deepStrictEqual(R.winningMoves(pre).slice().sort(), [0, 4],
+    '前提：那一刻先手落第 0 或第 4 列就当场连四');
+  const mw = Th.missedWin(MV, 0);
+  assert.ok(mw, '⭐ 输方（先手）确实曾经差一手就赢，missedWin 必须报出来');
+  assert.strictEqual(mw.ply, 7, '⭐ 报的是**最早**的那一手（第 7 手）：' + JSON.stringify(mw));
+  assert.deepStrictEqual(mw.cols, [0, 4]);
+  assert.strictEqual(mw.player, 0);
+
+  // ⭐ 反向对照 ①：问**赢家**（后手）——他也可能有过制胜点，但那不是 §6.6 要说的事；
+  //   这里的判据必须真的按 loser 分边，⛔ 不许「盘上有过威胁就报」。
+  //   ⚠ 这一条只有在两边确实不同的时候才有意义 ⇒ 先把「后手那一侧的答案」算出来对比。
+  const mwO = Th.missedWin(MV, 1);
+  assert.notDeepStrictEqual(mw, mwO,
+    '两边给的答案必须不同（否则 loser 这个参数是摆设）：' + JSON.stringify(mwO));
+
+  // ⭐ 反向对照 ②：一局**谁都没差过一手**的对局 ⇒ 必须是 null（⛔ 不许硬凑一句安慰话）
+  const CLEAN = [0, 1, 0, 1, 6, 5];
+  for (let i = 0; i <= CLEAN.length; i++) {
+    const b = B.fromMoves(CLEAN.slice(0, i));
+    assert.strictEqual(R.winningMoves(b).length, 0, '前提：这一局全程没有任何制胜点');
+  }
+  assert.strictEqual(Th.missedWin(CLEAN, 0), null, '⭐ 没有过就必须 null（⛔ 别编）');
+  assert.strictEqual(Th.missedWin(CLEAN, 1), null);
+
+  // ⭐ 反向对照 ③：一整局**输方从没站在制胜点前面**（⚠ 但终局盘上 winningMoves 非空 ——
+  //   那正是下面 ④ 要挡的陷阱；这一条先证「正常路径」上确实是 null）
+  const WON = [2, 0, 4, 0, 6, 0, 3, 0];               // 后手第 0 列竖四（第 8 手结束）
+  assert.strictEqual(R.terminal(B.fromMoves(WON)), R.WIN[1], '前提：第 8 手就分出胜负了');
+  for (let i = 1; i < WON.length; i++) {
+    assert.strictEqual(R.terminal(B.fromMoves(WON.slice(0, i))), null, '前提：中途不许终局');
+  }
+  assert.ok(R.winningMoves(B.fromMoves(WON)).length > 0,
+    '前提：**已终局**的这个盘上 winningMoves 仍然非空（X 的三连是最后一手才连起来的）');
+  assert.strictEqual(Th.missedWin(WON, 0), null, '⭐ 输方全程没有过制胜点 ⇒ 必须 null');
+
+  // ⭐⭐ 反向对照 ④：**终局之后的局面不许被算进去**。
+  //   ⚠ 诚实地说：**当前调用路径够不着这一层**（`g.moves` 恒止于终局）——
+  //     所以这条门禁必须**自己造**一条「走过头」的线，否则那个 terminal 前置就是死代码，
+  //     而「删掉它照样全绿」正是本仓「加了断言但抓不住」的经典形状（已出现六次）。
+  //   ⭐ 这条线是这样的：第 7 手先手底行 2/3/4/5 连四（局面结束），却又硬走了第 8 手；
+  //     此时**后手**第 0 列已经三枚，落 (0,3) 就是竖四 ⇒ 少了 terminal 前置就会报
+  //     「他第 8 手差一手就赢了」—— 对着一个**已经输掉**的局面说的假话。
+  const PAST = [3, 0, 4, 0, 5, 0, 2, 1];
+  const at7 = B.fromMoves(PAST.slice(0, 7));
+  assert.strictEqual(R.terminal(at7), R.WIN[0], '前提：第 7 手就结束了（先手连四）');
+  assert.strictEqual(at7.turn, 1, '前提：那一刻名义上轮到后手');
+  assert.deepStrictEqual(R.winningMoves(at7), [0],
+    '前提：**已终局**的这个盘上 winningMoves 仍然报后手的第 0 列 —— 陷阱本体');
+  assert.strictEqual(Th.missedWin(PAST, 1), null,
+    '⭐⭐ 走过头的线里，终局之后的局面必须被跳过；⛔ 把 `R.terminal(bd) === null` 去掉，这条当场红');
+
+  // 坏参数一律 null（⛔ 别抛：结算屏不该被一句锦上添花的文案带走）
+  assert.strictEqual(Th.missedWin(null, 0), null);
+  assert.strictEqual(Th.missedWin(MV, 2), null);
+  assert.strictEqual(Th.missedWin([0, 0, 0, 0, 0, 0, 0], 0), null, '列满了的非法序列 ⇒ null');
+  console.log('test-threats: ⭐ missedWin 正向 + 四条反向对照（分边 / 没有过 / 终局盘 / 走过头）OK');
+}
+{
+  // ⭐ 与一份独立重写的定义随机对拍（⛔ 不是自己跟自己比），并把覆盖率写成断言
+  let rng = 20260806;
+  const rnd = n => { rng = (rng * 1103515245 + 12345) & 0x7fffffff; return rng % n; };
+  let games = 0, hit = 0, miss = 0;
+  while (games < 400) {
+    const mv = [];
+    let bd = B.newBoard();
+    while (R.terminal(bd) === null) {
+      const ms = R.moves(bd);
+      const c = ms[rnd(ms.length)];
+      mv.push(c);
+      bd = B.play(bd, c);
+    }
+    const w = R.winnerOf(R.terminal(bd));
+    if (w !== null) {
+      const loser = w ^ 1;
+      // 独立定义：重放一遍，第一个「轮到 loser 且他能一手连四」的手序（真的替他落一遍看谁赢）
+      let want = null, b2 = B.newBoard();
+      for (let i = 0; i < mv.length && !want; i++) {
+        if (b2.turn === loser && R.terminal(b2) === null) {
+          for (let c = 0; c < B.W && !want; c++) {
+            if (!B.canPlay(b2, c)) continue;
+            if (B.winner(B.play(b2, c)) === loser) want = i + 1;
+          }
+        }
+        b2 = B.play(b2, mv[i]);
+      }
+      const got = Th.missedWin(mv, loser);
+      assert.strictEqual(got ? got.ply : null, want,
+        '与独立定义不同：mv=' + JSON.stringify(mv) + ' loser=' + loser
+        + ' got=' + JSON.stringify(got) + ' want=' + want);
+      if (want) hit++; else miss++;
+    }
+    games++;
+  }
+  assert.ok(hit > 40, '随机对局里「输方曾差一手」一次都没出现（' + hit + '），正向没被覆盖');
+  assert.ok(miss > 20, '「输方从没差过一手」太少（' + miss + '），反向没被覆盖');
+  console.log('test-threats: ⭐ missedWin 与独立定义随机对拍 ' + games + ' 局 OK（差过 '
+    + hit + ' · 没差过 ' + miss + '）');
+}
+{
+  // ⛔ 不许改盘 / ⛔ 零搜索（同 ③⑤）：整局重放 ≤ 42×7 次 isWinningMove，必须是微秒级
+  const MV = [1, 6, 2, 6, 3, 6, 5, 6];
+  const t0 = process.hrtime.bigint();
+  let acc = 0;
+  for (let i = 0; i < 20000; i++) acc += Th.missedWin(MV, 0) ? 1 : 0;
+  const ms = Number(process.hrtime.bigint() - t0) / 1e6;
+  assert.strictEqual(acc, 20000, '一次都没报出来，这条计时等于没测');
+  assert.ok(ms < 800, '20,000 次 missedWin 用了 ' + ms.toFixed(1) + ' ms —— 超了说明它在搜索');
+  console.log('test-threats: ⭐ missedWin 20,000 次 ' + ms.toFixed(1) + ' ms（零搜索）OK');
+}
+
 console.log('test-threats: 全部通过');

@@ -39,8 +39,36 @@
       v: SETTINGS_V,
       // ⭐ 威胁高亮（DESIGN §6.4）：一步就能成四的格子标出来，两方不同标记。
       //   **新手默认开** —— 这条提示存在的理由就是「新手根本读不出三连」，默认关等于没做。
-      threatHints: true
+      threatHints: true,
+      // ⭐⭐ 减弱动态（DESIGN §6.8，P2b Task 6）。**三态**，⛔ 不是布尔：
+      //   'auto' 跟随系统 prefers-reduced-motion（默认）· 'on' 强制开 · 'off' 强制关。
+      //   ⚠ 两个「强制」都必须存在：系统开关是全局的，而玩家可能只想在这个游戏里
+      //     留着动画（'off'），或者系统没设但这一款晃得他难受（'on'）——
+      //     做成布尔的话「跟随系统」和「强制关」就压成了同一个值，永远回不到跟随。
+      reduceMotion: 'auto',
+      // ⭐ 舒适模式（DESIGN §6.8）：大字 + 更大点击窗。⚠ 用户画像 4 岁到 80 岁。
+      //   默认**关**：它改的是版面尺寸，⛔ 不该替没提要求的人改掉界面（与 threatHints 相反，
+      //   那一条默认开是因为「读不出三连」的人自己不知道要开）。
+      comfort: false
     };
+  }
+
+  /** ⭐ 取值受限的字段（**闭合枚举**）：merge 遇到不在表里的值退回默认，`set` 直接抛。
+   *  ⛔ 光靠 `typeof` 是不够的：三态存的是字符串，`set('reduceMotion','yes')` 类型完全合法，
+   *    存进去之后 motionReduced 会当成 'auto' 处理 —— 用户选的「强制关」变成「跟随系统」，
+   *    零报错。⇒ 枚举必须自己有一道校验。 */
+  const ENUMS = Object.freeze({ reduceMotion: Object.freeze(['auto', 'on', 'off']) });
+
+  /**
+   * ⭐ 三态 → 「这一刻到底减不减动态」。**纯函数**（⇒ node 侧门禁能把真值表逐格钉死）。
+   * @param mode      'auto' | 'on' | 'off'
+   * @param sysPrefers 系统的 prefers-reduced-motion 是否为 reduce
+   * ⚠ 认不出的 mode 一律**跟随系统** —— 坏存档不该把无障碍偏好静默变成「强制关」。
+   */
+  function motionReduced(mode, sysPrefers) {
+    if (mode === 'on') return true;
+    if (mode === 'off') return false;
+    return !!sysPrefers;
   }
 
   /** defaults 的只读快照：UI / 门禁要「这个字段的默认值是什么」时读它，⛔ 别改。 */
@@ -56,6 +84,7 @@
       const sv = saved[k];
       if (sv === undefined) continue;                           // 老存档缺字段 ⇒ 用默认
       if (typeof sv !== typeof def[k]) continue;                // 类型不符 ⇒ 用默认（⛔ 别硬转）
+      if (ENUMS[k] && ENUMS[k].indexOf(sv) < 0) continue;       // ⭐ 枚举外的值 ⇒ 用默认
       out[k] = sv;
     }
     return out;
@@ -108,6 +137,9 @@
     if (typeof v !== typeof DEFAULTS[k]) {
       throw new Error('设置项 "' + k + '" 的类型必须是 ' + (typeof DEFAULTS[k]) + '，收到 ' + (typeof v));
     }
+    if (ENUMS[k] && ENUMS[k].indexOf(v) < 0) {
+      throw new Error('设置项 "' + k + '" 只能是 ' + ENUMS[k].join(' / ') + '，收到 ' + JSON.stringify(v));
+    }
     cur[k] = v;
     persist();
     return v;
@@ -116,11 +148,19 @@
   /** 翻一个布尔项（UI 的开关就一句）。 */
   function toggle(k) { return set(k, !get(k)); }
 
+  /** ⭐ 三态项转到下一个值（UI 上点一下就换一档）。⚠ 只对枚举字段有意义。 */
+  function cycle(k) {
+    assertKey(k);
+    const vals = ENUMS[k];
+    if (!vals) throw new Error('设置项 "' + k + '" 不是枚举项，用 set/toggle');
+    return set(k, vals[(vals.indexOf(cur[k]) + 1) % vals.length]);
+  }
+
   function reset() { cur = defaults(); persist(); return all(); }
 
   const API = {
-    SETTINGS_V, DEFAULTS, KEYS: Object.freeze(Object.keys(DEFAULTS).filter(k => k !== 'v')),
-    defaults, parse, attach, all, get, set, toggle, reset
+    SETTINGS_V, DEFAULTS, ENUMS, KEYS: Object.freeze(Object.keys(DEFAULTS).filter(k => k !== 'v')),
+    defaults, parse, attach, all, get, set, toggle, cycle, reset, motionReduced
   };
   // 与 P1 五个模块同样冻结：挡住 `C4Settings.get = () => true` 这类「设置看起来还在、
   // 但读的是另一份东西」的误用（本仓最怕的失败模式：画错/读错不报错）。

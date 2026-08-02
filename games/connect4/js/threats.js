@@ -6,6 +6,8 @@
 // ⭐ P2b Task 5 把 §6.4 **下半**也放在这里：`forkOf(before, after)` = 「**形成**双威胁的那一刻」。
 //   同一个文件是故意的 —— 两个判据用的是同一批 `isWinningMove`，「零搜索」这条红线
 //   （连同 tests/test-threats.js 的源码级检查）就只有这一个文件要守。
+// ⭐ P2b Task 6 又加了一条同源的：`missedWin(moves, loser)` = §6.6「你差一手就赢了」。
+//   它同样只用 isWinningMove ⇒ 「让输不疼」里唯一**现在就能兑现**的那半条不欠求解器的债。
 //
 // ⛔⛔ 本文件的头号红线：**判据必须是零搜索的。**
 //   DESIGN §9.2 的断崖：n=10..15 的 `scoreAll` 中位 1,678 ms / 尾部 3,952 ms，而这一段
@@ -114,7 +116,50 @@
     };
   }
 
-  const API = { cells, forPlayer, forkOf };
+  /**
+   * ⭐⭐ 「你差一手就赢了」（P2b Task 6 · DESIGN §6.6「让输不疼」）。
+   *
+   * §6.6：「求解器知道『你差一手就赢了』——那就说出来。」
+   * ⭐ 这一条**零搜索就能兑现**：把这一局重放一遍，找 `loser` 曾经站在「一步就能成四」
+   *   面前的**最早**那一手。判据与本文件其余部分是同一批 `isWinningMove`（≤7 次/手、
+   *   一整局 ≤ 42×7 次，微秒级），⛔ 一次都不碰求解器。
+   *
+   * ⚠⚠ 这句话的**真值边界**（⛔ 绝不许越过）：
+   *   · 说得出口的是「那一手你有一个落下去**当场连四**的列」—— 重力四子棋里每列只有一个
+   *     落点，`winningMoves` 非空 = 落下去立刻四连 = 立刻赢，是**可当场核验的事实**；
+   *   · ⛔ **不是**「你本来赢定了」/「这一手是你的败因」—— 那要搜索才敢说（§9.2 的断崖），
+   *     属于 P3 的精准度与转折点。⇒ 文案也必须停在事实那一侧（locales 的 nearWin*）。
+   *
+   * @param moves 这一局的落子列序列（= C4State 的 `g.moves`）
+   * @param loser 输掉的那一方 0|1
+   * @returns null（没有过这样的一手 / 参数不对）或 { player, ply, cols }
+   *   ply  = **1-based 的手序**（「第 ply 手该他走」，与 UI 上说的「第 N 手」同一个数）
+   *   cols = 那一刻的制胜列（列序）
+   */
+  function missedWin(moves, loser) {
+    if (!Array.isArray(moves) || (loser !== 0 && loser !== 1)) return null;
+    let bd = B.newBoard();
+    for (let i = 0; i < moves.length; i++) {
+      // ⚠ 两道前置：
+      //   ① 只看**轮到 loser**的局面（问对手有没有制胜手是另一回事）；
+      //   ② 必须**非终局** —— R.winningMoves 不查终局（rules-classic.js 那段警告：
+      //      先手已经四连时它照样会报后手某一列是「制胜手」）。
+      //      ⚠ 说实话：**当前调用路径够不着这一层**（`g.moves` 恒止于终局，
+      //      最后一次检查的是终局前那一盘）。它是**契约的一部分**：谁把一条「走过头」的
+      //      线传进来（P3 的复盘 / 假想线很可能会），少了它就会对着一个**已经结束**的盘
+      //      说「你差一手就赢了」—— 正是 §6.6 最不该出的那种假话。
+      //      ⇒ tests/test-threats.js 用一条**故意走过头**的序列把这一道钉住（⛔ 别删成死代码）。
+      if (bd.turn === loser && R.terminal(bd) === null) {
+        const w = R.winningMoves(bd);
+        if (w.length) return { player: loser, ply: i + 1, cols: w.slice().sort((a, b) => a - b) };
+      }
+      if (!B.canPlay(bd, moves[i])) return null;   // 坏数据 ⇒ **什么都不说**（⛔ 别编）
+      bd = B.play(bd, moves[i]);
+    }
+    return null;
+  }
+
+  const API = { cells, forPlayer, forkOf, missedWin };
   // 与 P1 五个模块同样冻结（`C4Threats.cells = () => []` 会让高亮静默消失，画面照常）。
   Object.freeze(API);
   if (inNode) module.exports = API;

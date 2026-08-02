@@ -73,6 +73,49 @@ var G = {
   lastFork: null      // { player, cells:[{c,r}], ply }
 };
 
+// ════════ 无障碍：减弱动态 / 舒适模式（P2b Task 6 · DESIGN §6.8）════════
+// 「大字 + 更大点击窗 + 跳过一切非必要动画（晕动症）。四子棋用户画像**从 4 岁到 80 岁**，
+//   这不是矫情（solitaire 已验证）。」
+//
+// ⭐⭐ 减弱动态的门控点**只有三处**，全部是 `C4Fx.start(...)` 那一行（fx.js 文件头写死了）：
+//   startDropFx / startWinFx / startForkFx —— 三处都走各自现成的 `id == null` 分支，
+//   ⇒ 「跳过动画」与「动画参数坏了」是同一条代码路径，⛔ 不许再加第二套 if。
+//   ⛔ 别把门控写进 fx 内部：那样「动画到底跑没跑」就有两个真值了。
+//
+// ⚠⚠ **什么不许被一起关掉**（这一条比「关掉什么」更容易做砸）：
+//   · 落子的**结果**（棋子出现在落点）+ 落定音 + 震动 —— 走 onPieceLanded，照旧；
+//   · 赢局的**终态**：连线整条 + 四枚发光 + 其余变暗（render 的 lineProg/lit 默认就是终态）
+//     并且**立刻** markOverReady（⛔ 不许因为没动画就没结算）；
+//   · 双威胁的 **fork 音**（光环不放，音照响）—— 减弱动态针对的是**视觉运动**，
+//     声音不引起晕动症；要静音有独立入口（🔊）。
+//   · ⭐ **威胁标记 ▲/◇ 完全不吃这个门**（render.js drawThreat 那段 ⭐⭐）：
+//     它是**信息**不是动效，关掉动效的人反而更需要它。
+let _mqReduce = null;
+/** 系统的 `prefers-reduced-motion`。⚠ 每次现问（MediaQueryList.matches 是活的）：
+ *  玩家可以在系统设置里随时改，而这个页面可能一直开着。 */
+function sysReduceMotion() {
+  try {
+    if (!_mqReduce && typeof window !== 'undefined' && window.matchMedia) {
+      _mqReduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+    }
+    return !!(_mqReduce && _mqReduce.matches);
+  } catch (e) { return false; }   // 老 WebView 没 matchMedia ⇒ 当「系统没要求」，设置里仍能强制开
+}
+/** 这一刻到底减不减动态。⭐ 真值表在 C4Settings.motionReduced（纯函数，node 侧钉死）。 */
+function reduceMotion() {
+  return C4Settings.motionReduced(C4Settings.get('reduceMotion'), sysReduceMotion());
+}
+
+// ── 舒适模式：字号与按钮高度的两个倍数 ──
+// ⚠ 「更大点击窗」在本作里就是**按钮更高**（列的热区本来就是整列，已经是最大了）。
+//   ⛔ 别用「热区比画出来的按钮大一圈」来实现：那会让相邻按钮的热区互相重叠，
+//     边缘的点击被静默判给隔壁 —— 又是一个画面正常、零报错的失败模式。
+const COMFORT_TEXT = 1.30;
+const COMFORT_BTN  = 1.32;
+function comfortOn() { return C4Settings.get('comfort'); }
+/** 字号（px）。 */ function fsz(px) { return Math.round(px * (comfortOn() ? COMFORT_TEXT : 1)); }
+/** 按钮/行高（px）。 */ function bht(px) { return Math.round(px * (comfortOn() ? COMFORT_BTN : 1)); }
+
 // ════════ 小工具 ════════
 
 function curLayout() { return C4Render.layout(GameGlobal.SW, GameGlobal.SH); }
@@ -101,8 +144,10 @@ function btn(x, y, w, h, label, action, data, style) {
     ctx.restore();
   }
   if (style.outline) strokeRR(x + 0.5, y + 0.5, w - 1, h - 1, 12, style.outline, 1.5);
+  // ⭐ 舒适模式（§6.8）：**所有**按钮的字号在这里统一放大，⛔ 别让各处调用方各乘一次
+  //   （漏一个的表现是「一屏字大小不一」，而且没人会发现是漏了乘）。
   fitTxt(label, x + w / 2, y + h / 2, w - 16,
-         on ? (style.fg || '#fff') : 'rgba(38,74,61,0.45)', style.weight || 'bold', style.size || 16);
+         on ? (style.fg || '#fff') : 'rgba(38,74,61,0.45)', style.weight || 'bold', fsz(style.size || 16));
   if (on) addHit(x, y, w, h, action, data || {});
 }
 
@@ -217,8 +262,13 @@ function startWinFx() {
   const line = G.result && G.result.line;
   // 平局没有连线可画 ⇒ ⛔ 别硬凑一段庆祝，直接进结算（§6.5：快）
   if (!line) { markOverReady(); return; }
-  const id = C4Fx.start('win', { line: line });
-  if (id == null) { playResultSfx(); markOverReady(); return; }   // ⚠ 也是 T6 减弱动态的入口
+  // ⭐ T6 减弱动态的门控点之二（§6.8）。⚠ 慢放时钟是 win 动画的一部分 ⇒ 不 start
+  //   就**根本不会有慢放**，减弱动态下棋子照常按正常速度落，⛔ 别再单独加一个开关。
+  const id = reduceMotion() ? null : C4Fx.start('win', { line: line });
+  // ⚠ 走这条时画面**不是空的**：drawPlay 的 lineProg/lit 默认就是「整条 + 全亮」，
+  //   dim 退回 C4Fx.DIM_MAX ⇒ 连线、四枚发光、其余变暗这三件**终态**照样在（§6.3 的信息没丢，
+  //   丢掉的只是"逐段画出"这个过程），并且**立刻**进结算。
+  if (id == null) { playResultSfx(); markOverReady(); return; }
   // ⛔ 结算节奏必须有**上界**：页面切后台时 rAF 会被节流甚至停掉，'winend' 就永远不来，
   //   主 CTA 一直不进焦点态（画面没坏、只是「结算卡在庆祝里」，零报错）。
   // ⭐ 上界从 fx 的预算**算**出来，⛔ 不是写死的数字 —— 写死的话把庆祝调到 8 秒时
@@ -308,8 +358,10 @@ function playForkSfx() {
 }
 
 function startForkFx(f) {
-  const id = C4Fx.start('fork', { cells: f.cells, player: f.player });
-  // ⚠ 也是 T6 减弱动态的入口：**光环不放，但事件仍然听得见**（理由写在 fx.js 文件头）。
+  // ⭐ T6 减弱动态的门控点之三（§6.8）：**光环不放，但事件仍然听得见** ——
+  //   ⛔ 别顺手把音也关掉：减弱动态针对的是视觉运动，而 fork 音是这个事件在关掉动效后
+  //   **唯一**的载体，一起关等于把 §6.4 下半整条功能删掉（理由全文写在 fx.js 文件头）。
+  const id = reduceMotion() ? null : C4Fx.start('fork', { cells: f.cells, player: f.player });
   if (id == null) { playForkSfx(); return; }
   fxKick();
 }
@@ -337,8 +389,10 @@ function startDropFx(col, row, player) {
   const params = { c: col, r: row, player: player };
   const f = fallCells(L, col, row);
   if (f !== null) params.fall = f;
-  const id = C4Fx.start('drop', params);
-  // ⛔ 动画起不来（参数坏了 / 将来 T6 的减弱动态）也**必须有落定反馈**：
+  // ⭐ T6 减弱动态的门控点之一（§6.8）：**不 start ⇒ 没有任何东西在动**，
+  //   走下面那条 fail-safe ⇒ 棋子直接出现在落点 + 落定音 + 震动。
+  const id = reduceMotion() ? null : C4Fx.start('drop', params);
+  // ⛔ 动画起不来（参数坏了 / 减弱动态）也**必须有落定反馈**：
   //    静默丢掉音与震动 = 玩家以为这一手没落上。
   if (id == null) { onPieceLanded(row); return; }
   Sfx.play('drop');
@@ -379,13 +433,42 @@ function again() {
   startGame(prev.mode, prev.mode === 'ai' ? prev.tier : undefined);
 }
 
+// ════════ 让「输」不疼（P2b Task 6 · DESIGN §6.6）════════
+// §6.6 三条：
+//   ① 输局结算**不给「你输了」的大字**，只给 **精准度 % + 转折点 + ［从那一步重来］**
+//   ② 求解器知道「你差一手就赢了」——那就说出来
+//   ③ **精准度创新高时，输局也庆祝**
+//
+// ⚠⚠ ①③ 里的 **精准度 / 转折点 / 从那一步重来 / 创新高** 全部要 `Solver.scoreAll` 逐手复算，
+//   那是 **P3**（§3.3 赛后复盘）—— 局中/结算即时算会撞 §9.2 的断崖（n=10..15 中位 1,678 ms/手）。
+//   ⇒ **本 task 只交付版面与措辞那一半**：
+//     · HUD 上那句判决式的「你输了」换成中性的「本局结束」（⛔ 不做失败横幅、不加红闪/重震动）；
+//     · 结算多出一条**数据条**，精准度与转折点是明写的占位「—」（⛔ 绝不编一个数，DESIGN §2.4）；
+//     · 第二个按钮在输局时变成［从那一步重来］，与［复盘］同样是 **disabled 的留位**
+//       （⇒ btn 不注册热区 ⇒ ⛔ 不会出现「点了没反应」的假按钮）。
+//   ⭐ ② 反而**现在就能真的做**：它是零搜索的（threats.js 的 missedWin）。
+
+/** ⭐ §6.6②：输的那一方是不是真的**曾经差一手就赢**。⛔ 不成立就返回 null（别编）。
+ *  ⚠ 只对「坐在这台设备前的那个人」说：
+ *    · 人机局 —— 只有**玩家自己输了**才说（玩家赢了却弹一句「电脑差一手就赢了」是噪音，
+ *      而且刚好把 §6.5 那 1.5 秒的庆祝冲淡）；
+ *    · 同机双人局 —— 输的那一位就在旁边，说的是他（措辞用座位名，不是「你」）。 */
+function nearWinOf(winner) {
+  const g = G.g;
+  if (!g || winner === null) return null;                       // 平局：⛔ 平局不是输，什么都不说
+  const loser = winner ^ 1;
+  if (g.mode === 'ai' && loser !== C4State.humanPlayer(g)) return null;
+  const mw = C4Threats.missedWin(g.moves, loser);               // ⛔⛔ 零搜索（≤42×7 次 isWinningMove）
+  return mw ? { player: loser, ply: mw.ply } : null;
+}
+
 function checkOver() {
   const bd = C4State.boardOf(G.g);
   const t = RulesClassic.terminal(bd);
   if (t === null) return false;
   const w = RulesClassic.winnerOf(t);
   G.phase = 'OVER';
-  G.result = { t: t, winner: w, line: w === null ? null : findWinLine(bd, w) };
+  G.result = { t: t, winner: w, line: w === null ? null : findWinLine(bd, w), nearWin: nearWinOf(w) };
   G.hoverCol = -1;
   startWinFx();         // ⭐ 赢的那 3 秒（⚠ 此刻赢的那一枚通常**还在飞**，lead 就是等它落地）
   setThinking(false);   // ⚠ 放最后：它会重画一帧，前面的字段得先摆好
@@ -543,6 +626,11 @@ function dispatch(action, data) {
     case 'TIER':       G.tier = data.tier; renderAll(); return;
     // ⭐ 设置开关：写完**立刻落盘**（C4Settings.set 自己做），⛔ 别攒到某个「保存」时机。
     case 'TOGGLE_HINTS': C4Settings.toggle('threatHints'); renderAll(); return;
+    // ⭐ 减弱动态是**三态** ⇒ 点一下是 cycle（跟随系统 → 强制开 → 强制关 → …），⛔ 不是 toggle。
+    case 'CYCLE_MOTION': C4Settings.cycle('reduceMotion'); renderAll(); return;
+    // ⚠ 舒适模式改的是版面尺寸 ⇒ renderAll 会用新尺寸**重新注册全部热区**（本引擎每帧重建，
+    //   所以这里不用做别的）。⛔ 别忘了这一句：不重画的话按钮变大了但点击窗还是旧的。
+    case 'TOGGLE_COMFORT': C4Settings.toggle('comfort'); renderAll(); return;
     case 'UNDO':       doUndo(); return;
     case 'AGAIN':      again(); return;
     case 'HOME':       goHome(); return;
@@ -558,56 +646,103 @@ const TIER_PRESETS = [
   { key: 'menu.perfect', tier: 20 }    // 完美：零失误（⭐ state.js 会强制玩家先手）
 ];
 
+/**
+ * HOME 上的一行设置。⭐ 三行长一个样（一眼是同一类东西），右侧是**当前值**而不是一个勾。
+ * @param icon 可选：在左边画图例，返回文字应该从哪个 x 开始（威胁提示那行画 ▲/◇）
+ * ⚠ 标签与值都会被压到装得下为止：德/俄膨胀 + 舒适模式（×1.3）叠加时，
+ *   canvas 的 fillText 不换行也不截断，两串会直接压在一起。
+ */
+function settingRow(bx, y, bw, h, label, value, hot, action, icon) {
+  fillRR(bx, y, bw, h, 12, 'rgba(255,255,255,0.92)');
+  strokeRR(bx + 0.5, y + 0.5, bw - 1, h - 1, 12, C4Render.PAL.hudEdge, 1.5);
+  const gy = y + h / 2;
+  const tx = icon ? icon(bx, gy, h) : bx + 14;
+  const f = 'bold ' + fsz(14) + 'px sans-serif';
+  ctx.font = f;
+  const vw = Math.min(bw * 0.5, ctx.measureText(clean(value)).width);
+  txtR(wrapLines(value, bw * 0.5, 1)[0], bx + bw - 14, gy,
+       hot ? C4Render.PAL.accent : C4Render.PAL.hudSub, f);
+  ctx.font = f;
+  txtL(wrapLines(label, Math.max(30, bx + bw - 22 - vw - tx), 1)[0], tx, gy, C4Render.PAL.hudText, f);
+  addHit(bx, y, bw, h, action, {});
+}
+
 function drawHome(L) {
   const SW = L.SW, SH = L.SH;
   const es = EngineClient.state();
   const dead = es.worker === 'dead';
 
-  txt(T('app.title'), SW / 2, L.hud.y + 46, '#1f6e4d', 'bold 30px sans-serif');
-  // 两枚棋子当门面：进游戏前就先看见「两方不是同一个圆换色」
-  C4Render.drawGlyph(0, SW / 2 - 34, L.hud.y + 108, 44);
-  C4Render.drawGlyph(1, SW / 2 + 34, L.hud.y + 108, 44);
-
   const bw = Math.min(300, SW - 60), bx = (SW - bw) / 2;
-  let y = L.hud.y + 156;
+  const tierH = bht(40), mainH = bht(52), setH = bht(46);
+  const yTitle = L.hud.y + 46;
 
-  txt(T('menu.tier'), SW / 2, y, C4Render.PAL.hudSub, '13px sans-serif');
-  y += 18;
+  // ⭐⭐ 竖向预算：先按理想尺寸排一遍，装不下就把**所有间距**整体压。
+  //   ⚠ 这一段是舒适模式（§6.8）逼出来的：字与按钮放大 1.3 倍之后，小屏（iPhone SE 类，
+  //     667 逻辑高）上［对战电脑］会被挤出屏幕 —— 而「把按钮挤出屏幕」恰恰是
+  //     「大字更好按」的反面。⛔ 别靠「反正测试机是 896 高」蒙混过去。
+  const IDEAL = 62 + 48 + 18 + 6 + 26 + 10 + 16 + 8 * 2 + 14 + 30;   // 全部间距之和
+  const fixed = tierH + mainH * 2 + setH * 3;
+  const k = Math.min(1, Math.max(0.45, (SH - L.safeBottom - 12 - yTitle - fixed) / IDEAL));
+  const s = v => Math.round(v * k);
+
+  txt(T('app.title'), SW / 2, yTitle, '#1f6e4d', 'bold ' + fsz(30) + 'px sans-serif');
+  // 两枚棋子当门面：进游戏前就先看见「两方不是同一个圆换色」
+  const yGlyph = yTitle + s(62);
+  C4Render.drawGlyph(0, SW / 2 - 34, yGlyph, fsz(44));
+  C4Render.drawGlyph(1, SW / 2 + 34, yGlyph, fsz(44));
+
+  let y = yGlyph + s(48);
+  txt(T('menu.tier'), SW / 2, y, C4Render.PAL.hudSub, fsz(13) + 'px sans-serif');
+  y += s(18);
   const cw = (bw - 16) / 3;
   TIER_PRESETS.forEach((p, i) => {
     const sel = G.tier === p.tier;
-    btn(bx + i * (cw + 8), y, cw, 40, T(p.key), 'TIER', { tier: p.tier }, {
+    btn(bx + i * (cw + 8), y, cw, tierH, T(p.key), 'TIER', { tier: p.tier }, {
       bg: sel ? C4Render.PAL.accent : 'rgba(255,255,255,0.92)',
       fg: sel ? '#fff' : C4Render.PAL.hudText,
       outline: sel ? null : C4Render.PAL.hudEdge,
       size: 14, disabled: dead
     });
   });
-  y += 40 + 6;
-  txt(T('game.level', { n: G.tier }), SW / 2, y + 8, C4Render.PAL.hudSub, '12px sans-serif');
-  y += 26;
+  y += tierH + s(6);
+  txt(T('game.level', { n: G.tier }), SW / 2, y + 8, C4Render.PAL.hudSub, fsz(12) + 'px sans-serif');
+  y += s(26);
 
-  btn(bx, y, bw, 52, T('menu.vsAI'), 'PLAY_AI', {}, { disabled: dead });
-  y += 62;
-  btn(bx, y, bw, 52, T('menu.vsHuman'), 'PLAY_HUMAN', {}, { bg: '#61776f' });
-  y += 66;
+  btn(bx, y, bw, mainH, T('menu.vsAI'), 'PLAY_AI', {}, { disabled: dead });
+  y += mainH + s(10);
+  btn(bx, y, bw, mainH, T('menu.vsHuman'), 'PLAY_HUMAN', {}, { bg: '#61776f' });
+  y += mainH + s(16);
 
-  // ⭐ 设置入口（P2b T4）：威胁提示的开关。**新手默认开**（DESIGN §6.4）。
-  // ⚠ 这里不做完整设置页 —— 现在只有一个开关，做成页反而多一次点击。
-  // ⭐ 左边直接把**两个标记本身**画出来当图例：玩家第一次进游戏就知道 ▲ / ◇ 是什么，
+  // ⭐ 设置入口（P2b T4 一行 + T6 两行）。⚠ 这里仍然不做完整设置页 —— 三行还压得住，
+  //   做成页反而多一次点击（⚠ 再多就该收进页里了）。
+  // ⭐ 威胁提示那行左边直接把**两个标记本身**画出来当图例：玩家第一次进游戏就知道 ▲ / ◇ 是什么，
   //   ⛔ 别只写一行「威胁提示」——那样标记的含义要靠猜（而这功能就是给读不出局面的人做的）。
   const hintsOn = C4Settings.get('threatHints');
-  const rowH = 46;
-  fillRR(bx, y, bw, rowH, 12, 'rgba(255,255,255,0.92)');
-  strokeRR(bx + 0.5, y + 0.5, bw - 1, rowH - 1, 12, C4Render.PAL.hudEdge, 1.5);
-  const gy = y + rowH / 2;
-  C4Render.drawThreatGlyph(0, bx + 26, gy, 28);
-  C4Render.drawThreatGlyph(1, bx + 58, gy, 28);
-  txtL(T('menu.threatHints'), bx + 80, gy, C4Render.PAL.hudText, 'bold 14px sans-serif');
-  txtR(T(hintsOn ? 'menu.on' : 'menu.off'), bx + bw - 14, gy,
-       hintsOn ? C4Render.PAL.accent : C4Render.PAL.hudSub, 'bold 14px sans-serif');
-  addHit(bx, y, bw, rowH, 'TOGGLE_HINTS', {});
-  y += rowH + 22;
+  settingRow(bx, y, bw, setH, T('menu.threatHints'), T(hintsOn ? 'menu.on' : 'menu.off'),
+             hintsOn, 'TOGGLE_HINTS', (x, gy) => {
+               const gs = fsz(28);                       // ⭐ 图例也跟着舒适模式放大
+               C4Render.drawThreatGlyph(0, x + 12 + gs / 2, gy, gs);
+               C4Render.drawThreatGlyph(1, x + 16 + gs * 1.5, gy, gs);
+               return x + 24 + gs * 2;
+             });
+  y += setH + s(8);
+
+  // ⭐⭐ 减弱动态（§6.8）：**三态**。右侧显示的是「当前档」，且 'auto' 那档把**实际结果**
+  //   也写出来（「跟随系统 · 开」）—— ⛔ 只写「跟随系统」的话，玩家根本不知道现在到底动不动，
+  //   而这正是他点开这一行想知道的事。
+  const mode = C4Settings.get('reduceMotion');
+  const eff = reduceMotion();
+  const modeTxt = mode === 'auto'
+    ? T('menu.motionAuto') + ' · ' + T(eff ? 'menu.on' : 'menu.off')
+    : T(mode === 'on' ? 'menu.on' : 'menu.off');
+  settingRow(bx, y, bw, setH, T('menu.reduceMotion'), modeTxt, eff, 'CYCLE_MOTION', null);
+  y += setH + s(8);
+
+  // ⭐ 舒适模式（§6.8）：大字 + 更大点击窗。用户画像 4 岁到 80 岁。
+  const cmf = comfortOn();
+  settingRow(bx, y, bw, setH, T('menu.comfort'), T(cmf ? 'menu.on' : 'menu.off'),
+             cmf, 'TOGGLE_COMFORT', null);
+  y += setH + s(14);
 
   // ⭐ 引擎状态如实写出来（DESIGN §2.4：降级必须**可见**）
   let note = '';
@@ -616,9 +751,10 @@ function drawHome(L) {
   else if (es.book === 'loading') note = T('game.bookLoading');
   else if (es.book === 'failed') note = T('game.engineSlow');
   if (note) {
-    ctx.font = '12px sans-serif';
+    const f = fsz(12) + 'px sans-serif';
+    ctx.font = f;
     wrapLines(note, bw, 2).forEach((ln, i) =>
-      txt(ln, SW / 2, y + i * 16, dead ? '#a33' : C4Render.PAL.hudSub, '12px sans-serif'));
+      txt(ln, SW / 2, y + i * 16, dead ? '#a33' : C4Render.PAL.hudSub, f));
   }
 }
 
@@ -628,11 +764,12 @@ function drawDropBand(L) {
   const cx = L.drop.x + L.drop.w / 2, cy = L.drop.y + L.drop.h / 2;
   if (G.thinking) {
     const label = T('game.thinking');
-    ctx.font = 'bold 14px sans-serif';
+    const f = 'bold ' + fsz(14) + 'px sans-serif';
+    ctx.font = f;
     const tw = ctx.measureText(clean(label)).width;
     const bw = Math.min(L.drop.w - 8, tw + 60);
     fillRR(cx - bw / 2, cy - 17, bw, 34, 17, 'rgba(255,255,255,0.92)');
-    txt(label, cx - 14, cy, C4Render.PAL.hudText, 'bold 14px sans-serif');
+    txt(label, cx - 14, cy, C4Render.PAL.hudText, f);
     for (let i = 0; i < 3; i++) {
       ctx.beginPath();
       ctx.arc(cx + bw / 2 - 34 + i * 10, cy, 3, 0, Math.PI * 2);
@@ -642,9 +779,31 @@ function drawDropBand(L) {
     return;
   }
   if (G.notice) {
-    ctx.font = '12px sans-serif';
+    const f = fsz(12) + 'px sans-serif';
+    ctx.font = f;
     wrapLines(G.notice, L.drop.w - 24, 2).forEach((ln, i) =>
-      txt(ln, cx, cy - 7 + i * 15, '#a33', '12px sans-serif'));
+      txt(ln, cx, cy - 7 + i * 15, '#a33', f));
+    return;
+  }
+  // ⭐⭐ §6.6②「你差一手就赢了」——求解器知道，那就说出来。⚠ 只在**真的成立**时才有这一句
+  //   （nearWinOf 已经把「不成立就 null」钉死了），⛔ 别在这里补一句「安慰用」的兜底文案。
+  //   ⚠ 措辞停在**事实**那一侧：说的是「那一手你有一个落下去当场连四的列」，
+  //     ⛔ 不是「你本来赢定了」——后者要搜索才敢说（P3 的转折点）。
+  const nw = G.phase === 'OVER' && G.result ? G.result.nearWin : null;
+  if (nw) {
+    const g = G.g;
+    const label = g.mode === 'ai'
+      ? T('game.nearWinYou', { n: nw.ply })
+      : T('game.nearWinP', { p: seatName(g, nw.player), n: nw.ply });
+    const f = 'bold ' + fsz(12) + 'px sans-serif';
+    ctx.font = f;
+    const lines = wrapLines(label, L.drop.w - 40, 2);
+    const bw = Math.min(L.drop.w - 8, Math.max.apply(null, lines.map(s => ctx.measureText(s).width)) + 30);
+    const bh = lines.length > 1 ? 40 : 30;
+    fillRR(cx - bw / 2, cy - bh / 2, bw, bh, bh / 2, 'rgba(255,255,255,0.92)');
+    strokeRR(cx - bw / 2 + 0.5, cy - bh / 2 + 0.5, bw - 1, bh - 1, bh / 2, C4Render.PAL.hudEdge, 1);
+    lines.forEach((ln, i) => txt(ln, cx, cy - (lines.length - 1) * 7.5 + i * 15,
+                                 C4Render.PAL.hudText, f));
   }
 }
 
@@ -653,7 +812,10 @@ function hudInfo(g) {
     const w = G.result.winner;
     if (w === null) return { turn: null, left: T('game.draw') };
     if (g.mode === 'ai') {
-      return { turn: w, left: T(w === C4State.humanPlayer(g) ? 'game.win' : 'game.lose') };
+      // ⭐⭐ §6.6：输局**不给「你输了」的大字** —— 这里给的是中性的一句「本局结束」，
+      //   ⛔ 别改回判决式措辞（那句话在 HUD 上是全屏最大的一行，正是 §6.6 要拿掉的东西）。
+      //   分析（精准度 / 转折点 / 从那一步重来）在盘下面的结算区，那才是输局该看的内容。
+      return { turn: w, left: T(w === C4State.humanPlayer(g) ? 'game.win' : 'game.roundOver') };
     }
     return { turn: w, left: T('game.wins', { p: seatName(g, w) }) };
   }
@@ -667,6 +829,42 @@ function hudInfo(g) {
   }
   return { turn: turn, left: T('game.turnOf', { p: seatName(g, turn) }) };
 }
+
+/** 人机局里**玩家自己输了**这一局。（同机双人局没有「你输了」这回事 ⇒ 恒 false） */
+function isLoss() {
+  const g = G.g, r = G.result;
+  return !!(g && r && G.phase === 'OVER' && r.winner !== null
+            && g.mode === 'ai' && r.winner !== C4State.humanPlayer(g));
+}
+
+/**
+ * ⭐ 结算的数据条（DESIGN §6.6 / §4「精准度：这个游戏的分数」）。
+ *
+ * ⚠⚠ 两个值现在都是明写的占位「—」，这是**故意的**：真值要 `Solver.scoreAll` 把整局逐手
+ *   复算（§3.3 赛后复盘 = P3），而局中/结算即时算会撞 §9.2 的断崖（n=10..15 中位 1,678 ms/手）。
+ *   ⛔⛔ 绝不许为了「看起来完整」编一个数字（DESIGN §2.4：宁可空着也不许谎报）——
+ *   精准度是这个游戏的分数，编出来的分数会一路污染纪录、课程推荐和「创新高」判定。
+ * ⭐ P3 填的时候：把这两个「—」换成真值即可，版面一个像素都不用动（这条位就是为它留的）。
+ */
+function drawSettleStats(x, y, w, h) {
+  if (!(h > 0)) return;
+  fillRR(x, y, w, h, 12, 'rgba(255,255,255,0.92)');
+  strokeRR(x + 0.5, y + 0.5, w - 1, h - 1, 12, C4Render.PAL.hudEdge, 1.5);
+  const half = w / 2;
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(x + half, y + 8); ctx.lineTo(x + half, y + h - 8);
+  ctx.strokeStyle = C4Render.PAL.hudEdge; ctx.lineWidth = 1; ctx.stroke();
+  ctx.restore();
+  const cell = (cx, label) => {
+    fitTxt(label, cx, y + h * 0.33, half - 18, C4Render.PAL.hudSub, 'normal', fsz(11));
+    fitTxt(SETTLE_PENDING, cx, y + h * 0.71, half - 18, C4Render.PAL.hudText, 'bold', fsz(16));
+  };
+  cell(x + half / 2, T('game.accuracy'));
+  cell(x + half * 1.5, T('game.turningPoint'));
+}
+/** 占位符：⛔ 别换成 "0%" / "—%"（会被读成「你这局 0 分」，那是编出来的信息）。 */
+const SETTLE_PENDING = '—';
 
 function drawPlay(L) {
   const g = G.g;
@@ -707,17 +905,20 @@ function drawPlay(L) {
   info.right = g.mode === 'ai'
     ? T('game.level', { n: g.tier })
     : T('game.gameLine', { n: g.gameNo + 1, p: firstSeatName(g) });
-  C4Render.drawHUD(info, L);
+  // ⭐ 舒适模式（§6.8）：HUD 的字也一起放大。⚠ HUD 的**高度**不跟着变（那是 layout 的事）。
+  C4Render.drawHUD(info, L, comfortOn() ? COMFORT_TEXT : 1);
 
   drawDropBand(L);
 
   // 按钮行：钉在盘面下方的留白里（⛔ 别压在盘上——赢局那条连线必须一直看得见）
   const gap = 12;
-  const rowH = 46;
-  // ⭐ 结算是**两行**（§6.5）：第一行只放主 CTA［再来一局］+［复盘］留位，
+  const rowH = bht(46);                     // ⭐ 舒适模式 = 更高的按钮 = 更大的点击窗（§6.8）
+  const statH = G.phase === 'OVER' ? bht(40) : 0;
+  // ⭐ 结算是**数据条 + 两行按钮**（§6.5 + §6.6）：
+  //   数据条给 §6.6 的「精准度 / 转折点」留位；第一行只放主 CTA［再来一局］+ 第二个按钮；
   //   ［撤销］［菜单］退到第二行 —— 「再来一局」必须是一眼看到的那一个，不是三选一。
   const rows = G.phase === 'OVER' ? 2 : 1;
-  const blockH = rows * rowH + (rows - 1) * gap;
+  const blockH = rows * rowH + (rows - 1) * gap + (statH ? statH + gap : 0);
   let ry = L.boardY + L.boardH + 16;
   const maxY = L.SH - L.safeBottom - 12 - blockH;
   if (ry > maxY) ry = maxY;
@@ -725,6 +926,8 @@ function drawPlay(L) {
   const full = L.SW - marg * 2;
 
   if (G.phase === 'OVER') {
+    drawSettleStats(marg, ry, full, statH);
+    ry += statH + gap;
     // ⭐ 主 CTA：庆祝一播完就进焦点态（⛔ 但从终局第一帧起就**点得动** —— 热区在这里注册，
     //    与 overReady 无关；「庆祝期间点得动」由 e2e-p2b 用真实鼠标钉死）。
     const wMain = Math.round((full - gap) * 0.60);
@@ -732,10 +935,13 @@ function drawPlay(L) {
       bg: G.overReady ? '#37a87c' : C4Render.PAL.accent,
       focus: G.overReady, size: 17
     });
-    // ⭐ ［复盘］**留位**（DESIGN §3.3 的赛后复盘是 P3 的内容）。
-    //   ⚠ 现在是 disabled ⇒ btn 不注册热区 ⇒ 点不出任何反应，⛔ 不许做成「点了没反应」的活按钮：
-    //     假按钮比没按钮更伤（玩家会以为坏了）。P3 填内容时把 disabled 去掉 + 加 'REVIEW' 分支。
-    btn(marg + wMain + gap, ry, full - wMain - gap, rowH, T('game.review'), 'REVIEW', {},
+    // ⭐ 第二个按钮：**输局是［从那一步重来］**（DESIGN §6.6 点名的那一个），其余是［复盘］（§3.3）。
+    //   ⚠ 两个都是 disabled 的**留位**（转折点/复盘都要 scoreAll ⇒ P3）：
+    //     disabled ⇒ btn 不注册热区 ⇒ 点不出任何反应，⛔ 不许做成「点了没反应」的活按钮
+    //     —— 假按钮比没按钮更伤（玩家会以为坏了）。P3 填内容时去掉 disabled + 加 dispatch 分支。
+    const lost = isLoss();
+    btn(marg + wMain + gap, ry, full - wMain - gap, rowH,
+        T(lost ? 'game.replayFrom' : 'game.review'), lost ? 'REPLAY_FROM' : 'REVIEW', {},
         { disabled: true, size: 15 });
     const ry2 = ry + rowH + gap;
     const w2 = (full - gap) / 2;
@@ -779,6 +985,13 @@ async function boot() {
   //     这正是 T3 给引擎加这三个回调的理由。落子**只**在 onHoldEnd 里做（文件头 ①）。
   Input.bind({ onAction: dispatch, onHold: onHold, onHoldMove: onHoldMove, onHoldEnd: onHoldEnd });
   window.addEventListener('resize', () => { initCanvas(); renderAll(); });
+  // ⭐ 系统的 prefers-reduced-motion 改了要重画：'auto' 那一档右侧写的是**实际结果**
+  //   （「跟随系统 · 开」），不重画的话它会一直停在改之前那句上（画面照常、零报错）。
+  try {
+    sysReduceMotion();
+    if (_mqReduce && _mqReduce.addEventListener) _mqReduce.addEventListener('change', () => renderAll());
+    else if (_mqReduce && _mqReduce.addListener) _mqReduce.addListener(() => renderAll());   // 老 Safari
+  } catch (e) { /* 没有 matchMedia 的壳：设置里仍然能强制开/关 */ }
   Controls.render();
   renderAll();
 

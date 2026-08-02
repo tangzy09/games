@@ -35,8 +35,70 @@ const KEY = 'c4_settings';
   assert.strictEqual(S.defaults().threatHints, true);
   assert.notStrictEqual(S.defaults(), S.defaults(), 'defaults() 必须每次给新对象（⛔ 别共享常量）');
   assert.ok(Object.isFrozen(S.DEFAULTS), 'DEFAULTS 必须冻结');
-  assert.deepStrictEqual(S.KEYS.slice(), ['threatHints']);
+  assert.deepStrictEqual(S.KEYS.slice(), ['threatHints', 'reduceMotion', 'comfort']);
   console.log('test-settings: 默认 threatHints=true（新手默认开）OK');
+}
+
+// ─────────── ①b ⭐ P2b Task 6：减弱动态（三态）+ 舒适模式（DESIGN §6.8）───────────
+{
+  assert.strictEqual(S.DEFAULTS.reduceMotion, 'auto',
+    '§6.8：减弱动态默认**跟随系统** —— 系统里已经勾了「减弱动态」的人不该还要来这里再勾一次');
+  assert.strictEqual(S.DEFAULTS.comfort, false,
+    '舒适模式默认关：它改的是版面尺寸，⛔ 不该替没提要求的人改掉界面');
+  assert.deepStrictEqual(S.ENUMS.reduceMotion.slice(), ['auto', 'on', 'off'],
+    '⭐ 三态就是这三个值（⛔ 做成布尔的话「跟随系统」与「强制关」会压成同一个值）');
+
+  // ⭐⭐ 真值表逐格钉死（纯函数 ⇒ node 里就能测完，⛔ 不用起浏览器）
+  assert.strictEqual(S.motionReduced('on', false), true, '强制开：系统说不用也得减');
+  assert.strictEqual(S.motionReduced('on', true), true);
+  assert.strictEqual(S.motionReduced('off', true), false,
+    '⭐ 强制关：**系统说要减、这里仍然不减** —— 这一格就是「三态不是布尔」的全部理由');
+  assert.strictEqual(S.motionReduced('off', false), false);
+  assert.strictEqual(S.motionReduced('auto', true), true, '跟随系统：系统要减 ⇒ 减');
+  assert.strictEqual(S.motionReduced('auto', false), false, '跟随系统：系统没要求 ⇒ 不减');
+  assert.strictEqual(S.motionReduced('zzz', true), true,
+    '⚠ 认不出的值一律**跟随系统**：坏存档不该把无障碍偏好静默变成「强制关」');
+
+  // cycle：点一下换一档，绕一圈回到原点
+  S.attach(fakeBackend(), KEY);
+  assert.strictEqual(S.cycle('reduceMotion'), 'on');
+  assert.strictEqual(S.cycle('reduceMotion'), 'off');
+  assert.strictEqual(S.cycle('reduceMotion'), 'auto', 'cycle 必须能**回到**跟随系统');
+  assert.throws(() => S.cycle('comfort'), /不是枚举项/, 'cycle 只对枚举项有意义');
+
+  // ⭐ 枚举校验：类型合法但取值非法必须**抛**（⛔ 光靠 typeof 挡不住 —— 那会让
+  //   「强制关」被静默降级成「跟随系统」，零报错）
+  assert.throws(() => S.set('reduceMotion', 'yes'), /只能是/,
+    '⭐ 枚举外的字符串必须抛（typeof 完全合法，只有枚举校验拦得住）');
+  assert.deepStrictEqual(S.parse('{"reduceMotion":"yes"}').reduceMotion, 'auto',
+    '存档里的脏枚举值 ⇒ 退回默认');
+  assert.deepStrictEqual(S.parse('{"reduceMotion":"off"}').reduceMotion, 'off',
+    '反向对照：合法枚举值必须原样读回来（否则上一条恒绿）');
+  console.log('test-settings: ⭐ 减弱动态三态（真值表 + cycle + 枚举校验）OK');
+}
+
+// ─────────── ②b ⭐⭐ 新字段的持久化：判据一律取**非默认值**那个方向 ───────────
+// ⚠ T4 实锤：「开→刷新仍是开」在持久化坏掉时**照样绿**（默认值恰好就是开）。
+//   ⇒ 三态的每一档都要单独走一遍「写 → 换新会话 → 读回来」，且每次都断言 `=== 那一档`。
+{
+  for (const v of ['on', 'off', 'auto']) {
+    const store = {};
+    S.attach(fakeBackend(store), KEY);
+    S.set('reduceMotion', v);
+    S.attach(fakeBackend(store), KEY);                  // 「刷新页面」
+    assert.strictEqual(S.get('reduceMotion'), v,
+      '⭐ reduceMotion="' + v + '" 没活过一次刷新（十有八九是字段没进 defaults）');
+    assert.ok(Object.prototype.hasOwnProperty.call(S.all(), 'reduceMotion'),
+      '⭐ 字段本身必须还在（被 merge 丢掉时它会整个消失，读到 undefined）');
+  }
+  const store2 = {};
+  S.attach(fakeBackend(store2), KEY);
+  S.set('comfort', true);                               // ⚠ **非默认值**方向
+  assert.strictEqual(JSON.parse(store2[KEY]).comfort, true, 'comfort 必须立刻落盘');
+  S.attach(fakeBackend(store2), KEY);
+  assert.strictEqual(S.get('comfort'), true,
+    '⭐ comfort=true 没活过一次刷新（判据是 `=== true`，⛔ 不是「真值」）');
+  console.log('test-settings: ⭐⭐ 三态每一档 + comfort=true 都活过「刷新」OK');
 }
 
 // ─────────── ② ⭐⭐ 「显式关掉 → 下次启动仍然是关的」（snake 那个坑的回归）───────────

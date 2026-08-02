@@ -669,10 +669,14 @@
    * @param info { turn: 0|1, left: string, right: string }
    *   ⚠ 文案由调用方localize 后传进来（render 不做文案策略）；这里只负责**不溢出**：
    *     德/俄膨胀时 canvas 的 fillText 不换行也不截断，会直接压到右边那串上。
+   * @param scale ⭐ 字号倍数（P2b T6 · DESIGN §6.8 舒适模式）。默认 1 ⇒ ⛔ 老调用方
+   *   一个像素都不变。⚠ HUD 的**高度不跟着变**（那是 layout 的事，改了整盘几何会跟着挪）——
+   *   16px×1.3 ≈ 21px 在 54px 高的卡片里仍然宽裕。
    */
-  function drawHUD(info, L) {
+  function drawHUD(info, L, scale) {
     info = info || {};
     L = L || layout(GameGlobal.SW, GameGlobal.SH);
+    const k = (typeof scale === 'number' && scale > 0) ? scale : 1;
     const h = L.hud;
     fillRR(h.x, h.y, h.w, h.h, 16, PAL.hudCard);
     strokeRR(h.x + 0.5, h.y + 0.5, h.w - 1, h.h - 1, 16, PAL.hudEdge, 1);
@@ -684,12 +688,12 @@
       drawGlyph(info.turn, tx + gs / 2, cy, gs);
       tx += gs + 10;
     }
-    const rightFont = '12px sans-serif';
+    const rightFont = Math.round(12 * k) + 'px sans-serif';
     let rightW = 0;
     if (info.right) { ctx.font = rightFont; rightW = ctx.measureText(String(info.right)).width + 16; }
     const leftMaxW = h.w - (tx - h.x) - 14 - rightW;
     if (info.left) {
-      const f = 'bold 16px sans-serif';
+      const f = 'bold ' + Math.round(16 * k) + 'px sans-serif';
       ctx.font = f;
       txtL(wrapLines(info.left, leftMaxW, 1)[0], tx, cy, PAL.hudText, f);
     }
