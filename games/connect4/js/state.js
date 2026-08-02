@@ -4,7 +4,10 @@
 // ⭐ 核心决定（已定稿，⛔ 别改）：**存「先后手 + 手数列表」，不存局面快照栈。**
 //    一个决定同时白送四样：
 //      · 撤销      = 重放到 n−1
-//      · 中断恢复  = 存 42 个个位数（实测整局 ≈ 130 字节，快照栈是几十 KB）
+//      · 中断恢复  = 存 42 个个位数（⚠ **实测整局 ≤195 字节**，上界取在 seed 最长时；
+//                    手数列表本体 89 字节，其余全是元数据键名。快照栈是几十 KB ——
+//                    量级差三个数量级，但「几十字节」只对手数列表本身成立，别再复制那个数。
+//                    ⚠ 这个数由 tests/test-state.js 现场量并断言，⛔ 改了这里就去对一遍）
 //      · 「从第 N 步重来」= rewindTo(g, N)（DESIGN §3.3 复盘那颗按钮）
 //      · 一条 URL 分享整局（§11 异步对弈直接开）
 //    ⚠ 代价只有一个，而且是**故意收下**的：**手搓的局面不可撤销**（没有手数列表 ⇒ 重放不出来）。
@@ -45,19 +48,27 @@
   // ⚠ 只用 Date.now() 会撞：同一毫秒里「再来一局」是最常见的操作（结算页连点）。
   //   ⇒ 进程内用单调计数器兜底，**同一进程内保证不重复**（不是「概率上很少重复」）。
   // ⛔ 不用 Math.random：本仓的公平承诺一路要求可复现，随机源越少越好；这里也确实不需要它。
+  //
+  // ⭐⭐ **存的是 i32（`| 0`），不是 u32** —— `ai.js` 的 checkSeed 白纸黑字要求：
+  //    「存档里存的 seed 必须是**截断后**的这个值，否则『分享一条 URL 复盘整局』在两端算出的
+  //      seed 一样、显示的 seed 不一样，看着像 bug」。
+  //    ⚠ 确定性本来就不受影响（0xF0000001 与 -268435455 是同一条 PRNG 流），真正的坑是
+  //      **同一局有两个 seed 数值在系统里流通**，而且是不是负数取决于本进程 _seedBase 的最高位
+  //      ⇒ 表现为「时灵时不灵」，最难查的一类。⛔ 别反过来去动 ai.js（P1 已冻结）。
   const _seedBase = (function () {
     const t = Date.now();
     let h = 0x811c9dc5 | 0;
     const mix = v => { h = Math.imul(h ^ (v | 0), 0x01000193); };
     mix(t >>> 0); mix(Math.floor(t / 0x100000000));
     h ^= h >>> 15; h = Math.imul(h, 0x2c1b3c6d); h ^= h >>> 12;
-    return h >>> 0;
+    return h | 0;
   })();
   let _seedSeq = 0;
-  function autoSeed() { return (_seedBase + (++_seedSeq)) >>> 0; }
+  function autoSeed() { return (_seedBase + (++_seedSeq)) | 0; }
 
   // ════════ 入参校验（一律抛错）════════
-  function isU32(v) { return Number.isInteger(v) && v >= 0 && v <= 0xffffffff; }
+  /** seed 的值域 = `x | 0` 的值域（与 AI.checkSeed 逐位同一个数，见上）。 */
+  function isI32(v) { return Number.isInteger(v) && v >= -0x80000000 && v <= 0x7fffffff; }
   function isCol(c) { return Number.isInteger(c) && c >= 0 && c < B.W; }
 
   /**
@@ -95,10 +106,17 @@
 
     let seed = opts.seed;
     if (seed === undefined) seed = autoSeed();
-    else if (!isU32(seed)) throw new Error('newGame：seed 必须是无符号 32 位整数，收到 ' + String(seed));
+    else if (!isI32(seed)) throw new Error('newGame：seed 必须是有符号 32 位整数（与 AI.checkSeed 同值域），收到 ' + String(seed));
 
     let humanFirst;
-    if (opts.humanFirst === undefined) humanFirst = gameNo % 2 === 0;
+    if (opts.humanFirst === undefined) {
+      humanFirst = gameNo % 2 === 0;
+      // ⭐ DESIGN §1.1 第 1 条：顶档是完美求解器，**后手是数学上的必败** ⇒ 交替先手在这一档必须让位，
+      //    否则每两局就有一局是「凭定义赢不了」的差评制造机。
+      //    ⛔ 别把这条留给 UI「记得传 humanFirst」——只写一处才守得住（漏传时零报错）。
+      if (mode === 'ai' && tier === AI.TIER_MAX) humanFirst = true;
+    }
+    // ⚠ 显式传 false 仍然放行：读别人分享的「AI 先手」那一局要用（那是玩家自己选的，不是我们漏了）。
     else if (typeof opts.humanFirst !== 'boolean') throw new Error('newGame：humanFirst 必须是布尔值');
     else humanFirst = opts.humanFirst;
 
@@ -179,7 +197,7 @@
    *  ① 挡住 UI 顺手挂在 G 上的临时字段渗进存档；
    *  ② 任何一个是 undefined 都会被 JSON.stringify 静默吃掉 ⇒ 由 tests 钉死「无 undefined 字段」。 */
   function serialize(g) {
-    return JSON.stringify({
+    const s = JSON.stringify({
       v: SAVE_VERSION,
       mode: g.mode,
       tier: g.tier === undefined ? null : g.tier,
@@ -189,6 +207,12 @@
       paramsHash: g.paramsHash,
       moves: g.moves
     });
+    // ⭐ 自校验：**存得进 ⇒ 必须读得回**。这是本文件那条纪律唯一漏掉对称的地方 ——
+    //   newGame/play/rewindTo 对非法入参一律当场抛，而 serialize 曾对一个坏掉的 G 照写不误，
+    //   deserialize 那头却一定拒收 ⇒ 玩家看到「已保存」，下次进来**存档没了，零报错**。
+    //   ⚠ 成本实测 6.2 µs/次，每手存一次盘完全吃得下。
+    if (deserialize(s) === null) throw new Error('serialize：这个 G 存得进读不回，形状已经坏了：' + s);
+    return s;
   }
 
   /**
@@ -206,12 +230,17 @@
     if (MODES.indexOf(d.mode) < 0) return null;
     if (d.mode === 'ai') {
       if (!Number.isInteger(d.tier) || d.tier < 1 || d.tier > AI.TIER_MAX) return null;
-    } else if (d.tier !== null && d.tier !== undefined) return null;
+    } else if (d.tier !== null) return null;   // ⚠ human 局的 tier 必须**在场且为 null**：
+    //   serialize 永远写得出它（JSON 不会丢 null）⇒ 缺字段 = 这份档不是我们写的 ⇒ 丢弃。
+    //   ⛔ 别放宽成「缺了也行」：那是本函数唯一一处「字段不在也放行」，与「丢弃不迁移」相抵。
     if (!Number.isInteger(d.gameNo) || d.gameNo < 0) return null;
     if (typeof d.humanFirst !== 'boolean') return null;
-    if (!isU32(d.seed)) return null;
+    if (!isI32(d.seed)) return null;
     if (typeof d.paramsHash !== 'string' || !d.paramsHash) return null;
     if (!Array.isArray(d.moves) || d.moves.length > B.CELLS) return null;
+    // ⚠ 这一行是**故意的冗余**（变异实测：删掉它整份测试仍绿）—— 下面 B.play 的守卫已经能拦下
+    //   每一种非法列号。留着是为了「意图写在字段校验里」+ 早退，⛔ 但别因此以为它是承重的：
+    //   真正承重的是下面那个 try/catch（拆掉立刻红）。删这一行前先确认 B.play 的守卫还在。
     for (const c of d.moves) if (!isCol(c)) return null;
 
     // ⭐ 手数列表必须**真的能重放**：满列、以及「终局之后还有手」都要在这里被拦下。

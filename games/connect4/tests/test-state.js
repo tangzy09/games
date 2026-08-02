@@ -139,6 +139,10 @@ console.log('test-state: 规格用例（交替先手 / 撤销 / 重来 / 往返 
   for (const c of [3, 3, 4, 4, 2, 2]) g = St.play(g, c);
   assert.deepStrictEqual(St.rewindTo(g, 0).moves, [], 'n=0 = 回到开局（不是「保留第 0 手」）');
   assert.deepStrictEqual(St.rewindTo(g, 6).moves, [3, 3, 4, 4, 2, 2], 'n=len 是 no-op');
+  // ⚠ 「no-op」指内容不变，**不是**把同一个数组交出去：早退优化（k===len 就 return g）会让
+  //   重来后的 G 与原 G 共享 moves ⇒ 之后往新 G 落子会把「历史」那一份一起改掉，零报错。
+  assert.notStrictEqual(St.rewindTo(g, g.moves.length).moves, g.moves, 'n=len 也必须给新数组');
+  assert.notStrictEqual(St.rewindTo(g, g.moves.length), g, 'n=len 也必须给新对象');
   assert.deepStrictEqual(St.rewindTo(g, 99).moves, [3, 3, 4, 4, 2, 2], 'n>len 夹到 len（复盘滑杆的边）');
   assert.deepStrictEqual(St.rewindTo(g, -5).moves, [], '负数夹到 0');
   // ⚠ 越界只是滑杆走到头（夹住），但**类型错**是程序 bug（抛）—— 与 play 同一条判据
@@ -210,15 +214,51 @@ console.log('test-state: 规格用例（交替先手 / 撤销 / 重来 / 往返 
   console.log('test-state: ⭐ serialize 无 undefined 字段、往返逐字段无损 OK');
 }
 
+// ════════ ⭐ serialize 自校验：**存得进 ⇒ 必须读得回** ════════
+// 这是本文件那条纪律唯一漏掉对称的地方：newGame/play/rewindTo 对非法入参一律当场抛，
+// 而 serialize 曾对一个坏掉的 G 照写不误，deserialize 那头却一定拒收 ⇒
+// **玩家看到「已保存」，下次进来存档没了，零报错**。
+{
+  let g = St.newGame({ mode: 'ai', tier: 12, gameNo: 0 });
+  for (const c of [3, 4, 3, 4, 3, 4, 3]) g = St.play(g, c);   // 先手已胜（合法，最后一手就是制胜手）
+  assert.ok(St.serialize(g), '正常的终局存档必须存得下（别把自校验写成一律拒收）');
+  const broken = [
+    { ...g, moves: g.moves.concat([0, 1]) },        // 终局之后还有手（play 拦得住，但直接改 G 拦不住）
+    { ...g, moves: [0, 0, 0, 0, 0, 0, 0] },         // 满列
+    { ...g, tier: 999 },
+    { ...g, gameNo: -5 },
+    { ...g, humanFirst: 'yes' },
+    { ...g, seed: 0x80000000 },
+    { ...g, mode: 'AI' },
+    { ...g, paramsHash: '' }
+  ];
+  for (const bad of broken) {
+    assert.throws(() => St.serialize(bad), /存得进读不回|serialize/,
+      'serialize 必须拒绝一个 deserialize 读不回的 G：' + JSON.stringify(bad).slice(0, 70));
+  }
+  console.log('test-state: ⭐ serialize 自校验（存得进必读得回）拦下 ' + broken.length + ' 类坏 G OK');
+}
+
 // ════════ 交替先手：连续多局的先手序列 ════════
 {
   const seq = [];
   for (let n = 0; n < 6; n++) seq.push(St.newGame({ mode: 'human', gameNo: n }).humanFirst);
   assert.deepStrictEqual(seq, [true, false, true, false, true, false], 'gameNo 递增必须严格交替');
-  // ⭐ 顶档必须能让玩家先手（DESIGN §1.1 第 1 条：后手对完美 AI 是数学上的必败）
-  //   ⇒ 允许显式覆盖，而不是逼 UI 去谎报 gameNo
-  assert.strictEqual(St.newGame({ mode: 'ai', tier: 20, gameNo: 1, humanFirst: true }).humanFirst, true);
-  console.log('test-state: 交替先手序列 + 顶档显式让先 OK');
+  // ⭐⭐ 顶档**默认**就必须让玩家先手（DESIGN §1.1 第 1 条：后手对完美 AI 是**数学上的必败**）。
+  //    ⛔ 这条不许留给 UI「记得传 humanFirst」—— 漏传一次就是每两局送一局「凭定义赢不了」的
+  //      差评制造机，而且零报错。所以断言的是**默认行为**，不是「允许覆盖」。
+  for (let n = 0; n < 6; n++) {
+    assert.strictEqual(St.newGame({ mode: 'ai', tier: AI.TIER_MAX, gameNo: n }).humanFirst, true,
+      '顶档第 ' + n + ' 局：玩家必须先手（后手对完美求解器是数学必败）');
+  }
+  // ⚠ 但只让位这一档：19 级不是完美求解器，交替先手照旧（别把规则悄悄扩大到整个进阶段）
+  const t19 = [];
+  for (let n = 0; n < 4; n++) t19.push(St.newGame({ mode: 'ai', tier: AI.TIER_MAX - 1, gameNo: n }).humanFirst);
+  assert.deepStrictEqual(t19, [true, false, true, false], '非顶档必须照常交替');
+  // ⚠ 显式传 false 仍要放行：读别人分享的「AI 先手」那一局要用
+  assert.strictEqual(St.newGame({ mode: 'ai', tier: AI.TIER_MAX, gameNo: 0, humanFirst: false }).humanFirst, false,
+    '显式 humanFirst:false 必须放行（分享 URL 里 AI 先手的那一局）');
+  console.log('test-state: 交替先手序列 + ⭐ 顶档默认让先（0..5 全 true）OK');
 }
 
 // ════════ ⭐ humanFirst ↔ 玩家编号的绑定只写一处 ════════
@@ -269,14 +309,52 @@ console.log('test-state: 规格用例（交替先手 / 撤销 / 重来 / 往返 
   const g = St.newGame({ mode: 'ai', tier: 6, gameNo: 0, seed: 12345 });
   assert.strictEqual(g.seed, 12345, '显式 seed 必须原样用（分享 URL / 测试夹具靠它）');
   const seeds = new Set();
-  for (let i = 0; i < 200; i++) seeds.add(St.newGame({ mode: 'human', gameNo: 0 }).seed);
-  assert.strictEqual(seeds.size, 200,
+  for (let i = 0; i < 500; i++) seeds.add(St.newGame({ mode: 'human', gameNo: 0 }).seed);
+  assert.strictEqual(seeds.size, 500,
     '同一毫秒内连开的局也必须拿到不同 seed（只用 Date.now() 会撞，重开一局还是同一条 AI 线）');
+  // ⭐⭐ 值域必须钉死成 **i32**（`x | 0` 的值域），⛔ 别写成 u32：
+  //    ai.js 的 checkSeed 会 `seed | 0`，存档里必须存**截断后**的那个值 ——
+  //    否则同一局有两个 seed 数值在系统里流通（分享 URL 两端算出同一手、显示的 seed 不同）。
+  //    ⚠ 而且「是不是负数」取决于本进程 _seedBase 的最高位 ⇒ 写成 u32 断言时，
+  //      灵敏度会随进程摇摆（评审实测：`|0` 的变异体在某些进程里恰好存活）。这里恒等钉死：
   for (const s of seeds) {
-    assert.ok(Number.isInteger(s) && s >= 0 && s <= 0xffffffff, 'seed 必须是无符号 32 位整数：' + s);
+    assert.strictEqual(s | 0, s, 'seed 必须已经是 i32（与 AI.checkSeed 逐位同值）：' + s);
   }
+  assert.ok([...seeds].every(s => Number.isInteger(s) && s >= -0x80000000 && s <= 0x7fffffff));
+  assert.strictEqual(St.newGame({ mode: 'human', gameNo: 0, seed: -1 }).seed, -1, '负 seed 必须原样接受');
   assert.throws(() => St.newGame({ mode: 'human', gameNo: 0, seed: 1.5 }), /seed/);
-  console.log('test-state: ⭐ seed 可显式给 / 自生成不撞 OK');
+  assert.throws(() => St.newGame({ mode: 'human', gameNo: 0, seed: 0x80000000 }), /seed/, '超出 i32 必须抛');
+  assert.throws(() => St.newGame({ mode: 'human', gameNo: 0, seed: -0x80000001 }), /seed/);
+  console.log('test-state: ⭐ seed 可显式给 / 自生成不撞 / 恒为 i32 OK');
+}
+
+// ════════ ⭐ 存档里的 seed 与 AI 实际用的 seed 必须是**同一个数值** ════════
+// ⚠ 光「确定性成立」不够：0xF0000001 与 -268435455 是同一条 PRNG 流，逐手重放照样对，
+//   但系统里就有了两个 seed 数值 ⇒ 分享 URL 两端显示不同的 seed，看着像 bug（ai.js:439 原话）。
+{
+  for (let i = 0; i < 50; i++) {
+    const g = St.newGame({ mode: 'ai', tier: 3, gameNo: 0 });
+    const d = AI.decide(g.moves, g.tier, g.seed);
+    assert.strictEqual(d.seed, g.seed,
+      '存档 seed ' + g.seed + ' 与 AI.decide().seed ' + d.seed + ' 数值不同（ai.js 的 checkSeed 会 |0）');
+    assert.strictEqual(St.deserialize(St.serialize(g)).seed, g.seed, '往返之后也必须是同一个数值');
+  }
+  // ⭐⭐ 上面两条的灵敏度都受制于**本进程**的 _seedBase 最高位（base < 2^31 时，
+  //    `>>> 0` 写法照样全绿 —— 评审实测过这个变异体「时灵时不灵」地存活）。
+  //    ⇒ 重新 require 出多份**独立 base** 的 state.js（每份都等到毫秒跳变），逐份钉死值域。
+  //    正确实现下这一段恒绿；`>>> 0` 的实现每份约有一半概率被抓 ⇒ 32 份等于必杀。
+  const P = require.resolve('../js/state.js');
+  for (let i = 0; i < 32; i++) {
+    const t0 = Date.now();
+    while (Date.now() === t0) { /* 等毫秒跳变，否则 _seedBase 不会变 */ }
+    delete require.cache[P];
+    const Fresh = require(P);
+    const s = Fresh.newGame({ mode: 'human', gameNo: 0 }).seed;
+    assert.strictEqual(s | 0, s, '第 ' + i + ' 份实例的自生成 seed 不是 i32：' + s
+      + '（autoSeed 写成 `>>> 0` 就会这样 —— 存档里于是流通着与 AI 不同的 seed 数值）');
+  }
+  delete require.cache[P];   // ⚠ 还原：后面的用例还要用最初那份 St
+  console.log('test-state: ⭐ 存档 seed ≡ AI.decide().seed（i32，32 份独立 base 逐份钉死）OK');
 }
 
 // ════════ ⭐ 存档 = 同一局的 AI 逐手可重放 ════════
@@ -336,10 +414,14 @@ console.log('test-state: 规格用例（交替先手 / 撤销 / 重来 / 往返 
     JSON.stringify({ ...good, mode: 'AI' }),                   // 闭集外
     JSON.stringify({ ...good, mode: 'ai', tier: null }),       // ai 局没 tier
     JSON.stringify({ ...good, mode: 'human', tier: 9 }),       // human 局带 tier
+    // ⚠ human 局的 tier **必须在场且为 null**。这是本函数唯一可能「字段不在也放行」的地方，
+    //   而 serialize 永远写得出它（JSON 不丢 null）⇒ 缺了就说明这份档不是我们写的 ⇒ 丢弃。
+    //   ⛔ 别当成 bug「修」宽：那与「版本不符即丢弃、绝不迁移」是同一条纪律。
+    JSON.stringify({ ...good, mode: 'human', tier: undefined }),
     JSON.stringify({ ...good, tier: 999 }),
     JSON.stringify({ ...good, gameNo: -3 }),
     JSON.stringify({ ...good, humanFirst: 'yes' }),
-    JSON.stringify({ ...good, seed: -1 }),
+    JSON.stringify({ ...good, seed: 0x80000000 }),             // 超出 i32（存档只存截断后的值）
     JSON.stringify({ ...good, seed: 'abc' }),
     JSON.stringify({ ...good, paramsHash: 123 }),
     JSON.stringify({ ...good, moves: null }),
@@ -350,7 +432,12 @@ console.log('test-state: 规格用例（交替先手 / 撤销 / 重来 / 往返 
     JSON.stringify({ ...good, moves: new Array(43).fill(0) }),
     // ⭐ 这一条才真正打到 fromMoves 的守卫上：字段全合法、列号全在 0..6，但第 7 次落进满列。
     //   ⚠ 上面那些在字段校验就被拦下了 ⇒ 少了这条，try/catch 删掉测试照样全绿。
-    JSON.stringify({ ...good, moves: [0, 0, 0, 0, 0, 0, 0] })
+    JSON.stringify({ ...good, moves: [0, 0, 0, 0, 0, 0, 0] }),
+    // ⭐ 字段全合法、列号全合法、也没有满列，但第 7 手已经分出胜负 ⇒ 后面那两手不该存在。
+    //   ⛔ 少了这条，把 deserialize 里那行 R.terminal 检查整个删掉，测试照样全绿（评审实测）。
+    //   守的正是：终局之后多存的手会让**每一次重放**都走过终局线 ⇒ 胜负曲线 / 妙手判定 /
+    //   分享 URL 全跟着错，而且零报错。而这份输入正来自分享 URL。
+    JSON.stringify({ ...good, moves: [3, 4, 3, 4, 3, 4, 3, 0, 1] })
   ];
   for (const s of bad) {
     let r;
@@ -368,7 +455,9 @@ console.log('test-state: 规格用例（交替先手 / 撤销 / 重来 / 往返 
 const DRAW_MOVES = [3, 5, 5, 1, 6, 3, 2, 5, 1, 3, 5, 4, 4, 4, 2, 6, 5, 4, 6, 3, 5, 6,
                     6, 0, 2, 4, 4, 2, 2, 6, 0, 0, 1, 2, 3, 3, 1, 0, 0, 1, 0, 1];
 {
-  let g = St.newGame({ mode: 'ai', tier: 20, gameNo: 0, seed: 0xffffffff });
+  // ⚠ seed 取**最长的那个** i32（-2147483648，11 个字符）⇒ 量到的是**上界**，
+  //   而不是一个随 seed 位数飘的数（自生成 seed 是 2..11 个字符）。顺带钉住负 seed 无损往返。
+  let g = St.newGame({ mode: 'ai', tier: 20, gameNo: 0, seed: -0x80000000 });
   for (const c of DRAW_MOVES) g = St.play(g, c);
   assert.strictEqual(St.boardOf(g).n, 42);
   assert.strictEqual(R.terminal(St.boardOf(g)), R.DRAW, '前提：这串必须是满盘和');
