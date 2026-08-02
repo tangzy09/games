@@ -470,6 +470,220 @@ const DRAW_MOVES = [3, 5, 5, 1, 6, 3, 2, 5, 1, 3, 5, 4, 4, 4, 2, 6, 5, 4, 6, 3, 
   assert.ok(JSON.stringify(g.moves).length <= 90);
 }
 
+// ════════════════════════════════════════════════════════════════════
+// ⭐⭐ 让子（P2c Task 1 · DESIGN §6.7）
+//
+// 「弱的一方可**预置 1-2 枚子** —— 这是让全家人一起玩下去的唯一办法。」
+// 这一组守的是四件事，每一件都对应一个**静默**的失败模式：
+//   ① 预置子进的是**另一个字段**（不是手数）⇒ 撤销/重来在**结构上**撤不掉它；
+//   ② `rewindTo(g,0)` 回到「只有预置子」而不是空盘；
+//   ③ 存档往返无损（`pre` 是「格子」不是「档位号」⇒ 改产品数值不会重新解释老档）；
+//   ④ v1 老档一律丢弃（少了 `pre` 的档若被宽容读成 `pre:[]`，让子局静默变普通局）。
+// ════════════════════════════════════════════════════════════════════
+
+// ─── 档位表本身：0/1/2 三档，且**不叠中列**（HANDICAP_COLS 上方那段的产品判断）───
+{
+  assert.strictEqual(St.HANDICAP_MAX, 2, 'DESIGN §6.7：预置 **1-2** 枚');
+  assert.strictEqual(St.HANDICAP_COLS.length, 3, '0/1/2 三档');
+  assert.deepStrictEqual(St.HANDICAP_COLS[0].slice(), []);
+  assert.deepStrictEqual(St.HANDICAP_COLS[1].slice(), [3], '让 1 子 = 中列底（全盘最强的一格）');
+  assert.deepStrictEqual(St.HANDICAP_COLS[2].slice(), [3, 3],
+    '让 2 子 = 中列底叠两枚（实测选型见 state.js 的 HANDICAP_COLS）');
+  // ⭐⭐ 这一条是实测逼出来的（`npm run sim:c4:handicap`）：把中列底让给强方的摆法（[2,4]）
+  //   在第 5 级上让 2 子（.629）**反而不如**让 1 子（.661）—— 一个「越让越弱」的档位，
+  //   而盘上确实多了两枚子 ⇒ **肉眼与「多了子」类断言都抓不住**。判据只能写成结构性的：
+  //   **每一档都必须是上一档的超集**（多让一枚 = 多一枚在盘上，⛔ 不许换地方）。
+  for (let n = 1; n <= St.HANDICAP_MAX; n++) {
+    const prev = St.HANDICAP_COLS[n - 1].slice(), cur = St.HANDICAP_COLS[n].slice();
+    assert.strictEqual(cur.length, n, '让 ' + n + ' 子必须正好 ' + n + ' 枚');
+    assert.deepStrictEqual(cur.slice(0, n - 1), prev,
+      '⛔ 让 ' + n + ' 子必须是让 ' + (n - 1) + ' 子**再加一枚**（⛔ 不许换地方摆）—— '
+      + '换地方会把最强的中列底还给强方，实测出现过「越让越弱」');
+  }
+  assert.ok(St.HANDICAP_COLS[St.HANDICAP_MAX].indexOf(3) >= 0,
+    '⛔ 每一档让子都必须含**中列**（参与 13 条四连线；边列只有 3 条）');
+  console.log('test-state: ⭐ 让子档位表（0/1/2 · 逐档超集 · 恒含中列）OK');
+}
+
+// ─── ⭐ 让子局的开局：预置子在盘上、归弱方、且**强方先手** ───
+{
+  for (const n of [1, 2]) {
+    const g = St.newGame({ mode: 'human', gameNo: 0, handicap: n });
+    assert.strictEqual(St.handicapOf(g), n);
+    assert.deepStrictEqual(g.pre, St.HANDICAP_COLS[n].slice());
+    assert.deepStrictEqual(g.moves, [], '⭐ 预置子**不是手数** —— moves 必须还是空的');
+
+    const bd = St.boardOf(g);
+    assert.strictEqual(bd.n, n, '开局盘上就有 ' + n + ' 枚子');
+    assert.strictEqual(bd.turn, 0, '预置子不算手数 ⇒ 行棋权在先手位');
+    assert.strictEqual(St.turnOf(g), bd.turn, 'turnOf 与 bd.turn 在让子局上也必须一致');
+    assert.deepStrictEqual(bd.mv, [], '⭐ 预置子也不进盘面的手数列表（B.toMoves(boardOf(g)) ≡ g.moves）');
+    // ⭐ 全部归**同一方**，且那一方是 humanPlayer（= 弱方的座位）
+    const owner = St.humanPlayer(g);
+    const mine = owner === 0 ? bd.a : bd.b, other = owner === 0 ? bd.b : bd.a;
+    assert.strictEqual(other.reduce((s, v) => s + v, 0), 0, '预置子必须全归弱方一个人（对方一枚都没有）');
+    // ⚠ 数的是**枚数**（掩码里的 1 的个数），⛔ 不是「有子的列数」——
+    //   让 2 子叠在同一列时后者恒为 1，那条断言会静默地永远绿。
+    const bits = mine.reduce((s, v) => { let k = 0; for (let m = v; m; m >>= 1) k += m & 1; return s + k; }, 0);
+    assert.strictEqual(bits, n, '弱方手里必须正好 ' + n + ' 枚');
+    // ⚠ 让 2 子是同一列两枚 ⇒ 按列计数，⛔ 别断言「每列一枚」
+    for (const c of new Set(g.pre)) {
+      assert.strictEqual(bd.h[c], g.pre.filter(x => x === c).length,
+        '第 ' + c + ' 列的高度必须等于摆进去的枚数（预置子从底往上叠）');
+    }
+
+    // ⭐ 谁先走：弱方拿子 ⇒ **强方先手**（⛔ 既拿子又先走 = 双重优势）
+    assert.strictEqual(g.humanFirst, false,
+      '⭐ 让子局里强的一方先手 —— 弱方既拿预置子又先走是双重优势');
+    assert.strictEqual(owner, 1, '⇒ 预置子归后手位（= Player 1 那个座位）');
+  }
+  // ⚠ 让 0 子必须与 P2a 完全一样（交替先手照旧）
+  const g0 = St.newGame({ mode: 'human', gameNo: 0 });
+  assert.deepStrictEqual(g0.pre, []);
+  assert.strictEqual(g0.humanFirst, true, '让 0 子 ⇒ 交替先手照旧（⛔ 别把让子规则扩大到普通局）');
+  assert.strictEqual(St.boardOf(g0).n, 0);
+  // ⭐ 让子局**先手不再逐局交替**（让子本身已经是明面的不对称）
+  for (let no = 0; no < 4; no++) {
+    assert.strictEqual(St.newGame({ mode: 'human', gameNo: no, handicap: 1 }).humanFirst, false,
+      '让子局第 ' + no + ' 局：先手不许交替（交替会每两局把「谁是弱方」翻一次）');
+  }
+  console.log('test-state: ⭐ 让子开局（子在盘上 / 归弱方 / 强方先手 / 不交替）OK');
+}
+
+// ─── ⭐⭐ 撤销**撤不掉**预置子；rewindTo(0) 回到「只有预置子」而不是空盘 ───
+{
+  let g = St.newGame({ mode: 'human', gameNo: 0, handicap: 2 });
+  const pre0 = JSON.stringify(St.boardOf(g));
+  for (const c of [2, 2, 5, 5, 1]) g = St.play(g, c);
+  assert.strictEqual(St.boardOf(g).n, 7, '2 枚预置 + 5 手 = 7 枚');
+
+  // 一路撤到底
+  let u = g;
+  for (let i = 0; i < 20; i++) u = St.undo(u);
+  assert.deepStrictEqual(u.moves, [], '手数撤光了');
+  assert.strictEqual(St.boardOf(u).n, 2,
+    '⛔⛔ 撤销**绝不许**撤掉预置子 —— 撤光手数之后盘上必须仍有 2 枚（撤没了 = 孩子的让子被吃了）');
+  assert.strictEqual(JSON.stringify(St.boardOf(u)), pre0, '撤到底必须逐位回到开局那个盘');
+  assert.deepStrictEqual(u.pre, St.HANDICAP_COLS[2].slice(), 'pre 字段本身也不许被撤销动到');
+
+  // rewindTo(0) 同理（复盘滑杆走到最左）
+  const r0 = St.rewindTo(g, 0);
+  assert.deepStrictEqual(r0.moves, []);
+  assert.strictEqual(St.boardOf(r0).n, 2, '⭐ rewindTo(0) 回到的是「只有预置子」，⛔ 不是空盘');
+  assert.strictEqual(JSON.stringify(St.boardOf(r0)), pre0);
+  // 中途重来也一样
+  assert.strictEqual(St.boardOf(St.rewindTo(g, 3)).n, 5, 'rewindTo(3) = 2 枚预置 + 3 手');
+  // ⚠ 反向对照：让 0 子时 rewindTo(0) 必须真的是空盘（否则上面几条恒绿）
+  let z = St.newGame({ mode: 'human', gameNo: 0 });
+  for (const c of [3, 3]) z = St.play(z, c);
+  assert.strictEqual(St.boardOf(St.rewindTo(z, 0)).n, 0, '让 0 子 ⇒ rewindTo(0) 就是空盘');
+  console.log('test-state: ⭐⭐ 撤销/重来撤不掉预置子（rewindTo(0) = 只有预置子）OK');
+}
+
+// ─── ⭐ 让子局的存档往返 + 版本 ───
+{
+  let g = St.newGame({ mode: 'ai', tier: 3, gameNo: 0, handicap: 2, seed: 424242 });
+  for (const c of [3, 3, 4]) g = St.play(g, c);
+  const s = St.serialize(g);
+  const back = St.deserialize(s);
+  assert.deepStrictEqual(back, g, '让子局的存档必须逐字段无损往返');
+  assert.deepStrictEqual(back.pre, St.HANDICAP_COLS[2].slice());
+  assert.notStrictEqual(back.pre, g.pre, 'pre 必须拷一份（⛔ 别让解析出来的数组被外部句柄捏住）');
+  assert.strictEqual(St.boardOf(back).n, 5, '读回来的盘必须还是 2 枚预置 + 3 手');
+  assert.strictEqual(JSON.stringify(St.boardOf(back)), JSON.stringify(St.boardOf(g)));
+
+  // ⭐ 存的是**格子**不是「让几子」这个档位号 —— 存档里必须看得见列号
+  const raw = JSON.parse(s);
+  assert.deepStrictEqual(raw.pre, St.HANDICAP_COLS[2].slice(),
+    '⭐ 存档里存的必须是**格子**（列号），⛔ 不是档位号 —— 档位表一调，老档就会摆出另一个盘');
+
+  // ⛔ SAVE_VERSION 必须已经 bump（G 的形状变了）
+  assert.strictEqual(St.SAVE_VERSION, 2, 'G 加了 pre 字段 ⇒ SAVE_VERSION 必须 bump（root 铁律）');
+  // ⛔ v1 的老档一律丢弃、绝不迁移（⚠ 它长得完全合法，只是少了 pre）
+  const v1 = { v: 1, mode: 'human', tier: null, gameNo: 0, humanFirst: true,
+               seed: 1, paramsHash: AI.paramsDigest().hash, moves: [3, 3] };
+  assert.strictEqual(St.deserialize(JSON.stringify(v1)), null,
+    '⛔ v1 老档必须丢弃（⛔ 不迁移：少了 pre 的档若被宽容读成 pre:[]，让子局会静默变成普通局）');
+  // ⚠ 就算把版本号改成 2、pre 仍然缺 ⇒ 照样丢弃（与 human 局的 tier 同一条纪律）
+  assert.strictEqual(St.deserialize(JSON.stringify({ ...v1, v: 2 })), null,
+    'pre 字段**必须在场**（serialize 永远写得出它 ⇒ 缺了说明这份档不是我们写的）');
+  console.log('test-state: ⭐ 让子局存档往返 · 存格子不存档位 · v1 老档丢弃 OK');
+}
+
+// ─── deserialize 对让子字段的脏输入：只丢弃，绝不抛 ───
+{
+  const good = JSON.parse(St.serialize(St.newGame({ mode: 'human', gameNo: 0, handicap: 2 })));
+  const bad = [
+    { ...good, pre: null }, { ...good, pre: '24' }, { ...good, pre: [2, '4'] },
+    { ...good, pre: [2, 4.5] }, { ...good, pre: [2, 7] }, { ...good, pre: [2, -1] },
+    { ...good, pre: [2, 4, 5] },                       // 超过 HANDICAP_MAX
+    { ...good, pre: [0, 0, 0], moves: [] },            // 同上（列合法但太多）
+    // ⭐ 这一条才打到「摆预置子这件事本身可能非法」上：⚠ 只有当 pre 摆得下、
+    //   而后面的手数把那一列**填满**时才拦得住 —— 6 枚同列（超上限）已被长度挡了，
+    //   这里用「1 枚预置 + 6 手同列」把 B.play 的满列守卫真正打通。
+    { ...good, pre: [0], moves: [0, 0, 0, 0, 0, 0] }
+  ];
+  for (const b of bad) {
+    let r;
+    assert.doesNotThrow(() => { r = St.deserialize(JSON.stringify(b)); },
+      'deserialize 对脏 pre 不许抛：' + JSON.stringify(b.pre));
+    assert.strictEqual(r, null, '这份档必须丢弃：' + JSON.stringify(b).slice(0, 80));
+  }
+  assert.ok(St.deserialize(JSON.stringify(good)), '反面：合法让子档不许被误杀');
+  // ⚠ 反向对照：同样 6 手同列但**没有**预置子 ⇒ 合法（否则上一条测的其实是「6 手同列」）
+  assert.ok(St.deserialize(JSON.stringify({ ...good, pre: [], moves: [0, 0, 0, 0, 0, 0] })),
+    '没有预置子时 6 手同列是合法的 —— 上面那条拦的必须是「预置子把列顶满了」');
+  // ⭐ serialize 的自校验也必须挡住手搓的坏 pre（存得进读不回 = 玩家看到「已保存」，下次没了）
+  const g = St.newGame({ mode: 'human', gameNo: 0, handicap: 1 });
+  for (const badG of [{ ...g, pre: undefined }, { ...g, pre: [9] }, { ...g, pre: [1, 2, 3] }]) {
+    assert.throws(() => St.serialize(badG), /存得进读不回|serialize/,
+      'serialize 必须拒绝一个读不回的让子 G：' + JSON.stringify(badG.pre));
+  }
+  console.log('test-state: 让子字段的脏输入丢弃 ' + bad.length + ' 类且从不抛 OK');
+}
+
+// ─── ⛔ 让子只在同机双人与轻松档开放（技术硬约束：开局库对让子局面 100% 落空）───
+{
+  assert.strictEqual(St.handicapAllowed('human', null), true, '同机双人恒许');
+  for (let t = 1; t < AI.SOLVER_FROM; t++) {
+    assert.strictEqual(St.handicapAllowed('ai', t), true, '轻松档第 ' + t + ' 级必须许');
+  }
+  for (const t of [AI.SOLVER_FROM, 12, AI.TIER_MAX]) {
+    assert.strictEqual(St.handicapAllowed('ai', t), false,
+      '⛔ 第 ' + t + ' 级是求解器档 —— 让子局面不在开局库里，每手要几秒到几十分钟（§9.2 断崖）');
+    assert.throws(() => St.newGame({ mode: 'ai', tier: t, gameNo: 0, handicap: 1 }), /让子|断崖|开局库/,
+      '⛔ 静默降成 0 会让「我明明选了让子」变成普通局，零报错 ⇒ 必须抛');
+  }
+  // 让 0 子在任何档都合法（⛔ 别把守卫写成「求解器档不许传 handicap」）
+  for (const t of [3, 12, AI.TIER_MAX]) {
+    assert.strictEqual(St.newGame({ mode: 'ai', tier: t, gameNo: 0, handicap: 0 }).pre.length, 0);
+  }
+  // 入参校验（与 newGame 其余入参同一条纪律：调用方是我们自己的 UI ⇒ 当场抛）
+  for (const bad of [-1, 3, 1.5, '1', null, NaN]) {
+    assert.throws(() => St.newGame({ mode: 'human', gameNo: 0, handicap: bad }), /handicap/,
+      'handicap=' + String(bad) + ' 必须抛');
+  }
+  console.log('test-state: ⛔ 让子的开放范围（双人 + 轻松档 1-' + (AI.SOLVER_FROM - 1) + ' 级）OK');
+}
+
+// ─── ⭐ placeHandicap 是纯函数，且与 boardOf 走同一条路 ───
+// ⚠ 它被 tools/sim-handicap.js 用来摆模拟局的开局 —— **模拟台和产品必须摆同一批格子**，
+//   否则量出来的胜率不是这个产品的胜率。
+{
+  const empty = B.newBoard();
+  const snap = JSON.stringify(empty);
+  const out = St.placeHandicap(empty, St.HANDICAP_COLS[2].slice(), 1);
+  assert.strictEqual(JSON.stringify(empty), snap, 'placeHandicap 不许改入参');
+  assert.strictEqual(out.n, 2);
+  assert.strictEqual(out.turn, 0, '摆完行棋权必须回到先手位');
+  assert.deepStrictEqual(out.mv, [], '预置子不进手数列表');
+  const g = St.newGame({ mode: 'human', gameNo: 0, handicap: 2 });
+  assert.strictEqual(JSON.stringify(St.boardOf(g)), JSON.stringify(out),
+    'placeHandicap 与 boardOf 必须给出同一个盘（⛔ 两份实现 = 模拟台量的不是产品）');
+  assert.strictEqual(St.placeHandicap(empty, [], 1).n, 0, '空 pre 是 no-op');
+  console.log('test-state: ⭐ placeHandicap 纯函数、与 boardOf 同一条路 OK');
+}
+
 // ════════ ⭐ 浏览器加载路径（照 test-browser-globals.js 的做法）════════
 // state.js 的 `root.C4State = API` 分支在 node 里零消费者 —— P1 终审的阻塞 bug 就长在
 // 这种地方（ai.js 的 root.PRNG 恒 undefined，node 侧 14 条门禁全绿）。

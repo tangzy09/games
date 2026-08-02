@@ -35,8 +35,40 @@ const KEY = 'c4_settings';
   assert.strictEqual(S.defaults().threatHints, true);
   assert.notStrictEqual(S.defaults(), S.defaults(), 'defaults() 必须每次给新对象（⛔ 别共享常量）');
   assert.ok(Object.isFrozen(S.DEFAULTS), 'DEFAULTS 必须冻结');
-  assert.deepStrictEqual(S.KEYS.slice(), ['threatHints', 'reduceMotion', 'comfort']);
+  assert.deepStrictEqual(S.KEYS.slice(), ['threatHints', 'reduceMotion', 'comfort', 'handicap']);
   console.log('test-settings: 默认 threatHints=true（新手默认开）OK');
+}
+
+// ─────────── ①c ⭐ P2c Task 1：让子（DESIGN §6.7）───────────
+// ⚠ 判据全部取**非默认值**方向（本文件 ②b 那条实锤：默认值方向的断言在持久化坏掉时照样绿）。
+{
+  assert.strictEqual(S.DEFAULTS.handicap, 0,
+    '让子默认 0：它改的是**规则**，⛔ 绝不许替没提要求的人改掉一局棋的胜负条件');
+  assert.deepStrictEqual(S.ENUMS.handicap.slice(), [0, 1, 2],
+    '⭐ 让子是 0/1/2 三档的**数字枚举**（§6.7：预置 1-2 枚子）');
+  // cycle：0 → 1 → 2 → 0
+  S.attach(fakeBackend(), KEY);
+  assert.strictEqual(S.cycle('handicap'), 1);
+  assert.strictEqual(S.cycle('handicap'), 2);
+  assert.strictEqual(S.cycle('handicap'), 0, 'cycle 必须能**回到**不让子');
+  // ⭐ 数字枚举同样要有校验：typeof 是 number、范围也对，但 1.5 会让 HANDICAP_COLS[1.5]
+  //   变成 undefined ⇒ 开局炸在别处（追不回这里）。
+  assert.throws(() => S.set('handicap', 3), /只能是/, '枚举外的数字必须抛');
+  assert.throws(() => S.set('handicap', 1.5), /只能是/,
+    '⭐ 1.5 的 typeof 完全合法、范围也对 —— 只有枚举校验拦得住');
+  assert.throws(() => S.set('handicap', '2'), /类型/, '字符串 "2" 必须抛（存进去之后到处都是隐式转换）');
+  assert.strictEqual(S.parse('{"handicap":1.5}').handicap, 0, '存档里的脏值 ⇒ 退回默认');
+  assert.strictEqual(S.parse('{"handicap":2}').handicap, 2, '反向对照：合法值必须原样读回（否则上一条恒绿）');
+  // ⭐⭐ 持久化：两个**非默认**档各走一遍「写 → 刷新 → 读回」
+  for (const v of [1, 2]) {
+    const store = {};
+    S.attach(fakeBackend(store), KEY);
+    S.set('handicap', v);
+    S.attach(fakeBackend(store), KEY);                  // 「刷新页面」
+    assert.strictEqual(S.get('handicap'), v,
+      '⭐ handicap=' + v + ' 没活过一次刷新（十有八九是字段没进 defaults）');
+  }
+  console.log('test-settings: ⭐ 让子档位（0/1/2 枚举 + cycle + 脏值退默认 + 持久化）OK');
 }
 
 // ─────────── ①b ⭐ P2b Task 6：减弱动态（三态）+ 舒适模式（DESIGN §6.8）───────────

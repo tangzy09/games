@@ -420,12 +420,21 @@ function goHome() {
   renderAll();
 }
 
+/** ⭐ 这一局**实际**让几子（DESIGN §6.7）。
+ *  ⚠ 玩家选的档位一直存着（他下一局换回轻松档时不该发现自己的选择被清了），
+ *    但求解器档（6-20）不许让子 —— 判据只有 `C4State.handicapAllowed` 一份，
+ *    ⛔ 别在这里再写一次 `tier < 6`（两份判据漂了 = 界面选得动、开局当场抛）。 */
+function effHandicap(mode, tier) {
+  const n = C4Settings.get('handicap');
+  return C4State.handicapAllowed(mode, tier) ? n : 0;
+}
+
 function startGame(mode, tier) {
   G.aiSeq++; setThinking(false); fxStop(); resetFork();
   G.result = null; G.hoverCol = -1; G.holdCol = -1; G.notice = '';
-  const opts = { mode: mode, gameNo: G.gameNo };
-  // ⛔ 别在这里算 humanFirst：交替先手 + 「顶档必须玩家先手」两条都写在 state.js 的
-  //    newGame 里（只写一处才守得住），这里传了就等于把那条兜底覆盖掉。
+  const opts = { mode: mode, gameNo: G.gameNo, handicap: effHandicap(mode, tier) };
+  // ⛔ 别在这里算 humanFirst：交替先手 +「顶档必须玩家先手」+「让子局强方先手」三条都写在
+  //    state.js 的 newGame 里（只写一处才守得住），这里传了就等于把那三条兜底覆盖掉。
   if (mode === 'ai') opts.tier = tier;
   G.g = C4State.newGame(opts);
   G.phase = 'PLAYING';
@@ -466,7 +475,11 @@ function nearWinOf(winner) {
   if (!g || winner === null) return null;                       // 平局：⛔ 平局不是输，什么都不说
   const loser = winner ^ 1;
   if (g.mode === 'ai' && loser !== C4State.humanPlayer(g)) return null;
-  const mw = C4Threats.missedWin(g.moves, loser);               // ⛔⛔ 零搜索（≤42×7 次 isWinningMove）
+  // ⚠⚠ 让子局必须把**只有预置子**的那个盘当重放起点（P2c T1）：预置子不在 g.moves 里，
+  //   从空盘重放出来的是另一个局面 ⇒ 这句话会指着一手根本不存在的「制胜手」说话，且零报错。
+  //   ⭐ `rewindTo(g,0)` 的语义正好就是它（让子局回到的是「只有预置子」而不是空盘）。
+  const mw = C4Threats.missedWin(g.moves, loser,                // ⛔⛔ 零搜索（≤42×7 次 isWinningMove）
+                                 C4State.boardOf(C4State.rewindTo(g, 0)));
   return mw ? { player: loser, ply: mw.ply } : null;
 }
 
@@ -534,18 +547,24 @@ function maybeAI() {
 function requestAI() {
   const g = G.g;
   const my = ++G.aiSeq;
-  const moves = g.moves.slice();
+  // ⭐⭐ 传给引擎的 position 是**盘面对象**，⛔ 不是手数列表（P2c T1 · DESIGN §6.7）：
+  //   让子的预置子不在 `g.moves` 里 ⇒ 传手数列表的话 AI 看到的是一个**少了两枚子的盘**，
+  //   它会照着那个不存在的局面走 —— 落子照常、零报错，而整局的应对全是错的。
+  //   ⚠ `ConnectAI.toBoard` 从 P1 起就同时收「手数列表」与「棋盘对象」两种形状（ai.js:445），
+  //     Worker 那侧原样转给 `decide` ⇒ **一行 worker 都不用改**（它是 P1 冻结件）。
+  //   ⚠ 让 0 子时它与 `B.fromMoves(g.moves)` 逐位相同（posHash 只吃 a/b/turn）⇒ 确定性不变。
+  const pos = C4State.boardOf(g);
   const tier = g.tier, seed = g.seed;
 
   // ⭐ 这一手到底会不会搜。⛔ 别按 phase、别按「反正是 AI 的回合」开菊花（见文件头 ③）。
-  const heavy = ConnectAI.usesSolver(moves, tier);
+  const heavy = ConnectAI.usesSolver(pos, tier);
   G.lastAiHeavy = heavy;
   const t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
   const fresh = () => my === G.aiSeq;
   const took = () => Math.round(((typeof performance !== 'undefined' && performance.now)
     ? performance.now() : Date.now()) - t0);
 
-  const fire = () => EngineClient.ai(moves, tier, seed).then(r => {
+  const fire = () => EngineClient.ai(pos, tier, seed).then(r => {
     if (!fresh()) return;                 // 撤销 / 换局把它作废了
     if (r && r.stale) return;             // 被更新的一次顶掉（engine-client 的约定，不是错误）
     setThinking(false);
@@ -568,7 +587,10 @@ function requestAI() {
   setThinking(true);
   // ⚠⚠ 库没就位时**绝不许**对 n ≤ 9 的局面调求解器档（DESIGN §9.2 的断崖）。
   //    usesSolver 判不出这一层，必须自己查 EngineClient.bookReady()。
-  if (moves.length <= 9 && !EngineClient.bookReady()) {
+  // ⚠ 判据用**盘上的子数** `pos.n`（⛔ 不是 moves.length）：断崖是「还剩多少空格」定的。
+  //   ⚠ 让子局在这一层其实够不着（求解器档不许让子，见 C4State.handicapAllowed），
+  //     但判据仍写成 n —— 哪天放开了，写成 moves.length 会静默偏两手。
+  if (pos.n <= 9 && !EngineClient.bookReady()) {
     G.notice = T('game.enginePrep');
     renderAll();
     EngineClient.ensureBook().then(() => {
@@ -639,6 +661,10 @@ function dispatch(action, data) {
     // ⚠ 舒适模式改的是版面尺寸 ⇒ renderAll 会用新尺寸**重新注册全部热区**（本引擎每帧重建，
     //   所以这里不用做别的）。⛔ 别忘了这一句：不重画的话按钮变大了但点击窗还是旧的。
     case 'TOGGLE_COMFORT': C4Settings.toggle('comfort'); renderAll(); return;
+    // ⭐ 让子（DESIGN §6.7）：0 → 1 → 2 → 0。⚠ 与减弱动态同理是 cycle 不是 toggle
+    //   （三档，⛔ 不是布尔）。⚠ 求解器档下这个选择**照样存得住**，只是那一局不生效
+    //   （effHandicap 说了算）—— 玩家换回轻松档时不该发现自己的选择被清了。
+    case 'CYCLE_HANDICAP': C4Settings.cycle('handicap'); renderAll(); return;
     case 'UNDO':       doUndo(); return;
     case 'AGAIN':      again(); return;
     case 'HOME':       goHome(); return;
@@ -704,6 +730,9 @@ function homeStack(L) {
       { k: 'tierLb', h: Math.round(F(13) * 1.60), gap: 8,  px: F(13) },
       { k: 'tiers',  h: B(40),                    gap: 6,  px: F(14) },
       { k: 'level',  h: Math.round(F(12) * 1.60), gap: 10, px: F(12) },
+      // ⭐ 让子（§6.7）排在**档位与开始按钮之间**：它是「这一局怎么开」的设置，
+      //   不是无障碍偏好 ⇒ ⛔ 别丢进下面那三行设置里（家长找不到 = 这条功能等于没做）。
+      { k: 'hcap',   h: B(46),                    gap: 12, px: F(14) },
       { k: 'ai',     h: B(52),                    gap: 12, px: F(16) },
       { k: 'human',  h: B(52),                    gap: 18, px: F(16) },
       { k: 'set1',   h: B(46),                    gap: 8,  px: F(14) },
@@ -766,6 +795,27 @@ function drawHome(L) {
 
   b = S.at('level');
   txt(T('game.level', { n: G.tier }), SW / 2, mid(b), C4Render.PAL.hudSub, b.px + 'px sans-serif');
+
+  // ⭐⭐ 让子（DESIGN §6.7）：「弱的一方可预置 1-2 枚子 —— 这是让全家人一起玩下去的唯一办法。」
+  //   左边把**预置子本身**画出来当图例（同 threatHints 那行的理由：让「让 2 子」是一件看得见
+  //   的事，⛔ 不要只写一行字让家长去猜到底会发生什么）。
+  //   ⚠ 右侧在求解器档下必须**如实说它这一局不生效**（§2.4：降级必须可见）——
+  //     ⛔ 绝不许「界面上写着让 2 子、开局却是普通局」。
+  const hcap = C4Settings.get('handicap');
+  const hcapOn = C4State.handicapAllowed('ai', G.tier);
+  b = S.at('hcap');
+  //   ⚠ 不生效时**只写那句「仅…」**，⛔ 别拼成「2 枚 · 仅轻松档与双人」——
+  //     settingRow 的值栏只有 `bw*0.5` 宽且 `wrapLines(…,1)` 只留一行，拼长了会被**截断**
+  //     （截断之后剩下的半句话比不写更糟）。枚数由左边的图例照常显示，信息没丢。
+  settingRow(bx, b.y, bw, b.h, T('menu.handicap'),
+             hcap === 0 ? T('menu.off')
+                        : (hcapOn ? T('menu.handicapN', { n: hcap }) : T('menu.handicapNA')),
+             hcap > 0 && hcapOn, 'CYCLE_HANDICAP', (x, gy, h) => {
+               if (hcap === 0) return x + 14;
+               const gs = Math.min(fsz(24), Math.round(h * 0.58));
+               for (let i = 0; i < hcap; i++) C4Render.drawGlyph(1, x + 12 + gs / 2 + i * (gs + 4), gy, gs);
+               return x + 20 + hcap * (gs + 4);
+             }, b.px);
 
   b = S.at('ai');
   btn(bx, b.y, bw, b.h, T('menu.vsAI'), 'PLAY_AI', {}, { disabled: dead, px: b.px });

@@ -2,10 +2,17 @@
 // sim-ai.js —— ⭐ 20 级阶梯的**蒙特卡洛校准台**（DESIGN §3.1：`p` 由本脚本校准到目标胜率，
 // 不是调参数试手感）。`npm run sim:c4`
 //
-// 三种模式，一条命令：
-//   --mode=ladder  （默认）参考玩家 vs 每一级，出「胜/和/负 + 当前 p」整张表  ⇒ **回归基线**
-//   --mode=sweep   固定一级、扫一串 p **或 blunder**（`--knob=`），出响应曲线       ⇒ **校准的依据**
-//   --mode=weights 第 1-5 级中路权重表的复算（等差 vs 出厂几何，相邻级与跨度）⇒ **兑现 ai.js 里那句欠账**
+// 四种模式，一条命令：
+//   --mode=ladder   （默认）参考玩家 vs 每一级，出「胜/和/负 + 当前 p」整张表  ⇒ **回归基线**
+//   --mode=sweep    固定一级、扫一串 p **或 blunder**（`--knob=`），出响应曲线       ⇒ **校准的依据**
+//   --mode=weights  第 1-5 级中路权重表的复算（等差 vs 出厂几何，相邻级与跨度）⇒ **兑现 ai.js 里那句欠账**
+//   --mode=handicap ⭐ 让子（DESIGN §6.7）真的改变胜负分布吗                  ⇒ **P2c Task 1 的验收**
+//
+// ⭐⭐ 为什么让子要**长在这个文件里**而不是另开一个脚本：本文件抬头那条「参考玩家 = 尺子」——
+//   量让子必须用**同一把尺子**，否则「让 2 子涨了多少」这句话没有可比的基线。⛔ 别为了「干净」
+//   把 refMove 抄一份出去（那正是本文件末尾那段删掉死导出的理由）。
+//   ⚠ 摆子也必须走产品的那一份实现：`C4State.placeHandicap` / `C4State.HANDICAP_COLS`
+//     ⇒ 模拟台和游戏摆的是**同一批格子**（⛔ 自己抄一份 = 量的不是这个产品）。
 //
 // ⭐ **要 A/B 候选曲线，用 `--pset=p6,…,p20`（求解器档）/ `--bset=b1,…,b5`（轻松档送头率），
 //   ⛔ 别去改 js/ai.js**：它们只改内存里的参数表，进程一死就没了。「跑之前改源码、跑完记得改回来」正是本仓栽过的那类事故
@@ -86,6 +93,9 @@ const R = require(path.join(DIR, '../js/rules-classic.js'));
 const S = require(path.join(DIR, '../js/solver.js'));
 const Book = require(path.join(DIR, '../js/book.js'));
 const AI = require(path.join(DIR, '../js/ai.js'));
+// ⭐ 让子只借它两样：`placeHandicap`（摆子）与 `HANDICAP_COLS`（摆哪几格）。
+//   ⛔ 别在这里 new 一个 G 出来 —— 模拟台跑的是裸 bitboard，走 state.js 会白搭一层分配。
+const St = require(path.join(DIR, '../js/state.js'));
 const PRNG = require(path.join(DIR, '../../../engine/prng.js'));
 const BOOK_PATH = path.join(DIR, '../data/book-classic.bin');
 
@@ -170,11 +180,20 @@ const MOVE_SALT = 7919;
  *   · `feeds`    = ⭐ **实际送头**的手（这一手让对手下一手就连四）。轻松档的明面指标；
  *     ⛔ 求解器档必须恒为 0（DESIGN §3.1 的按档分流，测试里是零容忍断言）。
  */
-function playVsRef(tier, gameIdx, seedBase, solid) {
-  const refFirst = (gameIdx % 2) === 0;          // ⭐ 先后手各半
+function playVsRef(tier, gameIdx, seedBase, solid, pre, aiFirst) {
+  // ⭐ 让子局里**强的一方（AI）恒先手**，⛔ 不再先后手各半 —— 与产品的规则逐字一致
+  //   （state.js 的 newGame：`if (handicap > 0) humanFirst = false`）。弱方既拿预置子又先走
+  //   是双重优势，量出来的数字会好看但那不是这个产品。
+  // ⚠ 于是「让 N 子」与「让 0 子（交替）」之间有**两处**不同（多了子 + 恒后手）⇒
+  //   modeHandicap 一定要把「让 0 子 + AI 恒先手」这一档也跑出来，否则分不清涨的是哪一半。
+  const hcap = (pre && pre.length) ? pre : null;
+  // ⚠ `aiFirst` 是**对照组**用的（让 0 子 + AI 恒先手）：少了它就没法回答「涨的到底是
+  //   让子还是先手」，而那正是这次验收唯一要回答的事。
+  const refFirst = (hcap || aiFirst) ? false : (gameIdx % 2) === 0;   // ⭐ 无让子时先后手各半
   const aiSeed = (seedBase + gameIdx * 104729) | 0;
   const refSeed = (seedBase ^ 0x5bf03635) + gameIdx * 40507;
-  let bd = B.newBoard();
+  // ⭐ 预置子归**参考玩家**（= 弱方）。摆子走产品那一份实现（⛔ 别在这里自己写重力）。
+  let bd = hcap ? St.placeHandicap(B.newBoard(), hcap, refFirst ? 0 : 1) : B.newBoard();
   let t, mistakes = 0, blunders = 0, feeds = 0, aiMoves = 0;
   while ((t = R.terminal(bd)) === null) {
     const refToMove = (bd.turn === 0) === refFirst;
@@ -240,7 +259,7 @@ function runJob(job) {
   for (let i = job.from; i < job.to; i++) {
     let s;
     if (job.kind === 'ref') {
-      const r = playVsRef(job.tier, i, job.seedBase, job.solid);
+      const r = playVsRef(job.tier, i, job.seedBase, job.solid, job.pre, job.aiFirst);
       s = r.s; mistakes += r.mistakes; blunders += r.blunders;
       feeds += r.feeds; aiMoves += r.aiMoves;
       if (r.blunders) blunderGames++;
@@ -340,6 +359,11 @@ function collect(results, ids) {
   for (const id of ids) {
     const a = acc[id];
     a.score = (a.wins + a.draws / 2) / a.n;
+    // ⭐ **真实标准误**（⛔ 不是抬头那个 0.5/√n 上界）：每局的得分是 {0, .5, 1} 上的一个随机变量，
+    //   E[s²] = (胜 + 和/4)/n ⇒ Var = E[s²] − 均值²。让子那边的胜率会跑到 .9 以上，
+    //   那里 0.5/√n 会把区间夸大近一倍 —— 「显著上升」这句结论必须用真区间说，别用上界糊。
+    a.sd = Math.sqrt(Math.max(0, (a.wins + a.draws * 0.25) / a.n - a.score * a.score));
+    a.se = a.sd / Math.sqrt(a.n);
     a.blunderGameRate = a.blunderGames / a.n;       // ⭐ 顶端可区分性看这一列
     a.blunderMoveRate = a.aiMoves ? a.blunders / a.aiMoves : 0;
     a.feedRate = a.aiMoves ? a.feeds / a.aiMoves : 0;   // ⭐ 实测送头率（难度页印这个）
@@ -353,7 +377,7 @@ function parseArgs(argv) {
   const o = {
     mode: 'ladder', games: 400, seedBase: 20260801, workers: Math.max(1, Math.min(20, require('os').cpus().length - 4)),
     tiers: null, ps: null, pset: null, bset: null, knob: 'p', tier: 12, q3: null,
-    keep: false, needBook: true, families: 4, json: false, ref: 'basic'
+    keep: false, needBook: true, families: 4, json: false, ref: 'basic', hcols: null
   };
   for (const a of argv) {
     const m = /^--([a-z0-9]+)(?:=(.*))?$/.exec(a);
@@ -373,6 +397,15 @@ function parseArgs(argv) {
       case 'keep': o.keep = true; break;
       case 'json': o.json = true; break;
       case 'tiers': o.tiers = expandRange(v); break;
+      case 'hcols':
+        // ⭐ 只覆盖 --mode=handicap 里那一档 A/B（h2c）。理由同 --pset/--bset：
+        //   ⛔ 别为了试另一种摆法去改 js/state.js 的 HANDICAP_COLS —— 「跑之前改源码、
+        //   跑完记得改回来」正是本仓栽过的事故。产品那两档恒从 C4State.HANDICAP_COLS 取。
+        o.hcols = v === '' ? [] : v.split(',').map(Number);
+        for (const c of o.hcols) {
+          if (!Number.isInteger(c) || c < 0 || c >= B.W) throw new Error('--hcols 里有非法列号：' + c);
+        }
+        break;
       case 'ps': o.ps = v.split(',').map(Number); break;
       case 'knob':
         if (v !== 'p' && v !== 'blunder') throw new Error('--knob 只有 p / blunder，收到 ' + v);
@@ -652,15 +685,150 @@ async function modeWeights(o) {
   return acc;
 }
 
+// ════════ ⭐⭐ 让子：它**真的**改变胜负分布吗（DESIGN §6.7 · P2c Task 1 的验收）════════
+//
+// ⛔⛔ 这一节存在的全部理由：**「盘上多了两枚子」不是验收。** 让子是给 5 岁孩子和家长
+//   打得有来有回用的；「有来有回」是一个**胜率**上的断言，只有蒙特卡洛答得了。
+//
+// ⭐ 四个（可选五个）对照档，缺一个结论就说不干净：
+//   · `h0-alt` 让 0 子 · 先后手各半  —— 与 DESIGN §3.1 那张阶梯表**同口径**的基线
+//   · `h0-ai`  让 0 子 · AI 恒先手   —— ⭐ **把「先手」那一半减掉的对照组**：让子局里 AI 恒先手，
+//                                      少了这一档，「让 1 子涨了 N 个点」里就分不清哪些是子、
+//                                      哪些只是「参考玩家从此恒后手」
+//   · `h1` / `h2` 产品的两档（HANDICAP_COLS）
+//   · `h2@3,3` ⭐ A/B：让 2 子**叠中列**。产品选了分放两列（[2,4]），⛔ 但那个选择必须有数据 ——
+//              「叠中列强得离谱」在实测之前只是一句猜想。
+//
+// ⚠ 只跑轻松档（1-5 级）：求解器档根本不许让子（让子局面在开局库里 100% 落空 ⇒ §9.2 的断崖，
+//   一手要几秒到几十分钟）。⛔ 别拿 `--tiers=12` 来跑这个模式，它会「看起来挂住了」。
+// ⚠ 标签由**实际摆的格子**现算（⛔ 别写死字符串：改一次 HANDICAP_COLS 就会出现
+//   「表头写着 [2,4]、量的是 [3,3]」——数字全对、结论全错，且没有一处会报错。实锤过一次）。
+const HCAP_ALT = [3, 2];   // A/B 那一档的默认备选摆法（`--hcols=` 可覆盖）
+const HCAP_CASES = [
+  { id: 'h0-alt', label: '让0子·交替先手', pre: [], aiFirst: false },
+  { id: 'h0-ai',  label: '让0子·AI恒先手', pre: [], aiFirst: true  },
+  { id: 'h1',     pre: null, aiFirst: true, hc: 1 },
+  { id: 'h2',     pre: null, aiFirst: true, hc: 2 },
+  { id: 'h2c',    pre: HCAP_ALT, aiFirst: true, ab: true }
+];
+const Z95 = 1.959964;
+
+async function modeHandicap(o) {
+  const tiers = o.tiers || [1, 3, 5];
+  const cases = HCAP_CASES.map(c => {
+    // ⭐ 产品的两档一律从 C4State.HANDICAP_COLS 取（⛔ 别在本文件写死格子：
+    //   那张表一调，这里就会静默地继续量旧格子）。`--hcols=` 只覆盖 A/B 那一档。
+    const pre = c.hc ? St.HANDICAP_COLS[c.hc].slice() : ((c.ab && o.hcols) ? o.hcols : c.pre);
+    const label = c.label || ((c.ab ? 'A/B 备选 让' : '让') + pre.length + '子 [' + pre.join(',') + ']');
+    return Object.assign({}, c, { pre: pre, label: label });
+  });
+  const jobs = [];
+  for (const t of tiers) {
+    for (const c of cases) {
+      jobs.push({
+        id: 't' + t + '|' + c.id, kind: 'ref', tier: t, from: 0, to: o.games,
+        seedBase: o.seedBase, solid: o.ref === 'solid', pre: c.pre, aiFirst: c.aiFirst
+      });
+    }
+  }
+  const t0 = Date.now();
+  const acc = collect(await runParallel(jobs, o), jobs.map(j => j.id));
+  const wall = (Date.now() - t0) / 1000;
+
+  console.log('\n⭐⭐ 让子（DESIGN §6.7）对胜负分布的影响 · 参考玩家[' + o.ref + '] · '
+    + o.games + ' 局/格 · seed ' + o.seedBase);
+  console.log('   ⚠ 让子局里 **AI 恒先手**（弱方既拿子又先走 = 双重优势）⇒ 必须对照 h0-ai 那一行读。');
+  console.log('   ⚠ 区间是 95% CI，标准误由**实测方差**算（⛔ 不是 0.5/√n 那个上界）。\n');
+  console.log('级别  对照档                    参考玩家 胜/和/负        得分率   95% CI              vs 让0子·AI先手');
+  const rows = [];
+  for (const t of tiers) {
+    const base = acc['t' + t + '|h0-ai'];
+    for (const c of cases) {
+      const a = acc['t' + t + '|' + c.id];
+      const lo = a.score - Z95 * a.se, hi = a.score + Z95 * a.se;
+      let delta = '';
+      if (c.id !== 'h0-ai') {
+        const d = a.score - base.score;
+        const sed = Math.sqrt(a.se * a.se + base.se * base.se);
+        // ⭐ 「显著」= 差值的 95% CI 不跨 0。⛔ 别用「点估计涨了」当结论（那是本仓的老毛病）。
+        const sig = Math.abs(d) > Z95 * sed;
+        delta = (d >= 0 ? '+' : '') + d.toFixed(3) + ' ±' + (Z95 * sed).toFixed(3)
+          + (sig ? (d > 0 ? '  ⭐显著上升' : '  ⚠显著下降') : '  （不显著）');
+      }
+      console.log(String(t).padStart(3) + '   ' + c.label.padEnd(24)
+        + (a.wins + '/' + a.draws + '/' + a.losses).padEnd(20)
+        + a.score.toFixed(3)
+        + ('[' + lo.toFixed(3) + ', ' + hi.toFixed(3) + ']').padStart(20) + '  ' + delta);
+      rows.push({ tier: t, id: c.id, score: a.score, se: a.se, n: a.n,
+                  base: base.score, baseSe: base.se });
+    }
+    console.log('');
+  }
+  console.log('（' + wall.toFixed(1) + 's · ' + o.workers + ' worker）');
+  return { gate: handicapGate(o, rows) };
+}
+
+// ⭐ 实测基线（2026-08-02，`npm run sim:c4:handicap` · 20,000 局/格 · seed 20260801 ·
+//   参数表指纹 da3c3d1d · 出厂 HANDICAP_COLS = [] / [3] / [3,3]）。**参考玩家得分率**：
+//
+//   级别            1      2      3      4      5
+//   让0子·交替    .889   .806   .687   .598   .513     ← 与 DESIGN §3.1 那张阶梯表同口径
+//   让0子·AI先手  .856   .752   .623   .531   .451     ← ⭐ 让子局的**同口径基线**
+//   让1子 [3]     .934   .883   .785   .715   .661
+//   让2子 [3,3]   .972   .946   .886   .839   .775
+//   （solid 尺子上同一组：让0子·AI先手 .914/.835/.729/.642/.562 →
+//     让1子 .969/.935/.869/.807/.752 → 让2子 .990/.977/.939/.905/.855）
+//
+//   ⭐ 读法：**每加一枚子，弱方的得分率抬约 +0.1 ~ +0.2**，且两把尺子上都单调。
+//     产品话术：第 5 级（轻松档顶）上「让 0 子 .451 → 让 1 子 .661 → 让 2 子 .775」——
+//     一个打不过家长的孩子，让两子之后**明显占上风**，这正是 §6.7 要的「有来有回」。
+//   ⚠ **如实记一笔**：第 1 级 + 让 2 子在 solid 尺子上是 **.990**（19803/13/184）——
+//     那不是「必胜」（还有 184 局是输的），但已经接近。⛔ 别把它当 bug 修：
+//     「最弱的一档 + 最大的让子」本来就是给 4-5 岁孩子的那个角落，压倒性正是它的用途。
+//
+// ⭐ 退出码门禁：**让子必须真的改变胜负分布**（⛔ 不是「盘上多了两枚子」）。
+//   判据 = 每一个跑到的级别上，`h1` 与 `h2` 相对 `h0-ai` 的**差值 95% CI 不跨 0 且为正**。
+//   ⚠ 局数不够就只打印不裁决（与 ladderGate 同一条纪律：判不动就别假装判了）。
+//   ⛔ 红了别改判据 —— 先确认是不是真把让子做没了（最常见的两种：`pre` 没进存档就被
+//     boardOf 忽略；或 UI 把让子静默降成 0）。
+function handicapGate(o, rows) {
+  const fails = [];
+  if (o.games < 400) {
+    console.log('\n⚠ 门禁跳过：--games=' + o.games + ' < 400，判不动');
+    return { ok: true, fails: [] };
+  }
+  for (const r of rows) {
+    if (r.id !== 'h1' && r.id !== 'h2') continue;
+    const d = r.score - r.base;
+    const half = Z95 * Math.sqrt(r.se * r.se + r.baseSe * r.baseSe);
+    if (!(d - half > 0)) {
+      fails.push('第 ' + r.tier + ' 级 ' + r.id + '：得分率 ' + r.score.toFixed(3)
+        + ' vs 让0子·AI先手 ' + r.base.toFixed(3) + '，差 ' + d.toFixed(3) + ' ±' + half.toFixed(3)
+        + ' ⇒ **没有显著上升**（让子没起作用，或者起的作用小到玩家感觉不到）');
+    }
+  }
+  if (fails.length) {
+    console.log('\n⛔ 让子门禁未通过（' + fails.length + ' 条）：');
+    for (const f of fails) console.log('   · ' + f);
+    return { ok: false, fails: fails };
+  }
+  console.log('\n✅ 让子门禁通过：每一级上让 1 子 / 让 2 子都**显著**高于同口径基线（差值 95% CI 不跨 0）');
+  return { ok: true, fails: [] };
+}
+
 async function main() {
   const o = parseArgs(process.argv.slice(2));
   if (o.mode === 'weights') o.needBook = false;
+  // ⚠ 让子只跑轻松档（1-5 级，一次求解器都不调）⇒ 不必有开局库，一局几十微秒。
+  //   ⛔ 但若有人硬传求解器档进来，needBook 仍要为真，否则它会「看起来挂住」而不是当场炸。
+  if (o.mode === 'handicap') o.needBook = (o.tiers || [1, 3, 5]).some(t => t >= AI.SOLVER_FROM);
   console.log('sim-ai · mode=' + o.mode + ' · ref=' + o.ref + ' · workers=' + o.workers + ' · seed=' + o.seedBase
     + ' · 参数表指纹 ' + AI.paramsDigest().hash);
   if (o.mode === 'ladder') return (await modeLadder(o)).gate;
   else if (o.mode === 'sweep') { await modeSweep(o); return null; }
   else if (o.mode === 'weights') { await modeWeights(o); return null; }
-  else throw new Error('不认识的 --mode=' + o.mode + '（ladder | sweep | weights）');
+  else if (o.mode === 'handicap') return (await modeHandicap(o)).gate;
+  else throw new Error('不认识的 --mode=' + o.mode + '（ladder | sweep | weights | handicap）');
 }
 
 if (isMainThread && require.main === module) {

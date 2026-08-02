@@ -132,13 +132,21 @@
    *
    * @param moves 这一局的落子列序列（= C4State 的 `g.moves`）
    * @param loser 输掉的那一方 0|1
+   * @param startBd ⭐ **重放的起点盘**，默认空盘。⚠ **让子局必须传**（P2c Task 1 · DESIGN §6.7）：
+   *   预置子不在 `moves` 里 ⇒ 从空盘重放出来的是**另一个局面**，于是这句话会指着一手根本
+   *   不存在的「制胜手」说「你差一手就赢了」—— 而画面上一切正常、零报错。
+   *   ⛔ 别在这里 require state.js 去自己取盘（那会把「零搜索的表现层」接到存档层上）：
+   *     调用方传 `C4State.boardOf(C4State.rewindTo(g, 0))` 即可，那正好就是「只有预置子」的盘。
+   *   ⚠ 认不出的 startBd（不是盘）⇒ 退回空盘，⛔ 不抛：本文件全是给每帧/结算调的表现层判据。
    * @returns null（没有过这样的一手 / 参数不对）或 { player, ply, cols }
    *   ply  = **1-based 的手序**（「第 ply 手该他走」，与 UI 上说的「第 N 手」同一个数）
    *   cols = 那一刻的制胜列（列序）
    */
-  function missedWin(moves, loser) {
+  function missedWin(moves, loser, startBd) {
     if (!Array.isArray(moves) || (loser !== 0 && loser !== 1)) return null;
-    let bd = B.newBoard();
+    const ok = startBd && Array.isArray(startBd.a) && Array.isArray(startBd.b)
+      && Array.isArray(startBd.h) && Number.isInteger(startBd.turn) && Number.isInteger(startBd.n);
+    let bd = ok ? B.clone(startBd) : B.newBoard();   // ⚠ clone：⛔ 绝不就地改调用方的盘
     for (let i = 0; i < moves.length; i++) {
       // ⚠ 两道前置：
       //   ① 只看**轮到 loser**的局面（问对手有没有制胜手是另一回事）；

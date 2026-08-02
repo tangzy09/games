@@ -49,15 +49,29 @@
       // ⭐ 舒适模式（DESIGN §6.8）：大字 + 更大点击窗。⚠ 用户画像 4 岁到 80 岁。
       //   默认**关**：它改的是版面尺寸，⛔ 不该替没提要求的人改掉界面（与 threatHints 相反，
       //   那一条默认开是因为「读不出三连」的人自己不知道要开）。
-      comfort: false
+      comfort: false,
+      // ⭐⭐ 让子（DESIGN §6.7，P2c Task 1）：弱的一方开局就有 0/1/2 枚子在盘上。
+      //   **默认 0** —— 它改的是**规则**，⛔ 绝不许替没提要求的人改掉一局棋的胜负条件
+      //   （与 comfort 同一条判据；threatHints 默认开是因为它只加信息、不动规则）。
+      //   ⚠ 值域是**数字枚举**（不是布尔）：0/1/2 三档，UI 上点一下 cycle 一档。
+      //     ⛔ 别写成 `handicapOn: boolean` + 另一个「几枚」——两个字段表达一件事，
+      //       必然出现「开着但 0 枚」这种谁都读不懂的状态。
+      //   ⚠ 具体摆哪几格由 `C4State.HANDICAP_COLS` 说了算（**产品数值**，本文件只存档位）。
+      handicap: 0
     };
   }
 
   /** ⭐ 取值受限的字段（**闭合枚举**）：merge 遇到不在表里的值退回默认，`set` 直接抛。
    *  ⛔ 光靠 `typeof` 是不够的：三态存的是字符串，`set('reduceMotion','yes')` 类型完全合法，
    *    存进去之后 motionReduced 会当成 'auto' 处理 —— 用户选的「强制关」变成「跟随系统」，
-   *    零报错。⇒ 枚举必须自己有一道校验。 */
-  const ENUMS = Object.freeze({ reduceMotion: Object.freeze(['auto', 'on', 'off']) });
+   *    零报错。⇒ 枚举必须自己有一道校验。
+   *  ⚠ 枚举**不必是字符串**：`handicap` 是 [0,1,2]，`indexOf` 对数字一样精确
+   *    （⛔ 别改成范围判断 `0<=v<=2`：那会放行 1.5 —— 类型是 number、范围也对，
+   *      而 `HANDICAP_COLS[1.5]` 是 undefined ⇒ 开局当场炸在别处，追不回这里）。 */
+  const ENUMS = Object.freeze({
+    reduceMotion: Object.freeze(['auto', 'on', 'off']),
+    handicap: Object.freeze([0, 1, 2])
+  });
 
   /**
    * ⭐ 三态 → 「这一刻到底减不减动态」。**纯函数**（⇒ node 侧门禁能把真值表逐格钉死）。
