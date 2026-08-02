@@ -122,7 +122,9 @@ execSync([
   AUDIO ? `-map 0:v -map "${AUDIO}"` : '-map 0:v -an',
   `-ss ${TRIM} -t ${DUR}`,   // ⚠ 切头后仍要留满 DUR，写 DUR-TRIM 会砍掉片尾结尾卡
   '-r 30 -c:v libx264 -profile:v high -pix_fmt yuv420p -crf 20 -preset slow',
-  AUDIO ? '-c:a aac -b:a 192k -ar 44100' : '',
+  // ⛔ 音轨必须**立体声**：单声道传上去苹果转码直接拒（错误码 MOV_RESAVE_STEREO，实锤）。
+  //   纯音效轨混出来是 1ch ⇒ 这里显式 -ac 2。
+  AUDIO ? '-c:a aac -b:a 192k -ar 44100 -ac 2' : '',
   '-movflags +faststart',
   `"${OUT}"`,
 ].filter(Boolean).join(' '), { stdio: 'inherit' });

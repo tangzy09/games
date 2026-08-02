@@ -47,6 +47,21 @@ ffmpeg -i out.mp4 -filter_complex "[0:a]showwavespic=s=1000x220[v]"  -map "[v]" 
 ffmpeg -i out.mp4 -af ebur128=peak=true -f null -                                                                 # LUFS / True peak
 ```
 
+## 传进 App Store
+
+```bash
+node games/snake/tools/preview/upload-preview.cjs <appStoreVersionId> [locale...]
+```
+
+不给 locale 默认传四个英文 locale（片子是英文字幕，其余 locale 苹果自动回落到主语言）。
+幂等（先删旧片再传），并设了海报帧 `00:00:11:00`（过关那一幕：完整天使 + 三星）。
+
+- ⛔ **音轨必须立体声**：单声道传上去苹果转码直接拒，错误码 **`MOV_RESAVE_STEREO`**（实锤，四个 locale 全拒）。
+  纯音效轨混出来是 1ch ⇒ 编码时显式 `-ac 2`。
+- ⚠ 预览片是**异步转码**的：传完先是 `UPLOAD_COMPLETE` / `video=PROCESSING`，要轮询到 `COMPLETE` 才算数。
+  苹果在这一步才校验分辨率/时长/编码，失败信息在 `assetDeliveryState.errors` / `videoDeliveryState.errors`。
+- ⛔ 版本一进 `WAITING_FOR_REVIEW`，预览片和截图一样锁死 ⇒ **先传后提审**。
+
 ## 踩过的坑（都已写进代码注释）
 
 - **黑幕切头要用实测值**：`ffmpeg -i preview-raw.webm -vf blackdetect=d=0.2:pix_th=0.10 -an -f null -`
