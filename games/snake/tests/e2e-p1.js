@@ -82,11 +82,11 @@ async function main() {
   assert(revLen >= lenAtDeath, `revive keeps snake length, not halved (${lenAtDeath} -> ${revLen})`);
 
   // 已去掉「AI 代打」;用「救场 AI 一直代驾」通关(救场借用同一 AI 哈密顿路径)。
-  // rescueUntil 设极大值 → nowMs 永远够不到 → 救场不到期、不触发停下,AI 代驾到通关。
+  // aiOn=true → 免费 AI 代驾到通关(2026-08-01：旧版靠 rescueUntil 设极大值撑住限时救场)。
   await page.evaluate(() => {
     if (window.G.phase === 'DEAD') dispatch('RESPAWN');
     if (window.G.phase === 'READY') dispatch('START');
-    window.G.rescueUntil = 1e15;
+    window.G.aiOn = true;
   });
   const deathsAtAiStart = await page.evaluate(() => window.G.run.deaths);
   log(`deaths at AI start: ${deathsAtAiStart}`);
@@ -98,11 +98,11 @@ async function main() {
     await page.waitForTimeout(1000);
     const st = await page.evaluate(() => window.G.phase);
     if (st === 'LEVEL_DONE') { reachedLevelDone = true; break; }
-    if (st === 'DEAD') await page.evaluate(() => { dispatch('RESPAWN'); window.G.rescueUntil = 1e15; });
+    if (st === 'DEAD') await page.evaluate(() => { dispatch('RESPAWN'); window.G.aiOn = true; });
   }
   const elapsedSec = ((Date.now() - t0) / 1000).toFixed(1);
-  assert(reachedLevelDone, `rescue-AI reached LEVEL_DONE within ${timeoutMs / 1000}s (took ${elapsedSec}s)`);
-  log(`rescue-AI cleared level in ${elapsedSec}s`);
+  assert(reachedLevelDone, `AI reached LEVEL_DONE within ${timeoutMs / 1000}s (took ${elapsedSec}s)`);
+  log(`AI cleared level in ${elapsedSec}s`);
 
   // 果子系统集成:AI 通关一整关,特殊果必然刷过、且 AI 吃到过
   const fruitsProbe = await page.evaluate(() => ({
@@ -138,7 +138,11 @@ async function main() {
     runAchs: window.G.save.ach.unlocked.filter(id => id.startsWith('r_')).length,
   }));
   assert(achProbe.unlocked.includes('img_1'), `img_1 unlocked after first clear (got ${achProbe.unlocked.join(',')})`);
-  assert(achProbe.runAchs >= 1, `clear unlocks per-level achievements (got ${achProbe.runAchs})`);
+  // ⭐ AI 免费开放后的防刷边界(2026-08-01,引擎既有逻辑,这里钉死):
+  //    AI 局**只给累计成就**(img_*/aic_*/levelsCleared…),**单局成就 r_* 与纪录一律不给**。
+  //    本关是 AI 代驾清的 ⇒ runAchs 必须是 0;人工局才拿得到(见 test-achievements)。
+  assert(achProbe.runAchs === 0, `AI 局不解锁单局成就 r_*(got ${achProbe.runAchs})`);
+  assert(achProbe.unlocked.includes('aic_1'), `AI 通关计入 aiClears 系列(got ${achProbe.unlocked.join(',')})`);
   // 存档续玩:reload 后 stats 保留
   const applesBefore = await page.evaluate(() => window.G.save.stats.apples);
   await page.reload({ waitUntil: 'load' });
@@ -184,34 +188,38 @@ async function main() {
       : 'missing');
   assert(shareRes === 'downloaded', `shareCard falls back to download in headless (got ${shareRes})`);
 
-  // —— AI 救场 30s:tracker.aiRun=false 的全分人工局(救场借 AI 路径,不降级)——
-  let rescueOk = false;
-  for (let attempt = 0; attempt < 5 && !rescueOk; attempt++) {
+  // —— ⭐ AI 代打:**免费开关**(2026-08-01 改;旧版是「看 30s 广告换代驾」,已作废)——
+  //    钉三件事:① 开它零广告调用 ② 真的在代驾 ③ 用过就标记 aiUsedThisLevel(星级封顶 ★1)
+  let adCalls = 0;
+  page.on('dialog', () => { adCalls++; });          // 已有 accept 监听;这条只计数
+  let aiOk = false;
+  for (let attempt = 0; attempt < 5 && !aiOk; attempt++) {
     const ph = await page.evaluate(() => window.G.phase);
     if (ph === 'DEAD') await page.evaluate(() => dispatch('RESPAWN'));
     else if (ph === 'READY') await page.evaluate(() => dispatch('START'));
-    await page.evaluate(() => dispatch('RESCUE'));
-    await page.waitForTimeout(800);                     // confirm 模拟 400ms 后发放奖励
-    rescueOk = await page.evaluate(() =>
-      window.G.phase === 'PLAYING' && window.G.rescueUntil > (window.G.nowMs || 0));
+    await page.evaluate(() => { if (!window.G.aiOn) dispatch('AI_TOGGLE'); });
+    await page.waitForTimeout(300);
+    aiOk = await page.evaluate(() => window.G.phase === 'PLAYING' && window.G.aiOn === true);
   }
-  assert(rescueOk, 'RESCUE activates (rescueUntil > nowMs while PLAYING)');
+  assert(aiOk, 'AI_TOGGLE turns AI on while PLAYING');
+  assert(adCalls === 0, '⛔ AI 代打零广告调用(核心体验不锁广告)');
   const posBefore = await page.evaluate(() => JSON.stringify(window.G.run.snake[0]) + '/' + window.G.run.revealedCount);
   await page.waitForTimeout(3000);
-  const rescueProbe = await page.evaluate(() => ({
+  const aiProbe = await page.evaluate(() => ({
     pos: JSON.stringify(window.G.run.snake[0]) + '/' + window.G.run.revealedCount,
-    phase: window.G.phase, aiRun: window.G.tracker.aiRun,
+    phase: window.G.phase, used: window.G.aiUsedThisLevel, saved: window.G.save.settings.aiOn,
   }));
-  assert(rescueProbe.pos !== posBefore && rescueProbe.phase === 'PLAYING',
-    `snake alive & moving under rescue AI (${posBefore} -> ${rescueProbe.pos})`);
-  assert(rescueProbe.aiRun === false, 'rescue is NOT an AI run (tracker.aiRun=false, 全分)');
+  assert(aiProbe.pos !== posBefore && aiProbe.phase === 'PLAYING',
+    `snake alive & moving under free AI (${posBefore} -> ${aiProbe.pos})`);
+  assert(aiProbe.used === true, 'AI 用过 ⇒ aiUsedThisLevel=true(结算星级封顶 ★1)');
+  assert(aiProbe.saved === true, 'AI 开关持久化到 settings.aiOn');
 
-  // —— 插屏每 2 关:救场 AI 清完第 2 关 → 人工 NEXT 触发插屏,计数归 0 ——
+  // —— 插屏闸门:AI 清完第 2 关 → 人工 NEXT;蜜月期(前 50 关)应当零插屏 ——
   await page.evaluate(() => {
     if (window.G.phase === 'PAUSED') dispatch('RESUME');
     if (window.G.phase === 'DEAD') dispatch('RESPAWN');
     if (window.G.phase === 'READY') dispatch('START');
-    window.G.rescueUntil = 1e15;   // 救场 AI 代驾清完本关
+    window.G.aiOn = true;   // 免费 AI 代驾清完本关
   });
   let done2 = false;
   const t2 = Date.now();
@@ -219,14 +227,14 @@ async function main() {
     await page.waitForTimeout(1000);
     const st2 = await page.evaluate(() => window.G.phase);
     if (st2 === 'LEVEL_DONE') { done2 = true; break; }
-    if (st2 === 'DEAD') await page.evaluate(() => { dispatch('RESPAWN'); window.G.rescueUntil = 1e15; });
-    else if (st2 === 'READY' || st2 === 'PAUSED') await page.evaluate(() => { dispatch(window.G.phase === 'PAUSED' ? 'RESUME' : 'START'); window.G.rescueUntil = 1e15; });
+    if (st2 === 'DEAD') await page.evaluate(() => { dispatch('RESPAWN'); window.G.aiOn = true; });
+    else if (st2 === 'READY' || st2 === 'PAUSED') await page.evaluate(() => { dispatch(window.G.phase === 'PAUSED' ? 'RESUME' : 'START'); window.G.aiOn = true; });
   }
   if (!done2) {
     const diag = await page.evaluate(() => ({ phase: window.G.phase, revealed: window.G.run.revealedCount, deaths: window.G.run.deaths }));
     log('level-2 wait diag: ' + JSON.stringify(diag));
   }
-  assert(done2, 'rescue-AI cleared level 2 within 300s');
+  assert(done2, 'AI cleared level 2 within 300s');
   // ⭐ 广告闸门（adgate.js，2026-07-31 全仓对齐）——旧断言钉的是「每 2 关一插屏」，已作废。
   //    现在钉的是新策略：**新玩家（前 50 关）一个插屏都不出**。
   const sinceBefore = await page.evaluate(() => window.G.save.stats.levelsSinceAd);

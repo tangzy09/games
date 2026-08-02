@@ -6,8 +6,19 @@
   "ads": {
     "simWatch": "[Ad simulation] Watch a rewarded ad?",
     "simInterstitial": "[Ad simulation] Interstitial ad",
-    "revive": "📺 Revive (ad)",
-    "rescue": "📺 AI 30s"
+    "revive": "Revive",
+    "rescue": "📺 AI 30s",
+    "gal3": "Watch an ad → {n} angels",
+    "daily2": "Watch an ad → {n} more angels",
+    "left": "{n} left today",
+    "boost": "All power-ups",
+    "boostGot": "All power-ups!",
+    "quest": "Watch an ad → finish a quest",
+    "repair": "Watch an ad → restore {n}-day streak",
+    "double": "Ad → +{n} angels",
+    "skin": "Watch an ad → unlock a skin",
+    "reviveGot": "+{n} lives · {s}s invincible",
+    "boostSub": "+{n} lives · {s}s invincible"
   },
   "snake": {
     "score": "Score",
@@ -72,7 +83,9 @@
     "streak": "{n}-day streak 🔥",
     "newAngel": "New angel unlocked!",
     "allCollected": "All angels collected!",
-    "ok": "Lovely!"
+    "ok": "Lovely!",
+    "reward": "Day {d} streak reward: +{n} angels!",
+    "rewardBadge": "{n}-day reward"
   },
   "set": {
     "complete": "Set complete!"
@@ -258,7 +271,7 @@
   },
   "q": {
     "title": "Daily Quests",
-    "reward": "Each quest unlocks 1 angel",
+    "reward": "Each quest unlocks {n} angels",
     "done": "Quest complete!",
     "allDone": "All done today — see you tomorrow!",
     "apples": "Eat {n} apples",
@@ -266,7 +279,9 @@
     "cells": "Reveal {n} tiles",
     "special": "Eat {n} special fruits",
     "combo": "Hit a {n}x combo in one run",
-    "noDeath": "Finish {n} pictures without dying"
+    "noDeath": "Finish {n} pictures without dying",
+    "bonusHint": "Finish all 3 → +{n} bonus angels",
+    "allDoneBonus": "All quests done!"
   },
   "stats": {
     "title": "Statistics",
@@ -293,5 +308,37 @@
     "dailyB": "Claim your daily angel and keep the streak alive.",
     "streakT": "Your streak ends tonight!",
     "streakB": "{n} days on the line — one tap claims today’s angel."
+  },
+  "ai": {
+    "start": "AI play",
+    "stop": "Stop AI",
+    "on": "AI playing"
+  },
+  "lvl": {
+    "t1": "Fledgling",
+    "t2": "Wanderer",
+    "t3": "Skywalker",
+    "t4": "Halo Bearer",
+    "t5": "Archangel",
+    "t6": "Seraph",
+    "lv": "Lv {n}",
+    "next": "{n} to next level"
+  },
+  "ladder": {
+    "title": "Angel Ladder",
+    "sub": "Twenty angels of the choir, ranked by lifetime score. Pass them one by one.",
+    "you": "You",
+    "beaten": "{n} / {m} passed",
+    "next": "{n} more to pass {name}",
+    "passed": "Passed {name}!",
+    "top": "You have passed every angel of the choir."
+  },
+  "goal": {
+    "title": "Next up",
+    "quests": "Today's quests {n}/{m}",
+    "streak": "{n} more days → +{a} angels",
+    "set": "{n} more to finish this set",
+    "ladder": "{n} points to pass {name}",
+    "level": "{n} points to level {l}"
   }
 }

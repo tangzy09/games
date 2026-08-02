@@ -43,10 +43,10 @@ async function click(page, action, dm){
   await page.evaluate(()=>{ if(G.phase==='INTRO') dispatch('INTRO_GO'); });
   await page.waitForTimeout(80);
 
-  // 真实用户路径：菜单 -> 设置
-  ok(await click(page,'MENU'), '菜单可进');
-  await page.waitForTimeout(120);
-  ok(await click(page,'SET'), '⭐ 设置页有入口（此前这四个功能玩家一个都开不了）');
+  // 真实用户路径：'‹' -> 🏠 主界面 -> ⋯ 更多 -> 菜单 -> 设置
+  ok(await click(page,'HOME'), "PLAY 顶栏 '‹' 回主界面");
+  await page.waitForTimeout(300);
+  ok(await click(page,'SET'), '⭐ 设置页有入口（主界面底栏,此前这四个功能玩家一个都开不了）');
   await page.waitForTimeout(150);
   ok(await page.evaluate(()=>G.phase==='SET'), '进入设置页');
   await page.screenshot({path:path.join(SHOT,'p8-01-settings.png')});

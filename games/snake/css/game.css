@@ -13,15 +13,44 @@ body { background: #fdf3f7; }
 /* 成就解锁 toast */
 #toasts { position: fixed; top: calc(max(env(safe-area-inset-top), 44px) + 8px); left: 50%; transform: translateX(-50%);
   z-index: 30; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+/* 主界面 AI 代打开关:开着时高亮(与局内按钮同语义) */
+.home-foot button.on { background: #2fbf71; color: #fff; }
+/* 自愿激励位按钮(图鉴 +3 / 每日礼物 +1):绿色、显眼但不挡内容 */
+.gal-ad, .daily-ad { display: block; width: 100%; margin: 4px 0 12px; padding: 11px;
+  border: none; border-radius: 14px; background: #2fbf71; color: #fff;
+  font: 700 14px sans-serif; cursor: pointer; }
+.gal-ad:disabled, .daily-ad:disabled { opacity: .55; }
+.gal-ad small { display: block; font: 400 11px sans-serif; opacity: .85; margin-top: 2px; }
 /* 每日任务:进度条 + 说明行(复用 .ach-item 的行样式,只补这三条) */
-.q-bar { height: 7px; border-radius: 4px; background: #f6ecf4; margin: 0 8px 12px; overflow: hidden; }
+.q-bar { height: 7px; border-radius: 4px; background: #f6ecf4; margin: -2px 12px 12px; overflow: hidden; }
 .q-bar i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, #f7a8c8, #d6336c); }
 .q-sub, .q-all { font: 500 12px sans-serif; color: #b39ddb; text-align: center; padding: 6px 0 10px; }
-/* 统计页:两列数据格 */
-.st-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; padding-top: 6px; }
-.st-cell { background: #fff6fb; border-radius: 12px; padding: 10px 6px; text-align: center; }
-.st-cell b { display: block; font: 700 17px sans-serif; color: #d6336c; }
-.st-cell span { font: 500 11px sans-serif; color: #b39ddb; }
+/* 任务行的图标是「任务类型」(苹果/闪电/钥匙),不是成就徽章 ⇒ 不套锁定的降透明度 */
+.ach-item.qrow .medal { opacity: 1; background: #fdf1f8; }
+.ach-item.qrow .nm { color: #7a5c72; }
+
+/* ── 共享 UI 图标(engine/ui-icons.js + engine/assets/ui/)的 snake 专属调整 ──
+   `.uic` / `.uic.inl` / `.uic.fill` 的基础样式在 **engine/engine.css**,别在这里重复。 */
+/* ⚠ 图标是「浅色 + 白描边」的贴纸风,压在深色/彩色按钮上会糊成一团白 ⇒ 补一层投影脱开底色 */
+#home .home-daily .uic { filter: drop-shadow(0 1px 2px rgba(160,90,30,.45)); }
+/* 统计页:两列数据格。16 个同色数字扫过去像账单 ⇒ 加图标 + 按语义分四色 */
+.st-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; padding-top: 6px; }
+.st-cell { position: relative; background: #fff6fb; border-radius: 14px; padding: 11px 8px 10px;
+  text-align: center; box-shadow: inset 0 0 0 1px rgba(255,255,255,.9); overflow: hidden; }
+/* 图标做**角标水印**而不是独占一行——这一页的价值在于「16 项一屏摆出来」(沉没成本可视化),
+   给每格加一行就要多滚两屏,视觉是好看了,页面的作用反而没了 */
+.st-cell .ic { position: absolute; right: 7px; top: 5px; font-size: 15px; opacity: .55; }
+.st-cell b { display: block; font: 800 19px sans-serif; color: #d6336c; letter-spacing: -.3px; }
+.st-cell span { font: 500 11px sans-serif; color: #a992b6; }
+/* 四类:收集(粉)/战绩(紫)/受挫(灰粉)/习惯(金) —— 一眼分组,不用读标签 */
+.st-cell.c-col { background: linear-gradient(160deg, #fff2f8, #ffe8f3); }
+.st-cell.c-col b { color: #d6336c; }
+.st-cell.c-ply { background: linear-gradient(160deg, #f4f0ff, #ece5ff); }
+.st-cell.c-ply b { color: #6f4fb5; }
+.st-cell.c-hrd { background: linear-gradient(160deg, #f6f4f6, #efe9ef); }
+.st-cell.c-hrd b { color: #8d7a8c; }
+.st-cell.c-hab { background: linear-gradient(160deg, #fff8e8, #fff0cf); }
+.st-cell.c-hab b { color: #c08a10; }
 .ach-toast { background: #fff; color: #7a5c72; border-radius: 14px; padding: 10px 18px;
   font: 600 14px/1.2 sans-serif; box-shadow: 0 6px 20px rgba(183,142,180,.35);
   animation: toastIn .3s ease; }
@@ -30,40 +59,97 @@ body { background: #fdf3f7; }
 
 /* 成就墙浮层(DOM:120 徽章滚动列表) */
 .hidden { display: none !important; }
-#panel { position: fixed; inset: 0; background: rgba(122,92,114,.45); z-index: 20;
-  display: flex; align-items: center; justify-content: center; }
+#panel { position: fixed; inset: 0; background: rgba(122,92,114,.42); z-index: 20;
+  display: flex; align-items: center; justify-content: center;
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
 #panel-card { background: #fff; border-radius: 22px; width: min(92vw, 420px); height: min(80vh, 640px);
   display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 12px 40px rgba(0,0,0,.18); }
+/* 卡片顶部一道粉彩色带 + 标题左侧竖条:白底大面板不至于「一片死白」 */
 #panel-head { display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 18px; font: 800 18px sans-serif; color: #7a5c72; }
-#panel-close { border: 0; background: #f6d5e5; border-radius: 10px; width: 32px; height: 32px; font-size: 14px; }
+  padding: 15px 18px 13px; font: 800 18px sans-serif; color: #7a5c72;
+  background: linear-gradient(180deg, #fff6fb, #fff);
+  border-bottom: 1px solid #fbe6f2; }
+#panel-title { position: relative; padding-left: 12px; }
+#panel-title::before { content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+  width: 4px; height: 18px; border-radius: 3px; background: linear-gradient(#f489b6, #d6336c); }
+#panel-close { border: 0; background: #f6d5e5; border-radius: 10px; width: 32px; height: 32px; font-size: 14px;
+  color: #a85d7a; transition: background .15s, transform .1s; }
+#panel-close:active { transform: scale(.92); background: #efc0d9; }
 #panel-tabs { display: flex; gap: 8px; padding: 0 18px 10px; }
 .ptab { flex: 1; border: 0; border-radius: 12px; padding: 8px 0; font: 600 14px sans-serif;
   background: #f6d5e5; color: #7a5c72; }
 .ptab.on { background: #e79cc2; color: #fff; }
 #panel-body { flex: 1; overflow-y: auto; padding: 6px 14px 18px; }
-.ach-item { display: flex; align-items: center; gap: 10px; padding: 8px 6px;
-  border-bottom: 1px solid #f6d5e5; }
-.ach-item .medal { font-size: 22px; filter: grayscale(1) opacity(.35); }
-.ach-item.got .medal { filter: none; }
-.ach-item .nm { font: 600 14px sans-serif; color: #7a5c72; }
-.ach-item.got .nm { color: #d6336c; }
+/* 成就行:解锁的做成金色卡片(一眼看出「我拿到了哪些」),未解锁的留白 + 细进度条 */
+.ach-item { display: flex; align-items: center; gap: 10px; padding: 9px 10px;
+  border-radius: 13px; margin-bottom: 2px; }
+/* ⚠ 未解锁不再靠 `filter: grayscale` —— 现在两档各有自己的 Flux 图(金翼星章/灰石章),
+   再套滤镜会把灰石章压成一团脏灰。 */
+.ach-item .medal { font-size: 20px; flex: none;
+  width: 36px; height: 36px; border-radius: 11px; background: #f7f2f6;
+  display: grid; place-items: center; opacity: .6; }
+.ach-item.got .medal { opacity: 1; background: linear-gradient(#fff2cc, #ffe08a);
+  box-shadow: 0 2px 8px rgba(214,160,40,.28); }
+.ach-item .nm { font: 600 14px sans-serif; color: #9b8394; }
+.ach-item.got { background: linear-gradient(90deg, #fffaf0, #fff5e2); }
+.ach-item.got .nm { color: #a06a12; font-weight: 700; }
 .ach-item .pg { margin-left: auto; font: 500 12px sans-serif; color: #b39ddb; white-space: nowrap; }
+.ach-item.got .pg { color: #c9a227; }
+/* 成就页顶部总进度(x/120) */
+.ach-head { display: flex; flex-direction: column; gap: 6px; padding: 4px 8px 12px; }
+.ach-head .t { display: flex; align-items: baseline; font: 700 13px sans-serif; color: #a85d7a; }
+.ach-head .t b { margin-left: auto; font: 800 15px sans-serif; color: #d6336c; }
+.ach-head .b { height: 9px; border-radius: 5px; background: #f6ecf4; overflow: hidden; }
+.ach-head .b i { display: block; height: 100%; border-radius: 5px;
+  background: linear-gradient(90deg, #ffd36e, #f489b6); transition: width .4s; }
+/* 未解锁成就的细进度条(挨着行,不进 .ach-item ⇒ 不影响 E2E 的计数断言) */
+.ach-pg { height: 5px; border-radius: 3px; background: #f7f0f6; margin: 0 12px 8px; overflow: hidden; }
+.ach-pg i { display: block; height: 100%; border-radius: 3px;
+  background: linear-gradient(90deg, #f7c8dd, #e79cc2); }
 
 /* 皮肤面板 */
 .skin-card { display: flex; align-items: center; gap: 12px; padding: 12px 10px;
-  border: 2px solid transparent; border-radius: 14px; margin-bottom: 8px; }
-.skin-card.on { border-color: #e79cc2; }
-.skin-card.locked { opacity: .55; }
-.skin-sw { width: 56px; height: 36px; border-radius: 10px; display: flex; overflow: hidden; }
-.skin-sw i { flex: 1; }
-.skin-nm { font: 600 14px sans-serif; color: #7a5c72; }
-.skin-tip { margin-left: auto; font: 500 12px sans-serif; color: #7a5c72; opacity: .8; }
+  border: 2px solid transparent; border-radius: 16px; margin-bottom: 8px;
+  background: #fffafd; transition: transform .1s, box-shadow .15s; }
+.skin-card:not(.locked):active { transform: scale(.985); }
+.skin-card.on { border-color: #e79cc2; background: linear-gradient(90deg, #fff4fa, #ffeaf4);
+  box-shadow: 0 4px 14px rgba(231,156,194,.3); }
+.skin-card.locked { opacity: .6; }
+/* 缩略预览是一张真盘面(canvas → dataURL),不是色带 */
+.skin-sw { flex: none; width: 62px; height: 62px; border-radius: 14px; object-fit: cover;
+  box-shadow: 0 3px 10px rgba(183,142,180,.3), inset 0 0 0 2px rgba(255,255,255,.85); }
+.skin-card.locked .skin-sw { filter: grayscale(.7) brightness(.94); }
+.skin-mid { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.skin-nm { font: 700 14px sans-serif; color: #7a5c72; }
+.skin-card.on .skin-nm { color: #d6336c; }
+.skin-pg { height: 6px; border-radius: 4px; background: #f2ebf1; overflow: hidden; }
+.skin-pg i { display: block; height: 100%; border-radius: 4px;
+  background: linear-gradient(90deg, #f7c8dd, #e79cc2); }
+.skin-tip { flex: none; font: 500 12px sans-serif; color: #7a5c72; opacity: .8; text-align: right; }
 
-/* 图鉴 */
-.gal-set { display: flex; align-items: center; gap: 10px; padding: 10px 8px;
-  border-bottom: 1px solid #f6d5e5; font: 600 14px sans-serif; color: #7a5c72; }
-.gal-set .pg { margin-left: auto; font-weight: 500; font-size: 12px; color: #b39ddb; }
+/* 图鉴:25 集列表。收集游戏的门面 ⇒ 每集带一张已解锁的缩略图 + 进度条,别只放一行字 */
+.gal-set { display: flex; align-items: center; gap: 12px; padding: 9px 8px;
+  border-radius: 14px; margin-bottom: 4px; font: 600 14px sans-serif; color: #7a5c72;
+  transition: background .15s, transform .1s; }
+.gal-set:active { transform: scale(.985); background: #fdf3f8; }
+.gal-set .th { flex: none; width: 46px; height: 46px; border-radius: 12px; object-fit: cover;
+  background: #f6ecf4; box-shadow: 0 3px 10px rgba(183,142,180,.28); }
+.gal-set .th.lock { display: grid; place-items: center; font-size: 18px; opacity: .5;
+  box-shadow: none; }
+.gal-set .mid { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.gal-set .nm { display: flex; align-items: baseline; gap: 6px; }
+.gal-set .pg { margin-left: auto; font-weight: 600; font-size: 12px; color: #b39ddb; white-space: nowrap; }
+.gal-set .gb { height: 6px; border-radius: 4px; background: #f6ecf4; overflow: hidden; }
+.gal-set .gb i { display: block; height: 100%; border-radius: 4px;
+  background: linear-gradient(90deg, #f7a8c8, #d6336c); transition: width .4s; }
+/* 集齐:整行转金 + 名字后跟一顶小金冠,给「差 3 张就集齐」一个明确的目标物 */
+.gal-set.full { background: linear-gradient(90deg, #fffaf0, #fff3dc); }
+.gal-set.full .pg { color: #c9a227; }
+.gal-set.full .gb i { background: linear-gradient(90deg, #ffd36e, #f0a500); }
+/* ⚠ 皇冠不再走 CSS 的 url():图标搬进了**引擎共享库**,而 engine 相对路径在
+   「网页版(games/x/css/)」和「iOS 包(www/css/)」下不一样,css 里写死必错一边。
+   改成由 JS 用 UIIcon.img() 渲一个 <img class="crown">(运行时算路径,两边都对)。 */
+.gal-set.full .nm .crown { width: 15px; height: 15px; flex: none; align-self: center; }
 .gal-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding-top: 8px; }
 .gal-grid img { width: 100%; aspect-ratio: 1; border-radius: 10px; object-fit: cover; }
 .gal-grid img.locked { filter: grayscale(1) brightness(.35); }
@@ -75,31 +161,192 @@ body { background: #fdf3f7; }
 
 /* ============ 主界面(启动/暂停 hub;DOM 浮层,不改 phase 机) ============ */
 #home { position: fixed; inset: 0; z-index: 20; display: flex;
-  flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  flex-direction: column; align-items: center; justify-content: center; gap: 13px;
   padding: calc(env(safe-area-inset-top) + 20px) 24px calc(env(safe-area-inset-bottom) + 24px);
   background:
     radial-gradient(120% 80% at 50% 0%, #fff6fb 0%, #fbe6f2 42%, #f6d5e5 100%);
   overflow-y: auto; }
-#home .home-hero { width: min(58vw, 232px); aspect-ratio: 1; border-radius: 28px;
+/* ── 天国开场:天空 → 光柱 → 飘落的羽毛 → 云海,四层叠出来 ──
+   ⚠ 绝对定位的装饰会盖住未定位的子元素 ⇒ 装饰整块 z-index:0 + 内容 z-index:1 */
+/* ⚠ 只能掐横向:#home 本身要竖向滚动(矮屏内容超一屏),写 overflow:hidden 会把滚动废掉 */
+#home { overflow-x: hidden; }
+#home > * { position: relative; z-index: 1; }
+/* ⚠ 用 fixed 不是 absolute:#home 是滚动容器,absolute 子元素会**跟着内容一起滚**,
+   云海会被卷走。fixed 钉在视口上,#home 隐藏时它作为子元素一起隐藏,行为正确。 */
+#home .sky-deco { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+
+/* ① 天空:顶上晨曦金 → 天蓝 → 粉 → 底部云白(天国的日出) */
+/* ⚠ 底部必须压深:云海是白的,背景也白就等于没画(第一版实拍全看不见)。
+   下 1/3 压到藕紫粉,白云才浮得出来。 */
+#home .sky-deco .sky { position: absolute; inset: 0;
+  background:
+    linear-gradient(180deg, transparent 52%, rgba(214,160,205,.34) 82%, rgba(186,140,190,.42) 100%),
+    radial-gradient(120% 62% at 50% -8%, #fff6de 0%, #ffe6f2 32%, #e6efff 60%, #f4d9ec 100%); }
+/* 柔光极光:四团慢慢飘的彩雾,让天空有空气感而不是一块死色 */
+#home .sky-deco .sky::after { content: ''; position: absolute; inset: -10%;
+  background:
+    radial-gradient(closest-side at 20% 18%, rgba(255,255,255,.9), transparent 72%),
+    radial-gradient(closest-side at 84% 12%, rgba(255,214,238,.8), transparent 72%),
+    radial-gradient(closest-side at 10% 70%, rgba(206,186,255,.5), transparent 72%),
+    radial-gradient(closest-side at 90% 66%, rgba(255,226,168,.6), transparent 72%);
+  background-size: 62% 48%, 54% 42%, 58% 46%, 50% 40%; background-repeat: no-repeat;
+  animation: homeAura 18s ease-in-out infinite alternate; }
+@keyframes homeAura {
+  0%   { background-position: 20% 18%, 84% 12%, 10% 70%, 90% 66%; }
+  100% { background-position: 32% 26%, 70% 22%, 22% 60%, 78% 56%; }
+}
+
+/* ② 圣光光柱:从天使背后放射。conic 做交替的透明/白扇形,极慢旋转 + 呼吸 */
+#home .sky-deco .rays { position: absolute; left: 50%; top: 14%;
+  width: 190vw; aspect-ratio: 1; transform: translate(-50%, -50%);
+  background: conic-gradient(from 0deg,
+    rgba(255,255,255,.95) 0deg 5deg, transparent 5deg 26deg,
+    rgba(255,240,200,.85) 26deg 31deg, transparent 31deg 52deg,
+    rgba(255,255,255,.8) 52deg 57deg, transparent 57deg 80deg,
+    rgba(255,228,242,.85) 80deg 85deg, transparent 85deg 108deg,
+    rgba(255,255,255,.9) 108deg 113deg, transparent 113deg 138deg,
+    rgba(255,240,200,.8) 138deg 143deg, transparent 143deg 168deg,
+    rgba(255,255,255,.85) 168deg 173deg, transparent 173deg 200deg,
+    rgba(255,228,242,.8) 200deg 205deg, transparent 205deg 232deg,
+    rgba(255,255,255,.9) 232deg 237deg, transparent 237deg 264deg,
+    rgba(255,240,200,.8) 264deg 269deg, transparent 269deg 296deg,
+    rgba(255,255,255,.85) 296deg 301deg, transparent 301deg 330deg,
+    rgba(255,228,242,.8) 330deg 335deg, transparent 335deg 360deg);
+  /* 圆形羽化:光柱要从中心亮到外面淡出,硬边缘会像风车 */
+  -webkit-mask-image: radial-gradient(closest-side, rgba(0,0,0,.9) 8%, rgba(0,0,0,.5) 38%, transparent 72%);
+  mask-image: radial-gradient(closest-side, rgba(0,0,0,.9) 8%, rgba(0,0,0,.5) 38%, transparent 72%);
+  opacity: .8; animation: rayTurn 90s linear infinite, rayBreathe 7s ease-in-out infinite alternate; }
+@keyframes rayTurn { to { transform: translate(-50%, -50%) rotate(360deg); } }
+@keyframes rayBreathe { from { opacity: .55; } to { opacity: .95; } }
+
+/* ③ 飘落的羽毛:一头尖一头圆的白/金羽片,边转边飘。9 片,各自节奏错开 */
+#home .sky-deco .fth { position: absolute; top: -8%;
+  width: 13px; height: 26px; border-radius: 50% 50% 50% 6%;
+  background: linear-gradient(150deg, #ffffff, #ffeef7 55%, #ffe3ba);
+  box-shadow: 0 2px 6px rgba(214,51,108,.14);
+  opacity: 0; animation: fthFall linear infinite; }
+#home .sky-deco .fth::after {                /* 羽轴 */
+  content: ''; position: absolute; left: 50%; top: 12%; width: 1px; height: 76%;
+  background: rgba(214,51,108,.16); }
+@keyframes fthFall {
+  0%   { transform: translateY(0) translateX(0) rotate(0deg); opacity: 0; }
+  8%   { opacity: .85; }
+  50%  { transform: translateY(52vh) translateX(26px) rotate(180deg); opacity: .8; }
+  92%  { opacity: .5; }
+  100% { transform: translateY(112vh) translateX(-14px) rotate(400deg); opacity: 0; }
+}
+/* ⚠ 必须 nth-of-type 不是 nth-child:.sky-deco 里还有 .sky/.rays/.sea 三种 div,
+   nth-child 会从它们开始数、九条规则全落空。羽毛是唯一的 <i> ⇒ of-type 正好。
+   ⚠ 大小改 width/height,别用 transform:scale——会被 fthFall 的 transform 整个覆盖掉。 */
+#home .sky-deco .fth:nth-of-type(1) { left:  6%; width: 10px; height: 20px; animation-duration: 15s; animation-delay:  0s;   }
+#home .sky-deco .fth:nth-of-type(2) { left: 19%; animation-duration: 21s; animation-delay: -6s;  }
+#home .sky-deco .fth:nth-of-type(3) { left: 31%; width: 11px; height: 22px; animation-duration: 17s; animation-delay: -12s; }
+#home .sky-deco .fth:nth-of-type(4) { left: 44%; animation-duration: 24s; animation-delay: -3s;  }
+#home .sky-deco .fth:nth-of-type(5) { left: 57%; width: 15px; height: 30px; animation-duration: 18s; animation-delay: -15s; }
+#home .sky-deco .fth:nth-of-type(6) { left: 69%; animation-duration: 22s; animation-delay: -9s;  }
+#home .sky-deco .fth:nth-of-type(7) { left: 81%; width: 10px; height: 21px; animation-duration: 16s; animation-delay: -19s; }
+#home .sky-deco .fth:nth-of-type(8) { left: 91%; animation-duration: 25s; animation-delay: -1s;  }
+#home .sky-deco .fth:nth-of-type(9) { left: 50%; width: 16px; height: 32px; animation-duration: 28s; animation-delay: -22s; }
+
+/* ④ 云海:三层软云托住整个页面的底,做「站在云端」的感觉。越靠下越实、漂得越快 */
+/* ⚠ 云的做法(踩了两版才对):条带高 H,椭圆瓦片高 2H,`background-position: 0 top`
+   ⇒ 只露出每个椭圆的**上半个圆顶**,连起来才是向上鼓的云。
+   ① 瓦片比条带高很多(165%)⇒ 只截到椭圆中段 = 一条横白杠;
+   ② 对齐 bottom ⇒ 露的是下半圆 = 向下凹,方向正好反了。 */
+#home .sky-deco .sea { position: absolute; left: -20%; width: 140%;
+  background-repeat: repeat-x; background-position: 0 top;
+  animation: seaDrift linear infinite; }
+/* ⚠ 三层必须**上下交叠**(每层顶要压住下一层的底),否则层与层之间露出天空 = 三条横带,
+   完全不像云岸(实拍踩过)。最低那层必须 bottom:0 顶到屏幕底。 */
+/* ⚠ 每层 = 上面一排圆顶 + 下面一条实底,而且两者必须**严丝合缝**:
+   实底的顶边要正好落在圆顶最宽处(= 瓦片高的一半)。对不齐就会出问题——
+   实底偏高 ⇒ 从圆顶之间的缝里露出直角块;实底偏低/没有 ⇒ 圆顶的平切底边横穿整屏(实拍两种都见过)。
+   所以下面每层都写死:瓦片高 = 圆顶高 ×2,`::after` 高 = 条带高 − 圆顶高。 */
+#home .sky-deco .sea.s1 { bottom: 196px; height: 92px;  opacity: .5; animation-duration: 90s;
+  background-image: radial-gradient(closest-side, #ffffff 88%, rgba(255,255,255,0) 100%);
+  background-size: 150px 144px;                      /* 圆顶高 72 */
+  filter: drop-shadow(0 4px 7px rgba(150,110,160,.13)); }
+#home .sky-deco .sea.s1::after { height: 20px; background: #ffffff; }
+#home .sky-deco .sea.s2 { bottom: 104px; height: 108px; opacity: .8; animation-duration: 62s;
+  background-image: radial-gradient(closest-side, #fffafd 88%, rgba(255,250,253,0) 100%);
+  background-size: 124px 160px;                      /* 圆顶高 80 */
+  filter: drop-shadow(0 4px 8px rgba(150,110,160,.16)); }
+#home .sky-deco .sea.s2::after { height: 28px; background: #fffafd; }
+#home .sky-deco .sea.s3 { bottom: 0;     height: 122px; opacity: 1;  animation-duration: 44s;
+  background-image: radial-gradient(closest-side, #ffffff 88%, rgba(255,255,255,0) 100%);
+  background-size: 104px 164px;                      /* 圆顶高 82 */
+  filter: drop-shadow(0 4px 9px rgba(150,110,160,.18)); }
+#home .sky-deco .sea::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; }
+#home .sky-deco .sea.s3::after { height: 40px; background: #ffffff; }
+@keyframes seaDrift { from { transform: translateX(0); } to { transform: translateX(-21%); } }
+
+/* 主视觉:光环托底 + 轻轻起伏(点题「天使」) */
+#home .hero-wrap { position: relative; width: min(58vw, 232px); aspect-ratio: 1;
+  display: grid; place-items: center; animation: heroFloat 5.5s ease-in-out infinite; }
+#home .hero-wrap::before { content: ''; position: absolute; inset: -18%; border-radius: 50%;
+  background: conic-gradient(from 0deg, #ffd66e, #ff9ec4, #b39ddb, #8ecfff, #ffd66e);
+  filter: blur(20px); opacity: .85; animation: heroHalo 11s linear infinite; }
+#home .home-hero { position: relative; width: 100%; height: 100%; border-radius: 28px;
   object-fit: cover; box-shadow: 0 14px 40px rgba(214,51,108,.28);
   border: 5px solid #fff; }
-#home .home-title { font: 900 30px/1 sans-serif; color: #d6336c; letter-spacing: .5px;
-  text-shadow: 0 2px 0 #fff; margin-top: 4px; }
+@keyframes heroFloat { 0%,100% { transform: translateY(0) rotate(-.5deg); } 50% { transform: translateY(-8px) rotate(.5deg); } }
+@keyframes heroHalo  { to { transform: rotate(360deg); } }
+
+#home .home-title { font: 900 31px/1 sans-serif; letter-spacing: .5px; margin-top: 6px;
+  background: linear-gradient(180deg, #ff8fc4 0%, #d6336c 62%, #b3245a 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 2px 0 #fff) drop-shadow(0 6px 14px rgba(214,51,108,.22)); }
 #home .home-tag { font: 600 14px sans-serif; color: #a85d7a; margin-top: -4px; text-align: center; }
-#home .home-play { border: 0; border-radius: 999px; padding: 15px 66px; margin-top: 6px;
-  font: 800 20px sans-serif; color: #fff; background: linear-gradient(#f489b6, #e3629d);
-  box-shadow: 0 8px 22px rgba(214,51,108,.4); }
-#home .home-play:active { transform: translateY(1px); }
-#home .home-menu { display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+
+#home .home-play { position: relative; overflow: hidden; border: 0; border-radius: 999px;
+  padding: 15px 66px; margin-top: 6px;
+  font: 800 20px sans-serif; color: #fff; background: linear-gradient(#f9a0c6, #e3629d);
+  box-shadow: 0 8px 22px rgba(214,51,108,.4), inset 0 1px 0 rgba(255,255,255,.55);
+  transition: transform .1s, box-shadow .15s; }
+#home .home-play:active { transform: translateY(2px) scale(.985); box-shadow: 0 4px 12px rgba(214,51,108,.4); }
+/* 高光扫过:告诉眼睛「这是主按钮,点这里」 */
+#home .home-play::after { content: ''; position: absolute; top: 0; left: -55%; width: 38%; height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255,255,255,.6), transparent);
+  animation: sheen 3.6s ease-in-out infinite; }
+@keyframes sheen { 0% { left: -55%; } 58%, 100% { left: 125%; } }
+
+#home .home-menu { display: grid; grid-template-columns: 1fr 1fr; gap: 11px;
   width: min(88vw, 340px); margin-top: 6px; }
-#home .home-btn { display: flex; align-items: center; justify-content: center; gap: 8px;
-  border: 0; border-radius: 16px; padding: 15px 8px; background: #fff;
-  font: 700 15px sans-serif; color: #7a5c72; box-shadow: 0 5px 16px rgba(183,142,180,.28); }
-#home .home-btn .ico { font-size: 20px; }
-#home .home-btn:active { transform: translateY(1px); }
-#home .home-foot { display: flex; gap: 10px; margin-top: 2px; }
-#home .home-foot button { border: 0; background: rgba(255,255,255,.7); border-radius: 12px;
-  width: 42px; height: 42px; font-size: 18px; color: #a85d7a; }
+/* 图标做成彩色圆片:六个白方块一字排开太像设置页,加了色片才像游戏 */
+/* ⚠ 六个入口的译名长短差很多(德/俄尤其长):标签必须能缩、能省略,
+   否则「Daily Quests」这种两词标题会换行把卡片撑高、六格参差不齐。 */
+/* ⚠ 半透明磨砂而不是实白:底下是云海,实白卡片会把整片云挡死(第一版就这么废掉的)。
+   0.72 + blur 既保证文字对比度,又让云从卡片后面透出来 = 「浮在云端」。 */
+#home .home-btn { display: flex; align-items: center; justify-content: flex-start; gap: 9px;
+  border: 0; border-radius: 16px; padding: 11px 11px; text-align: left;
+  background: rgba(255,255,255,.72);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  font: 700 13.5px/1.15 sans-serif; color: #7a5c72; box-shadow: 0 5px 16px rgba(183,142,180,.24);
+  transition: transform .1s, box-shadow .15s; min-width: 0; }
+/* 允许折到两行(省略号比换行更难读),用 min-height 保证六格等高、不参差 */
+#home .home-btn { min-height: 58px; }
+#home .home-btn .lb { flex: 1; min-width: 0; overflow: hidden;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+#home .home-btn .bdg { flex: none; }
+#home .home-btn .ico { flex: none; width: 34px; height: 34px; border-radius: 12px;
+  display: grid; place-items: center; font-size: 18px; background: #fdeaf4; }
+#home #home-quests .ico { background: #fff0d6; }
+#home #home-ach    .ico { background: #fdeaf4; }
+#home #home-gal    .ico { background: #e8f3ff; }
+#home #home-skin   .ico { background: #eee6ff; }
+#home #home-stats  .ico { background: #e2f7ec; }
+#home #home-howto  .ico { background: #fff0d6; }
+#home .home-btn:active { transform: translateY(2px); box-shadow: 0 2px 8px rgba(183,142,180,.28); }
+/* 任务未做完时角标提醒(数据由 JS 加 .todo 类) */
+#home .home-btn .bdg { margin-left: auto; font: 700 12px sans-serif; color: #b39ddb; }
+#home .home-btn.todo .bdg { color: #fff; background: #ff9800; border-radius: 999px; padding: 2px 8px; }
+
+#home .home-foot { display: flex; gap: 9px; margin-top: 2px; flex-wrap: wrap; justify-content: center; }
+#home .home-foot button { border: 0; background: rgba(255,255,255,.66); border-radius: 13px;
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  width: 42px; height: 42px; font-size: 18px; color: #a85d7a;
+  box-shadow: 0 3px 10px rgba(183,142,180,.18); transition: transform .1s; }
+#home .home-foot button:active { transform: scale(.92); }
 
 /* 说明面板:图文行 */
 .howto-row { display: flex; align-items: flex-start; gap: 12px; padding: 11px 4px;
@@ -155,13 +402,22 @@ body { background: #fdf3f7; }
 .bonus-banner.out { opacity: 0; transition: opacity .5s; }
 
 /* 主界面收集进度 + 里程碑 */
-#home .home-prog { width: min(88vw, 340px); background: rgba(255,255,255,.72);
+#home .home-prog { width: min(88vw, 340px); background: rgba(255,255,255,.74);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   border-radius: 16px; padding: 12px 16px; margin-top: 2px;
-  display: flex; flex-direction: column; gap: 7px; box-shadow: 0 4px 14px rgba(183,142,180,.22); }
-#home .hp-top { font: 700 14px sans-serif; color: #a85d7a; }
-#home .hp-bar { height: 10px; border-radius: 6px; background: #f6d5e5; overflow: hidden; }
+  display: flex; flex-direction: column; gap: 7px;
+  box-shadow: 0 4px 14px rgba(183,142,180,.2), inset 0 1px 0 rgba(255,255,255,.9); }
+#home .hp-top { display: flex; align-items: baseline; gap: 6px;
+  font: 700 14px sans-serif; color: #a85d7a; }
+#home .hp-top .pct { margin-left: auto; font: 800 13px sans-serif; color: #d6336c; }
+#home .hp-bar { position: relative; height: 11px; border-radius: 6px; background: #f6d5e5; overflow: hidden; }
 #home .hp-bar i { display: block; height: 100%; border-radius: 6px;
-  background: linear-gradient(90deg, #f489b6, #e3629d); transition: width .4s; }
+  background: linear-gradient(90deg, #ffc46b, #f489b6 45%, #e3629d); transition: width .4s; }
+/* 进度条上的流光:静态条看着像「卡住了」,流光让它显得还在长 */
+#home .hp-bar::after { content: ''; position: absolute; inset: 0; border-radius: 6px;
+  background: linear-gradient(100deg, transparent 40%, rgba(255,255,255,.65) 50%, transparent 60%);
+  background-size: 260% 100%; animation: barFlow 2.8s linear infinite; }
+@keyframes barFlow { from { background-position: 140% 0; } to { background-position: -60% 0; } }
 #home .hp-skin { font: 600 12px sans-serif; color: #a85d7a; opacity: .85; }
 
 /* 主界面语言按钮(有文字,需自适应宽度) */
@@ -176,6 +432,39 @@ body { background: #fdf3f7; }
 .howto-fruit .tx { font: 500 13px/1.4 sans-serif; color: #7a5c72; }
 .howto-fruit .tx b { color: #d6336c; }
 
+/* ============ 视觉打磨:入场动画 / 滚动条 / 减弱动态总开关 ============ */
+/* 浮层入场:直接 display 出来太生硬,给一个 0.2s 的淡入+弹起 */
+#panel:not(.hidden) { animation: layerIn .18s ease; }
+#panel-card { animation: cardIn .3s cubic-bezier(.2,1.25,.4,1); }
+#lightbox:not(.hidden) { animation: layerIn .18s ease; }
+#home:not(.hidden) { animation: layerIn .2s ease; }
+@keyframes layerIn { from { opacity: 0; } }
+@keyframes cardIn { from { transform: translateY(16px) scale(.96); opacity: 0; } }
+/* 面板列表逐项浮现(只给前 12 项排延迟,再多就没人看得见了) */
+#panel-body .ach-item, #panel-body .gal-set, #panel-body .skin-card, #panel-body .st-cell {
+  animation: itemIn .26s ease backwards; }
+#panel-body > *:nth-child(1)  { animation-delay: .00s; }
+#panel-body > *:nth-child(2)  { animation-delay: .02s; }
+#panel-body > *:nth-child(3)  { animation-delay: .04s; }
+#panel-body > *:nth-child(4)  { animation-delay: .06s; }
+#panel-body > *:nth-child(5)  { animation-delay: .08s; }
+#panel-body > *:nth-child(6)  { animation-delay: .10s; }
+@keyframes itemIn { from { transform: translateY(8px); opacity: 0; } }
+/* 滚动条:默认灰条在粉彩里很刺眼 */
+#panel-body::-webkit-scrollbar, .lang-card::-webkit-scrollbar { width: 6px; }
+#panel-body::-webkit-scrollbar-thumb, .lang-card::-webkit-scrollbar-thumb {
+  background: #f0c8de; border-radius: 3px; }
+#panel-body::-webkit-scrollbar-track { background: transparent; }
+
+/* ⛔ 减弱动态(body.rm,由 main.js 跟 G.reduceMotion 同步)+ 系统偏好:
+   一律关掉**所有**装饰动画。新加动画必须落在这条兜底里,否则晕动症玩家会被漏掉。 */
+body.rm *, body.rm *::before, body.rm *::after {
+  animation: none !important; transition: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  #home::before, #home .hero-wrap, #home .home-play::after, #home .hp-bar::after,
+  #home .home-daily.ready { animation: none !important; }
+}
+
 /* 语言选择菜单(主界面 🌐 弹出,复用 #lightbox 容器) */
 .lang-card { background: #fff; border-radius: 20px; padding: 12px; width: min(80vw, 300px);
   max-height: 76vh; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;
@@ -183,3 +472,57 @@ body { background: #fdf3f7; }
 .lang-opt { border: 0; border-radius: 12px; padding: 13px 16px; text-align: center;
   font: 700 16px sans-serif; color: #7a5c72; background: #f6d5e5; }
 .lang-opt.on { background: #e79cc2; color: #fff; }
+
+/* ═══ 粘度层（2026-08-01）：档案头 / 下一个目标 / 天使榜 ═══
+   ⚠ 追加在文件末尾 —— 另一个会话同期在改这个文件，追加是零冲突的改法。 */
+
+/* 👤 档案头：头像 + 称号 Lv + XP 条 */
+.home-prof{display:flex;align-items:center;gap:10px;
+  width:min(88vw,340px);box-sizing:border-box;      /* ⚠ 与 .home-prog 同宽，否则三张卡不齐 */
+  background:rgba(255,255,255,.62);border-radius:16px;padding:8px 12px;
+  box-shadow:0 2px 10px rgba(180,120,180,.15)}
+.home-prof .pf-face{width:38px;height:38px;border-radius:50%;overflow:hidden;flex:0 0 38px;
+  display:flex;align-items:center;justify-content:center;font-size:20px;background:rgba(255,255,255,.8)}
+.home-prof .pf-face img{width:100%;height:100%;object-fit:cover}
+.home-prof .pf-mid{flex:1;min-width:0}
+.home-prof .pf-top{display:flex;align-items:baseline;gap:6px;font-size:13px;color:#7a4a7a}
+.home-prof .pf-top b{font-weight:700}
+.home-prof .pf-lv{font-size:11px;color:#b07ab0}
+.home-prof .pf-bar{height:6px;border-radius:3px;background:rgba(180,120,180,.22);margin-top:5px;overflow:hidden}
+.home-prof .pf-bar i{display:block;height:100%;border-radius:3px;
+  background:linear-gradient(90deg,#ffd36e,#ff9ec7)}
+.home-prof .pf-xp{font-size:10px;color:#b07ab0;flex:0 0 auto}
+
+/* ⭐ 「下一个目标」条：打开就看见的短期目标，点击直达 */
+.home-goal{display:block;width:min(88vw,340px);box-sizing:border-box;padding:8px 12px;
+  border:0;border-radius:14px;text-align:left;cursor:pointer;
+  background:linear-gradient(90deg,rgba(255,211,110,.35),rgba(255,158,199,.30))}
+.home-goal .hg-t{display:block;font-size:10px;color:#a06a9a;letter-spacing:.04em}
+.home-goal .hg-b{display:block;font-size:13px;font-weight:700;color:#6d3f6d;margin-top:2px}
+.home-goal:active{transform:scale(.985)}
+
+/* 菜单里跨两列的格子（天使榜） */
+.home-menu .home-btn.full{grid-column:1/-1}
+
+/* 🪜 天使榜 */
+.ld-head{font-size:12px;color:#8a5a8a;padding:2px 4px 6px;line-height:1.5}
+.ld-sum{font-size:12px;font-weight:700;color:#6d3f6d;padding:0 4px 10px}
+.ld-list{display:flex;flex-direction:column-reverse;gap:6px}
+.ld-row{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:12px;
+  background:rgba(255,255,255,.55);font-size:13px;color:#6d3f6d}
+.ld-row.passed{opacity:.62}
+.ld-row.me{background:linear-gradient(90deg,rgba(255,211,110,.55),rgba(255,158,199,.45));
+  font-weight:700;box-shadow:0 2px 10px rgba(220,140,190,.25)}
+.ld-row .ld-n{flex:0 0 22px;text-align:right;font-size:11px;color:#b07ab0}
+.ld-row .ld-face{width:28px;height:28px;border-radius:50%;overflow:hidden;flex:0 0 28px;
+  display:flex;align-items:center;justify-content:center;font-size:16px;background:rgba(255,255,255,.75)}
+.ld-row .ld-face img{width:100%;height:100%;object-fit:cover}
+.ld-row .ld-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ld-row .ld-sc{flex:0 0 auto;font-variant-numeric:tabular-nums;font-size:12px}
+
+/* ⛔ 主界面内容超一屏时的两个 flexbox 陷阱（2026-08-01 加档案头/目标条后实拍抓出）：
+   ① flex 子元素默认 flex-shrink:1 ⇒ 内容一多，**主按钮被压扁**（看着像被下面那个按钮盖住）；
+   ② justify-content:center 在溢出时会把**顶部内容顶到滚动区之外**，怎么滚都看不到。
+   safe center = 放得下就居中、放不下退回顶部对齐（老浏览器忽略这一行，回退到上面的 center）。 */
+#home > * { flex-shrink: 0; }
+#home { justify-content: safe center; }

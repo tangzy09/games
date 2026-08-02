@@ -105,13 +105,13 @@ async function click(page, action, dm){
   ok(await page.evaluate(()=>G.jokerOffer>Date.now()), '真卡死 ⇒ 🃏 入口点亮');
   ok(await click(page,'JOKER_AD'), '⭐ 「看广告拿万能牌」可点');
   await page.waitForTimeout(500);
-  ok(await page.evaluate(()=>G.jokers===1), '看完广告 🃏 到手');
+  ok(await page.evaluate(()=>G.jokers===2&&AD_GIVE.joker===2), '⭐ 看完广告 🃏 到手 ×2（加厚：救场要一次见效）');
   ok(await click(page,'JOKER_USE'), '🃏 悬浮按钮可点');
   await page.waitForTimeout(250);
   const jk=await page.evaluate(()=>({f:G.s.foundations.map(f=>f.length).join(''),
     used:G.s.usedJoker, left:G.jokers}));
-  ok(jk.f!=='0000'&&jk.used&&jk.left===0,
-     `⭐ 万能牌召唤真牌进 foundation（${jk.f}）,留痕不算干净赢`);
+  ok(jk.f!=='0000'&&jk.used&&jk.left===1,
+     `⭐ 万能牌召唤真牌进 foundation（${jk.f}）,留痕不算干净赢（用掉 1 张，还剩 ${jk.left}）`);
 
   // ── ⑤ 过场 + 发牌动画：切屏有淡出;发牌飞入期间**输入不上锁** ──
   await page.evaluate(()=>dispatch('MENU'));

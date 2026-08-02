@@ -6,8 +6,19 @@
   "ads": {
     "simWatch": "[Simulação de anúncio] Assistir a um anúncio premiado?",
     "simInterstitial": "[Simulação de anúncio] Anúncio intersticial",
-    "revive": "📺 Reviver (anúncio)",
-    "rescue": "📺 IA 30s"
+    "revive": "Reviver",
+    "rescue": "📺 IA 30s",
+    "gal3": "Ver anúncio → {n} anjos",
+    "daily2": "Ver anúncio → mais {n} anjos",
+    "left": "Restam {n} hoje",
+    "boost": "Todos os poderes",
+    "boostGot": "Todos os poderes!",
+    "quest": "Ver anúncio → concluir uma missão",
+    "repair": "Ver anúncio → recuperar sequência de {n} dias",
+    "double": "Anúncio → +{n} anjos",
+    "skin": "Ver anúncio → desbloquear uma skin",
+    "reviveGot": "+{n} vidas · {s}s invencível",
+    "boostSub": "+{n} vidas · {s}s invencível"
   },
   "snake": {
     "score": "Pontos",
@@ -72,7 +83,9 @@
     "streak": "Sequência de {n} dias 🔥",
     "newAngel": "Novo anjo desbloqueado!",
     "allCollected": "Todos os anjos coletados!",
-    "ok": "Que lindo!"
+    "ok": "Que lindo!",
+    "reward": "Recompensa de {d} dias: +{n} anjos!",
+    "rewardBadge": "prêmio de {n} dias"
   },
   "set": {
     "complete": "Coleção completa!"
@@ -258,7 +271,7 @@
   },
   "q": {
     "title": "Missões diárias",
-    "reward": "Cada missão libera 1 anjo",
+    "reward": "Cada missão libera {n} anjos",
     "done": "Missão concluída!",
     "allDone": "Tudo feito por hoje. Até amanhã!",
     "apples": "Coma {n} maçãs",
@@ -266,7 +279,9 @@
     "cells": "Revele {n} casas",
     "special": "Coma {n} frutas especiais",
     "combo": "Faça um combo de {n} numa partida",
-    "noDeath": "Complete {n} imagens sem morrer"
+    "noDeath": "Complete {n} imagens sem morrer",
+    "bonusHint": "Complete as 3 → +{n} anjos extras",
+    "allDoneBonus": "Todas as missões concluídas!"
   },
   "stats": {
     "title": "Estatísticas",
@@ -293,5 +308,37 @@
     "dailyB": "Pegue seu anjo diário e mantenha a sequência.",
     "streakT": "Sua sequência acaba hoje à noite!",
     "streakB": "{n} dias em jogo — um toque garante o anjo de hoje."
+  },
+  "ai": {
+    "start": "IA joga",
+    "stop": "Parar IA",
+    "on": "IA jogando"
+  },
+  "lvl": {
+    "t1": "Penugem",
+    "t2": "Andarilho",
+    "t3": "Anda-céu",
+    "t4": "Porta-luz",
+    "t5": "Arcanjo",
+    "t6": "Serafim",
+    "lv": "Nv {n}",
+    "next": "{n} para o próximo nível"
+  },
+  "ladder": {
+    "title": "Escada dos anjos",
+    "sub": "Vinte anjos do coro, ordenados pela pontuação total. Ultrapasse um a um.",
+    "you": "Você",
+    "beaten": "{n} / {m} ultrapassados",
+    "next": "mais {n} para passar {name}",
+    "passed": "Você passou {name}!",
+    "top": "Você ultrapassou todos os anjos do coro."
+  },
+  "goal": {
+    "title": "A seguir",
+    "quests": "Missões de hoje {n}/{m}",
+    "streak": "mais {n} dias → +{a} anjos",
+    "set": "mais {n} para fechar esta série",
+    "ladder": "{n} pontos para passar {name}",
+    "level": "{n} pontos para o nível {l}"
   }
 }

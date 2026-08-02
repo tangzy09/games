@@ -27,6 +27,9 @@
   }
 
   function make(id, w, h, fourColor, big) {
+    // ⚠ Spider 是两副牌，id 可达 415（copy*52 + rank*4 + suit）⇒ 取牌面必须先 %52。
+    //   忘了取模：rank 变成 13..25 ⇒ RANK_STR[rank] 是 undefined，牌面直接画不出字。
+    id = id % 52;
     const c = document.createElement('canvas');
     const dpr = window.devicePixelRatio || 1;
     c.width = Math.ceil(w * dpr); c.height = Math.ceil(h * dpr);
@@ -259,7 +262,7 @@
   }
 
   function face(id) {
-    const k = `${curW}x${curH}:${curFour}:${curBig}:${id}`;
+    const k = `${curW}x${curH}:${curFour}:${curBig}:${id % 52}`;   // 同一牌面共用缓存
     if (!cache[k]) cache[k] = make(id, curW, curH, curFour, curBig);
     return cache[k];
   }

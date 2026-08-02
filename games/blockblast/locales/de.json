@@ -232,6 +232,9 @@
     "ghostLine": "{a}/{b} Engel überholt",
     "ghostNext": "{name} in {n} Pkt.",
     "goalGhost": "Noch {n} Punkte bis Engel {name}",
-    "ladderYou": "Dein Rekord: {n}"
+    "ladderYou": "Dein Rekord: {n}",
+    "shareSeedTip": "Seed #{n} — installiere die App und gib diesen Seed ein, um exakt denselben Blockstrom zu bekommen.",
+    "angelsGot": "{n} / {m} gesammelt",
+    "homePlay": "Spielen"
   }
 }

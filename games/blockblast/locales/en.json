@@ -232,6 +232,9 @@
     "ghostLine": "{a}/{b} angels passed",
     "ghostNext": "{name} in {n} pts",
     "goalGhost": "{n} pts to pass angel {name}",
-    "ladderYou": "Your best: {n}"
+    "ladderYou": "Your best: {n}",
+    "shareSeedTip": "Seed #{n} — install the app and enter this seed to get the exact same piece stream.",
+    "angelsGot": "{n} / {m} collected",
+    "homePlay": "Play"
   }
 }

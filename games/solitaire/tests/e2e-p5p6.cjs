@@ -42,21 +42,25 @@ async function click(page, action, dm){
   await page.evaluate(() => { if (G.phase === 'INTRO') dispatch('INTRO_GO'); });
   await page.waitForTimeout(80);
 
-  // ── 菜单 ──
-  ok(await click(page,'MENU'), '「菜单」入口可点');
+  // ── 菜单（真实路径已变：PLAY 的 '‹' 回 🏠 主界面，MENU 在主界面的「⋯ 更多」里）──
+  ok(await click(page,'HOME'), "PLAY 顶栏 '‹' 回主界面");
+  await page.waitForTimeout(300);
+  ok(await click(page,'MENU'), '主界面「⋯ 更多」进菜单');
   await page.waitForTimeout(150);
   ok(await page.evaluate(()=>G.phase==='MENU'), '进入菜单');
   await page.screenshot({path:path.join(SHOT,'p5-01-menu.png')});
 
-  // ── 统计（双口径）──
-  ok(await click(page,'STATS'), '统计可进');
+  // ── 统计（双口径）：菜单瘦身后，统计/收藏等入口只在 🏠 主界面一份 ──
+  await click(page,'PLAY'); await page.waitForTimeout(120);
+  await click(page,'HOME'); await page.waitForTimeout(250);
+  ok(await click(page,'STATS'), '主界面「统计」可进');
   await page.waitForTimeout(120);
   await page.screenshot({path:path.join(SHOT,'p5-02-stats.png')});
   await click(page,'PLAY'); await page.waitForTimeout(100);
 
   // ── 收藏 + 看广告赚币 + 买牌背 ──
-  await click(page,'MENU'); await page.waitForTimeout(100);
-  ok(await click(page,'SHOP'), '收藏可进');
+  await click(page,'HOME'); await page.waitForTimeout(250);
+  ok(await click(page,'SHOP'), '主界面「收藏」可进');
   await page.waitForTimeout(120);
   await page.screenshot({path:path.join(SHOT,'p5-03-shop.png')});
 
@@ -88,7 +92,7 @@ async function click(page, action, dm){
     const realRewarded = Ads.showRewarded, realInter = Ads.showInterstitial;
     Ads.showRewarded = () => { adCalls++; return Promise.resolve(false); };
     Ads.showInterstitial = () => { adCalls++; return Promise.resolve(false); };
-    dispatch('UNDO'); dispatch('HINT'); dispatch('NEW'); dispatch('PROVE'); dispatch('AUTO');
+    dispatch('UNDO'); dispatch('HINT'); dispatch('NEW'); dispatch('PROVE'); dispatch('FINISH');
     r.freeActionsAdCalls = adCalls;
     Ads.showRewarded = realRewarded; Ads.showInterstitial = realInter;
 
@@ -109,7 +113,7 @@ async function click(page, action, dm){
     return r;
   });
   ok(red.freeActionsAdCalls === 0,
-    `撤销/提示/重开/证明/自动 —— 一个广告都不弹（实测调用 ${red.freeActionsAdCalls} 次）`);
+    `撤销/提示/重开/证明/一键走完 —— 一个广告都不弹（实测调用 ${red.freeActionsAdCalls} 次）`);
   ok(red.honeymoon30, '⭐ 蜜月期：前 30 盘零插屏');
   ok(red.interstitialSeq.join('') === '1000100010',
     `插屏节流：盘盘赢也是每 4 盘 1 个（31-40 盘序列 ${red.interstitialSeq.join('')}），绝不连播`);

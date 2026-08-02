@@ -83,9 +83,9 @@ const winState=`(()=>{ const s=Core.newGame(7,3);
   // ── ③ 成就:首胜自动解锁 + 发金币 + 专页可进 ──
   const ach=await page.evaluate(()=>({first:G.ach&&G.ach.firstWin===1,clean:G.ach&&G.ach.clean1===1}));
   ok(ach.first&&ach.clean, '⭐ 首胜/首个干净胜局 两个成就自动解锁（金币已发）');
-  await page.evaluate(()=>dispatch('MENU'));
+  await page.evaluate(()=>dispatch('HOME'));
   await page.waitForTimeout(120);
-  ok(await click(page,'ACH'), '菜单有「成就」入口');
+  ok(await click(page,'ACH'), '主界面有「成就」入口');
   await page.waitForTimeout(150);
   ok(await page.evaluate(()=>G.phase==='ACH'), '成就页可进');
   await page.screenshot({path:path.join(SHOT,'p11-02-achievements.png')});

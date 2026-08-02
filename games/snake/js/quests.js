@@ -19,7 +19,9 @@ const Q_POOL = [
   { t: 'combo',   mode: 'max', targets: [5, 8, 10] },       // 单局最高连击
   { t: 'noDeath', mode: 'sum', targets: [1, 2, 2] },        // 零死亡过关
 ];
-const Q_REWARD_ANGELS = 1;      // 每完成一个任务解锁一张天使图
+// 奖励要**一次见效**：+1 张感觉不到，+3 张才值得为它多打一局（用户 2026-08-01 拍板「一定要丰厚」）
+const Q_REWARD_ANGELS = 3;      // 每完成一个任务解锁 3 张天使图
+const Q_ALLDONE_BONUS = 6;      // 三个全清的额外大红包（当日封顶 3×3+6 = 15 张）
 
 /** FNV-1a：日期串 + 盐 → 32 位（确定性，不用 Math.random）*/
 function qHash(day, salt) {
@@ -78,5 +80,12 @@ function qStatus(save, day) {
   }));
 }
 
-const Quests = { POOL: Q_POOL, REWARD_ANGELS: Q_REWARD_ANGELS, todays: qTodays, ensure: qEnsure, bump: qBump, status: qStatus };
+/** 三个全清的额外红包只发一次:done 刚好凑满 3 且这次有新完成 ⇒ 该发 */
+function qAllDoneBonus(save, day, justDone) {
+  if (!justDone || !justDone.length) return 0;
+  return qEnsure(save, day).done.length >= 3 ? Q_ALLDONE_BONUS : 0;
+}
+
+const Quests = { POOL: Q_POOL, REWARD_ANGELS: Q_REWARD_ANGELS, ALLDONE_BONUS: Q_ALLDONE_BONUS,
+  todays: qTodays, ensure: qEnsure, bump: qBump, status: qStatus, allDoneBonus: qAllDoneBonus };
 if (typeof module !== 'undefined' && module.exports) module.exports = Quests;

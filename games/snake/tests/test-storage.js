@@ -114,3 +114,25 @@ console.log('OK test-storage');
   assert.strictEqual(Storage.load(be, 'k').settings.reduceMotion, false, 'false 也保留');
 }
 console.log('OK test-storage(reduceMotion)');
+
+// --- 激励视频每日额度 + 广告解锁皮肤:两者都必须跨重载持久(闭合对象新字段进 defaults) ---
+{
+  const Themes = require('../js/themes.js');
+  const be = memBackend();
+  const s = Storage.load(be, 'k');
+  assert.deepStrictEqual(s.skins, [], '默认无广告解锁皮肤');
+  assert.strictEqual(s.ads.gal, 0, 'ads 额度默认 0');
+  assert.strictEqual(s.settings.aiOn, false, 'aiOn 默认关(必须在 defaults 里,否则玩家开了会被 merge 丢)');
+  s.ads.day = '2026-08-01'; s.ads.gal = 3; s.ads.skin = 1;
+  s.settings.aiOn = true;
+  s.skins.push('heaven');                       // heaven 的统计条件是 setsDone≥1,新档不可能满足
+  Storage.save(be, 'k', s);
+  const s2 = Storage.load(be, 'k');
+  assert.strictEqual(s2.ads.gal, 3, '当日额度计数保留(否则刷新页面=额度归零,可无限刷)');
+  assert.strictEqual(s2.ads.day, '2026-08-01');
+  assert.strictEqual(s2.settings.aiOn, true, 'AI 开关跨会话保持');
+  assert.deepStrictEqual(s2.skins, ['heaven'], '广告解锁的皮肤永久保留');
+  assert.strictEqual(Themes.themeUnlocked('heaven', s2), true, 'save.skins 与统计条件并列生效');
+  assert.strictEqual(Themes.themeUnlocked('star', s2), false, '未买未达标的皮肤仍锁着');
+}
+console.log('OK test-storage(ads额度/广告皮肤)');

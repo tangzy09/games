@@ -232,6 +232,9 @@
     "ghostLine": "{a}/{b} 人の天使を突破",
     "ghostNext": "{name} まであと {n} 点",
     "goalGhost": "あと {n} 点で天使 {name} を抜ける",
-    "ladderYou": "ベストスコア：{n}"
+    "ladderYou": "ベストスコア：{n}",
+    "shareSeedTip": "シード #{n} —— アプリを入れてこのシードを入力すれば、まったく同じブロックの流れになります。",
+    "angelsGot": "{n} / {m} 収集",
+    "homePlay": "プレイ"
   }
 }

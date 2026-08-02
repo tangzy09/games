@@ -60,3 +60,10 @@ canvas { display: block; touch-action: none; }
 }
 .lang-menu .lang-item:hover { background: var(--eng-menu-hover); }
 .lang-menu .lang-item.sel { background: var(--eng-menu-sel-bg); color: var(--eng-menu-sel-text); font-weight: 600; }
+
+/* ── 共享 UI 图标(engine/ui-icons.js + engine/assets/ui/)──
+   UIIcon.img() 产出的 <img class="uic">。默认铺满容器,`.inl` 用于夹在文字里。
+   ⚠ img 的 alt 是对应 emoji ⇒ 图缺了浏览器直接显示 emoji(天然回退),别改成空 alt。 */
+.uic { width: 88%; height: 88%; object-fit: contain; display: block; }
+.uic.inl { width: 1.35em; height: 1.35em; display: inline-block; vertical-align: -.32em; }
+.uic.fill { width: 100%; height: 100%; }

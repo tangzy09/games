@@ -73,6 +73,8 @@ const THEME_ORDER = ['cloud', 'star', 'candy', 'heaven'];
 function themeUnlocked(key, save) {
   const u = THEMES[key].unlock;
   if (!u) return true;
+  // 看激励视频直接解锁的皮肤(save.skins),与统计条件并列——满足任一即解锁
+  if (save && Array.isArray(save.skins) && save.skins.indexOf(key) >= 0) return true;
   const v = u.stat.split('.').reduce((o, k) => (o || {})[k], save.stats) || 0;
   return v >= u.n;
 }

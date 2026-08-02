@@ -5,10 +5,11 @@ var G = {
   phase: 'LOADING',        // LOADING | READY | PLAYING | PAUSED | DEAD | LEVEL_DONE
   run: null, cyc: null, aiMem: null,
   img: null, imgList: [], imgPos: 0,
+  eatToneStep: 0, eatToneAt: null,   // 连吃音阶的级数/上次吃的时刻（纯表现层，不进存档）
   imgFull: false,          // LEVEL_DONE 时点图全屏欣赏中
   save: null, tracker: null, saveKey: null,   // P2b:存档 + 单局成就 tracker
   revivesThisLevel: 0,                        // P3a:复活广告位,每局(每张图)限 2 次
-  rescueUntil: 0, rescueWasActive: false,     // AI 救场 30s(游戏时钟)代驾;结束即停下等玩家滑动继续
+  aiOn: false, aiUsedThisLevel: false,        // AI 代打:免费开关(存 settings.aiOn);用过的关星级封顶 ★1
 
   seed: (Date.now() % 2147483647),
 };
@@ -29,32 +30,120 @@ function dispatch(action) {
       break;
     }
     case 'REVIVE':
-      // 看广告原地满状态复活,每局(每张图)限 2 次
+      // 看广告原地满状态复活,每局(每张图)限 2 次。⭐ 奖励加厚:复活还附 **10 条命 + 30 秒无敌**,
+      //   让「复活」真的能救回局面,而不是复活两秒又撞死(那种体验比不给还差)。
+      //   ⚠ 「命」= shield(墙和身体都保)、「无敌」= ghost(只穿身,墙照死)——两个一起给才是真的救场。
+      //   ⛔ 奖励必须**在按钮上写清楚、复活后再报一次**:玩家看不见的奖励等于没给。
       if (G.phase === 'DEAD' && G.revivesThisLevel < 2) {
         Ads.showRewarded().then(ok => {
           if (!ok || G.phase !== 'DEAD') return;
           G.revivesThisLevel++;
           Core.revive(G.run);
+          G.run.effects.shield += AD_REWARD.reviveLives;               // 10 条命(墙/身体都保)
+          G.run.effects.ghostUntil = (G.nowMs || 0) + AD_REWARD.reviveGhostSec * 1000;   // 30s 穿身无敌
           G.save.stats.revives++;
           const u = Ach.checkCum(G.save).unlocked;      // rev_* 成就
           if (u.length) showAchToasts(u);
           persist();
           G.phase = 'PLAYING'; loopState.last = 0; renderAll();
+          // 拿到了什么,当场说清楚(HUD 上还有 💖×10 / 😇30 的常驻指示)
+          showReviveToast();
         });
       }
       break;
     case 'RESCUE':
-      // AI 救场 30s:看广告换短时代驾(全分,不算刷成就);到期即停下等玩家滑动继续。
-      if (G.phase === 'PLAYING' && !(G.nowMs < G.rescueUntil)) {
+      // ⭐ AI 代打:**完全免费、随时开关**(2026-08-01 用户定;旧版要看 30s 广告换代驾,已废)。
+      //   ⛔ 核心体验不锁广告——这是 casual-game-meta §0 的红线,AI 属于「玩不动时的救济」。
+      //   代价只有一个:用过 AI 的那一关**只给 ★1**(见 tick 的 aiUsedThisLevel),
+      //   收集/解锁全部照给——不惩罚,只是把「满星」留给手动通关。
+      dispatch('AI_TOGGLE');
+      break;
+    case 'AD_BOOST':
+      // 🎁 开局礼包(局内增益):看广告 → **把所有有益增益一次全给** + 10 条命 + 30 秒无敌
+      //   (2026-08-01 用户拍板,取代原来的「随机 4 个不重样」——满配比抽奖爽得多,
+      //    而且不用赌运气;额度 4 次/天照旧护住长线)。
+      //   复用 core 的 applyFruit,不新增机制;⛔ 只给增益,不碰星级/成就/纪录。
+      if ((G.phase === 'READY' || G.phase === 'PLAYING') && adQuotaLeft('boost') > 0) {
         Ads.showRewarded().then(ok => {
-          if (ok && G.phase === 'PLAYING') {
-            G.rescueUntil = (G.nowMs || 0) + 30000;
-            G.rescueWasActive = true;
-            G.aiMem = AI.createMem();
-            renderAll();
+          if (!ok) return;
+          adUse('boost');
+          // ⛔ 池子不能是「全部果子」:scissors 开局蛇长才 3,减身是**空签**(看完广告什么也没得到);
+          //    demon 提速 50% 对刚开局的人是负面;meteor/gift 是场上机制不是即时增益。
+          //    ⇒ BOOST_POOL 就是「有益」的白名单,全给。
+          const got = [];
+          for (const t of BOOST_POOL) {
+            Core.applyFruit(G.run, t, G.nowMs || 0, {});
+            got.push(Fruits.FRUITS[t].emoji);
           }
+          // 再叠上救场那两样(同复活口径):「命」保撞墙、「无敌」穿身,两个一起才算真的满配
+          G.run.effects.shield += AD_REWARD.boostLives;
+          G.run.effects.ghostUntil = (G.nowMs || 0) + AD_REWARD.boostGhostSec * 1000;
+          showBoostToast(got);
+          Sfx.play('special'); Haptics.medium();
+          renderAll();
         });
       }
+      break;
+    case 'AD_GALLERY':
+      // 📖 收集加速(图鉴页):看广告直接 +N 张天使。拒绝 ⇒ 什么也不发生(不扣额度、不给奖励)。
+      if (adQuotaLeft('gal') > 0) {
+        Ads.showRewarded().then(ok => {
+          if (!ok) { renderGalSets(); return; }
+          adUse('gal');
+          grantAngels(AD_REWARD.gal);
+          renderGalSets();
+        });
+      }
+      break;
+    case 'AD_DOUBLE':
+      // ⭐ 过关结算「奖励翻倍」——赢局结算屏是全场转化最高的位置。每关限一次。
+      if (G.phase === 'LEVEL_DONE' && !G.doubledThisLevel) {
+        Ads.showRewarded().then(ok => {
+          if (!ok) return;
+          G.doubledThisLevel = true;
+          const n = grantAngels(AD_REWARD.double);
+          if (n) showBoostToast([`👼 ×${n}`]);
+          renderAll();
+        });
+      }
+      break;
+    case 'AD_SKIN':
+      // 🎨 皮肤解锁(新类别:外观)——看广告直接永久解锁一款未解锁皮肤
+      if (adQuotaLeft('skin') > 0) {
+        Ads.showRewarded().then(ok => {
+          if (!ok) return;
+          const next = Themes.THEME_ORDER.find(k => !Themes.themeUnlocked(k, G.save));
+          if (!next) return;
+          adUse('skin');
+          if (!Array.isArray(G.save.skins)) G.save.skins = [];
+          G.save.skins.push(next);
+          persist();
+          Sfx.play('special'); Haptics.medium();
+          showBoostToast(['🎨 ' + T('skins.' + next)]);
+          openSkins();
+        });
+      }
+      break;
+    case 'AD_QUEST':
+      // 📋 任务加速(新类别:任务进度):看广告直接完成一个未完成的今日任务(含其奖励)
+      if (adQuotaLeft('quest') > 0) {
+        Ads.showRewarded().then(ok => {
+          if (!ok) return;
+          adUse('quest');
+          const day = ymd(Date.now());
+          const st = Quests.status(G.save, day);
+          const i = st.findIndex(q => !q.done);
+          if (i < 0) return;
+          questBump(st[i].t, st[i].target);   // 一次喂满 ⇒ 走既有完成/发奖路径
+          openQuests();
+        });
+      }
+      break;
+    case 'AI_TOGGLE':
+      G.aiOn = !G.aiOn;
+      if (G.save) { G.save.settings.aiOn = G.aiOn; persist(); }
+      if (G.aiOn) G.aiMem = AI.createMem();
+      renderAll();
       break;
     case 'NEXT':
       // 防连点:先离开 LEVEL_DONE,二次点击时覆盖层不再渲染、hit 已不存在;
@@ -74,7 +163,7 @@ function dispatch(action) {
         Gallery.shareCard(G.img, G.run.score, PAL, {
           title: 'Angel Snake',
           score: `${T('snake.score')} ${G.run.score}`,
-          url: location.origin + location.pathname,
+          url: Share.link(),          // ⭐ App Store 链接（不是网页版）——见 engine/share.js
         });
       break;
     case 'IMG_FULL':  if (G.phase === 'LEVEL_DONE') G.imgFull = true; break;
@@ -93,6 +182,22 @@ function speed() {   // 格/秒:基础7随长缓升封顶12;慢慢云 ×0.7;小�
   return Math.min(12, 7 + 0.03 * G.run.snake.length) * m;
 }
 
+/**
+ * 这一关揭哪张天使图 —— **随机**（2026-08-01 用户定：「每次消除游戏时的天使图也都随机」）。
+ * ⭐ 优先从**还没解锁的**里抽：既是随机的惊喜，收集进度也一直在动；全解锁了就随便抽一张重温。
+ * ⚠ 奖励关的节奏因此**不能再用 imgPos%10**（图号随机了 ⇒ 变成 10% 随机撞上）；
+ *   改看 run.level（每通一关 +1），节奏才稳定 —— 见 enterReady。
+ */
+function pickImgIndex() {
+  const list = G.imgList || [];
+  if (!list.length) return 0;
+  const got = new Set((G.save && G.save.gallery && G.save.gallery.unlocked) || []);
+  const fresh = [];
+  for (let i = 0; i < list.length; i++) if (!got.has(list[i])) fresh.push(i);
+  const pool = fresh.length ? fresh : list.map((_, i) => i);
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
 function loadImage() {
   return new Promise(res => {
     const img = new Image();
@@ -109,9 +214,10 @@ function enterReady(resumed) {
   G.revivesThisLevel = 0;
   loopState.last = 0;
   G.lastClearStars = 0;
-  G.rescueUntil = 0; G.rescueWasActive = false;   // 救场不跨关
+  G.aiUsedThisLevel = false;      // 星级封顶标记不跨关(AI 开关本身跨关保持,是玩家的显式选择)
+  G.doubledThisLevel = false;     // 结算「奖励翻倍」每关限一次
   // 奖励关:每 10 张图一关(imgPos 末位=9),2× 分数。不改盘面尺寸 → AI 保证不受影响。
-  G.bonusLevel = !!(G.imgList && G.imgList.length && (G.imgPos % 10 === 9));
+  G.bonusLevel = !!(G.run && G.run.level % 10 === 0);   // 每 10 关一次(图号已随机,不能再拿它当节奏)
   if (G.save) {
     if (!resumed) G.save.stats.levelsStarted++;
     G.tracker = Ach.newTracker(loopState.gameMs || 0, false);
@@ -152,18 +258,28 @@ function renderAchTab(tab) {
   const body = document.getElementById('panel-body');
   const got = new Set(G.save.ach.unlocked);
   const defs = tab === 'run' ? Ach.RUN_ACHS : Ach.CUM_DEFS;
-  body.innerHTML = defs.map(d => {
+  const nGot = defs.filter(d => got.has(d.id)).length;
+  // 顶部总进度:120 个成就里「我拿了几个」是这一页唯一真正想知道的数,原来得自己数
+  // 头部标题用**页签名**(单局/累计),不用面板标题——否则和上方大标题一字不差地重复一遍
+  const head = `<div class="ach-head">
+    <div class="t"><span>${uiIcon('badge-gold', 'inl')} ${T(tab === 'run' ? 'achui.tabRun' : 'achui.tabCum')}</span><b>${nGot}/${defs.length}</b></div>
+    <div class="b"><i style="width:${((nGot / defs.length) * 100).toFixed(1)}%"></i></div></div>`;
+  body.innerHTML = head + defs.map(d => {
     const has = got.has(d.id);
-    let pg = '';
+    let pg = '', bar = '';
     if (tab === 'cum') {
       const info = Ach.tierInfo(d.id);
       const cur = Math.min(Ach.getCounter(G.save, info.counter), info.threshold);
       // div 折算(time 族毫秒 → 小时),其余族 div=1 原样
       pg = T('achui.progress', { cur: Math.floor(cur / info.div), max: Math.round(info.threshold / info.div) });
+      // 细进度条只给未解锁的:拿到了就该看金卡,不该再看进度
+      // ⚠ 放在 .ach-item **外面**是刻意的——E2E 按 .ach-item 计数(必须恰好 100)
+      if (!has) bar = `<div class="ach-pg"><i style="width:${((cur / info.threshold) * 100).toFixed(0)}%"></i></div>`;
     }
+    // 徽章两档各有自己的图(金翼星章 / 灰石章)——比给同一张图套 grayscale 滤镜好看得多
     return `<div class="ach-item${has ? ' got' : ''}">
-      <span class="medal">🏅</span><span class="nm">${T('ach.' + d.id)}</span>
-      <span class="pg">${pg}</span></div>`;
+      <span class="medal">${uiIcon(has ? 'badge-gold' : 'badge-locked')}</span><span class="nm">${T('ach.' + d.id)}</span>
+      <span class="pg">${pg}</span></div>${bar}`;
   }).join('');
 }
 
@@ -180,17 +296,92 @@ function openGallery() {
   renderGalSets();
   if (G.phase === 'PLAYING') dispatch('PAUSE');       // 看图鉴时暂停
 }
-// 一级视图:25 集列表(集名 + 解锁进度)
+// 25 集的行:缩略图(该集第一张已解锁的图)+ 进度条 + 集齐转金。
+// ⚠ 缩略图用该集**已解锁**的第一张——拿未解锁的图当封面等于提前剧透,收集感就没了。
+// ⚠ loading=lazy + decoding=async:25 张 512² 全同步解码会在低端机上卡住开面板那一下。
+function galSetRowsHTML() {
+  const got = new Set(G.save.gallery.unlocked);
+  return ((G.manifest && G.manifest.sets) || []).map((s, i) => {
+    const pg = Gallery.setProgress(G.save, s);
+    const full = pg >= s.images.length;
+    const cover = s.images.find(f => got.has(f));
+    const pct = Math.max(0, (pg / s.images.length) * 100);
+    return `<div class="gal-set${full ? ' full' : ''}" data-i="${i}">
+      ${cover
+        ? `<img class="th" src="assets/angels/${cover}" loading="lazy" decoding="async" alt="">`
+        : `<span class="th lock">🔒</span>`}
+      <span class="mid">
+        <span class="nm">${T('gal.' + s.key)}${full ? uiIcon('crown', 'crown') : ''}
+          <span class="pg">${T('gal.progress', { cur: pg, max: s.images.length })}</span></span>
+        <span class="gb"><i style="width:${pct.toFixed(0)}%"></i></span>
+      </span></div>`;
+  }).join('');
+}
+// 一级视图:25 集列表(缩略图 + 解锁进度)+ 顶部「看广告 +N 张」(自愿、纯增益)
 function renderGalSets() {
   const body = document.getElementById('panel-body');
-  body.innerHTML = ((G.manifest && G.manifest.sets) || []).map((s, i) => {
-    const pg = Gallery.setProgress(G.save, s);
-    return `<div class="gal-set" data-i="${i}"><span>${T('gal.' + s.key)}</span>
-      <span class="pg">${T('gal.progress', { cur: pg, max: s.images.length })}</span></div>`;
-  }).join('');
+  const done = (G.save.gallery.unlocked.length >= ((G.imgList && G.imgList.length) || 500));
+  const left = adQuotaLeft('gal');
+  body.innerHTML =
+    (done || !left ? '' : `<button class="gal-ad" id="gal-ad" type="button">📺 ${T('ads.gal3', { n: AD_REWARD.gal })}<small>${T('ads.left', { n: left })}</small></button>`) +
+    galSetRowsHTML();
+  const ad = document.getElementById('gal-ad');
+  // ⭐ 收集加速位:全场意愿最高的激励视频(玩家正盯着自己的收集进度)。走统一 dispatch,冒烟可测。
+  if (ad) ad.onclick = () => { ad.disabled = true; dispatch('AD_GALLERY'); };
   body.querySelectorAll('.gal-set').forEach(el => {
     el.onclick = () => renderGalSet(parseInt(el.dataset.i, 10));
   });
+}
+
+// ——激励视频额度(每日重置)——
+// ⭐ 奖励给得厚 ⇒ 必须有额度,否则一天几十条广告就把 500 张图鉴刷穿、当天毕业(长线没了)。
+//   额度本身也是设计:每天上限 = 25 张图鉴 + 3 次开局礼包 + 1 次任务加速,已经非常大方。
+const AD_CAPS = { gal: 6, boost: 4, quest: 2, skin: 1 };
+// 🎁 开局礼包的抽奖池:**只放开局就爽得到的增益**。排除 scissors(开局蛇长 3,减身=空签)、
+// demon(提速对刚开局是负面)、meteor/gift(场上机制,不是即时增益)。
+const BOOST_POOL = ['heart', 'halo', 'trail', 'magnet', 'feather', 'twin', 'gold', 'cloud'];
+// 每次给多少：**奖励要一次见效**（+1 张没人看广告，+8 张才动手）
+// ⚠ 改激励视频的奖励数值**只动这张表**（reviveLives/reviveGhostSec 是 2026-08-01 用户加厚的：
+//   「复活 + 30 秒无敌 + 10 条命，而且要提示出来」——奖励看不见等于没给）
+// ⚠ 开局礼包已改成「**全部**有益增益」(BOOST_POOL 全发) ⇒ 没有「发几个」这个数了，
+//   只剩附赠的命/无敌两项（boostLives/boostGhostSec，与复活同口径）。
+const AD_REWARD = { gal: 8, daily: 5, double: 3,
+                    reviveLives: 10, reviveGhostSec: 30,
+                    boostLives: 10, boostGhostSec: 30 };
+function adQuotaLeft(kind) {
+  if (!G.save) return 0;
+  const a = G.save.ads, today = ymd(Date.now());
+  // ⚠ 跨天重置必须**按 AD_CAPS 全量清**:漏掉哪个 key,那个位就永久卡在首日额度
+  //   (skin 上限 1 ⇒ 玩家一辈子只能广告解锁一款皮肤)。加新位时这里零改动。
+  if (a.day !== today) { a.day = today; for (const k of Object.keys(AD_CAPS)) a[k] = 0; }
+  return Math.max(0, (AD_CAPS[kind] || 0) - (a[kind] || 0));
+}
+function adUse(kind) {
+  const a = G.save.ads;
+  a.day = ymd(Date.now());
+  a[kind] = (a[kind] || 0) + 1;
+  persist();
+}
+
+/** 直接解锁 n 张未解锁天使(每日礼物/任务/看广告共用的发放口) */
+function grantAngels(n) {
+  let got = 0;
+  for (let i = 0; i < n; i++) {
+    const f = questPickAngel();
+    if (!f) break;
+    const setsBefore = G.save.stats.setsDone;
+    Gallery.recordUnlock(G.save, f);
+    Gallery.updateSetsDone(G.save, G.manifest);
+    if (G.save.stats.setsDone > setsBefore) setTimeout(showSetComplete, 400);
+    got++;
+  }
+  if (!got) return 0;
+  G.save.stats.distinctImgs = G.save.gallery.unlocked.length;
+  const newly = Ach.checkCum(G.save).unlocked;
+  if (newly.length) showAchToasts(newly);
+  Sfx.play('special'); Haptics.light();
+  persist();
+  return got;
 }
 // 二级视图:集内 20 缩略图(未解锁灰剪影;已解锁点开 lightbox)
 function renderGalSet(i) {
@@ -272,41 +463,115 @@ function openSkins() {
   renderSkinsBody();
   if (G.phase === 'PLAYING') dispatch('PAUSE');
 }
+// 皮肤缩略预览:五条色带看不出「换了皮肤盘面长什么样」,直接画一小块真盘面——
+// 云层(含该主题的确定性纹理)+ 已揭开的洞 + 蛇 + 苹果,全部走主题自己的调色板。
+// ⚠ 复用 themes.js 的 texture(m,px,pc) 契约(this=主题对象),别在这里重抄一份纹理。
+function skinPreviewURL(key) {
+  const t = Themes.THEMES[key], P = t.pal;
+  const S = 132, C = 22;                                   // 画布边长 / 格宽 ⇒ 6×6 格
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = S;
+  const x = cv.getContext('2d');
+  // 底 = 揭开后露出的**天使图**(不随主题变——主题只换云层/蛇/道具),用暖色渐变示意
+  const gr = x.createLinearGradient(0, 0, S, S);
+  gr.addColorStop(0, '#ffe3f0'); gr.addColorStop(0.5, '#fff0d8'); gr.addColorStop(1, '#e8ddff');
+  x.fillStyle = gr; x.fillRect(0, 0, S, S);
+  x.fillStyle = P.cloud; x.fillRect(0, 0, S, S);           // 云层盖住
+  t.texture(x, S, C);                                      // 主题纹理(星点/糖纸格/羽毛…)
+  // 揭开的通道(蛇走过的路):挖掉云层露出底图
+  x.save();
+  x.beginPath();
+  [[1,3],[2,3],[3,3],[3,2],[4,2],[1,4],[2,4]].forEach(([cx, cy]) => x.rect(cx*C, cy*C, C, C));
+  x.clip(); x.fillStyle = gr; x.fillRect(0, 0, S, S);
+  x.restore();
+  // 蛇身:圆头圆尾的连续管体(画成一条粗线,不是一串圆点——断开的圆点看着像别的东西)
+  const seg = [[1,4],[2,4],[2,3],[3,3],[3,2]];
+  x.strokeStyle = P.snake; x.lineWidth = C * 0.78;
+  x.lineJoin = x.lineCap = 'round';
+  x.beginPath();
+  seg.forEach(([cx, cy], i) => x[i ? 'lineTo' : 'moveTo'](cx*C + C/2, cy*C + C/2));
+  x.stroke();
+  const [hx, hy] = seg[seg.length - 1];
+  x.strokeStyle = P.glow; x.lineWidth = 2;
+  x.beginPath(); x.ellipse(hx*C + C/2, hy*C + C*0.16, C*0.3, C*0.12, 0, 0, Math.PI*2); x.stroke();
+  x.fillStyle = P.eye;
+  x.beginPath(); x.arc(hx*C + C*0.62, hy*C + C*0.46, C*0.09, 0, Math.PI*2); x.fill();
+  // 苹果(放在蛇头前方的已揭格里)
+  x.fillStyle = P.apple;
+  x.beginPath(); x.arc(4*C + C/2, 2*C + C/2, C*0.3, 0, Math.PI*2); x.fill();
+  x.fillStyle = P.leaf;
+  x.fillRect(4*C + C/2 - 1.5, 2*C + C*0.14, 3, C*0.16);
+  return cv.toDataURL();
+}
 function renderSkinsBody() {
   const body = document.getElementById('panel-body');
   if (!body) return;
   const cur = G.save.settings.theme || 'cloud';
-  body.innerHTML = Themes.THEME_ORDER.map(k => {
+  // 🎨 皮肤解锁位:还有没解锁的皮肤 + 今日还有额度 ⇒ 顶部给一个激励视频按钮
+  const locked = Themes.THEME_ORDER.find(k => !Themes.themeUnlocked(k, G.save));
+  body.innerHTML = (locked && adQuotaLeft('skin') > 0
+      ? `<button class="gal-ad" id="skin-ad" type="button">📺 ${T('ads.skin')}</button>` : '')
+    + Themes.THEME_ORDER.map(k => {
     const t = Themes.THEMES[k];
     const un = Themes.themeUnlocked(k, G.save);
-    const sw = ['bg', 'cloud', 'snake', 'accent', 'accent2']
-      .map(c => `<i style="background:${t.pal[c]}"></i>`).join('');
-    let tip = '';
-    if (!un) tip = t.unlock.stat === 'setsDone' ? T('skins.needSet') : T('skins.needLevels', { n: t.unlock.n });
-    else if (k === cur) tip = '✓';
+    let tip = '', prog = '';
+    if (!un) {
+      tip = t.unlock.stat === 'setsDone' ? T('skins.needSet') : T('skins.needLevels', { n: t.unlock.n });
+      // 锁着的皮肤给进度条:「还差 2 关」比「需要 5 关」更拉得动人
+      const cur2 = t.unlock.stat.split('.').reduce((o, kk) => (o || {})[kk], G.save.stats) || 0;
+      prog = `<span class="skin-pg"><i style="width:${Math.min(100, (cur2 / t.unlock.n) * 100).toFixed(0)}%"></i></span>`;
+    } else if (k === cur) tip = '✓';
     return `<div class="skin-card${k === cur ? ' on' : ''}${un ? '' : ' locked'}" data-k="${k}">
-      <span class="skin-sw">${sw}</span><span class="skin-nm">${T('skins.' + k)}</span>
+      <img class="skin-sw" src="${skinPreviewURL(k)}" alt="">
+      <span class="skin-mid"><span class="skin-nm">${T('skins.' + k)}</span>${prog}</span>
       <span class="skin-tip">${tip}</span></div>`;
   }).join('');
   body.querySelectorAll('.skin-card:not(.locked)').forEach(el => {
     el.onclick = () => applyThemeFromUI(el.dataset.k);
   });
+  const sad = document.getElementById('skin-ad');
+  if (sad) sad.onclick = () => { sad.disabled = true; dispatch('AD_SKIN'); };
 }
 
 // ——主界面(启动/暂停 hub)——
 // 纯 DOM 浮层,不动 phase 机(boot 后 phase 仍 READY,E2E 契约不变)。
 // PLAYING 时打开会先暂停(与成就/图鉴一致);Play/继续按钮收起浮层。
-const HERO_ANGEL = '0bep0x.webp';   // 主界面主视觉(= App 图标同一张,品牌一致)
-function hideHome() { const h = document.getElementById('home'); if (h) h.classList.add('hidden'); }
+const HERO_ANGEL = '0bep0x.webp';   // 主视觉的兜底(= App 图标同一张;一张都没解锁时用它)
+/**
+ * 主界面主视觉 —— **每次打开都换一张**（2026-08-01 用户定）。
+ * ⭐ 从**已解锁的**里抽：它是「我的收藏」不是装饰画，每次回来看到不同的那张才有收集感。
+ * ⚠ 只在 openHome() 里抽一次并缓存进 G.heroAngel —— 主界面会因语言/领奖等重渲多次，
+ *   每次重渲都重抽的话，图会毫无理由地自己跳。
+ */
+function pickHeroAngel() {
+  const got = (G.save && G.save.gallery && G.save.gallery.unlocked) || [];
+  return got.length ? got[Math.floor(Math.random() * got.length)] : HERO_ANGEL;
+}
+// 天国开场的装饰层(纯样式,全部 pointer-events:none,不接任何交互)。
+// 放在 innerHTML 最前面 ⇒ 永远在内容之下;动画由 body.rm 统一兜底关闭(见 syncMotionClass)。
+const SKY_DECO =
+  '<div class="sky-deco" aria-hidden="true"><div class="sky"></div><div class="rays"></div>'
+  + '<i class="fth"></i>'.repeat(9)
+  + '<div class="sea s1"></div><div class="sea s2"></div><div class="sea s3"></div></div>';
+function hideHome() {
+  G.heroAngel = null;                                 // 下次进主界面重抽一张
+  const h = document.getElementById('home'); if (h) h.classList.add('hidden');
+}
 // 减弱动态:未显式设置则跟随系统 prefers-reduced-motion;用户可在主界面切换(显式存档覆盖)
 function computeReduceMotion() {
   const pref = G.save && G.save.settings ? G.save.settings.reduceMotion : null;
   if (pref != null) return !!pref;
   try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; }
 }
+// 减弱动态要同时管住 **CSS 装饰动画**(极光/浮动/流光/入场):canvas 侧看 G.reduceMotion,
+// DOM 侧看 body.rm —— 这个函数是两者唯一的同步点,任何改 reduceMotion 的地方都要调它。
+function syncMotionClass() {
+  if (document.body) document.body.classList.toggle('rm', !!G.reduceMotion);
+}
 function toggleMotion() {
   const next = !computeReduceMotion();
   G.save.settings.reduceMotion = next; G.reduceMotion = next; persist();
+  syncMotionClass();
 }
 // 下一个待解锁皮肤 + 进度(null=全解锁)
 function nextSkinHint() {
@@ -319,46 +584,92 @@ function nextSkinHint() {
   return null;
 }
 // 主界面收集进度块:X/500 天使 + 进度条 + 下一皮肤里程碑
+/** 👤 档案头：头像 + 称号 Lv + XP 条。xp = 历史累计得分（现成计数器，零新埋点）*/
+function homeProfileHTML() {
+  const xp = G.save.stats.totalScore | 0;
+  const p = Meta.levelProgress(xp);
+  const face = G.save.gallery.unlocked[G.save.gallery.unlocked.length - 1];
+  return `<div class="home-prof">
+    <div class="pf-face">${face ? `<img src="assets/angels/${face}" alt="">` : '⭐'}</div>
+    <div class="pf-mid">
+      <div class="pf-top"><b>${T('lvl.' + Meta.titleKey(p.level))}</b>
+        <span class="pf-lv">${T('lvl.lv', { n: p.level })}</span></div>
+      <div class="pf-bar"><i style="width:${(p.pct * 100).toFixed(1)}%"></i></div>
+    </div>
+    <div class="pf-xp">${p.cur}/${p.span}</div>
+  </div>`;
+}
+
+/**
+ * ⭐ 「下一个目标」条：把散落各处的系统串成**打开即见的一句话**（点击直达）。
+ * 零新系统 —— 纯查询既有状态（任务/连续/图鉴集/榜/等级）。
+ */
+function homeGoalHTML() {
+  const s = G.save.stats;
+  const g = Meta.nextGoal({
+    totalScore: s.totalScore | 0,
+    questDone: questDoneCount(), questTotal: 3,
+    streakDays: (G.save.daily && G.save.daily.giftStreak) || 0,
+    galleryGot: G.save.gallery.unlocked.length,
+    galleryTotal: (G.imgList && G.imgList.length) || 500,
+    setSize: 25,
+  });
+  if (!g) return '';
+  return `<button class="home-goal" id="home-goal" data-act="${g.act}" type="button">
+    <span class="hg-t">${T('goal.title')}</span>
+    <span class="hg-b">${T('goal.' + g.key, g.params)}</span></button>`;
+}
+
 function homeProgressHTML() {
   const total = (G.imgList && G.imgList.length) || 500;
   const got = G.save.gallery.unlocked.length;
   const skin = nextSkinHint();
   const pct = Math.max(2, (got / total) * 100);
   return `<div class="home-prog">
-    <div class="hp-top"><span>🖼️ ${T('home.collected', { n: got, total })}</span></div>
+    <div class="hp-top"><span>🖼️ ${T('home.collected', { n: got, total })}</span>
+      <span class="pct">${((got / total) * 100).toFixed(1)}%</span></div>
     <div class="hp-bar"><i style="width:${pct.toFixed(1)}%"></i></div>
-    ${skin ? `<div class="hp-skin">🎨 ${T('home.nextSkin', { name: skin.name })} · ${skin.bySet ? T('skins.needSet') : skin.cur + '/' + skin.need}</div>` : ''}
+    ${skin ? `<div class="hp-skin">${uiIcon('palette', 'inl')} ${T('home.nextSkin', { name: skin.name })} · ${skin.bySet ? T('skins.needSet') : skin.cur + '/' + skin.need}</div>` : ''}
   </div>`;
 }
 function openHome() {
   const home = document.getElementById('home');
   if (!home) return;
   if (G.phase === 'PLAYING') dispatch('PAUSE');       // 打开即暂停
+  if (!G.heroAngel) G.heroAngel = pickHeroAngel();    // 每次「进」主界面换一张(重渲不换)
   // 主按钮按当前状态智能续继(从任意状态回主界面再点都对):
   // 暂停→继续 / 死亡→重新出发 / 过关→下一张 / 待机→只收起(滑动开始)
   let playLabel = T('home.play'), playAct = null;
   if (G.phase === 'PAUSED') { playLabel = T('home.resume'); playAct = 'RESUME'; }
   else if (G.phase === 'DEAD') { playLabel = T('snake.respawn'); playAct = 'RESPAWN'; }
   else if (G.phase === 'LEVEL_DONE') { playLabel = T('snake.next'); playAct = 'NEXT'; }
-  home.innerHTML =
-    `<img class="home-hero" src="assets/angels/${HERO_ANGEL}" alt="">
+  // 菜单角标:每个入口都带一个「你在这儿有多少东西」的数字——空按钮不给人点进去的理由
+  const qDone = questDoneCount();
+  const achGot = G.save.ach.unlocked.length;
+  const skinGot = Themes.THEME_ORDER.filter(k => Themes.themeUnlocked(k, G.save)).length;
+  home.innerHTML = SKY_DECO +
+    `<div class="hero-wrap"><img class="home-hero" src="assets/angels/${G.heroAngel || HERO_ANGEL}" alt=""></div>
      <div class="home-title">Angel Snake</div>
      <div class="home-tag">${T('home.tag')}</div>
+     ${homeProfileHTML()}
      ${homeProgressHTML()}
+     ${homeGoalHTML()}
      <button class="home-play" id="home-play" type="button">${playLabel}</button>
      <button class="home-daily${dailyClaimable() ? ' ready' : ''}" id="home-daily" type="button">
-       🎁 ${dailyClaimable() ? T('daily.claim') : T('daily.streak', { n: (G.save.daily && G.save.daily.giftStreak) || 0 })}</button>
+       ${uiIcon('gift', 'inl')} ${dailyClaimable() ? T('daily.claim') : T('daily.streak', { n: (G.save.daily && G.save.daily.giftStreak) || 0 })}</button>
      <div class="home-menu">
-       <button class="home-btn" id="home-quests" type="button"><span class="ico">📋</span>${T('q.title')} ${questDoneCount()}/3</button>
-       <button class="home-btn" id="home-ach" type="button"><span class="ico">🏅</span>${T('menu.achievements')}</button>
-       <button class="home-btn" id="home-gal" type="button"><span class="ico">🖼️</span>${T('menu.gallery')}</button>
-       <button class="home-btn" id="home-skin" type="button"><span class="ico">🎨</span>${T('menu.skins')}</button>
-       <button class="home-btn" id="home-stats" type="button"><span class="ico">📊</span>${T('stats.title')}</button>
-       <button class="home-btn" id="home-howto" type="button"><span class="ico">❓</span>${T('howto.title')}</button>
+       <button class="home-btn${qDone < 3 ? ' todo' : ''}" id="home-quests" type="button"><span class="ico">${uiIcon('scroll', 'fill')}</span><span class="lb">${T('q.title')}</span><span class="bdg">${qDone}/3</span></button>
+       <button class="home-btn" id="home-ach" type="button"><span class="ico">${uiIcon('medal', 'fill')}</span><span class="lb">${T('menu.achievements')}</span><span class="bdg">${achGot}</span></button>
+       <button class="home-btn" id="home-gal" type="button"><span class="ico">${uiIcon('frame', 'fill')}</span><span class="lb">${T('menu.gallery')}</span><span class="bdg">${G.save.gallery.unlocked.length}</span></button>
+       <button class="home-btn" id="home-skin" type="button"><span class="ico">${uiIcon('palette', 'fill')}</span><span class="lb">${T('menu.skins')}</span><span class="bdg">${skinGot}/${Themes.THEME_ORDER.length}</span></button>
+       <button class="home-btn" id="home-stats" type="button"><span class="ico">${uiIcon('chart', 'fill')}</span><span class="lb">${T('stats.title')}</span></button>
+       <button class="home-btn full" id="home-ladder" type="button"><span class="ico">${uiIcon('crown', 'fill')}</span><span class="lb">${T('ladder.title')}</span><span class="bdg">${Meta.beatenCount(G.save.stats.totalScore | 0)}/${Meta.LADDER.length}</span></button>
+       <button class="home-btn" id="home-howto" type="button"><span class="ico">${uiIcon('book', 'fill')}</span><span class="lb">${T('howto.title')}</span></button>
      </div>
      <div class="home-foot">
        <button id="home-lang" class="wide" type="button" title="${T('lang.toggle')}">🌐 ${I18N.NATIVE[I18N.lang] || I18N.lang}</button>
        <button id="home-sfx" type="button">${Sfx.on ? '🔊' : '🔇'}</button>
+       <button id="home-ai" type="button" title="${T('ai.start')}" class="${G.aiOn ? 'on' : ''}">${G.aiOn ? '🤖' : '🎮'}</button>
        <button id="home-motion" type="button" title="${T('home.motion')}">${G.reduceMotion ? '🍃' : '✨'}</button>
        ${Notify.available ? `<button id="home-remind" type="button" title="${T('notif.toggle')}">${G.save.settings.remind ? '🔔' : '🔕'}</button>` : ''}
        <button id="home-fb" type="button" title="Feedback">💬</button>
@@ -373,6 +684,10 @@ function openHome() {
   $('home-skin').onclick = () => openSkins();
   $('home-stats').onclick = () => openStats();
   $('home-howto').onclick = () => openHowTo();
+  $('home-ladder').onclick = () => openLadder();
+  const gb = $('home-goal');
+  if (gb) gb.onclick = () => ({ quests: openQuests, daily: claimDaily, gallery: openGallery,
+                                ladder: openLadder, stats: openStats }[gb.dataset.act] || openQuests)();
   const rb = $('home-remind');
   if (rb) rb.onclick = () => {                            // 每日提醒开关(原生才显示)
     G.save.settings.remind = !G.save.settings.remind;
@@ -381,6 +696,13 @@ function openHome() {
     Notify.reschedule(G.save, dailyClaimable());          // 开=申请权限并排期;关=全部取消
   };
   $('home-sfx').onclick = () => { $('home-sfx').textContent = Sfx.toggle() ? '🔊' : '🔇'; };
+  // AI 代打开关(免费):主界面与局内按钮共用同一个 action
+  $('home-ai').onclick = () => {
+    dispatch('AI_TOGGLE');
+    const b = $('home-ai');
+    b.textContent = G.aiOn ? '🤖' : '🎮';
+    b.className = G.aiOn ? 'on' : '';
+  };
   $('home-motion').onclick = () => { toggleMotion(); $('home-motion').textContent = G.reduceMotion ? '🍃' : '✨'; };
   $('home-fb').onclick = () => { if (typeof Feedback !== 'undefined') Feedback.openForm(); };   // 意见反馈
   // 语言:主界面浮层盖住了顶栏的引擎语言下拉,这里补一个。10 语循环按钮太烂 → 弹菜单直选。
@@ -398,6 +720,52 @@ function openLangMenu() {
     lb.classList.add('hidden');
     I18N.setLang(b.dataset.l).then(() => openHome());   // 切完重渲主界面(新语言)
   });
+}
+
+/**
+ * 🪜 天使榜 —— 零后端的「别人」：20 个**预设角色**按累计得分排名，你插在中间。
+ * ⛔ 文案红线：它们是**游戏角色**（唱诗班的天使），**绝不称「玩家」** —— 既要虚构
+ *   又要暗示真人就是伪造（test-meta 里有断言钉死名字）。进度**零存档**，由累计分推导。
+ */
+function openLadder() {
+  const panel = document.getElementById('panel');
+  document.getElementById('panel-title').textContent = T('ladder.title');
+  document.getElementById('panel-tabs').innerHTML = '';
+  const xp = G.save.stats.totalScore | 0;
+  const beaten = Meta.beatenCount(xp);
+  const next = Meta.nextTarget(xp);
+  const rows = Meta.LADDER.map((g, i) => ({ g, i, passed: xp > g.score }));
+  // 你插在「已超过的最后一位」和「下一个目标」之间 —— 一眼看清自己在梯子的哪一格
+  const list = [];
+  rows.forEach((r, i) => {
+    if (i === beaten) list.push({ me: true });
+    list.push(r);
+  });
+  if (beaten >= rows.length) list.push({ me: true });
+  const img = i => (G.imgList && G.imgList[i]) ? `<img src="assets/angels/${G.imgList[i]}" alt="">` : '👼';
+  document.getElementById('panel-body').innerHTML =
+    `<div class="ld-head">${T('ladder.sub')}</div>
+     <div class="ld-sum">${T('ladder.beaten', { n: beaten, m: rows.length })}${
+       next ? ` · ${T('ladder.next', { n: next.score - xp, name: next.name })}` : ` · ${T('ladder.top')}`}</div>
+     <div class="ld-list">` +
+    list.map(r => r.me
+      ? `<div class="ld-row me"><span class="ld-n">–</span><span class="ld-face">🐍</span>
+           <span class="ld-name">${T('ladder.you')}</span><span class="ld-sc">${xp}</span></div>`
+      : `<div class="ld-row${r.passed ? ' passed' : ''}"><span class="ld-n">${rows.length - r.i}</span>
+           <span class="ld-face">${img(r.g.img)}</span>
+           <span class="ld-name">${r.g.name}</span><span class="ld-sc">${r.g.score}</span></div>`
+    ).join('') + `</div>`;
+  document.getElementById('panel-close').onclick = () => {
+    panel.classList.add('hidden');
+    if (G.phase === 'PAUSED') renderAll();
+  };
+  panel.classList.remove('hidden');
+  // ⭐ 打开就滚到「你」那一行 —— 榜的全部意义是看自己在哪一格，
+  //   让人先手动滚半屏去找自己，等于把爽点藏起来（实拍抓出）。
+  const me = panel.querySelector('.ld-row.me');
+  if (me && me.scrollIntoView) {
+    try { me.scrollIntoView({ block: 'center' }); } catch (e) { me.scrollIntoView(); }
+  }
 }
 
 // ——玩法说明——(图文行,复用 #panel)
@@ -421,27 +789,108 @@ function openHowTo() {
   if (G.phase === 'PLAYING') dispatch('PAUSE');
 }
 
+/** 开局礼包发到手时的横幅(显示拿到哪三个果效) */
+/** 复活后当场报一次拿到了什么（HUD 上还有 💖×10 / 😇30 的常驻指示兜底）*/
+function showReviveToast() {
+  const host = document.getElementById('toasts');
+  if (!host) return;
+  const el = document.createElement('div');
+  el.className = 'set-banner';
+  el.innerHTML = '<span class="sb-emo">💖</span><span>'
+    + T('ads.reviveGot', { n: AD_REWARD.reviveLives, s: AD_REWARD.reviveGhostSec }) + '</span>';
+  host.appendChild(el);
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 500); }, 3000);
+}
+
+// ══ 连续吃果的音阶（2026-08-01 用户点名：「连续吃到果子音效更好、有连贯性，最多 20 个然后重复」）══
+// 固定一个 eat.wav 听 200 次只有噪音感；改成**每吃一颗升一级的上行音阶**，
+// 连吃越久越高越爽，断了从头来 —— 一条听得见的连击反馈。
+// ⚠ 走 WebAudio 实时合成（本作零外部音源的老规矩，同 tools/gen-sfx.js）；
+//   不支持/被拦就回退原来的 eat.wav，绝不静音。
+const TONE_STEPS = 20;                     // 20 级封顶，然后从头（用户定；再高就刺耳了）
+const TONE_SCALE = [0, 2, 4, 5, 7, 9, 11]; // 大调音阶 ⇒ 20 级 ≈ 3 个八度，怎么连都协和
+let toneCtx = null;
+function eatTone(step) {
+  if (!Sfx.on) return false;
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return false;
+    if (!toneCtx) toneCtx = new AC();
+    if (toneCtx.state === 'suspended') toneCtx.resume();
+    const i = ((step % TONE_STEPS) + TONE_STEPS) % TONE_STEPS;
+    const semis = TONE_SCALE[i % TONE_SCALE.length] + 12 * Math.floor(i / TONE_SCALE.length);
+    const f = 261.63 * Math.pow(2, semis / 12);        // C4 起
+    const t = toneCtx.currentTime;
+    const g = toneCtx.createGain();                    // 短促的音乐盒式衰减
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.22, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.34);
+    g.connect(toneCtx.destination);
+    for (const [type, mul, vol] of [['triangle', 1, 1], ['sine', 2, 0.32]]) {
+      const o = toneCtx.createOscillator();
+      o.type = type; o.frequency.setValueAtTime(f * mul, t);
+      const og = toneCtx.createGain(); og.gain.value = vol;
+      o.connect(og); og.connect(g);
+      o.start(t); o.stop(t + 0.36);
+    }
+    return true;
+  } catch (e) { return false; }
+}
+/** 吃到果子：按「连续」推进音阶（⚠ 用表现层自己的计数器 —— core 的 combo 超时不清零，
+ *  拿它当音高会导致音阶一路只升不降；这里断了就回 0，与玩家听感一致）*/
+function playEatTone(nowMs) {
+  const gap = nowMs - (G.eatToneAt == null ? -1e9 : G.eatToneAt);
+  G.eatToneStep = gap <= Core.COMBO_WINDOW_MS ? (G.eatToneStep || 0) + 1 : 0;
+  G.eatToneAt = nowMs;
+  if (!eatTone(G.eatToneStep)) Sfx.play('eat');
+}
+
+function showBoostToast(emojis) {
+  const host = document.getElementById('toasts');
+  if (!host) return;
+  const el = document.createElement('div');
+  el.className = 'set-banner';
+  // 拿到了什么必须写清楚：全部增益的 emoji 一排 + 附赠的命/无敌（HUD 上还有 💖×n / 😇秒 兜底）
+  el.innerHTML = `<span class="sb-emo">🎁</span><span>${T('ads.boostGot')} ${emojis.join(' ')}<br>`
+    + `${T('ads.boostSub', { n: AD_REWARD.boostLives, s: AD_REWARD.boostGhostSec })}</span>`;
+  host.appendChild(el);
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 500); }, 2600);
+}
+
 // ——每日任务面板——(复用 #panel;进度条 + 自动发奖,无「领取」按钮)
 function questDoneCount() {
   try { return Quests.status(G.save, ymd(Date.now())).filter(q => q.done).length; } catch (e) { return 0; }
 }
+// 每个任务类型 → 共享图标名。三行同一个图标看不出差别,换成对应的果子/格子/连击更好读。
+const Q_ICON = { apples: 'apple', levels: 'picture-done', cells: 'key', special: 'sparkle', combo: 'bolt', noDeath: 'shield-heart' };
+/**
+ * UI 图标 = **全仓共享库** `engine/assets/ui/`(见 engine/ui-icons.js + tools/gen-ui-icons.cjs)。
+ * ⛔ 别在 games/snake/assets/ 下再放一份:这些图(星星/奖杯/锁/关闭…)每个游戏都要。
+ * 回退 emoji 由共享库的 manifest.json 提供,调用点不用再各写一遍。
+ */
+function uiIcon(name, cls) { return UIIcon.img(name, { cls }); }
 function openQuests() {
   const panel = document.getElementById('panel');
   document.getElementById('panel-title').textContent = T('q.title');
   document.getElementById('panel-tabs').innerHTML = '';
   const list = Quests.status(G.save, ymd(Date.now()));
   document.getElementById('panel-body').innerHTML =
-    `<div class="q-sub">${T('q.reward')}</div>` +
+    `<div class="q-sub">${T('q.reward', { n: Quests.REWARD_ANGELS })}<br>${T('q.bonusHint', { n: Quests.ALLDONE_BONUS })}</div>` +
     list.map(q => {
       const pct = Math.min(100, (q.prog / q.target) * 100).toFixed(0);
-      return `<div class="ach-item${q.done ? ' got' : ''}">
-          <span class="medal">${q.done ? '✅' : '📋'}</span>
+      // qrow:任务图标表达的是「任务类型」不是「拿没拿到」⇒ 不能套成就那套灰掉的样式
+      return `<div class="ach-item qrow${q.done ? ' got' : ''}">
+          <span class="medal">${q.done ? '✅' : uiIcon(Q_ICON[q.t] || 'scroll')}</span>
           <span class="nm">${T('q.' + q.t, { n: q.target })}</span>
           <span class="pg">${q.done ? '✓' : q.prog + '/' + q.target}</span>
         </div>
         <div class="q-bar"><i style="width:${pct}%"></i></div>`;
     }).join('') +
-    (list.every(q => q.done) ? `<div class="q-all">✨ ${T('q.allDone')}</div>` : '');
+    (list.every(q => q.done)
+      ? `<div class="q-all">✨ ${T('q.allDone')}</div>`
+      : (adQuotaLeft('quest') > 0 ? `<button class="gal-ad" id="q-ad" type="button">📺 ${T('ads.quest')}</button>` : ''));
+  const qad = document.getElementById('q-ad');
+  if (qad) qad.onclick = () => { qad.disabled = true; dispatch('AD_QUEST'); };
   document.getElementById('panel-close').onclick = () => {
     panel.classList.add('hidden');
     if (G.phase === 'PAUSED') renderAll();
@@ -458,19 +907,22 @@ function openStats() {
   const s = G.save.stats, g = G.save.gallery;
   const total = (G.imgList && G.imgList.length) || 500;
   const hrs = (s.playtimeMs / 3600000);
+  // [key, 值, 图标, 分组]。分组只影响配色:col=收集 ply=战绩 hrd=受挫 hab=习惯
+  // ——16 个同色数字扫下来像账单,分了组眼睛才抓得住重点。
   const cells = [
-    ['levels', s.levelsCleared | 0], ['imgs', (g.unlocked.length | 0) + '/' + total],
-    ['sets', s.setsDone | 0], ['score', s.totalScore | 0],
-    ['apples', s.apples | 0], ['cells', s.cellsRevealed | 0],
-    ['steps', s.steps | 0], ['combo', s.maxCombo | 0],
-    ['len', s.maxLen | 0], ['noDeath', s.noDeathClears | 0],
-    ['deaths', s.deaths | 0], ['saves', s.shieldSaves | 0],
-    ['streak', s.streakDays | 0], ['gift', (G.save.daily && G.save.daily.giftStreak) || 0],
-    ['time', (hrs >= 1 ? hrs.toFixed(1) + 'h' : Math.round(s.playtimeMs / 60000) + 'm')],
-    ['stars', Object.values(g.stars || {}).reduce((a, v) => a + (v | 0), 0)],
+    ['levels', s.levelsCleared | 0, '🖼️', 'col'], ['imgs', (g.unlocked.length | 0) + '/' + total, '👼', 'col'],
+    ['sets', s.setsDone | 0, '👑', 'col'], ['stars', Object.values(g.stars || {}).reduce((a, v) => a + (v | 0), 0), '⭐', 'col'],
+    ['score', s.totalScore | 0, '🏆', 'ply'], ['combo', s.maxCombo | 0, '⚡', 'ply'],
+    ['len', s.maxLen | 0, '🐍', 'ply'], ['noDeath', s.noDeathClears | 0, '✨', 'ply'],
+    ['apples', s.apples | 0, '🍎', 'ply'], ['cells', s.cellsRevealed | 0, '🔓', 'ply'],
+    ['steps', s.steps | 0, '👣', 'ply'],
+    ['deaths', s.deaths | 0, '💥', 'hrd'], ['saves', s.shieldSaves | 0, '🛡️', 'hrd'],
+    ['streak', s.streakDays | 0, '🔥', 'hab'], ['gift', (G.save.daily && G.save.daily.giftStreak) || 0, '🎁', 'hab'],
+    ['time', (hrs >= 1 ? hrs.toFixed(1) + 'h' : Math.round(s.playtimeMs / 60000) + 'm'), '⏱️', 'hab'],
   ];
   document.getElementById('panel-body').innerHTML = `<div class="st-grid">` +
-    cells.map(([k, v]) => `<div class="st-cell"><b>${v}</b><span>${T('stats.' + k)}</span></div>`).join('') +
+    cells.map(([k, v, ic, c]) =>
+      `<div class="st-cell c-${c}"><div class="ic">${ic}</div><b>${v}</b><span>${T('stats.' + k)}</span></div>`).join('') +
     `</div>`;
   document.getElementById('panel-close').onclick = () => {
     panel.classList.add('hidden');
@@ -497,7 +949,10 @@ function claimDaily() {
   // 相邻天 streak+1,断档回 1。用 Math.round 算日差:夏令时切换日是 23/25h,严格减 86400000ms
   // 会误判(与 achievements.onLevelClear 的 streak 处理对齐)。
   const prevMs = d.lastGiftDay ? new Date(d.lastGiftDay).getTime() : null;
-  const adjacent = prevMs != null && Math.round((new Date(today).getTime() - prevMs) / 86400000) === 1;
+  const gapDays = prevMs != null ? Math.round((new Date(today).getTime() - prevMs) / 86400000) : null;
+  const adjacent = gapDays === 1;
+  // 恰好漏了 1 天且原来有 ≥2 天连续 ⇒ 给「看广告补签」的机会(弹窗里出按钮)
+  G.repairOffer = (!adjacent && gapDays === 2 && (d.giftStreak || 0) >= 2) ? d.giftStreak : null;
   d.giftStreak = adjacent ? d.giftStreak + 1 : 1;
   d.lastGiftDay = today;
   const angel = dailyPickAngel();
@@ -510,6 +965,23 @@ function claimDaily() {
     newly = Ach.checkCum(G.save).unlocked;
     if (G.save.stats.setsDone > setsBefore) setTimeout(showSetComplete, 400);   // 每日礼物也可能集齐
   }
+  // ⭐ 连续奖励阶梯 3/7/14/30：单纯数天数没有动机，「熬到第 7 天有 8 张」才有。
+  //   断签时 streak 回 1，水位也跟着清（补签会把两者一起恢复，见 REPAIR）。
+  if (!adjacent) d.rewarded = [];
+  const due = Meta.dueRewards(d.giftStreak, d.rewarded);
+  if (due.length) {
+    d.rewarded = (d.rewarded || []).concat(due.map(r => r.key));
+    const extra = due.reduce((a, r) => a + r.angels, 0);
+    G.streakBonus = { n: extra, d: due[due.length - 1].days };
+    for (let i = 0; i < extra; i++) {
+      const a2 = dailyPickAngel();
+      if (!a2) break;
+      Gallery.recordUnlock(G.save, a2);
+    }
+    Gallery.updateSetsDone(G.save, G.manifest);
+    G.save.stats.distinctImgs = G.save.gallery.unlocked.length;
+    newly = newly.concat(Ach.checkCum(G.save).unlocked);
+  } else { G.streakBonus = null; }
   persist();
   Notify.reschedule(G.save, false);          // 今天领过了 ⇒ 撤掉今晚那枪 streak 提醒(绝不放空炮)
   Sfx.play('special'); Haptics.light();
@@ -524,8 +996,42 @@ function showDailyGift(file, streak) {
       <div class="daily-h">🎁 ${file ? T('daily.newAngel') : T('daily.allCollected')}</div>
       ${img}
       <div class="daily-streak">🔥 ${T('daily.streak', { n: streak })}</div>
+      ${file ? `<button id="daily-ad" class="daily-ad" type="button">📺 ${T('ads.daily2', { n: AD_REWARD.daily })}</button>` : ''}
+      ${G.repairOffer ? `<button id="daily-fix" class="daily-ad" type="button">🔥 ${T('ads.repair', { n: G.repairOffer + 1 })}</button>` : ''}
       <button id="daily-ok" type="button">${T('daily.ok')}</button>
     </div>`;
+  // ⭐ 第二个自愿激励位:刚拿到礼物的正反馈时刻问「再来一张？」——拒绝 ⇒ 什么也不发生
+  const dad = document.getElementById('daily-ad');
+  if (dad) dad.onclick = () => {
+    dad.disabled = true;
+    Ads.showRewarded().then(okAd => {
+      dad.disabled = false;
+      if (!okAd) return;
+      const n = grantAngels(AD_REWARD.daily);
+      if (n) { dad.remove(); const h = lb.querySelector('.daily-h'); if (h) h.textContent = `🎁 +${n}`; }
+    });
+  };
+  // 🔥 streak 补签:恰好漏 1 天 ⇒ 看广告把连续接回来(习惯保护;Duolingo 模式)
+  const fix = document.getElementById('daily-fix');
+  if (fix) fix.onclick = () => {
+    fix.disabled = true;
+    Ads.showRewarded().then(okAd => {
+      fix.disabled = false;
+      if (!okAd || !G.repairOffer) return;
+      G.save.daily.giftStreak = G.repairOffer + 1;
+      // ⛔ **水位跟着 streak 一起恢复**：断签把 rewarded 清空了，若只接回天数，
+      //   下一次打卡会把 3/7/14 档**再发一遍** ⇒「故意断签→补签」= 可复现的刷奖套路。
+      //   （test-meta 里有一条回归专门钉这个。）
+      G.save.daily.rewarded = Meta.STREAK_REWARDS
+        .filter(r => G.save.daily.giftStreak >= r.days).map(r => r.key);
+      G.repairOffer = null;
+      persist();
+      fix.remove();
+      const el = lb.querySelector('.daily-streak');
+      if (el) el.textContent = '🔥 ' + T('daily.streak', { n: G.save.daily.giftStreak });
+      Sfx.play('special'); Haptics.light();
+    });
+  };
   lb.classList.remove('hidden');
   lb.onclick = e => { if (e.target === lb) lb.classList.add('hidden'); };
   const ok = document.getElementById('daily-ok');
@@ -586,33 +1092,24 @@ function questPickAngel() {
 /** 进度上报 → 完成即**自动发奖**(不做「领取」按钮:多一次点击就多一批忘了领的人) */
 function questBump(type, n) {
   if (!G.save || !(n > 0)) return;
-  const done = Quests.bump(G.save, ymd(Date.now()), type, n);
+  const day = ymd(Date.now());
+  const done = Quests.bump(G.save, day, type, n);
   if (!done.length) return;
-  for (let i = 0; i < done.length * Quests.REWARD_ANGELS; i++) {
-    const f = questPickAngel();
-    if (!f) break;
-    const setsBefore = G.save.stats.setsDone;
-    Gallery.recordUnlock(G.save, f);
-    Gallery.updateSetsDone(G.save, G.manifest);
-    G.save.stats.distinctImgs = G.save.gallery.unlocked.length;
-    if (G.save.stats.setsDone > setsBefore) setTimeout(showSetComplete, 400);
-  }
-  const newly = Ach.checkCum(G.save).unlocked;
-  if (newly.length) showAchToasts(newly);
+  const bonus = Quests.allDoneBonus(G.save, day, done);   // 三个全清额外大红包
+  const total = done.length * Quests.REWARD_ANGELS + bonus;
+  grantAngels(total);                                // 发放口统一（图鉴广告/每日礼物/任务共用）
   const host = document.getElementById('toasts');
   if (host) {
     const el = document.createElement('div');
     el.className = 'ach-toast';
-    el.textContent = `📋 ${T('q.done')} · 👼 +${done.length * Quests.REWARD_ANGELS}`;
+    el.textContent = `📋 ${T(bonus ? 'q.allDoneBonus' : 'q.done')} · 👼 +${total}`;
     host.appendChild(el);
     setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 400); }, 2600);
   }
-  Sfx.play('special');
-  persist();
 }
 
 async function nextLevel() {
-  G.imgPos++;
+  G.imgPos = pickImgIndex();
   await loadImage();
   initLayers(G.img);
   enterReady();
@@ -639,14 +1136,14 @@ function frame(ts) {
 function tick(nowMs, interval) {
   G.nowMs = nowMs;
   const run = G.run;
-  // 救场刚到期 → 停下(PAUSED),等玩家滑动才继续。本 tick 不推进,蛇停在原地。
-  if (G.rescueWasActive && nowMs >= G.rescueUntil) {
-    G.rescueWasActive = false; G.phase = 'PAUSED'; return;
-  }
   const before = { score: run.score, revealed: run.revealedCount };
-  // 救场期间 AI 代驾(全分,不算刷成就);先清人手残留转向缓冲,再下 AI 指令(方向权威、当 tick 生效)
-  const rescue = nowMs < G.rescueUntil;
-  if (rescue) { G.rescueWasActive = true; run.dirQueue.length = 0; Core.setDir(run, AI.nextMove(run, G.cyc, G.aiMem)); }
+  // ⭐ AI 代驾 = 免费开关 G.aiOn(玩家自己开关,不再有「到期自动停下」那套)。
+  //   先清人手残留转向缓冲,再下 AI 指令 ⇒ 方向权威、当 tick 生效。
+  if (G.aiOn) {
+    G.aiUsedThisLevel = true;      // 本关用过 AI ⇒ 结算只给 ★1(收集/成就照常)
+    run.dirQueue.length = 0;
+    Core.setDir(run, AI.nextMove(run, G.cyc, G.aiMem));
+  }
   Core.step(run, { nowMs, scoreScale: G.bonusLevel ? 2 : 1 });   // 奖励关 2×
   syncRevealDiff();
   // 事件驱动:音效与成就统一消费 run.events(取代散落 flag 判定)
@@ -660,7 +1157,7 @@ function tick(nowMs, interval) {
   // 爽感 FX:事件都发生在蛇头,粒子/飘字落头格(render 层函数,墙钟计时)
   const h = run.snake[0];
   if (ev.some(e => e.t === 'apple')) {
-    Sfx.play('eat');
+    playEatTone(nowMs);                       // 连吃一路升调（20 级后从头），断了回第一级
     fxBurst(h.x, h.y, PAL.apple, 7);
     if (scoreDelta > 0) fxPop(h.x, h.y, '+' + scoreDelta, PAL.accent);
     if (run.combo >= 2) fxPop(h.x, h.y - 0.5, '×' + run.combo, PAL.accent2);   // 连击飘字
@@ -670,7 +1167,7 @@ function tick(nowMs, interval) {
   if (ev.some(e => e.t === 'meteorCatch')) { fxBurst(h.x, h.y, PAL.glow, 16, 1.6); fxShake(6); Haptics.light(); }
   const milestonePlayed = ev.some(e => e.t === 'milestone') && !run.levelJustDone;
   if (milestonePlayed) { Sfx.play('milestone'); fxShake(4); Haptics.light(); }
-  const aiRun = false;   // 已去掉 AI 代打;救场是全分人工局,一律不按 AI 局降级
+  const aiRun = !!G.aiUsedThisLevel;   // 用过 AI 代打的关:成就照给,但星级封顶 ★1
   G.tracker.scoreGained += scoreDelta;   // onStep 不处理 scoreGained(签名无 ctx),接线方负责
   Ach.onStep(G.tracker, run, ev, nowMs);
   Ach.accumulate(G.save, run, ev, { aiRun, scoreDelta, revealDelta, dtMs: interval });
@@ -720,6 +1217,12 @@ async function boot() {
     G.saveKey = CFG.key('save');
     G.save = Storage.load(Platform.storage, G.saveKey);
     G.reduceMotion = computeReduceMotion();   // 减弱动态:显式设置优先,否则跟随系统
+    syncMotionClass();                        // 同步给 CSS(body.rm 关掉全部装饰动画)
+    // 共享图标库的回退 emoji 表。⚠ **不要 await**:它只用来填 <img alt>(丢图时的兜底),
+    // 挡在启动路径上会给后面的 locale fetch 多推一个网络往返 —— 刚好把它推进「E2E 首次
+    // 加载后立刻 reload」的窗口里,locale 请求被 abort、boot 报 Failed to fetch(实锤)。
+    UIIcon.load();
+    G.aiOn = !!G.save.settings.aiOn;          // AI 代打开关跨会话保持(玩家的显式选择)
     if (typeof preloadItems === 'function') preloadItems();   // 预载道具 sprite,防首次出现时 emoji 闪一下
     if (typeof Feedback !== 'undefined') Feedback.flushQueue();   // 补发离线的反馈队列
     Notify.reschedule(G.save, dailyClaimable());   // 每日提醒 + streak 保护(原生才生效,不 await)
@@ -753,6 +1256,7 @@ async function boot() {
     }
     if (!G.run) {
       G.run = Core.createGame({ seed: G.seed });
+      G.imgPos = pickImgIndex();                           // 新局也随机抽一张(续玩局保持快照里的那张)
       G.save.stats.cellsRevealed += G.run.revealedCount;   // 出生格揭开发生在 tick 外(续玩局上一场已入账,不重复)
     }
     G.cyc = AI.buildCycle(G.run.cols, G.run.rows);

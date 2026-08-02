@@ -54,36 +54,42 @@ async function click(page, action, dm){
   st=await page.evaluate(()=>({seed:G.s.seed,mode:G.s.mode}));
   ok(st.seed===11982&&st.mode==='freecell', `⭐ #fc-11982 = 微软 #11982（32000 局唯一无解局也能被分享出来围观）`);
 
-  // ── ③ 分享按钮 → 剪贴板里是可用链接 ──
+  // ── ③ 分享按钮 → 剪贴板里是 **App Store 链接 + 局号**（2026-08-01 改：不再分享网页版）──
+  //    ⚠ 这条断言原来钉的是网页挑战链接 `#fc-11982`。策略变了 ⇒ **把断言改成钉新策略**，
+  //      不是删掉（跨游戏红线另有 tools/test-share-links.cjs 守着）。
   await page.evaluate(()=>{ if(G.phase==='INTRO') dispatch('INTRO_GO'); });
   await page.evaluate(()=>dispatch('FAIR'));
   await page.waitForTimeout(120);
   ok(await click(page,'SHARE'), '公平页有「分享此局」按钮');
   await page.waitForTimeout(250);
   const clip=await page.evaluate(()=>navigator.clipboard.readText());
-  ok(clip.includes('#fc-11982'), `⭐ 剪贴板是完整挑战链接（…${clip.slice(-24)}）`);
+  ok(clip.includes('apps.apple.com/app/id6790861224') && !clip.includes('ai-speeds.com'),
+     `⭐ 剪贴板是 App Store 链接，不是网页版（…${clip.slice(-30)}）`);
+  ok(clip.includes('11982'), '⭐ 局号仍在文案里（App Store 链接带不了 seed ⇒ 靠局号直输兑现「同一局」）');
   ok(await page.evaluate(()=>!!G.toast), '复制成功有 toast 反馈');
   await page.evaluate(()=>dispatch('PLAY'));
 
   // ── ④ 舒适模式：一键 = 四色 + 大字 + 放宽点击 ──
   await page.evaluate(()=>{ if(G.s.mode==='freecell') dispatch('MODE'); });   // 难度块只在 Klondike 设置里
   await page.waitForTimeout(150);
-  await click(page,'MENU'); await page.waitForTimeout(120);
   await click(page,'SET'); await page.waitForTimeout(150);
   ok(await click(page,'TOG_COMFORT'), '舒适模式开关可点');
   await page.waitForTimeout(120);
   ok(await page.evaluate(()=>G.comfort===true&&G.fourColor===true&&G.bigText===true),
      '⭐ 舒适模式一键把四色牌+大字号一起打开（65+ 主力人群）');
 
-  // ── ⑤ 难度旋钮：easy 生效于下一局，且发的还是已验证可解局 ──
-  ok(await click(page,'SET_DIFF',{d:'easy'}), '「简单」可点');
+  // ── ⑤ 难度**明面阶梯**（已取代原来的「混合/简单/困难」三个下拉项）：
+  //     选档 = 换翻牌数 + 换池，且**每一档都只发已验证可解的局**。
+  await page.evaluate(()=>{ G.stats.won=10; G.stats.played=20; dispatch('SET'); });
   await page.waitForTimeout(120);
-  ok(await page.evaluate(()=>G.difficulty==='easy'), '难度选择生效');
+  ok(await click(page,'SET_LV',{lv:3}), '难度阶梯第 3 档可点（已解锁）');
+  await page.waitForTimeout(200);
+  ok(await page.evaluate(()=>G.diffLv===3&&G.s.drawCount===3), '⭐ 选档立刻换局（第 3 档 = 翻 3 张 · easy 池）');
   await page.evaluate(()=>dispatch('NEW'));
-  await page.waitForTimeout(150);
+  await page.waitForTimeout(200);
   st=await page.evaluate(()=>({v:Pool.isVerified(G.s.drawCount,G.s.seed),
-    d:Pool.difficultyOf(G.s.drawCount,G.s.seed)}));
-  ok(st.v&&st.d==='easy', `⭐ 下一局真的从 easy 池发牌（难度=${st.d}，已验证可解）`);
+    d:Pool.difficultyOf(G.s.drawCount,G.s.seed),draw:G.s.drawCount}));
+  ok(st.v&&st.d==='easy'&&st.draw===3, `⭐ 「换一局」也照阶梯发（翻 ${st.draw} 张 · 难度=${st.d} · 已验证可解）`);
 
   // ── ⑥ 瀑布收藏：金币买 → 装备 ──
   await page.evaluate(()=>{Money.state.coins=1000;Money.save();dispatch('SHOP');});
@@ -109,7 +115,7 @@ async function click(page, action, dm){
   await page.reload();
   await page.waitForFunction(()=>window.G&&window.G.s);
   await page.waitForTimeout(250);
-  ok(await page.evaluate(()=>G.difficulty==='easy'&&G.comfort===true), '难度/舒适模式持久化');
+  ok(await page.evaluate(()=>G.diffLv===3&&G.comfort===true), '难度档/舒适模式持久化');
 
   ok(errs.length===0, '全程零 error'+(errs.length?': '+errs.join(' | '):''));
   await browser.close(); srv.close();

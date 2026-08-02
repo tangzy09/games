@@ -6,8 +6,19 @@
   "ads": {
     "simWatch": "[Simulación de anuncio] ¿Ver un anuncio con recompensa?",
     "simInterstitial": "[Simulación de anuncio] Anuncio intersticial",
-    "revive": "📺 Revivir (anuncio)",
-    "rescue": "📺 IA 30s"
+    "revive": "Revivir",
+    "rescue": "📺 IA 30s",
+    "gal3": "Ver anuncio → {n} ángeles",
+    "daily2": "Ver anuncio → {n} ángeles más",
+    "left": "Quedan {n} hoy",
+    "boost": "Todas las mejoras",
+    "boostGot": "¡Todas las mejoras!",
+    "quest": "Ver anuncio → completar una misión",
+    "repair": "Ver anuncio → recuperar racha de {n} días",
+    "double": "Anuncio → +{n} ángeles",
+    "skin": "Ver anuncio → desbloquear una skin",
+    "reviveGot": "+{n} vidas · {s}s invencible",
+    "boostSub": "+{n} vidas · {s}s invencible"
   },
   "snake": {
     "score": "Puntos",
@@ -72,7 +83,9 @@
     "streak": "Racha de {n} días 🔥",
     "newAngel": "¡Nuevo ángel desbloqueado!",
     "allCollected": "¡Todos los ángeles reunidos!",
-    "ok": "¡Precioso!"
+    "ok": "¡Precioso!",
+    "reward": "Recompensa de {d} días: ¡+{n} ángeles!",
+    "rewardBadge": "premio de {n} días"
   },
   "set": {
     "complete": "¡Colección completa!"
@@ -258,7 +271,7 @@
   },
   "q": {
     "title": "Misiones diarias",
-    "reward": "Cada misión desbloquea 1 ángel",
+    "reward": "Cada misión desbloquea {n} ángeles",
     "done": "¡Misión completada!",
     "allDone": "Todo hecho por hoy. ¡Hasta mañana!",
     "apples": "Come {n} manzanas",
@@ -266,7 +279,9 @@
     "cells": "Descubre {n} casillas",
     "special": "Come {n} frutas especiales",
     "combo": "Logra un combo de {n} en una partida",
-    "noDeath": "Completa {n} imágenes sin morir"
+    "noDeath": "Completa {n} imágenes sin morir",
+    "bonusHint": "Completa las 3 → +{n} ángeles extra",
+    "allDoneBonus": "¡Todas las misiones hechas!"
   },
   "stats": {
     "title": "Estadísticas",
@@ -293,5 +308,37 @@
     "dailyB": "Recoge tu ángel diario y mantén viva la racha.",
     "streakT": "¡Tu racha termina esta noche!",
     "streakB": "{n} días en juego: un toque reclama el ángel de hoy."
+  },
+  "ai": {
+    "start": "Juega la IA",
+    "stop": "Parar IA",
+    "on": "IA jugando"
+  },
+  "lvl": {
+    "t1": "Plumón",
+    "t2": "Errante",
+    "t3": "Cielero",
+    "t4": "Portaluz",
+    "t5": "Arcángel",
+    "t6": "Serafín",
+    "lv": "Nv {n}",
+    "next": "{n} para el siguiente nivel"
+  },
+  "ladder": {
+    "title": "Escalera de ángeles",
+    "sub": "Veinte ángeles del coro, ordenados por puntuación total. Supéralos uno a uno.",
+    "you": "Tú",
+    "beaten": "{n} / {m} superados",
+    "next": "{n} más para superar a {name}",
+    "passed": "¡Superaste a {name}!",
+    "top": "Has superado a todos los ángeles del coro."
+  },
+  "goal": {
+    "title": "Lo siguiente",
+    "quests": "Misiones de hoy {n}/{m}",
+    "streak": "{n} días más → +{a} ángeles",
+    "set": "{n} más para completar esta serie",
+    "ladder": "{n} puntos para superar a {name}",
+    "level": "{n} puntos para el nivel {l}"
   }
 }

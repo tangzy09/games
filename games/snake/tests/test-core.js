@@ -232,3 +232,31 @@ console.log('OK test-core(turn-buffer)');
   assert(!g.dead, 'revive 后可继续');
 }
 console.log('OK test-core(revive-queue)');
+
+// --- 吃果实随机揭 9 格(2026-08-01 节奏改动;揭图是核心爽点)---
+{
+  const g = Core.createGame({ seed: 11 });
+  // 把苹果摆到头前一格,走一步吃掉
+  const d = Core.DIRS[g.nextDir], h = g.snake[0];
+  g.apple = { x: h.x + d.x, y: h.y + d.y };
+  const before = g.revealedCount;
+  Core.step(g, { nowMs: 1000 });
+  // 落点本身揭 1 格 + 随机 9 格（可能与落点/已揭重叠 ⇒ 用 ≥ 而非 ==，但至少要显著多于 1）
+  const gained = g.revealedCount - before;
+  assert(gained >= 9, `吃果实至少多揭 9 格(实际 +${gained})`);
+  assert(g.revealedCount <= g.cols * g.rows, '不越界');
+  console.log(`  吃一个果实揭开 +${gained} 格`);
+}
+// 同种子可复现(揭格走 s.rand,不是 Math.random)——AI 回归与快照续玩都靠这条
+{
+  const run = seed => {
+    const g = Core.createGame({ seed });
+    const d = Core.DIRS[g.nextDir], h = g.snake[0];
+    g.apple = { x: h.x + d.x, y: h.y + d.y };
+    Core.step(g, { nowMs: 1000 });
+    return Array.from(g.revealed).join('');
+  };
+  assert.strictEqual(run(21), run(21), '同种子揭格结果逐格一致');
+  assert.notStrictEqual(run(21), run(22), '不同种子不同');
+}
+console.log('OK test-core(apple-reveal)');

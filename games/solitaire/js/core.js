@@ -15,8 +15,9 @@
   const Deal = isNode ? require('./deal.js') : root.Deal;
   const R = isNode ? require('./rules-klondike.js') : root.RulesK;
   const RF = isNode ? require('./rules-freecell.js') : root.RulesF;
+  const RS = isNode ? require('./rules-spider.js') : root.RulesS;
   /** 按模式取规则模块（新增模式只在这里加一行）*/
-  const rules = s => (s.mode === 'freecell' ? RF : R);
+  const rules = s => (s.mode === 'freecell' ? RF : s.mode === 'spider' ? RS : R);
 
   const SAVE_VERSION = 1;
   const { rankOf } = Cards;
@@ -36,6 +37,23 @@
         stock: [], waste: [],                  // FreeCell 没有牌堆（留空，保持 state 形状统一）
         foundations: [[], [], [], []],
         moves: [], score: 0, recycles: 0, won: false,
+        usedUndo: false, usedHint: false, usedSolver: false, usedJoker: false,
+      };
+    }
+    // ⭐ Spider：104 张两副牌、10 列、1/2/4 花色三档难度。
+    //   计分是**微软口径**：起始 500、每步 −1、每完成一组 +100（与另两种玩法不同，别统一）。
+    if (mode === 'spider') {
+      const sp = RS.deal(seed, drawCount);          // ⚠ drawCount 位复用成 suits（1/2/4）
+      return {
+        v: SAVE_VERSION, mode: 'spider',
+        seed: seed >>> 0,
+        drawCount: drawCount === 1 ? 1 : drawCount === 2 ? 2 : 4,   // = suits
+        tableau: sp.tableau.map(c => ({ cards: c.cards.slice(), up: c.up })),
+        stock: sp.stock.slice(),
+        waste: [],                                   // Spider 没有 waste（保持 state 形状统一）
+        free: null,
+        foundations: [],                             // 已完成的 8 组（不是 4 门花色）
+        moves: [], score: 500, recycles: 0, won: false,
         usedUndo: false, usedHint: false, usedSolver: false, usedJoker: false,
       };
     }
@@ -77,6 +95,13 @@
       if (!fev) return null;
       if (rec) s.moves.push(m);
       return fev;
+    }
+    // Spider 同理（move 类型：tt / deal10；含两个复合动作，见 rules-spider.js）
+    if (s.mode === 'spider') {
+      const sev = RS.apply(s, m);
+      if (!sev) return null;
+      if (rec) s.moves.push(m);
+      return sev;
     }
     const ev = [];
 
@@ -244,6 +269,8 @@
     const match = m => {
       if (sel.p === 'w') return m.t === 'wf' || m.t === 'wt';
       if (sel.p === 'c') return (m.t === 'cf' || m.t === 'ct') && m.ci === sel.ci;
+      // ⭐ 从 foundation 取回（'ft'）——收早了的牌要能拿回来（Klondike 专属，见 rules-klondike）
+      if (sel.p === 'f') return m.t === 'ft' && m.fi === sel.fi;
       if (m.t === 'tf' || m.t === 'tc') return m.ti === sel.ti && sel.idx === topIdx(sel.ti);
       if (m.t === 'tt') return m.ti === sel.ti && m.idx === sel.idx;
       return false;
@@ -255,7 +282,7 @@
     const rank = m => {
       if (m.t === 'tf' || m.t === 'wf' || m.t === 'cf') return 0;
       if (m.t === 'tc') return 3;
-      const tj = m.t === 'wt' ? m.ti : m.tj;      // ⚠ wt 的目标列字段叫 ti，不是 tj
+      const tj = (m.t === 'wt' || m.t === 'ft') ? m.ti : m.tj;   // ⚠ wt/ft 的目标列字段叫 ti，不是 tj
       return s.tableau[tj].cards.length ? 1 : 2;
     };
     let best = null, bestR = Infinity;
@@ -277,31 +304,11 @@
     return s.tableau.every(c => c.up === c.cards.length);
   }
 
-  /** 一次 autoplay 能收的所有牌（安全判定见 rules.isSafeToAutoPlay）*/
-  function autoPlayMoves(s) {
-    const out = [];
-    const RR = rules(s);
-    const sim = replay(s.seed, s.drawCount, s.moves, s.mode);   // 在副本上推演
-    for (let guard = 0; guard < 60; guard++) {
-      let did = false;
-      for (const m of RR.legalMoves(sim)) {
-        // 收牌的 move 类型按模式不同：Klondike 是 tf/wf，FreeCell 是 tf/cf
-        if (m.t !== 'tf' && m.t !== 'wf' && m.t !== 'cf') continue;
-        const card = m.t === 'tf' ? sim.tableau[m.ti].cards[sim.tableau[m.ti].cards.length - 1]
-                   : m.t === 'cf' ? sim.free[m.ci]
-                   : sim.waste[sim.waste.length - 1];
-        if (card == null || !RR.isSafeToAutoPlay(sim, card)) continue;
-        apply(sim, m);
-        out.push(m);
-        did = true;
-        break;
-      }
-      if (!did) break;
-    }
-    return out;
-  }
+  // ⛔ `autoPlayMoves`（一次收光所有安全牌）已删（2026-08-01）：它只服务于底部那个
+  //    「⤴ 自动收牌」按钮，按钮去掉后没有第二个调用点。
+  //    ⚠ `rules.isSafeToAutoPlay` **保留**——solver/盲打 AI 的启发式仍靠它打分。
 
-  const API = { SAVE_VERSION, newGame, apply, replay, undo, autoPlayMoves,
+  const API = { SAVE_VERSION, newGame, apply, replay, undo,
                 autoDest, destsFor, canAutoFinish, addScore, rules };
   if (isNode) module.exports = API;
   else root.Core = API;

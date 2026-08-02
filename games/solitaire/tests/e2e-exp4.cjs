@@ -48,9 +48,10 @@ const winState=(seed)=>`(()=>{ const s=Core.newGame(${seed},3);
 
   // ── ① 新 HUD:三图标钮 + 居中分数胶囊(FAIR) + 四大圆钮 ──
   const hud=await page.evaluate(()=>({acts:[...new Set(hitAreas.map(h=>h.action))]}));
-  for (const a of ['MENU','SET','SHOP','FAIR','HINT','AUTO','NEW'])
+  for (const a of ['HOME','SET','SHOP','FAIR','HINT','NEW'])   // '‹' 现在回主界面
     ok(hud.acts.includes(a), `HUD/工具条含 ${a} 入口`);
   ok(!hud.acts.includes('MODE'), 'MODE 已移出工具条(菜单 chip)');
+  ok(!hud.acts.includes('AUTO'), '⛔ 「⤴ 自动收牌」已删(单击自动走牌 + ✨一键走完 已覆盖)');
   ok(!hud.acts.includes('UNDO'), '0 步时撤销禁用(不注册 hit)');
   await click(page,'STOCK');
   await page.waitForTimeout(250);

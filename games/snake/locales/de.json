@@ -6,8 +6,19 @@
   "ads": {
     "simWatch": "[Werbe-Simulation] Belohnungsvideo ansehen?",
     "simInterstitial": "[Werbe-Simulation] Interstitial-Werbung",
-    "revive": "📺 Wiederbeleben (Werbung)",
-    "rescue": "📺 KI 30s"
+    "revive": "Wiederbeleben",
+    "rescue": "📺 KI 30s",
+    "gal3": "Werbung → {n} Engel",
+    "daily2": "Werbung → {n} Engel mehr",
+    "left": "Heute noch {n}",
+    "boost": "Alle Power-ups",
+    "boostGot": "Alle Power-ups!",
+    "quest": "Werbung → eine Aufgabe abschließen",
+    "repair": "Werbung → {n}-Tage-Serie retten",
+    "double": "Werbung → +{n} Engel",
+    "skin": "Werbung → einen Skin freischalten",
+    "reviveGot": "+{n} Leben · {s}s unbesiegbar",
+    "boostSub": "+{n} Leben · {s}s unbesiegbar"
   },
   "snake": {
     "score": "Punkte",
@@ -72,7 +83,9 @@
     "streak": "{n} Tage in Folge 🔥",
     "newAngel": "Neuer Engel freigeschaltet!",
     "allCollected": "Alle Engel gesammelt!",
-    "ok": "Wunderbar!"
+    "ok": "Wunderbar!",
+    "reward": "Belohnung für {d} Tage: +{n} Engel!",
+    "rewardBadge": "{n}-Tage-Belohnung"
   },
   "set": {
     "complete": "Set komplett!"
@@ -258,7 +271,7 @@
   },
   "q": {
     "title": "Tagesaufgaben",
-    "reward": "Jede Aufgabe schaltet 1 Engel frei",
+    "reward": "Jede Quest bringt {n} Engel",
     "done": "Aufgabe geschafft!",
     "allDone": "Heute alles erledigt — bis morgen!",
     "apples": "Iss {n} Äpfel",
@@ -266,7 +279,9 @@
     "cells": "Decke {n} Felder auf",
     "special": "Iss {n} besondere Früchte",
     "combo": "Erreiche {n}er-Combo in einer Runde",
-    "noDeath": "Schließe {n} Bilder ohne Tod ab"
+    "noDeath": "Schließe {n} Bilder ohne Tod ab",
+    "bonusHint": "Alle 3 schaffen → +{n} Bonus-Engel",
+    "allDoneBonus": "Alle Quests geschafft!"
   },
   "stats": {
     "title": "Statistik",
@@ -293,5 +308,37 @@
     "dailyB": "Hol dir den Tagesengel und halte die Serie am Leben.",
     "streakT": "Deine Serie endet heute Nacht!",
     "streakB": "{n} Tage stehen auf dem Spiel — ein Tipp holt den heutigen Engel."
+  },
+  "ai": {
+    "start": "KI spielt",
+    "stop": "KI stoppen",
+    "on": "KI spielt"
+  },
+  "lvl": {
+    "t1": "Flaumfeder",
+    "t2": "Wanderer",
+    "t3": "Himmelsläufer",
+    "t4": "Lichtträger",
+    "t5": "Erzengel",
+    "t6": "Seraph",
+    "lv": "Lv {n}",
+    "next": "noch {n} bis zum nächsten Level"
+  },
+  "ladder": {
+    "title": "Engel-Rangliste",
+    "sub": "Zwanzig Engel des Chors, nach Gesamtpunkten sortiert. Zieh an ihnen vorbei.",
+    "you": "Du",
+    "beaten": "{n} / {m} überholt",
+    "next": "noch {n}, um {name} zu überholen",
+    "passed": "{name} überholt!",
+    "top": "Du hast jeden Engel des Chors überholt."
+  },
+  "goal": {
+    "title": "Als Nächstes",
+    "quests": "Heutige Aufgaben {n}/{m}",
+    "streak": "noch {n} Tage → +{a} Engel",
+    "set": "noch {n} bis dieses Set voll ist",
+    "ladder": "noch {n} Punkte für {name}",
+    "level": "noch {n} Punkte bis Level {l}"
   }
 }

@@ -37,6 +37,28 @@ const AdGate = require('../js/adgate.js');
   console.log('test-quests: 每日任务 OK');
 }
 
+// ════════ 任务奖励加厚：单个 3 张 + 三个全清额外红包（只发一次）════════
+{
+  const day = '2026-08-03';
+  assert(Quests.REWARD_ANGELS >= 3, '单任务奖励要「一次见效」（+1 张没人会为它多打一局）');
+  assert(Quests.ALLDONE_BONUS >= 5, '全清红包要明显大于单任务奖励，才拉得动第三个任务');
+
+  const save = {};
+  const qs = Quests.todays(day);
+  let bonusTotal = 0, doneTotal = 0;
+  qs.forEach(q => {
+    const d = Quests.bump(save, day, q.t, q.target);
+    doneTotal += d.length;
+    bonusTotal += Quests.allDoneBonus(save, day, d);
+  });
+  assert.strictEqual(doneTotal, 3, '三个任务都完成');
+  assert.strictEqual(bonusTotal, Quests.ALLDONE_BONUS, '⛔ 全清红包整天只发一次（不是每个任务都发）');
+  // 已全清后再上报（比如广告加速位重复点）不许再发
+  assert.strictEqual(Quests.allDoneBonus(save, day, Quests.bump(save, day, qs[0].t, 999)), 0,
+    '全清后再上报零发放');
+  console.log('test-quests: 奖励加厚 OK（单个 ' + Quests.REWARD_ANGELS + ' 张 + 全清 +' + Quests.ALLDONE_BONUS + '）');
+}
+
 // ════════ 插屏总闸门：前 50 关免 / 每 10 关至多 1 个 / ≥2min ════════
 {
   const now = 1e12;

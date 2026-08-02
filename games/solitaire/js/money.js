@@ -63,7 +63,9 @@
   //    金币只能换外观（牌背/桌布）。这是「消耗端」，没有它激励视频约等于零收入。
   const WIN_COINS = 10;
   const CLEAN_BONUS = 15;                // 零撤销零提示赢 —— 奖励「真本事」
-  const AD_COINS = 25;
+  // 激励视频要「一次见效」：25 币连最便宜的牌背都买不动 ⇒ 看了也没感觉（skill 实锤）。
+  //   60 币 = 三次广告换一款高级牌背，玩家读得懂这笔账。
+  const AD_COINS = 60;
 
   /** 赢局发金币。返回本次发放量 —— 结算屏「看广告 ×2」按它翻倍（纯增益，不看也拿基础金币）*/
   function earnWin(cleanWin) {
@@ -144,13 +146,24 @@
     return true;
   }
 
+  /** 直接白送一款还没有的牌背（激励视频的外观位；挑最便宜的那款——先易后难才有收集节奏）*/
+  function grantCheapestBack() {
+    const cand = BACKS.filter(b => b.cost > 0 && !owns('back', b.id))
+                      .sort((a, b) => a.cost - b.cost);
+    if (!cand.length) return null;
+    KINDS.back.owned().push(cand[0].id);
+    equip('back', cand[0].id);
+    save();
+    return cand[0].id;
+  }
+
   function buyNoAds() { state.noAds = true; save(); }
 
   root.Money = {
     load, save, state,
     canShowInterstitial, noteWin, adFree,
     earnWin, earnAd,
-    BACKS, TABLES, FXS, owns, itemsOf, buy, equip, buyNoAds,
+    BACKS, TABLES, FXS, owns, itemsOf, buy, equip, buyNoAds, grantCheapestBack,
     get coins() { return state.coins; },
     get noAds() { return state.noAds; },
   };

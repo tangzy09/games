@@ -59,3 +59,16 @@
 ## 存档版本纪律（踩坑沉淀）
 
 run 存档（`CFG.key('run')`）**必须带版本号**（`v: N`），loadRun 校验 `v` + 关键形状（如 `grid.length === w*h`），不匹配就 `clearRunSave()` 丢弃、绝不迁移——玩法重构后老玩家带着旧档打开会「恢复」成畸形状态（0×0 盘面 = 无报错的白屏，E2E 全新档案测不出来）。同理：改了 G 的形状就 bump 版本 + 给 `<script src>` 加 `?v=N` 防浏览器缓存混装新旧 JS。
+
+## share.js — 分享（链接一律指向 App Store）
+
+`Share.link()` / `storeUrl()` / `webUrl()` / `hasStore()` / `text(msg)` / `files(file, msg)`。
+游戏在 `GAME_CONFIG` 里声明 `appStoreId`（ASC 的数字 Apple ID）与 `webUrl`。
+
+⛔ **分享出去的链接必须是 App Store 链接，不是网页版** —— 网页版不产生下载量、评分、排名，
+把朋友导过去等于白送掉一次转化（2026-08-01 全游戏铁律）。
+⚠ 商店链接**带不了 seed/局号** ⇒ 需要「一起打同一局」的游戏必须把局号写进**文案**
+（各游戏都有局号直输入口）；只换链接不写局号 = 悄悄把分享的玩法价值删掉了。
+没上架的游戏**别填 `appStoreId`**，`link()` 会自动回退到 `webUrl`（分享个 404 比网页版更差）。
+
+红线测试：`npm run test:share`（`tools/test-share-links.cjs`，跨游戏）。

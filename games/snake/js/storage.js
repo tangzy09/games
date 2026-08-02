@@ -12,14 +12,21 @@ function defaults() {
     // reduceMotion:null=跟随系统,true/false=用户显式选择。必须在 defaults 里,否则 merge
     // 只拷 default 的 key(见下),用户的显式选择会在重载时被丢掉(减弱动态偏好不持久)。
     // ⚠ remind 同理:闭合对象的新字段必须列进 defaults,否则用户开了也会被 merge 丢掉
-    settings: { theme: 'cloud', reduceMotion: null, remind: false },
+    settings: { theme: 'cloud', reduceMotion: null, remind: false, aiOn: false },
     // ⚠ stars 是「开放 map」(动态 key=图片名),默认值必须保持空对象 {}(见 merge 注释)
     gallery: { unlocked: [], imgPos: 0, stars: {} },  // unlocked: 图片文件名列表;stars: {文件名:1-3}
-    daily: { lastGiftDay: '', giftStreak: 0 },       // 每日天使礼物:领取日(YYYY-MM-DD)+ 连续天数
+    // rewarded = 连续奖励阶梯已领到哪几档(meta.js STREAK_REWARDS 的 key)。
+    // ⛔ 断签清零时它也清零,但**补签接回连续时必须一起恢复** —— 否则
+    //    「故意断签 → 补签 → 次日重拿 7 天档」是可复现的刷奖套路(test-meta 有回归)。
+    daily: { lastGiftDay: '', giftStreak: 0, rewarded: [] },
     ach: { unlocked: [] },
     // 每日任务:day=YYYY-MM-DD;⚠ prog 是「开放 map」(动态 key=任务序号),默认必须空对象
     quests: { day: '', prog: {}, done: [] },
     rate: { asked: [] },                             // 求好评弹窗的记账(时间戳数组,额度门槛用)
+    // 激励视频的**每日额度**(day=YYYY-MM-DD,跨天自动清零)。奖励给得厚,就得有额度护住长线收集,
+    // 否则一天几十条广告能把 500 张图鉴刷穿、游戏当天就毕业。
+    ads: { day: '', gal: 0, boost: 0, quest: 0, skin: 0 },
+    skins: [],                                       // 看激励视频直接解锁的皮肤 key(与统计解锁条件并列)
     stats: {                                          // 累计计数(成就引擎消费)
       // ⚠️ specials/skinClears 是「开放 map」(动态 key):默认值必须保持空对象 {},
       //    merge 对空对象整体透传;塞了非空默认就会退回逐 key 递归、丢掉存档动态 key

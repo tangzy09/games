@@ -10,16 +10,29 @@ const IS_TOUCH = typeof navigator !== 'undefined' && (navigator.maxTouchPoints >
 let PAL = THEMES.cloud.pal;
 function applyThemePal(key) { PAL = (THEMES[key] || THEMES.cloud).pal; }
 
-const Layout = { bx:0, by:0, bsize:0, cell:0, btnRescue:null, btnPause:null };
+// 共享 UI 图标库（engine/assets/ui，全仓一份）——canvas 侧走引擎的 makeUIArt。
+// ⛔ 别在 games/snake/assets/ui/ 放第二份（tools/check-ui-icons.cjs 会拦）；缺图自动回退 emoji。
+const UI = makeUIArt(['home', 'video-ad', 'star', 'heart', 'gift']);
+UI.load();
+const uiArt = (id, emoji, x, y, size) =>
+  drawArtIcon(UI, id, emoji, x, y, size, PAL.text, Math.round(size * 0.9) + 'px sans-serif');
+
+const Layout = { bx:0, by:0, bsize:0, cell:0, btnRescue:null, btnPause:null, footY:0 };
 let bgLayer = null, maskLayer = null, layerPx = 0;
 
 function layoutBoard() {
-  const { SW, SH, safeTop } = GameGlobal;
+  const { SW, SH, safeTop, safeBottom } = GameGlobal;
   const hudH = 54, btnH = 78;
   const size = Math.floor(Math.min(SW - 16, SH - safeTop - hudH - btnH - 20));
   Layout.bsize = size; Layout.cell = size / G.run.cols;
   Layout.bx = Math.floor((SW - size) / 2);
-  Layout.by = safeTop + hudH;
+  // 高屏(盘面被宽度卡住)下半屏会空一大片。只往下挪一点点(留 22% 空隙),
+  // 剩下的空白交给 drawFooterArt() 的云海装饰——挪太多会让盘面和顶栏断开、更难看。
+  const top0 = safeTop + hudH;
+  const blockH = size + 14 + 52;
+  const slack = Math.max(0, (SH - (safeBottom || 0) - 10) - top0 - blockH);
+  Layout.by = top0 + Math.round(Math.min(slack, 28) * 0.5);
+  Layout.footY = top0 + Math.round(Math.min(slack, 28) * 0.5) + blockH + 6;   // 云海起始 y
   const byy = Layout.by + size + 14;
   Layout.btnRescue = { x: Layout.bx, y: byy, w: size, h: 52 };   // AI 救场:整宽(已去掉 AI 代打)
   Layout.btnPause  = { x: Layout.bx + size - 40, y: safeTop + 8, w: 40, h: 36 };
@@ -171,6 +184,7 @@ function renderAll() {
   clearHits();
   const { SW, SH, safeTop } = GameGlobal;
   ctx.fillStyle = PAL.bg; ctx.fillRect(0, 0, SW, SH);
+  drawFooterArt();          // 先画,永远在盘面/按钮之下(纯装饰,不抢内容)
   drawHud(safeTop);
   drawBoardArea();
   drawButtons();
@@ -178,14 +192,24 @@ function renderAll() {
   else if (G.phase === 'PAUSED') drawOverlay(T('snake.paused'), T(IS_TOUCH ? 'snake.hintResumeTouch' : 'snake.hintResumeKey'), T('snake.resume'), 'RESUME', false);
   else if (G.phase === 'DEAD') {
     const from = G.run.snake.length, to = Math.max(3, Math.floor(from / 2));
+    // ⛔ 复活按钮上必须**写清楚给什么**（10 条命 + 30 秒无敌）——玩家看不见的奖励等于没给
     drawOverlay(T('snake.dead'), T('snake.deadHint', { from, to }), T('snake.respawn'), 'RESPAWN', false,
-                G.revivesThisLevel < 2 ? { label: T('ads.revive'), action: 'REVIVE' } : null);
+                G.revivesThisLevel < 2
+                  ? { label: T('ads.revive'), icon: 'video-ad', action: 'REVIVE',
+                      // main.js 在 render.js 之后加载 ⇒ 取值要兜底
+                      sub: T('ads.reviveGot', typeof AD_REWARD !== 'undefined'
+                        ? { n: AD_REWARD.reviveLives, s: AD_REWARD.reviveGhostSec } : { n: 10, s: 30 }) }
+                  : null);
   } else if (G.phase === 'LEVEL_DONE') {
     if (G.imgFull) drawImgFull();
     // 先放完成庆祝(~0.8s 流光星光),再滑入结算浮层
     else if (!FX.celebrateStart || fxNow() - FX.celebrateStart > 800)
+      // ⭐ 第二按钮优先给「奖励翻倍」——赢局结算屏是全场转化最高的位置(刚赢+庆祝刚放完);
+      //   本关已翻过或没额度时才退回「分享」。
       drawOverlay(T('snake.levelDone', { n: G.run.level - 1 }), T('snake.scoreVal', { n: G.run.score }), T('snake.next'), 'NEXT', true,
-                     { label: T('share.btn'), action: 'SHARE' }, G.lastClearStars || 0);
+                     (!G.doubledThisLevel && typeof AD_REWARD !== 'undefined')
+                       ? { label: '📺 ' + T('ads.double', { n: AD_REWARD.double }), action: 'AD_DOUBLE' }
+                       : { label: T('share.btn'), action: 'SHARE' }, G.lastClearStars || 0);
   }
 }
 
@@ -309,12 +333,9 @@ function drawEffectsRow(safeTop) {
     if (now < fx[key]) items.push(emo + Math.ceil((fx[key] - now) / 1000));
   if (items.length)   // y=+42:棋盘白卡从 safeTop+50 起,+48 时 12px 字形下缘被卡片压住
     txtL(items.join('  '), Layout.bx, safeTop + 42, PAL.text, '12px sans-serif');
-  // AI 救场倒计时(最后 1 秒放大一档预警,设计 §4)
-  if (now < G.rescueUntil) {
-    const remainMs = G.rescueUntil - now;
-    const label = '🤖⏱' + Math.ceil(remainMs / 1000);
-    txtL(label, Layout.bx + Layout.bsize * 0.6, safeTop + 42, PAL.accent,
-         remainMs <= 1000 ? 'bold 17px sans-serif' : 'bold 12px sans-serif');
+  // AI 代打进行中的常驻标记(免费开关,无倒计时)
+  if (G.aiOn) {
+    txtL('🤖 ' + T('ai.on'), Layout.bx + Layout.bsize * 0.55, safeTop + 42, PAL.accent, 'bold 12px sans-serif');
   }
 }
 
@@ -376,18 +397,76 @@ function drawSnake() {
   }
 }
 
+// 底部云海装饰:方形盘面在高屏上必然在下半屏留白,与其空着不如画点跟主题走的东西。
+// 纯装饰、不接 hit、确定性(格坐标散列,禁 Math.random)——换肤自动跟着变色。
+function drawFooterArt() {
+  const { SW, SH } = GameGlobal;
+  const y0 = Layout.footY || 0;
+  const h = SH - y0;
+  if (h < 56) return;                       // 矮屏本来就不空,别硬塞
+  ctx.save();
+  // 从透明渐入,避免云海在按钮下方「突然出现一道边」
+  // ⚠ 渐变必须跟填充矩形**同起点**:从 y0 起渐变却从 y0+0.35h 起填,顶边已经 35% 不透明
+  //   ⇒ 会横着切出一道明显的硬边(实测踩过)。
+  const gy = y0 + h * 0.3;
+  const g = ctx.createLinearGradient(0, gy, 0, SH);
+  g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, PAL.cloud);
+  ctx.globalAlpha = 0.4; ctx.fillStyle = g; ctx.fillRect(0, gy, SW, SH - gy);
+  // 三排大小不一的云:越靠下越大越实,做出「往下沉」的空气感
+  const rows = [
+    { cy: y0 + h * 0.58, r: h * 0.20, n: 4, a: 0.26, c: PAL.cloudEdge },
+    { cy: y0 + h * 0.82, r: h * 0.26, n: 3, a: 0.38, c: PAL.cloud },
+    { cy: y0 + h * 1.06, r: h * 0.34, n: 4, a: 0.55, c: PAL.cloud },
+  ];
+  rows.forEach((row, ri) => {
+    ctx.globalAlpha = row.a;
+    ctx.fillStyle = row.c;
+    for (let i = 0; i < row.n; i++) {
+      const hsh = ((i + 1) * 73856093 ^ (ri + 1) * 19349663) >>> 0;
+      const cx = SW * ((i + 0.5) / row.n) + ((hsh % 40) - 20);
+      const rr = row.r * (0.72 + (hsh % 7) / 12);
+      ctx.beginPath();
+      ctx.arc(cx - rr * 0.6, row.cy, rr * 0.62, 0, Math.PI * 2);
+      ctx.arc(cx, row.cy - rr * 0.22, rr * 0.82, 0, Math.PI * 2);
+      ctx.arc(cx + rr * 0.66, row.cy, rr * 0.58, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+  // 几点星光:位置由散列定死,不闪不动(闪的东西在游戏区下方会抢注意力)
+  ctx.globalAlpha = 0.5; ctx.fillStyle = PAL.glow || '#fff59d';
+  for (let i = 0; i < 7; i++) {
+    const hsh = ((i + 3) * 2654435761) >>> 0;
+    const sx = (hsh % SW), sy = y0 + h * 0.15 + (hsh >> 9) % Math.max(1, Math.floor(h * 0.6));
+    const s = 1.5 + (hsh % 3);
+    ctx.beginPath(); ctx.arc(sx, sy, s, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
+
 function drawButtons() {
-  // AI 救场 30s(rewarded):进行中画灰 + 显示倒计时,不可再点(不加 hit)
+  // 左:AI 代打开关(免费,随时开/关,⛔ 不接任何广告)  右(仅 READY 且有额度):🎁 开局礼包(激励视频)
   const r = Layout.btnRescue;
-  const rescueActive = (G.nowMs || 0) < G.rescueUntil;
-  ctx.globalAlpha = rescueActive ? 0.5 : 1;
-  fillRR(r.x, r.y, r.w, r.h, 14, rescueActive ? PAL.accent : PAL.bar);
-  const label = rescueActive
-    ? '🤖 ' + Math.ceil((G.rescueUntil - (G.nowMs || 0)) / 1000) + 's'   // 代驾中:倒计时
-    : T('ads.rescue');
-  txt(label, r.x + r.w / 2, r.y + r.h / 2, rescueActive ? '#fff' : PAL.text, 'bold 15px sans-serif');
-  ctx.globalAlpha = 1;
-  if (!rescueActive) addHit(r.x, r.y, r.w, r.h, 'RESCUE', {});
+  const on = !!G.aiOn;
+  const boost = G.phase === 'READY' && typeof adQuotaLeft === 'function' && adQuotaLeft('boost') > 0;
+  const w = boost ? (r.w - 8) / 2 : r.w;
+
+  fillRR(r.x, r.y, w, r.h, 14, on ? PAL.accent : PAL.bar);
+  txt(on ? '🤖 ' + T('ai.stop') : '🤖 ' + T('ai.start'),
+      r.x + w / 2, r.y + r.h / 2, on ? '#fff' : PAL.text, 'bold 15px sans-serif');
+  addHit(r.x, r.y, w, r.h, 'AI_TOGGLE', {});
+
+  if (boost) {
+    const bx = r.x + w + 8;
+    fillRR(bx, r.y, w, r.h, 14, '#2fbf71');
+    // ⛔ 奖励要看得见:按钮上必须写清「全部增益 + 多少命 + 多少秒无敌」。
+    //   半宽按钮一行放不下 ⇒ 拆两行(大字说是什么、小字说附赠多少)。
+    const bl = typeof AD_REWARD !== 'undefined' ? AD_REWARD.boostLives : 10;
+    const bs = typeof AD_REWARD !== 'undefined' ? AD_REWARD.boostGhostSec : 30;
+    txt('🎁 ' + T('ads.boost'), bx + w / 2, r.y + r.h / 2 - 8, '#fff', 'bold 14px sans-serif');
+    txt(T('ads.boostSub', { n: bl, s: bs }), bx + w / 2, r.y + r.h / 2 + 9,
+        'rgba(255,255,255,0.92)', '10px sans-serif');
+    addHit(bx, r.y, w, r.h, 'AD_BOOST', {});
+  }
 }
 
 // 非模态提示条(READY 用):不遮盘面、无按钮,任何方向输入即开始
@@ -402,41 +481,69 @@ function drawHint(text) {
 }
 
 // extra: 可选第二按钮 { label, action }(次级样式,主按钮下方)
+/**
+ * 浮层卡（暂停 / 死亡 / 过关共用）。
+ *
+ * ⛔ **按钮宽度按文字算，别写死**（2026-08-01 实拍：复活按钮加了「10 条命 + 30 秒无敌」之后，
+ *   文字直接冲出那颗 180px 的药丸、📺 还落在按钮外面）。带副标题的按钮拆两行：
+ *   大字说「是什么」、小字说「给多少」——半个屏宽的按钮一行永远塞不下奖励说明。
+ * ⚠ 卡片高度必须**先量后画**（按钮真实高度累加），否则加一行字就顶穿卡片。
+ */
 function drawOverlay(title, sub, btnLabel, action, showImg, extra, stars) {
   const { SW, SH } = GameGlobal;
   drawDim('rgba(122,92,114,0.45)');
   const cw = Math.min(SW * 0.86, 360);
-  const ch = (showImg ? cw + 150 : 190) + (extra ? 58 : 0);
+  const BW = Math.min(cw - 44, 240);                 // 按钮宽度上限（留出卡片内边距）
+  const bh1 = 46, bhx = extra && extra.sub ? 56 : 46;
+  const ch = (showImg ? cw + 150 : 196) + (extra ? bhx + 12 : 0);
   const cx = (SW - cw) / 2, cy = (SH - ch) / 2;
+  ctx.save();                                        // 卡片浮起来一点（原来是贴在底图上的一块白）
+  ctx.shadowColor = 'rgba(90,60,90,0.35)'; ctx.shadowBlur = 26; ctx.shadowOffsetY = 10;
   fillRR(cx, cy, cw, ch, 22, PAL.card);
+  ctx.restore();
   // 返回主界面角标(暂停/死亡/过关任意浮层都能退回主菜单)
-  fillRR(cx + 10, cy + 10, 40, 40, 12, PAL.bar);
-  txt('🏠', cx + 30, cy + 31, PAL.text, '20px sans-serif');
-  addHit(cx + 10, cy + 10, 40, 40, 'HOME', {});
-  txt(title, cx + cw / 2, cy + 34, PAL.text, 'bold 20px sans-serif');
-  let by = cy + 64;
+  fillRR(cx + 12, cy + 12, 36, 36, 12, PAL.bar);
+  uiArt('home', '🏠', cx + 30, cy + 30, 20);
+  addHit(cx + 12, cy + 12, 36, 36, 'HOME', {});
+  txt(title, cx + cw / 2, cy + 36, PAL.text, 'bold 20px sans-serif');
+  let by = cy + 66;
   if (showImg && G.img) {
     const iw = cw - 44;
-    ctx.drawImage(G.img, cx + 22, cy + 52, iw, iw);
-    addHit(cx + 22, cy + 52, iw, iw, 'IMG_FULL', {});   // 点图全屏欣赏
+    ctx.drawImage(G.img, cx + 22, cy + 54, iw, iw);
+    addHit(cx + 22, cy + 54, iw, iw, 'IMG_FULL', {});   // 点图全屏欣赏
     // 星级带:成图底部一枚药丸 + 三颗星(得到=金,未得=灰)
     if (stars) {
-      const sy = cy + 52 + iw - 8, pw = 128;
+      const sy = cy + 54 + iw - 8, pw = 128;
       fillRR(cx + (cw - pw) / 2, sy - 26, pw, 40, 20, 'rgba(255,255,255,0.9)');
-      for (let i = 0; i < 3; i++)
-        txt('★', cx + cw / 2 + (i - 1) * 38, sy - 4, i < stars ? '#ffb300' : 'rgba(150,130,145,0.35)', '28px sans-serif');
+      for (let i = 0; i < 3; i++) {
+        const sx = cx + cw / 2 + (i - 1) * 38;
+        if (UI.get('star')) {
+          ctx.globalAlpha = i < stars ? 1 : 0.22;
+          uiArt('star', '★', sx, sy - 6, 30);
+          ctx.globalAlpha = 1;
+        } else txt('★', sx, sy - 4, i < stars ? '#ffb300' : 'rgba(150,130,145,0.35)', '28px sans-serif');
+      }
     }
-    by = cy + 52 + iw + 24;
+    by = cy + 54 + iw + 24;
   }
   if (sub) { txt(sub, cx + cw / 2, by, PAL.text, '14px sans-serif'); by += 30; }
-  const bw2 = 180, bh2 = 46;
-  fillRR(cx + (cw - bw2) / 2, by, bw2, bh2, 14, PAL.accent);
-  txt(btnLabel, cx + cw / 2, by + bh2 / 2, '#fff', 'bold 15px sans-serif');
-  addHit(cx + (cw - bw2) / 2, by, bw2, bh2, action, {});
+  fillRR(cx + (cw - BW) / 2, by, BW, bh1, 14, PAL.accent);
+  txt(btnLabel, cx + cw / 2, by + bh1 / 2, '#fff', 'bold 15px sans-serif');
+  addHit(cx + (cw - BW) / 2, by, BW, bh1, action, {});
   if (extra) {
-    const ey = by + bh2 + 12;
-    fillRR(cx + (cw - bw2) / 2, ey, bw2, bh2, 14, PAL.bar);
-    txt(extra.label, cx + cw / 2, ey + bh2 / 2, PAL.text, 'bold 15px sans-serif');
-    addHit(cx + (cw - bw2) / 2, ey, bw2, bh2, extra.action, {});
+    const ey = by + bh1 + 12, bx = cx + (cw - BW) / 2;
+    fillRR(bx, ey, BW, bhx, 14, PAL.bar);
+    if (extra.sub) {                                 // 两行：图标+主标题 / 小字说给多少
+      const f = 'bold 15px sans-serif';
+      ctx.font = f;
+      const tw = ctx.measureText(extra.label).width;
+      const ix = cx + cw / 2 - (tw + 22) / 2 + 9;
+      uiArt(extra.icon || 'video-ad', '📺', ix, ey + 19, 18);
+      txtL(extra.label, ix + 11, ey + 19, PAL.text, f);
+      txt(extra.sub, cx + cw / 2, ey + 40, PAL.sub || 'rgba(120,95,115,0.85)', '11px sans-serif');
+    } else {
+      txt(extra.label, cx + cw / 2, ey + bhx / 2, PAL.text, 'bold 15px sans-serif');
+    }
+    addHit(bx, ey, BW, bhx, extra.action, {});
   }
 }

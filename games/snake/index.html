@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
 <title>Angel Snake</title>
-<link rel="stylesheet" href="../../engine/engine.css?v=15">
-<link rel="stylesheet" href="css/game.css?v=15">
+<link rel="stylesheet" href="../../engine/engine.css?v=26">
+<link rel="stylesheet" href="css/game.css?v=26">
 </head>
 <body>
 <canvas id="game-canvas"></canvas>
@@ -24,6 +24,11 @@
 <script>
   window.GAME_CONFIG = {
     id: 'snake',
+    // ⭐ 分享出去的链接一律指向 **App Store**，不是网页版（engine/share.js）——
+    //    网页版不产生下载量/评分/排名，把朋友导过去等于白送掉一次转化。
+    //    ⚠ 没上架的游戏别填这一项，share.js 会自动回退到 webUrl（分享个 404 比网页版更差）。
+    appStoreId: '6789757716',
+    webUrl: 'https://snake.ai-speeds.com/',
     // 10 大语言(按母语人数,引擎默认集)。加语言=加 locales/<code>.json,零改逻辑。
     languages: ['zh-CN', 'en', 'es', 'hi', 'bn', 'pt-BR', 'ru', 'ja', 'pa', 'de'],
     // Angel Snake 专属 AdMob 广告位(iOS;Android 上架时再补)——绝不复用他游戏 ID。
@@ -39,29 +44,32 @@
     },
   };
 </script>
-<script src="../../engine/config.js?v=15"></script>
-<script src="../../engine/platform.js?v=15"></script>
-<script src="../../engine/i18n.js?v=15"></script>
-<script src="../../engine/portal.js?v=15"></script>
-<script src="../../engine/ads.js?v=15"></script>
-<script src="../../engine/audio.js?v=15"></script>
-<script src="../../engine/canvas.js?v=15"></script>
-<script src="../../engine/input.js?v=15"></script>
-<script src="../../engine/controls.js?v=15"></script>
-<script src="../../engine/prng.js?v=15"></script>
-<script src="js/fruits.js?v=15"></script>
-<script src="js/core.js?v=15"></script>
-<script src="js/ai.js?v=15"></script>
-<script src="js/storage.js?v=15"></script>
-<script src="js/achievements.js?v=15"></script>
-<script src="js/themes.js?v=15"></script>
-<script src="js/gallery.js?v=15"></script>
-<script src="js/quests.js?v=15"></script>
-<script src="js/adgate.js?v=15"></script>
-<script src="js/render.js?v=15"></script>
-<script src="js/feedback-client.js?v=15"></script>
-<script src="js/rate.js?v=15"></script>
-<script src="js/notify.js?v=15"></script>
-<script src="js/main.js?v=15"></script>
+<script src="../../engine/config.js?v=26"></script>
+<script src="../../engine/ui-icons.js?v=26"></script>
+<script src="../../engine/share.js?v=26"></script>
+<script src="../../engine/platform.js?v=26"></script>
+<script src="../../engine/i18n.js?v=26"></script>
+<script src="../../engine/portal.js?v=26"></script>
+<script src="../../engine/ads.js?v=26"></script>
+<script src="../../engine/audio.js?v=26"></script>
+<script src="../../engine/canvas.js?v=26"></script>
+<script src="../../engine/input.js?v=26"></script>
+<script src="../../engine/controls.js?v=26"></script>
+<script src="../../engine/prng.js?v=26"></script>
+<script src="js/fruits.js?v=26"></script>
+<script src="js/core.js?v=26"></script>
+<script src="js/ai.js?v=26"></script>
+<script src="js/storage.js?v=26"></script>
+<script src="js/achievements.js?v=26"></script>
+<script src="js/themes.js?v=26"></script>
+<script src="js/gallery.js?v=26"></script>
+<script src="js/quests.js?v=26"></script>
+<script src="js/meta.js?v=26"></script>
+<script src="js/adgate.js?v=26"></script>
+<script src="js/render.js?v=26"></script>
+<script src="js/feedback-client.js?v=26"></script>
+<script src="js/rate.js?v=26"></script>
+<script src="js/notify.js?v=26"></script>
+<script src="js/main.js?v=26"></script>
 </body>
 </html>

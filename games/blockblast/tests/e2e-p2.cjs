@@ -40,8 +40,21 @@ const ok = (c, m) => { if (!c) { console.error('✗ ' + m); process.exitCode = 1
   await page.waitForFunction(() => window.G && window.G.s, null, { timeout: 5000 });
   await page.waitForTimeout(250);
 
-  // ── 菜单 ──
-  ok(await page.evaluate(() => G.phase === 'MENU'), '起手在菜单（关卡地图）');
+  // ── 主界面 → 关卡地图 ──
+  //    ⚠ 2026-08-01 起启动落在 🏠 HOME（门面），关卡地图从 HOME 的「关卡」格子进。
+  //      这条断言原来钉的是「起手在菜单」——策略变了 ⇒ **把断言改成钉新策略**，不是删掉。
+  ok(await page.evaluate(() => G.phase === 'HOME'), '⭐ 起手在主界面（关卡地图挪到 HOME 的「关卡」入口）');
+  await page.screenshot({ path: path.join(SHOT_DIR, 'p2-00-home.png') });
+  await page.evaluate(() => {                       // 走真实入口进关卡地图
+    const h = hitAreas.filter(x => x.action === 'MENU').pop();
+    const c = document.getElementById('game-canvas').getBoundingClientRect();
+    const sx = c.width / GameGlobal.SW, sy = c.height / GameGlobal.SH;
+    window.__menuHit = { x: c.left + (h.x + h.w / 2) * sx, y: c.top + (h.y + h.h / 2) * sy };
+  });
+  const mh = await page.evaluate(() => window.__menuHit);
+  await page.mouse.click(mh.x, mh.y);
+  await page.waitForTimeout(250);
+  ok(await page.evaluate(() => G.phase === 'MENU'), '主界面「关卡」→ 关卡地图');
   await page.screenshot({ path: path.join(SHOT_DIR, 'p2-01-menu.png') });
 
   // ── 点第 1 关：**真实鼠标点击**（不能用 dispatch 绕过 —— 正是这个绕过让

@@ -43,7 +43,9 @@ async function clickAction(page, action, dataMatch) {
   await page.waitForTimeout(80);
 
   // ── 切到 FreeCell（真实点工具条按钮）──
-  await clickAction(page,'MENU'); await page.waitForTimeout(150);   // MODE 已移入菜单 chip
+  // 真实路径：PLAY 的 '‹' 回 🏠 主界面 → 主界面「⋯ 更多」进菜单 → MODE chip 在菜单标题旁
+  await clickAction(page,'HOME'); await page.waitForTimeout(250);
+  await clickAction(page,'MENU'); await page.waitForTimeout(150);
   ok(await clickAction(page,'MODE'), '「模式」按钮可点(菜单 chip)');
   await page.waitForTimeout(200);
   const st = await page.evaluate(() => ({ mode:G.s.mode, seed:G.s.seed, cols:G.s.tableau.length,
@@ -82,7 +84,13 @@ async function clickAction(page, action, dataMatch) {
     `⭐ FreeCell 开局 → 「${v.result}」（微软 32000 局里只有 #11982 无解 ⇒ 几乎必然 solvable，${v.ms}ms）`);
   await page.screenshot({ path: path.join(SHOT,'p4-03-freecell-solvable.png') });
 
-  // ── 切回 Klondike ──
+  // ── 切回 Klondike（同上：PLAY '‹' → HOME → 「⋯ 更多」→ MODE chip）──
+  await clickAction(page,'HOME'); await page.waitForTimeout(250);
+  await clickAction(page,'MENU'); await page.waitForTimeout(150);
+  // ⚠ MODE 是**三合一轮转** Klondike→FreeCell→Spider→Klondike（不是两态开关）⇒ 要点两次才转回来
+  await clickAction(page,'MODE'); await page.waitForTimeout(200);
+  ok(await page.evaluate(() => G.s.mode==='spider'), 'FreeCell → Spider（轮转第二跳）');
+  await clickAction(page,'HOME'); await page.waitForTimeout(250);
   await clickAction(page,'MENU'); await page.waitForTimeout(150);
   await clickAction(page,'MODE');
   await page.waitForTimeout(200);
