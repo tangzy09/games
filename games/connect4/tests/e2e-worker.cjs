@@ -121,7 +121,14 @@ const FIX = {
   ok(boot.st.worker === 'alive', "state().worker === 'alive'（实际 " + boot.st.worker + '，' + boot.st.error + '）');
   ok(/solve=-5 ai=1 book=none/.test(boot.st.probe || ''),
     '⭐ 自检指纹证明六个依赖都真调过了：' + JSON.stringify(boot.st.probe));
-  ok(boot.st.book === 'none', '首屏**没有**在等开局库（book=' + boot.st.book + '）');
+  // ⚠ 这里**不能**断言 `book === 'none'`（原来是这么写的，T6 之后红了）：
+  //   `main.js` 现在 boot 时就调 `EngineClient.start()` 并在后台拉库——那正是「懒加载」的
+  //   本意（**不阻塞**，不是**不开始**）。而库加载 ~21 ms、ping ~28 ms，两者是赛跑关系
+  //   ⇒ 读 start() 之后的**当前快照**天生 flaky，以前一直绿只是因为 main.js 还没启动它。
+  // ⭐ 真正证明「首屏没有阻塞在库上」的是**上一条**：探针指纹里的 `book=none` 是 Worker
+  //   内部在 ping 那一刻抓的，它为真就说明 ping 没有等库。这里只做值域闭集检查。
+  ok(['none', 'loading', 'ready'].includes(boot.st.book),
+    '开局库状态必须落在闭集内（实际 ' + boot.st.book + '）；「没阻塞」由上一条的探针指纹证明');
 
   // ─────────── ② Worker 的 AI 与 node 逐位相同 ───────────
   const easy = await page.evaluate(f => EngineClient.ai(f.moves, f.tier, f.seed), FIX.easy);
