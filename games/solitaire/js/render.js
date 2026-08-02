@@ -665,8 +665,14 @@
 
     if (tab === 'back') {
       const cw = Math.floor((w - 24) / 5), ch = Math.round(cw * 1.42);
+      // ⛔ canvas 页面**不会滚动**：牌背扩到 31 款后一屏放不下（5 列 × 7 行 = 750px，
+      //   360×640 上直接把返回键顶出屏幕）⇒ 分页，跟图鉴一个套路。
+      const PER = 20;                                   // 5 列 × 4 行
+      const pages = Math.ceil(Money.BACKS.length / PER);
+      const pg = Math.max(0, Math.min(pages - 1, root.G.shopPage || 0));
+      const list = Money.BACKS.slice(pg * PER, pg * PER + PER);
       const backY = y;
-      Money.BACKS.forEach(function (it, i) {
+      list.forEach(function (it, i) {
         const x = cx - w / 2 + (i % 5) * (cw + 6);
         const by = backY + Math.floor(i / 5) * (ch + 6);
         const own = Money.owns('back', it.id);
@@ -682,7 +688,22 @@
         if (on) { ctx.strokeStyle = '#7ef2a0'; ctx.lineWidth = 3; Sprite.rr(ctx, x, by, cw, ch, 5); ctx.stroke(); }
         addHit(x, by, cw, ch, 'PICK_BACK', { id: it.id });
       });
-      y += Math.ceil(Money.BACKS.length / 5) * (ch + 6) + 12;
+      y += Math.ceil(list.length / 5) * (ch + 6) + 8;
+      if (pages > 1) {                                   // ‹ n/m ›
+        txt((pg + 1) + ' / ' + pages, cx, y + 13, PAL.sub, '12px sans-serif');
+        if (pg > 0) {
+          fillRR(cx - w / 2, y, 56, 26, 8, 'rgba(255,255,255,0.16)');
+          txt('‹', cx - w / 2 + 28, y + 13, '#fff', 'bold 15px sans-serif');
+          addHit(cx - w / 2, y, 56, 26, 'SHOP_PG', { p: pg - 1 });
+        }
+        if (pg < pages - 1) {
+          fillRR(cx + w / 2 - 56, y, 56, 26, 8, 'rgba(255,255,255,0.16)');
+          txt('›', cx + w / 2 - 28, y + 13, '#fff', 'bold 15px sans-serif');
+          addHit(cx + w / 2 - 56, y, 56, 26, 'SHOP_PG', { p: pg + 1 });
+        }
+        y += 34;
+      }
+      y += 4;
     } else if (tab === 'table') {
       const tw = Math.floor((w - 18) / 4);
       const tabY2 = y;
@@ -732,7 +753,9 @@
 
     // ⭐ 外观位：看一条广告 → **任选一款**免费解锁（1 次/天 —— 额度低才不贬值）。
     //   ⚠ 三个页签都要出现：券对牌背/桌布/瀑布通用，只挂在牌背页 = 大半玩家看不见它。
-    if (!Money.noAds && !free) {
+    // ⚠ 页面不滚动 ⇒ 这一条要**给底部返回键让位**：牌背分页后 y 已经压到很低，
+    //   360×640 上原样画会和「‹ 返回」叠在一起（实拍抓到）。放不下就不画（图鉴/结算屏都有同款入口）。
+    if (!Money.noAds && !free && y + 40 < GameGlobal.SH - 92) {
       const bl = adLeft('back');
       fillRR(cx - w / 2, y, w, 40, 10, bl ? 'rgba(255,216,77,0.22)' : 'rgba(255,255,255,0.10)');
       iconText('gift', '🎁', T('sol.adPick') + '   ' + T('sol.adLeft', { n: bl }), cx, y + 20,

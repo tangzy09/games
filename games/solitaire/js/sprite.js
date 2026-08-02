@@ -93,7 +93,116 @@
     peacock:  { a: '#0c6b47', b: '#06382a', ink: 'rgba(255,240,150,0.45)', img: 1 },
     nebula:   { a: '#3b2d6e', b: '#171038', ink: 'rgba(255,240,150,0.45)', img: 1 },
     deco:     { a: '#3f3a1f', b: '#171405', ink: 'rgba(255,240,190,0.50)', img: 1 },
+    // ⭐ 可爱系 12 款（2026-08-01 用户点名）——**全部程序化画**，不加一张图：
+    //   牌背在盘面上只有 54×77，图片素材缩到这个尺寸细节全糊；而矢量图案任意尺寸都清楚，
+    //   仓库也不用为 12 张 JPG 再胖一圈。判据同图标：**缩到牌面大小还认得出是什么**
+    //   ⇒ 图案单元 8-14px、只用一种前景色、形状轮廓要简单。
+    hearts:   { a: '#f6a5c0', b: '#d2678c', ink: 'rgba(255,255,255,0.70)', pat: 'heart' },
+    cloud:    { a: '#8ec5f0', b: '#4f8dc9', ink: 'rgba(255,255,255,0.72)', pat: 'cloud' },
+    paws:     { a: '#c9a7e8', b: '#8f66c4', ink: 'rgba(255,255,255,0.70)', pat: 'paw' },
+    bubbles:  { a: '#7fd9c8', b: '#3f9c8d', ink: 'rgba(255,255,255,0.66)', pat: 'bubble' },
+    daisy:    { a: '#f5cf6a', b: '#d9a326', ink: 'rgba(255,255,255,0.78)', pat: 'daisy' },
+    gingham:  { a: '#f19aa8', b: '#c96b7c', ink: 'rgba(255,255,255,0.55)', pat: 'gingham' },
+    bows:     { a: '#f3b7d4', b: '#c9709f', ink: 'rgba(255,255,255,0.75)', pat: 'bow' },
+    rainbow:  { a: '#a7d8f0', b: '#6aa8d8', ink: 'rgba(255,255,255,0.72)', pat: 'rainbow' },
+    berry:    { a: '#ef8fa0', b: '#c4485f', ink: 'rgba(255,255,255,0.72)', pat: 'berry' },
+    moon:     { a: '#5b6bb5', b: '#28305e', ink: 'rgba(255,240,170,0.80)', pat: 'moon' },
+    sprinkle: { a: '#f7d9b0', b: '#dba86a', ink: 'rgba(255,255,255,0.80)', pat: 'sprinkle' },
+    sweets:   { a: '#b7a4e8', b: '#7b64c0', ink: 'rgba(255,255,255,0.70)', pat: 'sweets' },
   };
+
+  /**
+   * ⭐ 可爱系图案（牌背与桌布共用）：在 (x,y) 处画一个大小 s 的图案单元。
+   * ⚠ 画之前调用方已把 fillStyle/strokeStyle 设成该皮肤的 ink 色 —— 这里只管形状。
+   */
+  function motif(g, kind, x, y, s) {
+    const k = s / 10;
+    if (kind === 'heart') {
+      g.beginPath();
+      g.moveTo(x, y + 3 * k);
+      g.bezierCurveTo(x, y - 1.2 * k, x - 4.6 * k, y - 1.2 * k, x - 4.6 * k, y + 2.4 * k);
+      g.bezierCurveTo(x - 4.6 * k, y + 5.6 * k, x, y + 7.4 * k, x, y + 9.4 * k);
+      g.bezierCurveTo(x, y + 7.4 * k, x + 4.6 * k, y + 5.6 * k, x + 4.6 * k, y + 2.4 * k);
+      g.bezierCurveTo(x + 4.6 * k, y - 1.2 * k, x, y - 1.2 * k, x, y + 3 * k);
+      g.fill();
+    } else if (kind === 'cloud') {
+      g.beginPath();
+      g.arc(x - 3 * k, y + 4 * k, 2.6 * k, 0, 7);
+      g.arc(x, y + 2.6 * k, 3.4 * k, 0, 7);
+      g.arc(x + 3.2 * k, y + 4 * k, 2.4 * k, 0, 7);
+      g.rect(x - 3 * k, y + 4 * k, 6.4 * k, 2.6 * k);
+      g.fill();
+    } else if (kind === 'paw') {
+      g.beginPath(); g.arc(x, y + 5 * k, 3 * k, 0, 7); g.fill();          // 掌
+      [[-3.2, 1.4], [-1.1, 0.2], [1.1, 0.2], [3.2, 1.4]].forEach(p => {   // 四趾
+        g.beginPath(); g.arc(x + p[0] * k, y + p[1] * k, 1.25 * k, 0, 7); g.fill();
+      });
+    } else if (kind === 'bubble') {
+      g.beginPath(); g.arc(x, y + 4 * k, 3.4 * k, 0, 7); g.stroke();
+      g.beginPath(); g.arc(x - 1.2 * k, y + 2.6 * k, 0.9 * k, 0, 7); g.fill();   // 高光
+    } else if (kind === 'daisy') {
+      for (let i = 0; i < 5; i++) {
+        const a = i * Math.PI * 2 / 5 - Math.PI / 2;
+        g.beginPath();
+        g.ellipse(x + Math.cos(a) * 2.6 * k, y + 4 * k + Math.sin(a) * 2.6 * k, 1.7 * k, 1.15 * k, a, 0, 7);
+        g.fill();
+      }
+      g.beginPath(); g.arc(x, y + 4 * k, 1.25 * k, 0, 7); g.fill();
+    } else if (kind === 'gingham') {
+      g.globalAlpha = 0.55; g.fillRect(x - 4.5 * k, y, 9 * k, 9 * k); g.globalAlpha = 1;
+    } else if (kind === 'bow') {
+      g.beginPath();
+      g.moveTo(x, y + 4 * k); g.lineTo(x - 4.4 * k, y + 1.2 * k); g.lineTo(x - 4.4 * k, y + 6.8 * k); g.closePath(); g.fill();
+      g.beginPath();
+      g.moveTo(x, y + 4 * k); g.lineTo(x + 4.4 * k, y + 1.2 * k); g.lineTo(x + 4.4 * k, y + 6.8 * k); g.closePath(); g.fill();
+      g.beginPath(); g.arc(x, y + 4 * k, 1.5 * k, 0, 7); g.fill();
+    } else if (kind === 'rainbow') {
+      g.lineWidth = 1.5 * k;
+      for (let i = 0; i < 3; i++) {
+        g.globalAlpha = 0.85 - i * 0.22;
+        g.beginPath(); g.arc(x, y + 7 * k, (2 + i * 1.6) * k, Math.PI, 0); g.stroke();
+      }
+      g.globalAlpha = 1;
+    } else if (kind === 'berry') {
+      g.beginPath();
+      g.moveTo(x, y + 9 * k);
+      g.bezierCurveTo(x - 4 * k, y + 6 * k, x - 3.6 * k, y + 1.6 * k, x, y + 2 * k);
+      g.bezierCurveTo(x + 3.6 * k, y + 1.6 * k, x + 4 * k, y + 6 * k, x, y + 9 * k);
+      g.fill();
+      g.beginPath();                                                     // 叶
+      g.moveTo(x - 2.4 * k, y + 1.6 * k); g.lineTo(x, y - 0.4 * k); g.lineTo(x + 2.4 * k, y + 1.6 * k);
+      g.closePath(); g.fill();
+    } else if (kind === 'moon') {
+      g.beginPath();
+      g.arc(x, y + 4.5 * k, 3.6 * k, Math.PI * 0.35, Math.PI * 1.65);
+      g.arc(x + 1.9 * k, y + 4.5 * k, 3.3 * k, Math.PI * 1.5, Math.PI * 0.5, true);
+      g.fill();
+      g.beginPath(); g.arc(x + 4.6 * k, y + 1.2 * k, 0.9 * k, 0, 7); g.fill();   // 小星
+    } else if (kind === 'sprinkle') {
+      g.lineWidth = 1.5 * k; g.lineCap = 'round';
+      [[0, 0, 0.6], [3.4, 3.6, -0.8], [-3.4, 5.2, 0.3]].forEach(p => {
+        g.beginPath();
+        g.moveTo(x + p[0] * k - Math.cos(p[2]) * 1.7 * k, y + 3 * k + p[1] * k - Math.sin(p[2]) * 1.7 * k);
+        g.lineTo(x + p[0] * k + Math.cos(p[2]) * 1.7 * k, y + 3 * k + p[1] * k + Math.sin(p[2]) * 1.7 * k);
+        g.stroke();
+      });
+      g.lineCap = 'butt';
+    } else if (kind === 'sweets') {                                       // 糖果：斜条 + 圆点
+      g.lineWidth = 1.4 * k;
+      g.beginPath(); g.moveTo(x - 4 * k, y + 7.5 * k); g.lineTo(x + 4 * k, y + 0.5 * k); g.stroke();
+      g.beginPath(); g.arc(x + 3.4 * k, y + 6.6 * k, 1.2 * k, 0, 7); g.fill();
+    }
+  }
+
+  /** 把图案铺满一块区域（错行摆放，别摆成死板的方格） */
+  function tileMotif(g, kind, w, h, step) {
+    const s = step * 0.86;
+    for (let row = 0, y = -step * 0.4; y < h + step; y += step, row++) {
+      for (let x = (row % 2 ? step * 0.5 : 0) - step * 0.3; x < w + step; x += step) {
+        motif(g, kind, x + s / 2, y, s);
+      }
+    }
+  }
 
   // 图片牌背的加载缓存（onload 后失效当前 backCache 并触发重画,商店预览同理）
   const backImgs = {};
@@ -181,6 +290,9 @@
       for (let i = -h; i < w; i += 7) {
         g.beginPath(); g.moveTo(i, 0); g.lineTo(i + h, h); g.stroke();
       }
+    } else if (st.pat) {
+      // ⭐ 可爱系：图案单元铺满（错行）。牌背只有 54×77 ⇒ step 取 ~13px，一张牌上摆 3×5 个
+      tileMotif(g, st.pat, w, h, Math.max(11, w * 0.24));
     } else {
       g.lineWidth = 1.2;
       for (let i = -h; i < w; i += 6) {
@@ -202,7 +314,34 @@
     bamboo:   { a: '#6b4f1d', b: '#3a2a0e', img: 1 },
     velvet:   { a: '#16255e', b: '#080d26', img: 1 },
     marble:   { a: '#0c3330', b: '#04100f', img: 1 },
+    // ⭐ 可爱系 8 款（程序化图案，零素材）。
+    //   ⛔ **桌布必须偏暗**：白牌面 + 白字要浮得出来 —— 可爱不等于浅色，这里走的是
+    //     「莓果 / 丁香 / 深青」这类**暗调粉彩**，图案只用很低的透明度点缀。
+    blush:    { a: '#6d3a4a', b: '#3a1c26', pat: 'heart' },
+    lilac:    { a: '#4a3a7a', b: '#241b40', pat: 'daisy' },
+    teal:     { a: '#125e63', b: '#06333a', pat: 'bubble' },
+    moss:     { a: '#2f5a35', b: '#142c18', pat: 'cloud' },
+    plum:     { a: '#5a2a5e', b: '#2c1230', pat: 'paw' },
+    night:    { a: '#26315e', b: '#0e1330', pat: 'moon' },
+    sea:      { a: '#14506e', b: '#062535', pat: 'bubble' },
+    cocoa:    { a: '#5a3a2a', b: '#2b1a11', pat: 'sprinkle' },
   };
+
+  // 桌布图案：铺一张小 tile 再 createPattern（桌布**每帧全屏重画**，逐个图案画会拖慢帧率）
+  const tabPat = {};
+  function tablePattern(g, style, st) {
+    if (tabPat[style]) return tabPat[style];
+    const S = 64;
+    const t = document.createElement('canvas');
+    t.width = t.height = S;
+    const tg = t.getContext('2d');
+    tg.fillStyle = tg.strokeStyle = 'rgba(255,255,255,0.075)';   // 只是点缀，别抢牌面
+    tg.lineWidth = 1.6;
+    motif(tg, st.pat, S * 0.28, S * 0.10, 22);
+    motif(tg, st.pat, S * 0.78, S * 0.58, 22);
+    tabPat[style] = g.createPattern(t, 'repeat');
+    return tabPat[style];
+  }
 
   const tableImgs = {};
   function tableImg(style) {
@@ -239,6 +378,13 @@
     grad.addColorStop(0, st.a); grad.addColorStop(1, st.b);
     g.fillStyle = grad;
     g.fillRect(x, y, w, h);
+    if (st.pat) {                                  // 可爱系：再叠一层极淡的图案
+      g.save();
+      g.translate(x, y);
+      g.fillStyle = tablePattern(g, style, st);
+      g.fillRect(0, 0, w, h);
+      g.restore();
+    }
   }
 
   function rr(g, x, y, w, h, r) {

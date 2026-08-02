@@ -38,8 +38,20 @@
     fx: 'classic',
   };
 
+  // ⭐ 开局就送的可爱款（= 新增 20 款里的一半）。⚠ **老玩家也要补发**：只写进 state 的默认值
+  //   只对新档生效，已经玩过的人永远拿不到 —— 所以 load() 之后做一次并集（见下）。
+  const FREE_GIFTS = {
+    back:  ['hearts', 'cloud', 'paws', 'bubbles', 'daisy', 'gingham'],
+    table: ['blush', 'lilac', 'teal', 'moss'],
+  };
+
   function load() {
     try { Object.assign(state, JSON.parse(Platform.storage.get(K()) || '{}')); } catch (e) {}
+    // 送的东西一律走并集补齐（幂等；玩家已有的不动，也不会因为读档把新赠品洗掉）
+    let add = 0;
+    for (const id of FREE_GIFTS.back) if (!state.ownedBacks.includes(id)) { state.ownedBacks.push(id); add++; }
+    for (const id of FREE_GIFTS.table) if (!state.ownedTables.includes(id)) { state.ownedTables.push(id); add++; }
+    if (add) save();
   }
   function save() {
     try { Platform.storage.set(K(), JSON.stringify(state)); } catch (e) {}
@@ -103,6 +115,21 @@
     { id: 'peacock', cost: 320 },
     { id: 'nebula',  cost: 400 },
     { id: 'deco',    cost: 500 },
+    // ⭐ 可爱系 12 款（2026-08-01 用户点名「再多 20 个可爱的」）：程序化图案，零素材。
+    //   **一半开局就送**（cost:0，见 FREE_GIFTS）——新玩家第一次打开收藏页就有六款可换，
+    //   收集页从「一排锁」变成「我已经有一些了」，这是收集系统起步最关键的一下。
+    { id: 'hearts',   cost: 0 },
+    { id: 'cloud',    cost: 0 },
+    { id: 'paws',     cost: 0 },
+    { id: 'bubbles',  cost: 0 },
+    { id: 'daisy',    cost: 0 },
+    { id: 'gingham',  cost: 0 },
+    { id: 'bows',     cost: 25 },
+    { id: 'rainbow',  cost: 30 },
+    { id: 'berry',    cost: 35 },
+    { id: 'moon',     cost: 40 },
+    { id: 'sprinkle', cost: 45 },
+    { id: 'sweets',   cost: 55 },
   ];
   const TABLES = [
     { id: 'felt',    cost: 0 },
@@ -114,6 +141,15 @@
     { id: 'bamboo',  cost: 260 },
     { id: 'velvet',  cost: 340 },
     { id: 'marble',  cost: 420 },
+    // ⭐ 可爱系 8 款（暗调粉彩 + 极淡图案；⛔ 桌布必须偏暗，白牌面要浮得出来）。同样送一半。
+    { id: 'blush',   cost: 0 },
+    { id: 'lilac',   cost: 0 },
+    { id: 'teal',    cost: 0 },
+    { id: 'moss',    cost: 0 },
+    { id: 'plum',    cost: 40 },
+    { id: 'night',   cost: 50 },
+    { id: 'sea',     cost: 60 },
+    { id: 'cocoa',   cost: 70 },
   ];
   // 瀑布特效（贴着产品灵魂的收藏品 —— 瀑布是玩家记了三十年的画面,比多一张牌背值钱）。
   // 定价比牌背高:它是收集曲线的后段,防止几十局就毕业、激励视频那条腿断掉(§7.2.1)。

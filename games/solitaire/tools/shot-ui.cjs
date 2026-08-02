@@ -47,7 +47,7 @@ function serve() {
       G.stats = Object.assign(G.stats || {}, { played: 86, won: 41, streak: 4, bestStreak: 9, bestTime: 254000 });
       G.badges = { '2026-06': 'gold', '2026-07': 'silver' };
       G.dayScore = 8600;
-      Money.coins = 1240;
+      Money.state.coins = 1240;   // ⚠ Money.coins 是只读 getter，赋值会静默失效（截图里一直是 0 coins）
       if (G.dailyDays) G.dailyDays.length = 0;
     });
 

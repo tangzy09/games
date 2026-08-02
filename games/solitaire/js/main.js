@@ -32,6 +32,7 @@ const G = window.G = {
   galPage: 0,              // 图鉴当前页
   galView: null,           // 图鉴大图查看中的索引（null=网格）
   shopTab: 'back',         // 收藏页当前签（back|table|fx —— 牌背 19 款后单页放不下了）
+  shopPage: 0,             // 牌背页码（31 款 ⇒ 20 个一页；canvas 页面不会滚动）
   spiderSuits: 1,          // Spider 花色档 1/2/4（新手默认 1 花色——4 花色人类胜率 <10%）
   lesson: 0,               // 正在上的课（0=不在教学中）
   lessonNeed: 0,           // 这一课还差几步赢（由 solver 证明）
@@ -745,7 +746,8 @@ function dispatch(action, data) {
       break;
     }
     case 'SHOP': goPhase('SHOP'); break;
-    case 'SHOP_TAB': if (data && data.t) G.shopTab = data.t; break;
+    case 'SHOP_TAB': if (data && data.t) { G.shopTab = data.t; G.shopPage = 0; } break;
+    case 'SHOP_PG': G.shopPage = Math.max(0, (data && data.p) || 0); break;   // 牌背 31 款 ⇒ 分页
     case 'SET': goPhase('SET'); break;
 
     // ⚠ 这三个功能**代码里一直都有，但此前没有任何 UI 入口** —— 等于死代码
