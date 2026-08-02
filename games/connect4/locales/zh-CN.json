@@ -6,6 +6,7 @@
             "easy": "轻松", "medium": "进阶", "perfect": "完美" },
   "game": { "yourTurn": "轮到你了", "thinking": "思考中", "win": "你赢了", "lose": "你输了",
             "draw": "平局", "again": "再来一局", "undo": "撤销", "menu": "菜单",
+            "review": "复盘",
             "stopped": "已中断",
             "turnOf": "轮到{p}", "wins": "{p} 获胜",
             "p1": "玩家 1", "p2": "玩家 2",

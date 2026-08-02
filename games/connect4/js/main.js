@@ -53,7 +53,14 @@ var G = {
   // ── 落子动画（P2b T2）。⭐ rafId 是**可检查的状态**：没有动画在跑时它必须是 null
   //    （⛔ 空转烧电是这个 rAF 唯一的失败模式，而它不报错 ⇒ 必须能被 E2E 问到）。
   rafId: null,
-  fxLast: 0           // 上一帧的时间戳（ms，与 rAF 的 ts 同一时基）
+  fxLast: 0,          // 上一帧的时间戳（ms，与 rAF 的 ts 同一时基）
+  // ── 结算节奏（P2b T3 · DESIGN §6.5）──
+  // ⭐ overReady = 「庆祝播完了，主 CTA［再来一局］进入焦点态」。
+  //   ⛔ 它**不是**一把输入锁：结算的按钮从终局第一帧就注册了热区、全程点得动
+  //     （本仓铁律，e2e-p2b 用真实鼠标钉死）。它只决定「那一刻画面上谁最显眼」。
+  overReady: false,
+  overAt: 0,          // 实测用：判出终局的时刻（ms）
+  readyAt: 0          // 实测用：主 CTA 拿到焦点态的时刻 ⇒ 两者之差就是 §6.5 那 5 秒的量法
 };
 
 // ════════ 小工具 ════════
@@ -75,6 +82,14 @@ function btn(x, y, w, h, label, action, data, style) {
   style = style || {};
   const on = !style.disabled;
   fillRR(x, y, w, h, 12, on ? (style.bg || C4Render.PAL.accent) : 'rgba(97,119,111,0.26)');
+  // ⭐ 焦点态（DESIGN §6.5：庆祝完，主按钮**直接是**［再来一局］）：外扩一圈发光描边。
+  //   ⚠ 几何**不变**（⛔ 别用「变大一点」表达焦点：那会在结算那一刻把整排按钮挤得跳一下）。
+  if (style.focus) {
+    ctx.save();
+    ctx.shadowColor = C4Render.PAL.glow; ctx.shadowBlur = 16;
+    strokeRR(x - 3, y - 3, w + 6, h + 6, 15, C4Render.PAL.glow, 2.5);
+    ctx.restore();
+  }
   if (style.outline) strokeRR(x + 0.5, y + 0.5, w - 1, h - 1, 12, style.outline, 1.5);
   fitTxt(label, x + w / 2, y + h / 2, w - 16,
          on ? (style.fg || '#fff') : 'rgba(38,74,61,0.45)', style.weight || 'bold', style.size || 16);
@@ -153,13 +168,68 @@ function onPieceLanded(row) {
   if (r <= 1) Haptics.medium(); else Haptics.light();
 }
 
+// ════════ 赢局那 3 秒 + 结算节奏（P2b Task 3 · DESIGN §6.3 最后一段 + §6.5）════════
+// §6.3：「⭐ 赢的那一刻：四枚棋子发光、**画出那条连线**、其余变暗、时间放慢半秒。
+//        玩家必须看清自己赢在哪 —— 第一局赢的那 3 秒是 D1 的杠杆。」
+// §6.5：「⚠ 别照抄 solitaire 的结算 …… 庆祝 ~1.5 s → 主按钮直接是［再来一局］的焦点态。」
+//
+// 曲线全在 js/fx.js（闭式、node 里逐位可测），这里同样只做三件事：起、发声、收尾。
+// ⚠ T6（减弱动态）要门控的是 `startWinFx` 里那一次 `C4Fx.start('win')`：关掉时走
+//   `id == null` 那条 fail-safe —— 立刻出声 + 立刻 markOverReady + 画静态赢局帧（render 的
+//   lineProg/lit 默认就是「整条 + 全亮」）。⛔ 别再加第二个开关。
+
+let _overTimer = null;
+function clearOverTimer() { if (_overTimer) { clearTimeout(_overTimer); _overTimer = null; } }
+
+/** ⭐ 结算音。⚠ §6.6「让输不疼」：输局**只有**这一声（lose 本身是刻意温和的），
+ *  ⛔ 不加震动、不加红闪、不加「你输了」的大字 —— 那些都是惩罚性反馈。 */
+function playResultSfx() {
+  const g = G.g, res = G.result;
+  if (!g || !res || res.winner === null) return;   // 平局：不响（⛔ 也别拿 lose 顶替，平局不是输）
+  const lost = g.mode === 'ai' && res.winner !== C4State.humanPlayer(g);
+  Sfx.play(lost ? 'lose' : 'win');
+  if (!lost) Haptics.medium();
+}
+
+/** 庆祝结束 ⇒ 主 CTA 进入焦点态。⚠ 幂等：rAF 与兜底计时器都会调到它。 */
+function markOverReady() {
+  clearOverTimer();
+  if (G.overReady || G.phase !== 'OVER') return;
+  G.overReady = true;
+  G.readyAt = nowMs();
+  renderAll();
+}
+
+function startWinFx() {
+  clearOverTimer();
+  G.overReady = false;
+  G.overAt = nowMs();
+  const line = G.result && G.result.line;
+  // 平局没有连线可画 ⇒ ⛔ 别硬凑一段庆祝，直接进结算（§6.5：快）
+  if (!line) { markOverReady(); return; }
+  const id = C4Fx.start('win', { line: line });
+  if (id == null) { playResultSfx(); markOverReady(); return; }   // ⚠ 也是 T6 减弱动态的入口
+  // ⛔ 结算节奏必须有**上界**：页面切后台时 rAF 会被节流甚至停掉，'winend' 就永远不来，
+  //   主 CTA 一直不进焦点态（画面没坏、只是「结算卡在庆祝里」，零报错）。
+  // ⭐ 上界从 fx 的预算**算**出来，⛔ 不是写死的数字 —— 写死的话把庆祝调到 8 秒时
+  //   这条兜底会先把 CTA 点亮，e2e 的「≤ 5 秒」就抓不住了（门禁必须真的会红）。
+  _overTimer = setTimeout(markOverReady, C4Fx.winTotal() + 400);
+  fxKick();
+}
+
 function fxFrame(ts) {
   G.rafId = null;
   const now = (typeof ts === 'number' && isFinite(ts)) ? ts : nowMs();
   const dt = Math.min(Math.max(0, now - G.fxLast), MAX_FRAME_DELTA);
   G.fxLast = now;
   const evs = C4Fx.step(dt);
-  for (const e of evs) if (e.type === 'land') onPieceLanded(e.r);
+  for (const e of evs) {
+    if (e.type === 'land') onPieceLanded(e.r);
+    // ⭐ 结算音挂在**连线开始画**那一瞬（= 赢的那枚落地那一刻），⛔ 不挂判出终局那一刻：
+    //   那时棋子还在半空中（而且正在慢放），声音会比画面早半秒 —— 就是音画不同步。
+    else if (e.type === 'winline') playResultSfx();
+    else if (e.type === 'winend') markOverReady();
+  }
   renderAll();
   // ⛔ 没有动画在跑就**必须停**（别空转烧电）。判据是 C4Fx.done()，不是别的标志。
   if (!C4Fx.done()) G.rafId = requestAnimationFrame(fxFrame);
@@ -171,9 +241,13 @@ function fxKick() {
   G.rafId = requestAnimationFrame(fxFrame);
 }
 
-/** ⛔ 撤销 / 换局 / 回菜单必须调：不然一枚**已经不在盘上**的棋子还在半空中飞。 */
+/** ⛔ 撤销 / 换局 / 回菜单必须调：不然一枚**已经不在盘上**的棋子还在半空中飞。
+ *  ⚠ 结算的兜底计时器一起清：撤销掉一个赢局之后，它再触发就会在**新局面**上把
+ *    overReady 点亮（phase 已经不是 OVER 了 ⇒ markOverReady 自己也挡一道，两层都要有）。 */
 function fxStop() {
   if (G.rafId != null) { cancelAnimationFrame(G.rafId); G.rafId = null; }
+  clearOverTimer();
+  G.overReady = false;
   C4Fx.reset();
 }
 
@@ -233,6 +307,7 @@ function checkOver() {
   G.phase = 'OVER';
   G.result = { t: t, winner: w, line: w === null ? null : findWinLine(bd, w) };
   G.hoverCol = -1;
+  startWinFx();         // ⭐ 赢的那 3 秒（⚠ 此刻赢的那一枚通常**还在飞**，lead 就是等它落地）
   setThinking(false);   // ⚠ 放最后：它会重画一帧，前面的字段得先摆好
   return true;
 }
@@ -493,15 +568,23 @@ function drawPlay(L) {
   const g = G.g;
   const bd = C4State.boardOf(g);
   const line = G.result && G.result.line;
+  // ⭐ pose() 里混着两种动画 ⇒ 在这里分流（⛔ 别把 win 那条丢给 anim：它没有 c/r，
+  //    drawBoard 会去算 L.center(undefined) ⇒ NaN ⇒ 棋子被静默画到画布外）。
+  const poses = C4Fx.pose();
+  const drops = poses.filter(p => p.kind === 'drop');
+  const wfx = C4Fx.poseWin();   // 庆祝播完 / 没有庆祝 ⇒ null ⇒ 下面退回静态赢局帧
 
   C4Render.drawBoard(bd, {
     L: L,
     hoverCol: G.hoverCol,
     hoverPlayer: C4State.turnOf(g),
     winLine: line,
-    dim: line ? true : 0,
+    // ⭐ 三条曲线全部来自 fx（⛔ 别在这里另算时间）：庆祝在跑时用它的，播完退回静态终态。
+    dim: line ? (wfx ? wfx.dim : C4Fx.DIM_MAX) : 0,
+    lineProg: wfx ? wfx.prog : 1,
+    lit: wfx ? wfx.lit : null,
     lastMove: null,
-    anim: C4Fx.pose()      // ⭐ 正在下落的棋子（空数组 = 没有动画，drawBoard 一切照旧）
+    anim: drops            // ⭐ 正在下落的棋子（空数组 = 没有动画，drawBoard 一切照旧）
   });
 
   const info = hudInfo(g);
@@ -516,17 +599,33 @@ function drawPlay(L) {
   // 按钮行：钉在盘面下方的留白里（⛔ 别压在盘上——赢局那条连线必须一直看得见）
   const gap = 12;
   const rowH = 46;
+  // ⭐ 结算是**两行**（§6.5）：第一行只放主 CTA［再来一局］+［复盘］留位，
+  //   ［撤销］［菜单］退到第二行 —— 「再来一局」必须是一眼看到的那一个，不是三选一。
+  const rows = G.phase === 'OVER' ? 2 : 1;
+  const blockH = rows * rowH + (rows - 1) * gap;
   let ry = L.boardY + L.boardH + 16;
-  const maxY = L.SH - L.safeBottom - 12 - rowH;
+  const maxY = L.SH - L.safeBottom - 12 - blockH;
   if (ry > maxY) ry = maxY;
   const marg = 14;
   const full = L.SW - marg * 2;
 
   if (G.phase === 'OVER') {
-    const w3 = (full - gap * 2) / 3;
-    btn(marg, ry, w3, rowH, T('game.again'), 'AGAIN', {});
-    btn(marg + w3 + gap, ry, w3, rowH, T('game.undo'), 'UNDO', {}, { bg: '#61776f' });
-    btn(marg + (w3 + gap) * 2, ry, w3, rowH, T('game.menu'), 'HOME', {}, { bg: '#61776f' });
+    // ⭐ 主 CTA：庆祝一播完就进焦点态（⛔ 但从终局第一帧起就**点得动** —— 热区在这里注册，
+    //    与 overReady 无关；「庆祝期间点得动」由 e2e-p2b 用真实鼠标钉死）。
+    const wMain = Math.round((full - gap) * 0.60);
+    btn(marg, ry, wMain, rowH, T('game.again'), 'AGAIN', {}, {
+      bg: G.overReady ? '#37a87c' : C4Render.PAL.accent,
+      focus: G.overReady, size: 17
+    });
+    // ⭐ ［复盘］**留位**（DESIGN §3.3 的赛后复盘是 P3 的内容）。
+    //   ⚠ 现在是 disabled ⇒ btn 不注册热区 ⇒ 点不出任何反应，⛔ 不许做成「点了没反应」的活按钮：
+    //     假按钮比没按钮更伤（玩家会以为坏了）。P3 填内容时把 disabled 去掉 + 加 'REVIEW' 分支。
+    btn(marg + wMain + gap, ry, full - wMain - gap, rowH, T('game.review'), 'REVIEW', {},
+        { disabled: true, size: 15 });
+    const ry2 = ry + rowH + gap;
+    const w2 = (full - gap) / 2;
+    btn(marg, ry2, w2, rowH, T('game.undo'), 'UNDO', {}, { bg: '#61776f' });
+    btn(marg + w2 + gap, ry2, w2, rowH, T('game.menu'), 'HOME', {}, { bg: '#61776f' });
   } else {
     const w2 = (full - gap) / 2;
     btn(marg, ry, w2, rowH, T('game.undo'), 'UNDO', {}, {

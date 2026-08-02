@@ -280,6 +280,8 @@
   }
 
   // ════════ ⑤ 主绘制 ════════
+  function clamp01(v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
+
   /** winLine 允许 [{c,r}] 或 [[c,r]] 两种写法（T6/复盘两侧各写各的，这里收口）。 */
   function normLine(line) {
     if (!Array.isArray(line)) return null;
@@ -301,6 +303,9 @@
    *   hoverPlayer 悬停那一枚是谁的（默认 0）
    *   winLine   赢局的四个格子 ⇒ 发光 + 画出连线
    *   dim       true 或 0..1：winLine 之外的部分变暗（赢局呈现，DESIGN §6.3）
+   *   lineProg  0..1：连线**已经画出的比例**（P2b T3「逐段画出」）。⚠ 默认 1 = 整条
+   *   lit       [0..1 ×4]：赢的每一枚**点亮程度**（P2b T3「依次点亮」）。⚠ 默认全 1
+   *             ⭐ 这两个一律来自 `C4Fx.poseWin()`，⛔ 别在这里另起一套时间轴
    *   lastMove  {c,r} 上一手的小标记
    *   action    热区的 action 名（默认 'COL'，data = {col}）
    *   noHits    true = 不注册热区（截图/预览用）
@@ -371,26 +376,50 @@
     //   现在：变暗 → 连线（**在棋子之下**）→ 赢的四枚重画（带 backing 挡住线）→
     //         沿**棋子自身轮廓**的光晕（⛔ 绝不是套一个圆圈）。
     if (line) {
+      // ⭐ P2b T3：同一帧不再是「一次性全出」，而是被两条 0..1 的曲线驱动（来自 C4Fx.poseWin()）：
+      //   lineProg —— 连线已经画到哪儿（⇒ **可见长度在增长**，这就是「逐段画出」）
+      //   lit[i]   —— 第 i 枚亮到什么程度（画笔头走到它才开始亮 ⇒ **依次点亮**）
+      // ⚠ 两个都默认「已完成」⇒ ⛔ 老调用方（P2a 的静态赢局帧、复盘截图、T6 减弱动态）
+      //   一个像素都不变，这也是 e2e-p2a 那条连线门禁仍然成立的原因。
+      const prog = typeof opts.lineProg === 'number' ? clamp01(opts.lineProg) : 1;
+      const litOf = i => (opts.lit && typeof opts.lit[i] === 'number') ? clamp01(opts.lit[i]) : 1;
+
       if (dimA > 0) {
         fillRR(L.boardX, L.boardY, L.boardW, L.boardH, L.cell * 0.30, 'rgba(14,24,21,' + dimA + ')');
-        for (const p of line) drawWell(L, p.c, p.r);   // 赢的那四格先从暗里捞回来
+        // 赢的那几格从暗里捞回来 —— ⚠ **只捞已经亮起来的**：没轮到的那几枚必须还压在暗里，
+        //   否则「依次点亮」在画面上只剩光晕在动，最该被看见的那个「一枚一枚亮过去」没了。
+        for (let i = 0; i < line.length; i++) if (litOf(i) > 0.02) drawWell(L, line[i].c, line[i].r);
       }
       const a = L.center(line[0].c, line[0].r), b = L.center(line[line.length - 1].c, line[line.length - 1].r);
-      ctx.save();
-      ctx.lineCap = 'round';
-      ctx.lineWidth = Math.max(3, L.cell * 0.15);
-      ctx.strokeStyle = 'rgba(255,255,255,0.95)';
-      ctx.shadowColor = PAL.glow; ctx.shadowBlur = L.cell * 0.85;
-      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-      ctx.restore();
+      // 画笔头：整条线的 prog 处（四子连珠恒是一条直线 ⇒ 线性插值就是「画到第几格」）
+      const e = { x: a.x + (b.x - a.x) * prog, y: a.y + (b.y - a.y) * prog };
+      const drawLine = (w, style, blur) => {
+        if (prog <= 0.001) return;      // ⛔ 长度为 0 时**什么都不画**：lineCap='round' 会留一个亮圆点，
+        ctx.save();                     //    在「线还没开始画」的那几帧凭空多出一颗光珠
+        ctx.lineCap = 'round';
+        ctx.lineWidth = w;
+        ctx.strokeStyle = style;
+        if (blur) { ctx.shadowColor = PAL.glow; ctx.shadowBlur = blur; }
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(e.x, e.y); ctx.stroke();
+        ctx.restore();
+      };
+      drawLine(Math.max(3, L.cell * 0.15), 'rgba(255,255,255,0.95)', L.cell * 0.85);
 
-      for (const p of line) {
+      for (let i = 0; i < line.length; i++) {
+        const p = line[i], w = litOf(i);
+        if (w <= 0.02) continue;                     // 还没轮到这一枚 ⇒ 保持「其余变暗」的样子
         if (animAt(p.c, p.r)) continue;   // 这一枚还在半空中，下面那一段会画（⛔ 别画两遍）
         const q = L.center(p.c, p.r), o = cellOwner(bd, p.c, p.r);
-        drawPiece(o, q.x, q.y, L.cell, { backing: PAL.well });
+        // ⚠ 亮起来是**淡入**（alpha），底下压着的正是同一枚被 dim 压暗的自己 ⇒ 读起来是「变亮」
+        //   而不是「凭空冒出来一枚」。⭐ 淡入走得比 lit 快（×2.2）：backing 要尽快到全不透明，
+        //   不然那条白线会从圆环的**空心**里透出来（本文件 backing 那段注释说的就是这个）。
+        drawPiece(o, q.x, q.y, L.cell, { backing: PAL.well, alpha: Math.min(1, w * 2.2) });
         // 光晕沿这枚棋子**自己的**外轮廓走：赢的时候玩家看到的仍然是「我的六边形」/「我的圆环」
+        // ⛔⛔ 绝不许改成「套一个圆圈/圆形光斑」—— P2a 第一版就是那样，四枚六边形当场看起来
+        //   变成了**对手的圆环**，脚本全绿、只有肉眼看图抓得到（DESIGN §6.2 在最需要它的一帧失效）。
         ctx.save();
-        ctx.strokeStyle = PAL.glow; ctx.shadowColor = PAL.glow; ctx.shadowBlur = L.cell * 0.5;
+        ctx.globalAlpha = w;
+        ctx.strokeStyle = PAL.glow; ctx.shadowColor = PAL.glow; ctx.shadowBlur = L.cell * 0.5 * w;
         ctx.lineWidth = Math.max(2, L.cell * 0.055);
         if (o === 0) hexPath(q.x, q.y, L.cell * (HEX_R + 0.04));
         else { ctx.beginPath(); ctx.arc(q.x, q.y, L.cell * (RING_R + 0.04), 0, Math.PI * 2); }
@@ -401,12 +430,7 @@
       // 最后一道：**细而半透明**的同一条线压在棋子之上，让「那条连线」读成连续的一根。
       // ⚠ 粗细/透明度是有上限的 —— 再粗再实就回到第一版那个「把赢的四枚糊掉」的 bug，
       //   剪影门禁（e2e-render ⑤ 的 shapeIoU）会先红给你看。
-      ctx.save();
-      ctx.lineCap = 'round';
-      ctx.lineWidth = Math.max(2, L.cell * 0.06);
-      ctx.strokeStyle = 'rgba(180,255,228,0.60)';
-      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-      ctx.restore();
+      drawLine(Math.max(2, L.cell * 0.06), 'rgba(180,255,228,0.60)', 0);
     }
 
     // ⭐ 下落中的棋子（DESIGN §6.3）。⚠ 画在**赢局那一段之后**：

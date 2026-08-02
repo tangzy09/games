@@ -268,6 +268,225 @@ const TOTAL = Fx.dropDuration(Fx.fallForRow(0));
   console.log('test-fx: 多枚同时在飞 OK（⛔ 动画不锁输入 ⇒ 这是常态不是异常）');
 }
 
+// ════════════════════════════════════════
+// 以下是 P2b Task 3（赢局那 3 秒 + 结算节奏，DESIGN §6.3 最后一段 + §6.5）。
+// 这一段守的三句话：
+//   ⭐ 连线**逐段**画出、四枚**依次**点亮（⛔ 不是一次性全出 —— 那 P2a 就有了）
+//   ⭐ 时间**放慢**半秒（⛔ 不是卡住：速率恒 > 0，每一帧棋子都在动）
+//   ⭐ 庆祝 ~1.5 s 就结束（§6.5 是红线：结算超过 5 秒 = 打断节奏）
+// ⚠ 「画布上那条线真的在变长」只有 e2e-p2b 量得了（这里量的是曲线，不是像素）。
+// ════════════════════════════════════════
+const LINE = [{ c: 3, r: 0 }, { c: 3, r: 1 }, { c: 3, r: 2 }, { c: 3, r: 3 }];
+
+// ═══ 9. win pose 的形状 / 非法参数 fail-safe ═══
+{
+  Fx.reset();
+  assert.strictEqual(Fx.poseWin(), null, '没有庆祝在跑时 poseWin() 必须是 null');
+  assert.strictEqual(Fx.winTotal(), 0, '没有庆祝在跑时 winTotal() 必须是 0');
+  const BAD = [
+    ['line 缺省', {}],
+    ['line 只有一格', { line: [{ c: 0, r: 0 }] }],
+    ['line 里有 NaN', { line: [{ c: 0, r: NaN }, { c: 0, r: 1 }] }],
+    ['line 不是数组', { line: 'nope' }],
+    ['params 为 null', null]
+  ];
+  for (const [why, bad] of BAD) {
+    assert.strictEqual(Fx.start('win', bad), null, '非法连线必须返回 null：' + why);
+    assert.ok(Fx.done(), '非法 start(win) 不许留下半个 item：' + why);
+  }
+  const id = Fx.start('win', { line: LINE });
+  assert.ok(id > 0 && !Fx.done(), 'start(win) 应返回 id 且 done() 变 false');
+  const w = Fx.poseWin();
+  assert.strictEqual(w.kind, 'win');
+  for (const k of ['dim', 'prog', 't', 'total', 'lead']) {
+    assert.ok(Number.isFinite(w[k]), 'winPose.' + k + ' 必须是有限数');
+  }
+  assert.strictEqual(w.lit.length, 4, 'lit 必须每枚一个');
+  assert.ok(w.lit.every(Number.isFinite), 'lit 里不许有 NaN（会把整条线画没）');
+  // 两种写法都收（与 render.normLine 同一条约定）
+  Fx.reset();
+  assert.ok(Fx.start('win', { line: [[3, 0], [3, 1], [3, 2], [3, 3]] }) > 0, '[[c,r]] 写法也要收');
+  assert.deepStrictEqual(Fx.poseWin().line[2], { c: 3, r: 2 });
+  // 一局只许有一个庆祝（⛔ 别叠两条线）
+  Fx.start('win', { line: LINE });
+  assert.strictEqual(Fx.active(), 1, '重复 start(win) 不许叠出两个庆祝');
+  Fx.reset();
+  console.log('test-fx: win pose 形状 / 非法连线 fail-safe OK');
+}
+
+// ═══ 10. ⭐ 逐段画出 + 依次点亮（⛔ 不是一次性全出）═══
+{
+  Fx.reset();
+  Fx.start('win', { line: LINE });
+  const total = Fx.winTotal();
+  const trace = [];
+  for (let t = 0; t <= total; t += 8) {
+    Fx.reset(); Fx.start('win', { line: LINE }); Fx.step(t);
+    const w = Fx.poseWin() || { prog: 1, lit: [1, 1, 1, 1], dim: Fx.DIM_MAX, t: total };
+    trace.push(w);
+  }
+  // 10a. prog 单调不减、从 0 起、到 1 止 —— 「可见长度在增长」的曲线侧真值
+  for (let i = 1; i < trace.length; i++) {
+    assert.ok(trace[i].prog >= trace[i - 1].prog - 1e-12,
+      '⭐ 连线长度倒退了：t 序号 ' + i + ' prog ' + trace[i - 1].prog + ' → ' + trace[i].prog);
+  }
+  assert.strictEqual(trace[0].prog, 0, '⭐ 第一帧连线长度必须是 0（⛔ 不许一上来就整条画好）');
+  assert.strictEqual(trace[trace.length - 1].prog, 1, '播完之后连线必须是整条');
+  // ⛔ 反向对照：中段必须**真的**处在「画了一半」——否则「逐段」只是个名字
+  const mids = trace.filter(w => w.prog > 0.15 && w.prog < 0.85);
+  assert.ok(mids.length >= 8,
+    '⭐ 至少要有 8 帧处在「画了一部分」的中间态（实测 ' + mids.length + ' 帧）—— ' +
+    '⛔ 一次性全出的实现在这里恒为 0');
+  // 10b. 四枚**依次**点亮：起亮时刻严格错开，且顺序与连线方向一致
+  const litAt = [0, 1, 2, 3].map(i => {
+    for (const w of trace) if (w.lit[i] > 0) return w.t;
+    return Infinity;
+  });
+  for (let i = 1; i < 4; i++) {
+    assert.ok(litAt[i] > litAt[i - 1] + 40,
+      '⭐ 第 ' + i + ' 枚与第 ' + (i - 1) + ' 枚点亮时刻只差 ' + (litAt[i] - litAt[i - 1]).toFixed(0) +
+      ' ms —— 太近就是「一起亮」，⛔ 不是依次点亮');
+  }
+  // 播完时四枚必须**全亮**（⛔ 别停在「最后一枚还半亮」那一帧）
+  const end = trace[trace.length - 1];
+  assert.deepStrictEqual(end.lit, [1, 1, 1, 1], '播完时四枚必须精确全亮，实测 ' + JSON.stringify(end.lit));
+  assert.strictEqual(end.dim, Fx.DIM_MAX, '播完时变暗必须精确到位（静态帧接上去不许跳）');
+  assert.ok(trace[0].dim === 0, '第一帧不许已经是暗的（变暗要渐入，⛔ 不是一帧切黑）');
+  Fx.reset();
+  console.log('test-fx: ⭐ 连线逐段画出（中间态 ' + mids.length + ' 帧）+ 四枚依次点亮 at ' +
+    litAt.map(v => Math.round(v)).join('/') + ' ms OK');
+}
+
+// ═══ 11. ⭐ 时间放慢半秒 —— 且 ⛔ 不是「卡住」 ═══
+{
+  // 11a. Φ 与 Φ⁻¹ 真的互逆（lead 全靠 Φ⁻¹ 算，错了就是「线比棋子先到」）
+  let worst = 0;
+  for (let u = 0; u <= 900; u += 3) {
+    const back = Fx.warpInv(Fx.warpInt(u));
+    worst = Math.max(worst, Math.abs(back - u));
+  }
+  assert.ok(worst < 1e-6, 'Φ⁻¹(Φ(u)) 最大偏差 ' + worst + '，慢放窗口的时间折算是错的');
+  // 11b. ⛔ 放慢 ≠ 暂停：速率恒 > 0，且窗口之外恒 = 1
+  for (let u = 0; u <= 900; u += 5) {
+    const s = Fx.slowScale(u);
+    assert.ok(s >= Fx.SLOW_MIN && s <= 1, 'u=' + u + ' 速率 ' + s + ' 越界');
+  }
+  assert.strictEqual(Fx.slowScale(Fx.SLOW_HOLD + Fx.SLOW_RAMP + 1), 1, '慢放窗口结束后必须恢复 1.0×');
+  // 11c. ⭐ 同一枚棋子：有庆祝时**落地明显更晚**（这就是「时间放慢」的可观察后果）
+  const landOf = (withWin) => {
+    Fx.reset();
+    Fx.start('drop', { c: 3, r: 0, player: 0 });
+    if (withWin) Fx.start('win', { line: LINE });
+    let t = 0, land = -1, minStepDy = Infinity, prev = null;
+    for (let i = 0; i < 500 && land < 0; i++) {
+      const evs = Fx.step(16); t += 16;
+      const p = Fx.pose().find(x => x.kind === 'drop');
+      if (p && prev !== null) minStepDy = Math.min(minStepDy, p.dy - prev);   // 每帧下落量（格）
+      if (p) prev = p.dy;
+      for (const e of evs) if (e.type === 'land') land = t;
+    }
+    Fx.reset();
+    return { land: land, minStepDy: minStepDy };
+  };
+  const fast = landOf(false), slow = landOf(true);
+  assert.ok(slow.land > fast.land * 1.4,
+    '⭐ 时间没有真的放慢：正常落地 ' + fast.land + ' ms，赢局时 ' + slow.land + ' ms（应显著更久）');
+  assert.ok(slow.land < fast.land * 2.6,
+    '慢放过头了（正常 ' + fast.land + ' → 赢局 ' + slow.land + ' ms）：那不是慢动作，是黏住');
+  // ⛔ 每一帧都还在往下走 —— 「卡住 / 掉帧」的实现在这里会给出 0
+  assert.ok(slow.minStepDy > 0.005,
+    '⛔ 慢放期间出现了「一帧没动」（最小单帧位移 ' + slow.minStepDy.toFixed(5) +
+    ' 格）—— 玩家会读成掉帧，不是慢动作');
+  console.log('test-fx: ⭐ 时间放慢 OK —— 落地 ' + fast.land + ' → ' + slow.land +
+    ' ms（' + (slow.land / fast.land).toFixed(2) + '×），最慢 ' + Fx.SLOW_MIN +
+    '× 且每帧都在动（最小单帧 ' + slow.minStepDy.toFixed(3) + ' 格）');
+}
+
+// ═══ 12. ⭐⭐ 慢放之后 `step()` 仍然对 dt 幂等 ═══
+// ⛔ 这条是本 task 最容易翻车的地方：慢放天然想写成「t += dt * scale(t)」，那就是欧拉积分，
+//    一掉帧棋子就落在别处。⇒ 同一段总时长切 1 / 3 / 17 段，drop 与 win 的 pose 必须逐位一致。
+{
+  const SPLITS = [1, 3, 17];
+  const run = (T, n) => {
+    Fx.reset();
+    Fx.start('drop', { c: 3, r: 0, player: 0 });
+    Fx.start('win', { line: LINE });
+    const evs = [];
+    for (const dt of chunks(T, n)) for (const e of Fx.step(dt)) evs.push(e.type);
+    const all = Fx.pose();
+    const out = {
+      drop: all.find(p => p.kind === 'drop') || null,
+      win: all.find(p => p.kind === 'win') || null,
+      evs: evs.sort()
+    };
+    Fx.reset();
+    return out;
+  };
+  const WT = Fx.reset() || (function () { Fx.start('win', { line: LINE }); const t = Fx.winTotal(); Fx.reset(); return t; })();
+  const CUTS = [
+    { name: '慢放最慢那一段', T: 120 },
+    { name: '慢放回弹中',     T: 380 },
+    { name: '连线画到一半',   T: WT * 0.72 },
+    { name: '几乎播完',       T: WT * 0.995 }
+  ];
+  let worst = 0, where = '';
+  for (const cut of CUTS) {
+    const runs = SPLITS.map(n => run(cut.T, n));
+    const base = runs[0];
+    for (let i = 1; i < runs.length; i++) {
+      assert.deepStrictEqual(runs[i].evs, base.evs,
+        cut.name + '：切 ' + SPLITS[i] + ' 段之后事件不一样了（' + JSON.stringify(runs[i].evs) + '）');
+      for (const kind of ['drop', 'win']) {
+        const a = base[kind], b = runs[i][kind];
+        assert.strictEqual(!!a, !!b, cut.name + '：切 ' + SPLITS[i] + ' 段之后 ' + kind + ' 在不在都变了');
+        if (!a) continue;
+        const keys = kind === 'drop' ? ['dy', 'sx', 'sy', 't'] : ['prog', 'dim', 't'];
+        for (const k of keys) {
+          const d = Math.abs(a[k] - b[k]);
+          if (d > worst) { worst = d; where = cut.name + '/' + kind + '.' + k + '/' + SPLITS[i] + '段'; }
+          assert.ok(d < 1e-9, '⭐⭐ 慢放之后 dt 不幂等！' + cut.name + ' ' + kind + '.' + k +
+            '：1 段 = ' + a[k] + '，' + SPLITS[i] + ' 段 = ' + b[k] + '（差 ' + d + '）');
+        }
+        if (kind === 'win') for (let j = 0; j < 4; j++) {
+          assert.ok(Math.abs(a.lit[j] - b.lit[j]) < 1e-9, cut.name + ' lit[' + j + '] 不幂等');
+        }
+      }
+    }
+  }
+  console.log('test-fx: ⭐⭐ 慢放之后仍然 dt 幂等（最大偏差 ' + worst.toExponential(2) +
+    '，' + (where || '无') + '）OK');
+}
+
+// ═══ 13. ⭐ 结算节奏：庆祝 ~1.5 s（DESIGN §6.5 红线）═══
+{
+  const budgets = ROWS.map(r => {
+    Fx.reset();
+    Fx.start('drop', { c: 3, r: r, player: 0 });     // 赢的那一枚还在飞（真实场景）
+    Fx.start('win', { line: LINE });
+    const t = Fx.winTotal();
+    Fx.reset();
+    return t;
+  });
+  for (let r = 0; r < budgets.length; r++) {
+    assert.ok(budgets[r] <= 1500,
+      '⭐ r=' + r + ' 的庆祝 ' + Math.round(budgets[r]) + ' ms 超过 §6.5 的「~1.5 s」预算');
+    assert.ok(budgets[r] >= 700,
+      'r=' + r + ' 的庆祝只有 ' + Math.round(budgets[r]) + ' ms —— 短到看不清赢在哪，等于白做');
+  }
+  // ⭐ lead 是**算出来**的：掉得越深、等得越久（写死一个常数在这里会红）
+  for (let r = 1; r < budgets.length; r++) {
+    assert.ok(budgets[r - 1] > budgets[r],
+      '第 ' + (r - 1) + ' 行赢的那手应比第 ' + r + ' 行等得久（棋子掉得更深）：' +
+      Math.round(budgets[r - 1]) + ' vs ' + Math.round(budgets[r]) + ' ms');
+  }
+  // 没有棋子在飞时（减弱动态兜底 / 撤销后重放）也得有个起手拍，不许 lead=0
+  Fx.reset(); Fx.start('win', { line: LINE });
+  assert.ok(Fx.poseWin().lead >= Fx.WIN_LEAD_MIN, '没棋子在飞时 lead 也不许是 0');
+  Fx.reset();
+  console.log('test-fx: ⭐ 庆祝时长 ' + budgets.map(b => Math.round(b)).join('/') +
+    ' ms（§6.5 预算 ≤1500）OK');
+}
+
 // ═══ 8. 冻结：⛔ 别被「不报错只是不动了」的误用改掉 ═══
 {
   const orig = Fx.step;

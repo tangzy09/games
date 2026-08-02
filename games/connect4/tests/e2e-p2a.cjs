@@ -252,6 +252,13 @@ function truthOf(moves) {
     ok(!!res.line && res.line.length === 4,
       tag + '赢局连线有四格：' + JSON.stringify((res.line || []).map(p => [p.c, p.r])));
     if (!res.line || res.line.length !== 4) { ok(false, tag + '⭐ 赢局连线**画出来了**（没有连线可量）'); return; }
+    // ⚠ P2b T3 之后赢局呈现是**动画**（连线逐段画出、四枚依次点亮、其余渐暗）⇒ 这里量的是
+    //   「**播完之后**的静态终态」，必须先等庆祝结束，否则量到的是画了一半的那一帧
+    //   （实锤：不等的话 seam=114 / ref=114 —— 那是还没开始变暗的第 0 帧）。
+    //   ⭐ 「逐段画出」本身由 e2e-p2b 逐帧量（那才是 T3 的判据），这里守的仍是 P2a 那条
+    //     「终态上连线确实画在盘上」。
+    await page.waitForFunction(() => window.C4Fx.done() && window.G.overReady,
+      null, { timeout: 8000 }).catch(() => {});
     const sm = await winSeam();
     ok(sm.seam > 200 && sm.seam > sm.ref + 60,
       tag + '⭐ 赢局连线**画出来了**（连线上的缝 gray=' + sm.seam + '，连线之外的缝 gray=' + sm.ref + '）');

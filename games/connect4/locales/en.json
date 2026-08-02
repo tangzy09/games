@@ -6,6 +6,7 @@
             "easy": "Easy", "medium": "Advanced", "perfect": "Perfect" },
   "game": { "yourTurn": "Your turn", "thinking": "Thinking", "win": "You win", "lose": "You lose",
             "draw": "Draw", "again": "Play again", "undo": "Undo", "menu": "Menu",
+            "review": "Review",
             "stopped": "Stopped",
             "turnOf": "{p} to play", "wins": "{p} wins",
             "p1": "Player 1", "p2": "Player 2",
