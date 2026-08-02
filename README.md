@@ -28,7 +28,7 @@ codemagic.yaml   iOS 流水线（共享模板，新游戏加一段 workflow 填 
 | `abyssshoot` | 已提交 App Store 审核；线上 <https://fishshoot.ai-speeds.com> |
 | `blockblast` | 已提交 App Store 审核（「Cube Blast: Block Puzzle」）；线上 <https://blocks.ai-speeds.com> |
 | `solitaire` | P1 完成（Klondike 可玩 + 纸牌瀑布），未上线；三合一经典纸牌 |
-| `connect4` | **P1 求解器地基 + P2a 可玩本体已交付 —— 能玩了**（人机/双人、按住预览、撤销、赢局连线、中英双语）。完美求解器通过 Allis 1988 外部真值门禁，20 级明面 AI 阶梯，求解器跑在 Worker 里。⚠ 还没做手感与美术（P2b）。⛔ `Connect 4` 是活商标，泛型词用 `Four in a Row` |
+| `connect4` | **P1 + P2a + P2b 已交付 —— 能玩且有手感了**（人机/双人、按住预览、落子物理与随深度变调的音、威胁高亮与双威胁光环、赢局逐段揭示、减弱动态+舒适模式、中英双语）。完美求解器通过 Allis 1988 外部真值门禁，20 级明面 AI 阶梯，求解器跑在 Worker 里。⚠ 还差 P2c 家庭场景/限时、P3 提示复盘、P4 课程、**美术**。⛔ `Connect 4` 是活商标，泛型词用 `Four in a Row` |
 | `bouncerogue` | 只有 DESIGN.md，零代码（纯 spec，已 park） |
 
 ## 起步
