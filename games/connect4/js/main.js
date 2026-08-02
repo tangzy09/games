@@ -60,7 +60,12 @@ var G = {
   //     （本仓铁律，e2e-p2b 用真实鼠标钉死）。它只决定「那一刻画面上谁最显眼」。
   overReady: false,
   overAt: 0,          // 实测用：判出终局的时刻（ms）
-  readyAt: 0          // 实测用：主 CTA 拿到焦点态的时刻 ⇒ 两者之差就是 §6.5 那 5 秒的量法
+  readyAt: 0,         // 实测用：主 CTA 拿到焦点态的时刻 ⇒ 两者之差就是 §6.5 那 5 秒的量法
+  // ── 威胁高亮（P2b T4 · DESIGN §6.4）──
+  // ⭐ 上一帧算出来的威胁格，**只给 E2E / 调试看**（⛔ 不是真值源：真值恒是 bd，每帧现算）。
+  //   现算的代价是每帧 ≤14 次 B.isWinningMove + 一次 clone —— 微秒级，⛔ 不许改成缓存：
+  //   缓存过期的表现是「标记停在上一手的位置」，画面照常、零报错，正是本仓最怕的失败模式。
+  threats: []
 };
 
 // ════════ 小工具 ════════
@@ -456,6 +461,8 @@ function dispatch(action, data) {
     case 'PLAY_AI':    G.gameNo = 0; startGame('ai', G.tier); return;
     case 'PLAY_HUMAN': G.gameNo = 0; startGame('human'); return;
     case 'TIER':       G.tier = data.tier; renderAll(); return;
+    // ⭐ 设置开关：写完**立刻落盘**（C4Settings.set 自己做），⛔ 别攒到某个「保存」时机。
+    case 'TOGGLE_HINTS': C4Settings.toggle('threatHints'); renderAll(); return;
     case 'UNDO':       doUndo(); return;
     case 'AGAIN':      again(); return;
     case 'HOME':       goHome(); return;
@@ -503,7 +510,24 @@ function drawHome(L) {
   btn(bx, y, bw, 52, T('menu.vsAI'), 'PLAY_AI', {}, { disabled: dead });
   y += 62;
   btn(bx, y, bw, 52, T('menu.vsHuman'), 'PLAY_HUMAN', {}, { bg: '#61776f' });
-  y += 70;
+  y += 66;
+
+  // ⭐ 设置入口（P2b T4）：威胁提示的开关。**新手默认开**（DESIGN §6.4）。
+  // ⚠ 这里不做完整设置页 —— 现在只有一个开关，做成页反而多一次点击。
+  // ⭐ 左边直接把**两个标记本身**画出来当图例：玩家第一次进游戏就知道 ▲ / ◇ 是什么，
+  //   ⛔ 别只写一行「威胁提示」——那样标记的含义要靠猜（而这功能就是给读不出局面的人做的）。
+  const hintsOn = C4Settings.get('threatHints');
+  const rowH = 46;
+  fillRR(bx, y, bw, rowH, 12, 'rgba(255,255,255,0.92)');
+  strokeRR(bx + 0.5, y + 0.5, bw - 1, rowH - 1, 12, C4Render.PAL.hudEdge, 1.5);
+  const gy = y + rowH / 2;
+  C4Render.drawThreatGlyph(0, bx + 26, gy, 28);
+  C4Render.drawThreatGlyph(1, bx + 58, gy, 28);
+  txtL(T('menu.threatHints'), bx + 80, gy, C4Render.PAL.hudText, 'bold 14px sans-serif');
+  txtR(T(hintsOn ? 'menu.on' : 'menu.off'), bx + bw - 14, gy,
+       hintsOn ? C4Render.PAL.accent : C4Render.PAL.hudSub, 'bold 14px sans-serif');
+  addHit(bx, y, bw, rowH, 'TOGGLE_HINTS', {});
+  y += rowH + 22;
 
   // ⭐ 引擎状态如实写出来（DESIGN §2.4：降级必须**可见**）
   let note = '';
@@ -574,11 +598,18 @@ function drawPlay(L) {
   const drops = poses.filter(p => p.kind === 'drop');
   const wfx = C4Fx.poseWin();   // 庆祝播完 / 没有庆祝 ⇒ null ⇒ 下面退回静态赢局帧
 
+  // ⭐ 威胁高亮（DESIGN §6.4 上半）。⛔⛔ **零搜索**：C4Threats.cells 只做 ≤14 次
+  //   B.isWinningMove（微秒级）。⛔ 这里绝不许出现 EngineClient.scores / Solver.*——
+  //   §9.2 的断崖是每手 1.7 秒，而这一行每帧都要跑（e2e-p2b-t4 用调用计数钉死）。
+  // ⚠ 终局不标（line 非空时 drawBoard 自己也会忽略，这里先省掉计算）。
+  G.threats = (!line && C4Settings.get('threatHints')) ? C4Threats.cells(bd) : [];
+
   C4Render.drawBoard(bd, {
     L: L,
     hoverCol: G.hoverCol,
     hoverPlayer: C4State.turnOf(g),
     winLine: line,
+    threats: G.threats,
     // ⭐ 三条曲线全部来自 fx（⛔ 别在这里另算时间）：庆祝在跑时用它的，播完退回静态终态。
     dim: line ? (wfx ? wfx.dim : C4Fx.DIM_MAX) : 0,
     lineProg: wfx ? wfx.prog : 1,
@@ -647,7 +678,12 @@ function renderAll() {
 // ════════ 启动 ════════
 
 async function boot() {
-  await Platform.hydrate([CFG.key('lang'), CFG.key('sfx')]);
+  // ⚠⚠ 设置的 key 必须一起 hydrate：Platform.storage 在**原生壳**里是「先异步灌进内存缓存、
+  //   之后同步读」的门面（engine/platform.js:19-29）。漏了这一句，web 上因为有 localStorage
+  //   兜底看起来一切正常，**只有装成 app 之后**设置才会每次启动都退回默认 —— 零报错。
+  await Platform.hydrate([CFG.key('lang'), CFG.key('sfx'), CFG.key('settings')]);
+  // ⭐ 必须在 hydrate **之后**、第一次 renderAll **之前**接后端（HOME 首帧就要读 threatHints）。
+  C4Settings.attach(Platform.storage, CFG.key('settings'));
   restoreAudioPrefs();
   Portal.boot();
   await Ads.init();

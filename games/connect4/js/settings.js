@@ -1,0 +1,130 @@
+// ════════════════════════════════════════
+// settings.js —— 玩家偏好的持久化（P2b Task 4）。**一个闭合对象 + 一层保守合并**，没有别的。
+//
+// ⭐⭐ 本文件唯一一条会咬人的规矩（snake 实锤，DESIGN 之外的血泪）：
+//    **闭合对象的新字段必须列进 `defaults()`。**
+//    merge 只拷「defaults 里有的 key」（这是故意的：存档里多出来的陈年字段不许复活），
+//    所以字段忘了写进 defaults ⇒ 用户的显式选择**存得进去、读不回来**，
+//    表现是「设置改了、刷新一下又变回去了」，零报错。
+//    snake 的 `reduceMotion` 就这么丢过一次（games/snake/js/storage.js:12-15 那段注释）。
+//
+// ⚠ 别和「开放 map」搞混，方向是**相反**的：
+//    · 开放 map（动态 key，如 snake 的 stats.specials）：默认值必须保持 `{}`，整体透传；
+//    · 闭合对象（本文件）：每个字段都必须在 defaults 里点名，否则会被丢掉。
+//
+// ⭐ 「字段忘了写进 defaults」这件事在这里是**响的不是哑的**：`get/set` 对未知 key **抛错**。
+//    这就是把 snake 那个静默 bug 变成一次当场炸的 TypeError —— 设置项是闭合集合，
+//    问一个不存在的字段是**程序错误**，不是「返回 undefined 就算了」。
+//    （门禁 tests/test-settings.js 与 e2e-p2b-t4.cjs 都押在这条上：把 threatHints 从
+//     defaults 里拿掉，开关按钮当场抛 + 刷新后 `get` 不再等于 false ⇒ 两处一起红。）
+//
+// ⚠ 后端是**注入**的（`attach(backend, key)`），本文件不 import Platform：
+//   · node 侧能拿假后端跑门禁（不用起浏览器）；
+//   · 浏览器里由 main.js 在 `Platform.hydrate` **之后**接上真后端 ——
+//     ⛔ hydrate 之前读 Platform.storage 在原生壳里拿到的是空的（engine/platform.js 的约定）。
+// ════════════════════════════════════════
+(function (root) {
+  'use strict';
+  const inNode = (typeof module !== 'undefined' && module.exports);
+
+  // ⚠ 存的形状变了（改字段名 / 改类型）就 +1，⛔ 加字段不用动它（merge 会补默认）。
+  const SETTINGS_V = 1;
+
+  /**
+   * ⭐⭐ **闭合对象：新增字段一律加在这里**（见文件头）。
+   * @returns 每次都是**新对象**（⛔ 别返回共享常量：调用方一改就把默认值污染了）
+   */
+  function defaults() {
+    return {
+      v: SETTINGS_V,
+      // ⭐ 威胁高亮（DESIGN §6.4）：一步就能成四的格子标出来，两方不同标记。
+      //   **新手默认开** —— 这条提示存在的理由就是「新手根本读不出三连」，默认关等于没做。
+      threatHints: true
+    };
+  }
+
+  /** defaults 的只读快照：UI / 门禁要「这个字段的默认值是什么」时读它，⛔ 别改。 */
+  const DEFAULTS = Object.freeze(defaults());
+
+  /** 保守合并：**只认 defaults 里有的 key**，类型不符一律退回默认。
+   *  ⛔ 别改成 `{...def, ...saved}` —— 那会让存档里的陈年字段/脏类型原样复活。 */
+  function merge(def, saved) {
+    const out = defaults();
+    if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return out;
+    for (const k of Object.keys(def)) {
+      if (k === 'v') continue;                                  // 版本号由本模块说了算
+      const sv = saved[k];
+      if (sv === undefined) continue;                           // 老存档缺字段 ⇒ 用默认
+      if (typeof sv !== typeof def[k]) continue;                // 类型不符 ⇒ 用默认（⛔ 别硬转）
+      out[k] = sv;
+    }
+    return out;
+  }
+
+  /** 纯函数：一串 JSON（或 null / 坏字符串）→ 一份完整设置。⛔ 任何情况都不抛。 */
+  function parse(raw) {
+    if (typeof raw !== 'string' || !raw) return defaults();
+    let o = null;
+    try { o = JSON.parse(raw); } catch (e) { return defaults(); }
+    return merge(defaults(), o);
+  }
+
+  // ─────────── 实例状态（浏览器里就一份）───────────
+  let cur = defaults();
+  let backend = null;      // { get(k)→string|null, set(k,v) }
+  let storeKey = '';
+
+  function knownKey(k) { return k !== 'v' && Object.prototype.hasOwnProperty.call(DEFAULTS, k); }
+  function assertKey(k) {
+    if (!knownKey(k)) {
+      // ⭐ 见文件头：闭合集合里问一个不存在的字段 = 程序错误，必须**响**。
+      throw new Error('未知设置项 "' + String(k) + '" —— 新字段必须先列进 settings.js 的 defaults()');
+    }
+  }
+
+  /** 接上真后端并**立刻读一次**。⚠ 浏览器里必须在 Platform.hydrate 之后调。 */
+  function attach(be, key) {
+    backend = be || null;
+    storeKey = key || '';
+    let raw = null;
+    try { raw = backend && storeKey ? backend.get(storeKey) : null; } catch (e) { raw = null; }
+    cur = parse(raw);
+    return all();
+  }
+
+  function persist() {
+    if (!backend || !storeKey) return;
+    try { backend.set(storeKey, JSON.stringify(cur)); } catch (e) { /* 存不进去不许弄死一局游戏 */ }
+  }
+
+  /** @returns 副本（⛔ 别把内部对象交出去：外面一改就绕过了 set 的校验与落盘）。 */
+  function all() { return Object.assign({}, cur); }
+
+  function get(k) { assertKey(k); return cur[k]; }
+
+  /** @throws 未知 key 或类型不符。⭐ 写完**立刻落盘**（⛔ 别攒着等某个「保存」时机——那个时机不存在）。 */
+  function set(k, v) {
+    assertKey(k);
+    if (typeof v !== typeof DEFAULTS[k]) {
+      throw new Error('设置项 "' + k + '" 的类型必须是 ' + (typeof DEFAULTS[k]) + '，收到 ' + (typeof v));
+    }
+    cur[k] = v;
+    persist();
+    return v;
+  }
+
+  /** 翻一个布尔项（UI 的开关就一句）。 */
+  function toggle(k) { return set(k, !get(k)); }
+
+  function reset() { cur = defaults(); persist(); return all(); }
+
+  const API = {
+    SETTINGS_V, DEFAULTS, KEYS: Object.freeze(Object.keys(DEFAULTS).filter(k => k !== 'v')),
+    defaults, parse, attach, all, get, set, toggle, reset
+  };
+  // 与 P1 五个模块同样冻结：挡住 `C4Settings.get = () => true` 这类「设置看起来还在、
+  // 但读的是另一份东西」的误用（本仓最怕的失败模式：画错/读错不报错）。
+  Object.freeze(API);
+  if (inNode) module.exports = API;
+  else root.C4Settings = API;
+})(typeof self !== 'undefined' ? self : this);

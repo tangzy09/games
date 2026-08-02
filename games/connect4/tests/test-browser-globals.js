@@ -47,8 +47,10 @@ const LOAD_ORDER = [
   path.join(JS_DIR, 'book.js'),
   path.join(JS_DIR, 'ai.js'),
   path.join(JS_DIR, 'state.js'),
+  path.join(JS_DIR, 'threats.js'),
   path.join(JS_DIR, 'render.js'),
-  path.join(JS_DIR, 'fx.js')
+  path.join(JS_DIR, 'fx.js'),
+  path.join(JS_DIR, 'settings.js')
 ];
 
 /** 造一个尽量像浏览器的沙箱：有 self、有 console，⛔ **没有 module / require / exports**
@@ -86,7 +88,8 @@ console.log('test-browser: ' + LOAD_ORDER.length + ' 个 <script> 按序求值�
     '裸标识符 PRNG 必须可用（后续 <script> 靠它拿到 PRNG）');
   assert.strictEqual(vm.runInContext('typeof PRNG.create', sandbox), 'function');
   // 反过来，五个游戏模块用的是 `root.X = API` ⇒ 必须是 self 的属性
-  const NAMES = ['Bitboard', 'RulesClassic', 'Solver', 'Book', 'ConnectAI', 'C4State', 'C4Render', 'C4Fx'];
+  const NAMES = ['Bitboard', 'RulesClassic', 'Solver', 'Book', 'ConnectAI', 'C4State', 'C4Render', 'C4Fx',
+                 'C4Threats', 'C4Settings'];
   for (const name of NAMES) {
     assert.strictEqual(vm.runInContext('typeof self.' + name, sandbox), 'object',
       'self.' + name + ' 没挂上（模块结尾的 root.' + name + ' = API 没生效？）');
@@ -194,6 +197,24 @@ console.log('test-browser: ' + LOAD_ORDER.length + ' 个 <script> 按序求值�
       }
     },
     // ─── fx.js：曲线是闭式纯函数 ⇒ 沙箱里也能逐位对拍（浏览器分支的唯一覆盖）───
+    // ─── threats.js：跨模块吃 Bitboard（clone）+ RulesClassic（terminal / winningMoves）───
+    // ⭐ 两方的威胁一起验：只在原盘上问 winningMoves 的实现，这里只会回一半（players 里没有 1）。
+    {
+      name: 'C4Threats.cells（跨模块吃 Bitboard.clone + RulesClassic.winningMoves，两方都要有）',
+      browser: 'JSON.stringify(C4Threats.cells(Bitboard.fromMoves([1,6,2,6,3,6])))',
+      node: () => JSON.stringify(require('../js/threats.js').cells(B.fromMoves([1, 6, 2, 6, 3, 6])))
+    },
+    // ─── settings.js：无跨模块依赖，但 `root.C4Settings = API` 的浏览器分支同样只有这里覆盖 ───
+    // ⭐ 顺带把「新字段必须在 defaults 里」钉成可执行断言：拿掉 threatHints 这条当场红。
+    {
+      name: 'C4Settings.parse（老存档缺字段补默认 / 未知字段丢掉 / 坏 JSON 退默认）',
+      browser: 'JSON.stringify([C4Settings.parse(null),C4Settings.parse("{\\"threatHints\\":false,\\"zzz\\":1}"),'
+        + 'C4Settings.parse("}{"),C4Settings.KEYS])',
+      node: () => {
+        const S = require('../js/settings.js');
+        return JSON.stringify([S.parse(null), S.parse('{"threatHints":false,"zzz":1}'), S.parse('}{'), S.KEYS]);
+      }
+    },
     {
       name: 'C4Fx.start/step/pose（浏览器分支：root.C4Fx = API 真的能跑一段动画）',
       browser: 'JSON.stringify((function(){C4Fx.reset();C4Fx.start("drop",{c:3,r:0,player:0});'

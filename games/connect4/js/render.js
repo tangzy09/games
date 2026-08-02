@@ -62,6 +62,19 @@
   const RING_I = 0.300;   // 圆环内径（**空心是判据**，⛔ 别填实、⛔ 别再往小调：
                           //   内径小 = 环变粗 = 剪影越来越像实心，IoU 门禁会先红给你看）
 
+  // ── 威胁标记（P2b T4 · DESIGN §6.4 上半）──
+  // ⭐⭐ 同 §6.2：**不许只靠颜色**分「我的威胁 / 对方的威胁」（约 8% 的男性有色觉障碍）。
+  //   这里是**三重**编码，任意一重单独拿掉都还认得出：
+  //     ① 形状：实心三角 ▲  vs  空心菱形 ◇
+  //     ② 实心 / 空心：与两方棋子（实心六边形 / 空心圆环）**同一条规律** ⇒ 不用另学一套
+  //     ③ 明暗：近墨黑 vs 奶白（与各自主人的棋子同色系 ⇒「三角是六边形那一方的」）
+  //   ⛔ 别把标记改成「棋子的缩小版」：那样灰度下会读成「这格已经有子了」，
+  //     而这格恰恰是空的 —— 把最该看清的一格变成假信息。
+  // ⚠ 尺寸比棋子小一圈（0.36/0.34 vs 0.455/0.425）：标记要一眼是「记号」不是「棋子」。
+  const TRI_R  = 0.360;   // 三角外接圆（先手 = 六边形那一方）
+  const DIA_R  = 0.340;   // 菱形外接圆（后手 = 圆环那一方）
+  const DIA_W  = 0.090;   // 菱形描边宽（**空心是判据**，⛔ 别填实）
+
   const HUD_H = 54;
   const MARGIN = 14;
   const BOARD_MAXW = 560;
@@ -254,6 +267,88 @@
     drawPiece(player, cx, cy, size, { alpha: alpha == null ? 1 : alpha });
   }
 
+  // ════════ ③b 威胁标记（P2b T4 · DESIGN §6.4）════════
+  function triPath(cx, cy, R) {
+    ctx.beginPath();
+    for (let k = 0; k < 3; k++) {
+      const ang = -Math.PI / 2 + k * 2 * Math.PI / 3;    // 尖顶三角
+      const x = cx + R * Math.cos(ang), y = cy + R * Math.sin(ang);
+      if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+  }
+  function diaPath(cx, cy, R) {
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - R); ctx.lineTo(cx + R, cy);
+    ctx.lineTo(cx, cy + R); ctx.lineTo(cx - R, cy);
+    ctx.closePath();
+  }
+
+  /**
+   * 一个威胁标记：`player` 一步落在这里就连成四。
+   * @param cell 参照格宽（画在盘上就传 L.cell；两方共用一格时传缩小后的值）
+   *
+   * ⭐⭐ **本标记是静态的（零动画）** —— 这一条是写给 T6（§6.8 减弱动态）的：
+   *   ⛔ 减弱动态**不该**门控它。它是**信息**不是动效，而「跳过一切非必要动画」的人
+   *   （晕动症 / 舒适模式）恰恰更需要看得见的信息。T6 要门控的是 fx.js 那两处 `C4Fx.start`。
+   *   ⚠ 反过来：将来若给它加呼吸/脉冲/闪烁，**那一层必须进 T6 的门控**（并且默认值仍是「标记在」，
+   *     只是不动）—— ⛔ 别做成「减弱动态 = 连标记一起关掉」。
+   */
+  function drawThreat(player, cx, cy, cell) {
+    ctx.save();
+    if (player === 0) {
+      // 先手：**实心**三角（近墨黑，同 p0 棋子的色系）+ 一圈亮边，压在暗色井上也读得出
+      const R = cell * TRI_R;
+      triPath(cx, cy, R);
+      ctx.fillStyle = PAL.p0Fill; ctx.fill();
+      ctx.lineWidth = Math.max(1.5, cell * 0.05);
+      ctx.strokeStyle = PAL.glow;
+      ctx.stroke();
+    } else {
+      // 后手：**空心**菱形（奶白，同 p1 棋子的色系）。空心 = 井底透出来，与圆环同一条规律。
+      const R = cell * DIA_R, w = Math.max(2, cell * DIA_W);
+      diaPath(cx, cy, R);
+      ctx.lineWidth = w; ctx.strokeStyle = PAL.p1Fill; ctx.stroke();
+      // 细暗边压住内外两侧：浅色标记落在浅色底（HOME 的图示、将来的浅色皮肤）上不许消失
+      ctx.lineWidth = Math.max(1, cell * 0.022); ctx.strokeStyle = PAL.p1Edge;
+      diaPath(cx, cy, R + w / 2); ctx.stroke();
+      diaPath(cx, cy, R - w / 2); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /** 设置项 / 图例里插一个威胁标记。⚠ 自带一块**井色**底片 —— 标记的对比度是按井底调的，
+   *  直接画在白卡片上时奶白的菱形会消失（这正是「只在盘上验过」最容易漏的一处）。 */
+  function drawThreatGlyph(player, cx, cy, size) {
+    fillRR(cx - size / 2, cy - size / 2, size, size, size * 0.26, PAL.well);
+    drawThreat(player, cx, cy, size);
+  }
+
+  /**
+   * 画一批威胁标记。@param threats [{ c, r, players:[0]|[1]|[0,1] }]（来自 C4Threats.cells）
+   * ⭐ 同一格两方都能赢 ⇒ **两个标记都画**（各缩到 0.68、左右分开）。那是全局最关键的一格，
+   *   只画其中一个等于把「他也能在这里赢」这件事藏起来 —— 恰好是本功能要解决的问题本身。
+   */
+  function drawThreats(L, threats) {
+    if (!Array.isArray(threats) || !threats.length) return;
+    for (const t of threats) {
+      if (!t || !Number.isInteger(t.c) || !Number.isInteger(t.r)) continue;
+      if (t.c < 0 || t.c >= W || t.r < 0 || t.r >= H) continue;
+      const ps = Array.isArray(t.players) ? t.players : (t.player == null ? [] : [t.player]);
+      if (!ps.length) continue;
+      const p = L.center(t.c, t.r);
+      if (ps.length === 1) {
+        drawThreat(ps[0] === 1 ? 1 : 0, p.x, p.y, L.cell);
+      } else {
+        // ⚠ 0.62 / 0.18 不是随手挑的：两个标记的最外沿必须仍留在井里（半径 0.43 格以内），
+        //   再大一点就会压到井的边框上，灰度门禁量的那个圆盘窗口会把它切掉一角。
+        const s = L.cell * 0.62, dx = L.cell * 0.18;
+        drawThreat(0, p.x - dx, p.y, s);
+        drawThreat(1, p.x + dx, p.y, s);
+      }
+    }
+  }
+
   // ════════ ④ 背景与盘体 ════════
   function drawBackground(L) {
     const g = ctx.createLinearGradient(0, 0, 0, L.SH);
@@ -306,7 +401,10 @@
    *   lineProg  0..1：连线**已经画出的比例**（P2b T3「逐段画出」）。⚠ 默认 1 = 整条
    *   lit       [0..1 ×4]：赢的每一枚**点亮程度**（P2b T3「依次点亮」）。⚠ 默认全 1
    *             ⭐ 这两个一律来自 `C4Fx.poseWin()`，⛔ 别在这里另起一套时间轴
-   *   lastMove  {c,r} 上一手的小标记
+   *   threats   ⭐ [{c,r,players}]（来自 C4Threats.cells）：一步就能成四的格子，两方不同标记。
+ *             ⚠ render **不自己算**（它连 Bitboard 都不 require）—— 调用方算好递进来，
+ *             这样「零搜索」那条红线只有 threats.js 一个地方要守。有 winLine 时自动忽略。
+ *   lastMove  {c,r} 上一手的小标记
    *   action    热区的 action 名（默认 'COL'，data = {col}）
    *   noHits    true = 不注册热区（截图/预览用）
    *   anim      ⭐ `C4Fx.pose()` 的返回值：[{c,r,player,dy,sx,sy}]，正在**下落中**的棋子。
@@ -354,6 +452,14 @@
       }
     }
 
+
+    // ⭐ 威胁标记（P2b T4 · DESIGN §6.4）。⛔ 位置是承重的：
+    //   · 画在**井之上** —— 画在井之下 = 被井整个盖住、完全看不见（blockblast 的消行预览
+    //     就是这么坏掉的，而且没人发现；DESIGN §6.4 那条 ⚠ 指的就是它）；
+    //   · 画在**棋子之后** —— 威胁格恒是空格，与棋子不重叠，这里只是顺序上省心；
+    //   · 画在**赢局那一段与悬停预览之前** —— 终局不该再标（下面 `!line`），
+    //     而悬停的落点虚影必须压在标记之上（玩家正指着的那一格，预览优先）。
+    if (!line) drawThreats(L, opts.threats);
 
     // 上一手的小标记（一个细亮点，不改变剪影）
     if (opts.lastMove && !line) {
@@ -508,8 +614,9 @@
   }
 
   const API = {
-    W, H, PAL, HEX_R, RING_R, RING_I,
+    W, H, PAL, HEX_R, RING_R, RING_I, TRI_R, DIA_R, DIA_W,
     layout, drawBackground, drawBoard, drawHUD, drawGlyph, drawPiece,
+    drawThreat, drawThreats, drawThreatGlyph,
     cellOwner, landingRow
   };
   // 与 P1 五个模块同样冻结：挡住 `C4Render.drawBoard = () => {}` 这类「整屏还在、

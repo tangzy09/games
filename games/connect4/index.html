@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
 <title>Four in a Row</title>
 <link rel="stylesheet" href="../../engine/engine.css">
-<link rel="stylesheet" href="css/game.css?v=4">
+<link rel="stylesheet" href="css/game.css?v=5">
 </head>
 <body>
 <canvas id="game-canvas"></canvas>
@@ -31,15 +31,15 @@
 <!-- ⚠ engine/ 也必须带缓存版本号 —— 另外四个游戏一直是这么写的，只有本文件（T1）漏了。
      ⛔ 漏了要命：T3 刚给 engine/input.js 加了按住预览三件套，老玩家命中旧缓存 =
      onHold/onHoldMove/onHoldEnd 一个都不发 ⇒ **一子都落不下去**，且零报错。 -->
-<script src="../../engine/config.js?v=4"></script>
-<script src="../../engine/platform.js?v=4"></script>
-<script src="../../engine/i18n.js?v=4"></script>
-<script src="../../engine/portal.js?v=4"></script>
-<script src="../../engine/ads.js?v=4"></script>
-<script src="../../engine/audio.js?v=4"></script>
-<script src="../../engine/canvas.js?v=4"></script>
-<script src="../../engine/input.js?v=4"></script>
-<script src="../../engine/controls.js?v=4"></script>
+<script src="../../engine/config.js?v=5"></script>
+<script src="../../engine/platform.js?v=5"></script>
+<script src="../../engine/i18n.js?v=5"></script>
+<script src="../../engine/portal.js?v=5"></script>
+<script src="../../engine/ads.js?v=5"></script>
+<script src="../../engine/audio.js?v=5"></script>
+<script src="../../engine/canvas.js?v=5"></script>
+<script src="../../engine/input.js?v=5"></script>
+<script src="../../engine/controls.js?v=5"></script>
 <!-- ⭐⭐ 下面这六个的**顺序就是** tests/test-browser-globals.js 的 LOAD_ORDER，
      ⛔ 两边必须一起改（那条门禁是浏览器加载路径的唯一覆盖：P1 终审抓到的
      「root.PRNG 恒 undefined ⇒ 浏览器里 AI 100% 崩，而 node 侧 14 条门禁全绿」
@@ -55,21 +55,28 @@
        在 main.js 里一次都不出现，AI 落子一律经 engine-client → solver.worker。
      ⛔⛔ 主线程这份 `Book` 是**诱饵**：真正的 install 发生在 Worker 里，主线程的
        Book.status() 恒 'none'。判「库装了没有」只许用 EngineClient.bookReady()。 -->
-<script src="../../engine/prng.js?v=4"></script>
-<script src="js/bitboard.js?v=4"></script>
-<script src="js/rules-classic.js?v=4"></script>
-<script src="js/solver.js?v=4"></script>
-<script src="js/book.js?v=4"></script>
-<script src="js/ai.js?v=4"></script>
+<script src="../../engine/prng.js?v=5"></script>
+<script src="js/bitboard.js?v=5"></script>
+<script src="js/rules-classic.js?v=5"></script>
+<script src="js/solver.js?v=5"></script>
+<script src="js/book.js?v=5"></script>
+<script src="js/ai.js?v=5"></script>
 <!-- 对局状态 / 存档 / 撤销（Task 2）。⚠ 必须排在 ai.js **之后**：它要 ConnectAI.paramsDigest。 -->
-<script src="js/state.js?v=4"></script>
+<script src="js/state.js?v=5"></script>
+<!-- 威胁格的计算（P2b Task 4 · DESIGN §6.4）。⚠ 必须排在 bitboard / rules-classic **之后**。
+     ⛔⛔ 它**零搜索**（只做 B.isWinningMove）——⛔ 别因为「反正 Solver 已经加载了」就在
+     这条路上调求解器：§9.2 的断崖是每手 1.7 秒，而威胁高亮每一帧都要算。 -->
+<script src="js/threats.js?v=5"></script>
 <!-- 求解器门面（Task 4）：主线程与 Worker 之间的唯一通道。 -->
-<script src="js/engine-client.js?v=4"></script>
+<script src="js/engine-client.js?v=5"></script>
 <!-- 盘面几何 + 绘制（Task 5）。⚠ 必须在 main.js **之前**：main 的 renderAll 要用 C4Render。 -->
-<script src="js/render.js?v=4"></script>
+<script src="js/render.js?v=5"></script>
 <!-- 落子物理下落的动画状态机（P2b Task 2）。⚠ 无跨模块依赖、纯表现层，
      但必须在 main.js **之前**（renderAll 每帧要 C4Fx.pose()）。 -->
-<script src="js/fx.js?v=4"></script>
-<script src="js/main.js?v=4"></script>
+<script src="js/fx.js?v=5"></script>
+<!-- 设置持久化（P2b Task 4）。⚠ 无跨模块依赖（后端由 main.js 在 Platform.hydrate 之后注入），
+     但必须在 main.js **之前**：HOME 首帧就要读 threatHints。 -->
+<script src="js/settings.js?v=5"></script>
+<script src="js/main.js?v=5"></script>
 </body>
 </html>
