@@ -62,7 +62,7 @@ body { background: #fdf3f7; }
 #panel { position: fixed; inset: 0; background: rgba(122,92,114,.42); z-index: 20;
   display: flex; align-items: center; justify-content: center;
   -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
-#panel-card { background: #fff; border-radius: 22px; width: min(92vw, 420px); height: min(80vh, 640px);
+#panel-card { background: #fff; border-radius: 22px; width: min(92%, 420px); height: min(80vh, 640px);
   display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 12px 40px rgba(0,0,0,.18); }
 /* 卡片顶部一道粉彩色带 + 标题左侧竖条:白底大面板不至于「一片死白」 */
 #panel-head { display: flex; align-items: center; justify-content: space-between;
@@ -281,7 +281,7 @@ body { background: #fdf3f7; }
 @keyframes seaDrift { from { transform: translateX(0); } to { transform: translateX(-21%); } }
 
 /* 主视觉:光环托底 + 轻轻起伏(点题「天使」) */
-#home .hero-wrap { position: relative; width: min(58vw, 232px); aspect-ratio: 1;
+#home .hero-wrap { position: relative; width: min(58%, 232px); aspect-ratio: 1;
   display: grid; place-items: center; animation: heroFloat 5.5s ease-in-out infinite; }
 #home .hero-wrap::before { content: ''; position: absolute; inset: -18%; border-radius: 50%;
   background: conic-gradient(from 0deg, #ffd66e, #ff9ec4, #b39ddb, #8ecfff, #ffd66e);
@@ -311,7 +311,7 @@ body { background: #fdf3f7; }
 @keyframes sheen { 0% { left: -55%; } 58%, 100% { left: 125%; } }
 
 #home .home-menu { display: grid; grid-template-columns: 1fr 1fr; gap: 11px;
-  width: min(88vw, 340px); margin-top: 6px; }
+  width: min(88%, 340px); margin-top: 6px; }
 /* 图标做成彩色圆片:六个白方块一字排开太像设置页,加了色片才像游戏 */
 /* ⚠ 六个入口的译名长短差很多(德/俄尤其长):标签必须能缩、能省略,
    否则「Daily Quests」这种两词标题会换行把卡片撑高、六格参差不齐。 */
@@ -364,7 +364,7 @@ body { background: #fdf3f7; }
 @keyframes dailyPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.06); } }
 
 /* 每日礼物弹窗(复用 #lightbox 容器) */
-.daily-card { background: #fff; border-radius: 24px; padding: 22px; width: min(84vw, 360px);
+.daily-card { background: #fff; border-radius: 24px; padding: 22px; width: min(84%, 360px);
   display: flex; flex-direction: column; align-items: center; gap: 14px;
   box-shadow: 0 16px 48px rgba(0,0,0,.28); animation: giftIn .4s cubic-bezier(.2,1.4,.4,1); }
 @keyframes giftIn { from { transform: scale(.7); opacity: 0; } }
@@ -402,7 +402,7 @@ body { background: #fdf3f7; }
 .bonus-banner.out { opacity: 0; transition: opacity .5s; }
 
 /* 主界面收集进度 + 里程碑 */
-#home .home-prog { width: min(88vw, 340px); background: rgba(255,255,255,.74);
+#home .home-prog { width: min(88%, 340px); background: rgba(255,255,255,.74);
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   border-radius: 16px; padding: 12px 16px; margin-top: 2px;
   display: flex; flex-direction: column; gap: 7px;
@@ -478,7 +478,7 @@ body.rm *, body.rm *::before, body.rm *::after {
 
 /* 👤 档案头：头像 + 称号 Lv + XP 条 */
 .home-prof{display:flex;align-items:center;gap:10px;
-  width:min(88vw,340px);box-sizing:border-box;      /* ⚠ 与 .home-prog 同宽，否则三张卡不齐 */
+  width:min(88%,340px);box-sizing:border-box;      /* ⚠ 与 .home-prog 同宽，否则三张卡不齐 */
   background:rgba(255,255,255,.62);border-radius:16px;padding:8px 12px;
   box-shadow:0 2px 10px rgba(180,120,180,.15)}
 .home-prof .pf-face{width:38px;height:38px;border-radius:50%;overflow:hidden;flex:0 0 38px;
@@ -494,7 +494,7 @@ body.rm *, body.rm *::before, body.rm *::after {
 .home-prof .pf-xp{font-size:10px;color:#b07ab0;flex:0 0 auto}
 
 /* ⭐ 「下一个目标」条：打开就看见的短期目标，点击直达 */
-.home-goal{display:block;width:min(88vw,340px);box-sizing:border-box;padding:8px 12px;
+.home-goal{display:block;width:min(88%,340px);box-sizing:border-box;padding:8px 12px;
   border:0;border-radius:14px;text-align:left;cursor:pointer;
   background:linear-gradient(90deg,rgba(255,211,110,.35),rgba(255,158,199,.30))}
 .home-goal .hg-t{display:block;font-size:10px;color:#a06a9a;letter-spacing:.04em}

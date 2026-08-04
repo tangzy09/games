@@ -67,3 +67,18 @@ canvas { display: block; touch-action: none; }
 .uic { width: 88%; height: 88%; object-fit: contain; display: block; }
 .uic.inl { width: 1.35em; height: 1.35em; display: inline-block; vertical-align: -.32em; }
 .uic.fill { width: 100%; height: 100%; }
+
+/* ⭐ 字号缩放的 DOM 那一半（2026-08-04）。canvas 侧在 canvas.js 的 sfont() 里做，
+   但 snake 的主界面 #home、以及 snake/abyssshoot 的面板 #panel-card 全是 DOM ——
+   不覆盖它们的话，那些游戏调了字号会「看起来没反应」。
+   ⚠ 用 zoom 而不是改 font-size：各游戏 CSS 里的字号是写死的 px（不是 em/rem），
+     改 root font-size 对它们无效；zoom 连间距一起放大，观感更接近系统级「显示缩放」。
+   ⚠ #home 本身就是竖向可滚动的（见 snake/css/game.css 的注释）⇒ 放大后变高也没问题。
+   ⛔ 别 zoom #panel（它是全屏遮罩，缩放遮罩会露边）—— 只 zoom 里面那张卡。 */
+:root { --eng-font-k: 1; }
+#home, #panel-card, #toasts { zoom: var(--eng-font-k, 1); }
+/* ⚠ zoom 把**宽度也一起放大**了 ⇒ 不补偿就横向溢出（snake 实拍:右边的 0/300、0.0% 被切掉，
+   左边的文字也顶出屏幕）。把宽度先除以 k,zoom 之后正好铺满一屏。
+   ⚠ #panel-card 自带 width: min(92vw, 420px) 之类 ⇒ 同样要除回去,否则卡片比屏幕还宽。 */
+#home, #toasts { width: calc(100vw / var(--eng-font-k, 1)); }
+#panel-card { max-width: calc(100vw / var(--eng-font-k, 1)); max-height: calc(100vh / var(--eng-font-k, 1)); }

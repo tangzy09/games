@@ -253,14 +253,26 @@ function drawHome() {
   fillRR(SW / 2 - 96, dy, 192, 42, 21, can ? C.purple : 'rgba(180,140,232,0.3)');
   txt(can ? T('home.daily') : T('home.dailyDone'), SW / 2, dy + 21, '#fff', 'bold 13px sans-serif');
   if (can) addHit(SW / 2 - 96, dy, 192, 42, 'START_DAILY', {});
-  fillRR(SW / 2 - 96, dy + 52, 92, 38, 19, C.surface);
-  strokeRR(SW / 2 - 96, dy + 52, 92, 38, 19, C.border);
-  txt(`📖 ${T('home.codex')}`, SW / 2 - 50, dy + 71, C.text, 'bold 12px sans-serif');
-  addHit(SW / 2 - 96, dy + 52, 92, 38, 'OPEN_CODEX', {});
-  fillRR(SW / 2 + 4, dy + 52, 92, 38, 19, C.surface);
-  strokeRR(SW / 2 + 4, dy + 52, 92, 38, 19, C.border);
-  txt(`❓ ${T('home.help')}`, SW / 2 + 50, dy + 71, C.text, 'bold 12px sans-serif');
-  addHit(SW / 2 + 4, dy + 52, 92, 38, 'OPEN_HELP', {});
+  // ⚠ 宽度**按实际文字宽度算**，别写死：字号可调（引擎级 A/A⁺/A⁺⁺）之后，
+  //   写死 92 的两个并排按钮在大号档会文字互相压（实拍抓到「Critterpedia」压住「How to play」）。
+  //   量宽要用**缩放后的字号**（sfont），否则量出来还是小号的宽度。
+  {
+    const f = 'bold 12px sans-serif', gap = 8, padX = 14;
+    const labels = [`📖 ${T('home.codex')}`, `❓ ${T('home.help')}`];
+    ctx.font = (typeof sfont === 'function') ? sfont(f) : f;
+    const bw = Math.min(
+      Math.max(...labels.map(l => ctx.measureText(l).width)) + padX * 2,
+      (SW - 24 - gap) / 2);                       // 再宽也不许挤出屏幕
+    const bh = 38, y0 = dy + 52;
+    const x0 = SW / 2 - bw - gap / 2;
+    labels.forEach((label, i) => {
+      const x = x0 + i * (bw + gap);
+      fillRR(x, y0, bw, bh, bh / 2, C.surface);
+      strokeRR(x, y0, bw, bh, bh / 2, C.border);
+      txt(label, x + bw / 2, y0 + bh / 2, C.text, f);
+      addHit(x, y0, bw, bh, i ? 'OPEN_HELP' : 'OPEN_CODEX', {});
+    });
+  }
 }
 
 // how-to-play: paginated manual. Each line is illustrated with the game's own

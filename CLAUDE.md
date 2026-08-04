@@ -123,6 +123,28 @@ location /snake/assets/angels/ { alias /var/www/games/games/snake/assets/angels/
 `git commit` / `git push` **不用问**；但把代码放到线上（EC2 pull、nginx 改配置等一切影响
 线上站点的动作）**必须先停下来问**。准备到位后报状态、等用户说部署。
 
+## ⛔ 字体大小必须可调（所有游戏，2026-08-04 用户定）
+
+**每个游戏都要能调字体大小，新游戏也一样。** —— 已经做成**引擎级**的，新游戏零成本继承：
+
+| 层 | 在哪 | 怎么做到的 |
+|---|---|---|
+| canvas 文字 | `engine/canvas.js` 的 `sfont()` | `txt/txtL/txtR/txtLWrap` 是全仓画字的**唯一出口** ⇒ 在那里把 font 串的 px 乘 `GameGlobal.fontScale`（三档 1 / 1.15 / 1.3），一处改动全仓生效 |
+| DOM 文字 | `engine.css` 的 `zoom: var(--eng-font-k)` | snake 的主界面 `#home`、snake/abyss 的 `#panel-card` 都是 DOM，**只做 canvas 那半边它们会「看起来没反应」** |
+| 入口 | `engine/controls.js`（右上顶栏 `A / A⁺ / A⁺⁺`） | 就是那条**所有游戏共用**的顶栏，连**没有设置页**的 minesweeper/abyssshoot 也照样有 |
+
+- 存储键 `engine.fontScale` **跨游戏共用**：调一次，所有游戏都变。
+- 十语文案**内置在 controls.js**，不依赖各游戏 locale（要 5 游戏 × 10 locale 各加 key 才显示得出来
+  是本末倒置，而且新游戏必忘）。
+- ⚠ **新游戏唯一要注意的**：别绕开 `txt/txtL/txtR` 直接 `ctx.font = '12px …'` + `fillText`，
+  那样的字不会被缩放。
+- ⛔ 上限只到 **1.3**：canvas 不自动换行，再大就撑破布局。
+- **验收**：`node tools/shot-fontscale.cjs`（五游戏 × 三档 + 断言存得住）。
+  ⛔ **「大字有没有撑破布局」机器判不了，必须逐张看图** —— 它一次抓出两个真 bug：
+  minesweeper 主页两个并排按钮**宽度写死 92** ⇒ 大号档文字互相压（已改成按实际文字宽度自适应）；
+  snake 主界面横向溢出 —— `zoom` 会把宽度一起放大，补偿容器宽度之后**子元素的 `vw` 又不随容器变**
+  （vw 永远是视口宽度）⇒ `#home` 内部的 `vw` 全部改成了 `%`。
+
 ## ⛔ 返回键一律在左上角（所有游戏，2026-08-03 用户定）
 
 **任何「返回上一层」的按钮都画在屏幕左上角，位置与样式全仓统一。新游戏第一版就这么做。**

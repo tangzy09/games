@@ -13,7 +13,43 @@ const T = (k, p) => I18N.t(k, p);
 //   `safeTop + 8` 处的**右上禁区**：canvas 在这一带画的东西会被它盖住、**且点不动**
 //   （solitaire 的「✓ 有解」角标、abyssshoot 的 Deepest/Coins 都实踩过）。
 //   ⇒ 右上要放 canvas 内容时，y 从 `safeTop + ctrlH + 8` 起，或整块左移避开。
-const GameGlobal = { SW: 0, SH: 0, safeTop: 44, safeBottom: 0, ctrlH: 34 };
+const GameGlobal = { SW: 0, SH: 0, safeTop: 44, safeBottom: 0, ctrlH: 34, fontScale: 1 };
+
+// ── ⭐ 字号缩放（2026-08-04 用户定：**所有游戏都要能调字体大小，新游戏也一样**）──
+//
+// 做在**引擎这一层**而不是每个游戏各写一遍：txt/txtL/txtR/txtLWrap 是全仓画字的唯一出口
+//   ⇒ 在这里把 font 串里的 px 乘一下，五个游戏零改动全部获得，新游戏自动就有。
+// ⚠ **wrapLines 必须跟着一起缩放**（它按当前 ctx.font 量宽）——只放大绘制不放大量宽，
+//   长文案会溢出容器；所幸 wrapLines 量的就是 ctx.font，而 ctx.font 已经是缩放后的值。
+// ⚠ 游戏侧若**直接写「ctx.font = 12px …」再 fillText**（绕开 txt 系列），那处不会被缩放
+//   ⇒ 新代码一律走 txt/txtL/txtR。
+// ⛔ 上限只到 1.3：canvas 不会自动换行，再大就有布局溢出/截断的风险（逐游戏截图验过）。
+const FONT_STEPS = [1, 1.15, 1.3];
+const K_FONT = 'engine.fontScale';        // ⚠ 跨游戏共用一个键：调一次，所有游戏都变
+
+function applyFontScaleToDom() {
+  // DOM 那一半（#home / #panel-card / #toasts，见 engine.css）
+  try { document.documentElement.style.setProperty('--eng-font-k', String(GameGlobal.fontScale)); } catch (e) {}
+}
+function setFontScale(v) {
+  GameGlobal.fontScale = FONT_STEPS.includes(v) ? v : 1;
+  try { localStorage.setItem(K_FONT, String(GameGlobal.fontScale)); } catch (e) {}
+  applyFontScaleToDom();
+}
+function loadFontScale() {
+  try {
+    const v = parseFloat(localStorage.getItem(K_FONT));
+    if (FONT_STEPS.includes(v)) GameGlobal.fontScale = v;
+  } catch (e) {}
+  applyFontScaleToDom();
+  return GameGlobal.fontScale;
+}
+/** 把 font 串里的 px 数按 fontScale 放大（'bold 12px sans-serif' → 'bold 15.6px sans-serif'）*/
+function sfont(f) {
+  const k = GameGlobal.fontScale;
+  if (k === 1 || !f) return f;
+  return String(f).replace(/([\d.]+)px/, (m, n) => (parseFloat(n) * k).toFixed(1) + 'px');
+}
 
 // ⚠ 刘海/灵动岛适配（2026-07-31 用户点名,全游戏铁律）:safeTop **不能写死**。
 //   iPhone X 类≈44/47/48,灵动岛机型(14/15/16 Pro)= **59** —— 写死 44 顶部会被压 15px。
@@ -33,6 +69,7 @@ function measureSafeInset(prop) {
 }
 
 function initCanvas() {
+  loadFontScale();          // ⭐ 每次布局都读一遍存的字号（跨游戏共用一个键）
   canvas = document.getElementById(CFG.canvasId);
   const dpr = window.devicePixelRatio || 1;
   const W = window.innerWidth, H = window.innerHeight;
@@ -64,9 +101,9 @@ function roundRect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r
 function fillRR(x,y,w,h,r,color){ctx.fillStyle=color;roundRect(x,y,w,h,r);ctx.fill();}
 function strokeRR(x,y,w,h,r,color,lw=1){ctx.strokeStyle=color;ctx.lineWidth=lw;roundRect(x,y,w,h,r);ctx.stroke();}
 function clean(s){return s?String(s).replace(/️/g,''):'';}
-function txt(text,x,y,color,font){ctx.fillStyle=color;ctx.font=font;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(clean(text),x,y);}
-function txtL(text,x,y,color,font){ctx.fillStyle=color;ctx.font=font;ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(clean(text),x,y);}
-function txtR(text,x,y,color,font){ctx.fillStyle=color;ctx.font=font;ctx.textAlign='right';ctx.textBaseline='middle';ctx.fillText(clean(text),x,y);}
+function txt(text,x,y,color,font){ctx.fillStyle=color;ctx.font=sfont(font);ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(clean(text),x,y);}
+function txtL(text,x,y,color,font){ctx.fillStyle=color;ctx.font=sfont(font);ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(clean(text),x,y);}
+function txtR(text,x,y,color,font){ctx.fillStyle=color;ctx.font=sfont(font);ctx.textAlign='right';ctx.textBaseline='middle';ctx.fillText(clean(text),x,y);}
 
 // wrap text into ≤maxLines lines fitting maxW (px); breaks at spaces when possible,
 // else char-by-char (CJK); ellipsizes the last line if it still overflows. Set ctx.font first.
@@ -85,7 +122,7 @@ function wrapLines(text,maxW,maxLines){const s=clean(String(text));const lines=[
     if(br>0){lines.push(cur.slice(0,br));cur=cur.slice(br+1)+ch;}else{lines.push(cur);cur=ch;}}
   if(cur)lines.push(cur);return lines;}
 // draw ≤2 lines left-aligned, vertically centered around cy
-function txtLWrap(text,x,cy,maxW,color,font,lh){ctx.font=font;const ls=wrapLines(text,maxW,2);const y0=cy-(ls.length-1)*lh/2;ls.forEach((ln,i)=>txtL(ln,x,y0+i*lh,color,font));}
+function txtLWrap(text,x,cy,maxW,color,font,lh){ctx.font=sfont(font);const ls=wrapLines(text,maxW,2);const y0=cy-(ls.length-1)*lh/2;ls.forEach((ln,i)=>txtL(ln,x,y0+i*lh,color,font));}
 
 // dim the screen behind an overlay
 function drawDim(color){ctx.fillStyle=color||'rgba(0,0,0,0.75)';ctx.fillRect(0,0,GameGlobal.SW,GameGlobal.SH);}
