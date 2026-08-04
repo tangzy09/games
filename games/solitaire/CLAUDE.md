@@ -7,11 +7,19 @@ root `CLAUDE.md`（引擎契约、部署铁律、git 纪律、iOS 流水线）�
 
 ## 当前状态（2026-08-01）
 
-**iOS 1.0 已上架**（2026-07-14 提交 → **2026-07-23 过审 READY_FOR_SALE**，itunes lookup 实证）。
-**1.0.1 出包中（2026-08-02）**：`package.json` 已 bump 到 1.0.1（⚠ Capacitor 的营销版本号恒 1.0，
-codemagic 从 package.json 读它写进 Info.plist；不 bump 会被 90062 拒），Codemagic workflow
-`solitaire-ios-testflight` 已触发；ASC 版本 1.0.1 已建（`6b920737-…`）+ 两语 whatsNew 已填；
-**截图沿用 1.0 的（用户 2026-08-02 明确「不要改截图」）**。差的只有：build 转 VALID → 挂 build → 送审。
+**iOS 1.0 / 1.0.1 均已上架**（1.0：2026-07-23 过审；**1.0.1：已 `READY_FOR_SALE`**）。
+⚠ 本文件曾长期写着「1.0.1 出包中」——**那是过时的**，ASC 查一下就知道它早过审了。
+**改状态前先跑 `node games/solitaire/tools/asc-version.cjs`（或 blockblast 的 asc-status）问真值，别信文档。**
+
+**⭐ 1.0.2 出包中（2026-08-03 触发，构建 `6a718bf8…`，commit `b53ee3c`）**：
+`package.json` 已 bump 到 1.0.2（⚠ Capacitor 的营销版本号恒 1.0，codemagic 从 package.json
+读它写进 Info.plist；不 bump 会被 90062 拒），ASC 1.0.2 版本已建（`35e1fbbc-…`）+ 两语
+whatsNew 已填并回读校验。**截图/预览片一张没动**（用户定的默认：要重截会明说）——
+⚠ 顺带查清一个一直没人注意的事实：**zh-Hans 从来就是 0 组截图、只有 en-US 有 12 张**，
+1.0/1.0.1 都这样且都过审了（App Store 允许其它 locale 继承主语言的图），**不是这次丢的**。
+1.0.2 的内容 = 横幅遮挡修复 + **关掉横幅** + 激励视频加厚与全部带广告标识 + 返回键统一到左上角。
+差的只有：build 转 VALID → 挂 build → **送审（⛔ 要单独经用户批准）**。
+出包工具：`node tools/cm-build.cjs wait <buildId>` 等构建；`games/solitaire/tools/asc-version.cjs` 建版本载体。
 商店名 **`Fair Deal: Patience & Cards`**
 （中文「公平发牌：接龙与空当接龙」），Apple ID `6790861224`，Bundle `com.aispeeds.solitaireproven`。
 线上 <https://cards.ai-speeds.com>。
