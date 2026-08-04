@@ -20,6 +20,9 @@ const A = require('../docs/aso-1.0.1.cjs');
 
 const APP = '6790598746';
 const MARKETING_URL = 'https://blocks.ai-speeds.com';
+// ⛔ 新建的 appInfoLocalization **必须自带隐私政策 URL**：缺了不会当场报错，
+//   而是**到提交审核那一刻**才以 associatedErrors 的形式拦住你（实踩：37 个新 locale 全缺）。
+const PRIVACY_URL = 'https://blocks.ai-speeds.com/privacy.html';
 const SUPPORT_URL = 'https://blocks.ai-speeds.com';
 const CHECK = process.argv.includes('--check');
 const ONLY = process.argv.slice(2).filter(x => !x.startsWith('--'));
@@ -52,7 +55,7 @@ const ok = r => r.ok || (console.error('  ✗', r.status, (r.t || '').slice(0, 2
 
   let done = 0, fail = 0;
   for (const loc of LOCALES) {
-    const nameAttrs = { name: A.NAME[loc], subtitle: A.SUBTITLE[loc] };
+    const nameAttrs = { name: A.NAME[loc], subtitle: A.SUBTITLE[loc], privacyPolicyUrl: PRIVACY_URL };
     const verAttrs = {
       description: A.DESC[loc], keywords: A.KEYWORDS[loc], whatsNew: A.WHATSNEW[loc],
       promotionalText: A.PROMO[loc], marketingUrl: MARKETING_URL, supportUrl: SUPPORT_URL,
@@ -91,7 +94,7 @@ const ok = r => r.ok || (console.error('  ✗', r.status, (r.t || '').slice(0, 2
 
   // ── 地面真值：回读一遍，别信上面的返回 ──
   console.log('\n回读校验…');
-  const il2 = await asc.api('GET', `/v1/appInfos/${info.id}/appInfoLocalizations?limit=200&fields[appInfoLocalizations]=locale,name,subtitle`);
+  const il2 = await asc.api('GET', `/v1/appInfos/${info.id}/appInfoLocalizations?limit=200&fields[appInfoLocalizations]=locale,name,subtitle,privacyPolicyUrl`);
   const vl2 = await asc.api('GET', `/v1/appStoreVersions/${ver.id}/appStoreVersionLocalizations?limit=200&fields[appStoreVersionLocalizations]=locale,keywords,whatsNew,promotionalText,marketingUrl`);
   const gotInfo = Object.fromEntries((il2.j.data || []).map(d => [d.attributes.locale, d.attributes]));
   const gotVer = Object.fromEntries((vl2.j.data || []).map(d => [d.attributes.locale, d.attributes]));
@@ -99,6 +102,7 @@ const ok = r => r.ok || (console.error('  ✗', r.status, (r.t || '').slice(0, 2
   for (const loc of LOCALES) {
     const i = gotInfo[loc], v = gotVer[loc];
     if (!i || i.name !== A.NAME[loc] || i.subtitle !== A.SUBTITLE[loc]) bad.push(loc + ':name/subtitle');
+    if (!i || !i.privacyPolicyUrl) bad.push(loc + ':privacyPolicyUrl');
     if (!v || v.keywords !== A.KEYWORDS[loc]) bad.push(loc + ':keywords');
     if (!v || !v.whatsNew) bad.push(loc + ':whatsNew 空（更新版必填）');
     if (!v || v.marketingUrl !== MARKETING_URL) bad.push(loc + ':marketingUrl');

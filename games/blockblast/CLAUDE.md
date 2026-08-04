@@ -16,7 +16,23 @@
 - **生成美术（2026-07-31，本机 Flux 管线首批 9 张）**：`assets/art/`——5 水晶（cry_*）+ 3 章徽（ch_candy/ocean/forest）+ 宝箱（chest），comfyui-flux-local 管线（schnell Q4 生图 → InSPyReNet 抠图 → 512webp）。接入走 engine `makeArt('art',[ids])` + `drawCrystalArt`（**缺图回退矢量 drawCrystal/emoji，零改码换图**）；用在目标条/图鉴/章徽（关卡 HUD）/宝箱条，**棋盘小格仍用矢量**（小尺寸矢量更脆）。⚠ 生图坑：prompt 带「badge/emblem」会诱发英文字（ch_candy 首版被画上 CHAPTER），重生成需去措辞+强化 no text。
 - **天使榜（2026-07-31，DESIGN §7 幽灵追赶的落地形态）**：`js/ghosts.js` 20 个预设分数角色（200→20000，头像复用天使画廊图）。⛔ §7 红线照守：**明确是游戏角色，文案绝不称「玩家」**（单测钉死名字不含 player/玩家）。进度零存档（由最高分推导 `beatenCount`）；局中超越即 toast、结算页对比行（x/20 + 下一个差多少，点进全榜）、目标条挂「差 ≤600 分」的追赶目标。
 - **广告模型（2026-07-31 定稿，取代此前所有插屏规则）**：**前 50 盘零插屏**（明面卖点，商店页 adPolicy 文案明示）→ 之后**每 10 盘至多 1 个**，只在通关结算 / 无尽「再来一局」转场，≥2min 间隔；失败/局中/每日永远零插屏。唯一闸门 `Shop.canShowInterstitial` + `notePlayed/noteAdShown`（盘数 = 关卡赢/输、无尽、每日、挑战都计）。**插屏是姿态不是收入，收入主力 = 自愿激励视频（×2/换手/撤销/领币）。**
-## 上架素材（1.0.1，全部已就位 —— **只差一个 build**）
+## ✅ 1.0.1 已提交审核（2026-08-02，`WAITING_FOR_REVIEW`，过审自动上架）
+
+build#2（marketing 1.0.1）已挂 · 39 语商店页 · 624 张截图 · 英文预览片 · 全部回读校验过。
+
+**提交那一步连撞三个 409，都值得记**（`reviewSubmissionItems` 的 `associatedErrors` 才是真信息，
+外层只会说 "not in valid state"）：
+
+1. ⛔ **新建的 `appInfoLocalizations` 必须带 `privacyPolicyUrl`** —— 缺了**不会当场报错**，
+   而是到提交那一刻才拦（37 个新 locale 全缺）。`tools/aso-push.cjs` 已经带上并进了回读校验。
+2. ⛔ **build 带 `com.apple.developer.game-center` entitlement ⇒ 版本必须有 Game Center 配置**，
+   否则 `BUILD_INDICATES_GAME_CENTER_ENABLED`。我们去掉了 GC **插件**但 `ios-extra.sh` 仍注入
+   entitlement ⇒ 解法是给这个版本建一条 `gameCenterAppVersions`：
+   **POST 时不许带 `enabled`（`ATTRIBUTE.NOT_ALLOWED`），要先 POST 再 PATCH `enabled:true`**。
+3. ⚠ 失败的尝试会留下**僵尸草稿**（几个 `READY_FOR_REVIEW` 的空 submission）。无害，
+   但下次要**复用已有草稿**而不是新建（`tools/submit-review.cjs` 就是这么写的）。
+
+## 上架素材（1.0.1 —— 全套已上传）
 
 一条命令一件事，全部可重跑（幂等）：
 
