@@ -149,14 +149,26 @@ const ok = (c, m) => { if (!c) { console.error('X ' + m); process.exitCode = 1; 
   // 先把额度清干净
   await page.evaluate(() => { G.ads = null; adsState(); G.angels = 0; Money.state.coins = 0; Money.save(); });
 
-  // (a) 奖励数量必须精确等于常量表
+  // (a0) ⭐ **每日首看 ×2**：当天第一条激励视频奖励翻倍（写在按钮上的承诺，必须真兑现）
+  const x2 = await page.evaluate(async () => {
+    const a0 = G.angels, promised = firstX2('gallery');
+    dispatch('GAL_AD');
+    await new Promise(r => setTimeout(r, 400));
+    return { d: G.angels - a0, want: AD_GIVE.gallery, promised, usedUp: !!adsState().x2used };
+  });
+  ok(x2.promised && x2.d === x2.want * 2 && x2.usedUp,
+     `⭐ 今日首看 ×2 真的兑现（图鉴 ${x2.want} → ${x2.d} 张）且加成当天用掉`);
+
+  // (a) 之后的每一条都回到常量表的原值（⛔ 加成只有一次，不能变成永久双倍）
   const g1 = await page.evaluate(async () => {
     const a0 = G.angels, u0 = adsState().gallery;
     dispatch('GAL_AD');
     await new Promise(r => setTimeout(r, 400));
-    return { d: G.angels - a0, used: adsState().gallery - u0, want: AD_GIVE.gallery };
+    return { d: G.angels - a0, used: adsState().gallery - u0, want: AD_GIVE.gallery,
+             stillPromised: firstX2('gallery') };
   });
-  ok(g1.d === g1.want && g1.used === 1, `⭐ 图鉴位一次给 ${g1.d} 张（加厚前是 3 张）且额度 +1`);
+  ok(g1.d === g1.want && g1.used === 1 && !g1.stillPromised,
+     `⭐ 第二条起回到常量表（图鉴 ${g1.d} 张）且不再承诺 ×2`);
 
   const c1 = await page.evaluate(async () => {
     const m0 = Money.state.coins;

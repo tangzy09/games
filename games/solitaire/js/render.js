@@ -39,6 +39,64 @@
     uiIcon(id, emoji, x + ic / 2, cy, ic);
     txtL(label, x + ic + 5, cy, col, font);
   }
+  /**
+   * ⭐ 激励视频按钮 —— **八个位共用这一个**（2026-08-03）。
+   *
+   * 三件事在这里一次做对，别再让每个位自己拼字符串（原来一半的位既没说是广告、也没说给什么）：
+   *   ① **广告标识**：左侧一枚「▶ AD」徽章。AdMob 政策要求激励广告明示「这是广告」，
+   *      而且明示反而**提高**转化 —— 玩家怕的是被偷袭，不是广告本身。
+   *   ② **奖励写在脸上**：`reward` 必须是**具体数量**（「+150 金币」，不是「看广告领币」）。
+   *      写不出数字的位（券/补签）就写清楚拿到的是什么东西。
+   *   ③ **今日剩余次数**：稀缺感 + 预期管理；用尽时**不消失**，灰掉并写「明天再来」——
+   *      按钮突然不见了，玩家只会以为坏了。
+   * ⭐ `x2` 为真时整行变金色并挂「×2」角标（每日首看加成，见 main.js 的 FIRST_X2）。
+   * ⚠ 图标与文字**分开量宽**（本文件开头的老规矩），拼进一个字符串靠 measureText 猜位置必叠字。
+   */
+  function adRow(x, y, w, h, o) {
+    const on = o.left > 0, x2 = on && o.x2;
+    fillRR(x, y, w, h, 12, !on ? 'rgba(255,255,255,0.08)'
+                        : x2 ? 'rgba(255,216,77,0.34)' : 'rgba(255,216,77,0.20)');
+    if (x2) strokeRR(x, y, w, h, 12, '#ffd84d', 1.5);
+    const col = !on ? 'rgba(255,255,255,0.45)' : '#ffd84d';
+    // ── ① AD 徽章（左）──
+    const bw = 34, bx = x + 8, by = y + (h - 18) / 2;
+    fillRR(bx, by, bw, 18, 5, on ? 'rgba(0,0,0,0.42)' : 'rgba(0,0,0,0.22)');
+    uiIcon('video-ad', '▶', bx + 10, by + 9, 12);
+    txtL(T('sol.adBadge'), bx + 18, by + 9, on ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.4)',
+         'bold 9px sans-serif');
+    // ── ③ 今日剩余（右）——先量它，中间那段才知道自己有多宽 ──
+    //   ⚠ 长语言（de/ru/bn）的「今日还剩 N 次」会把中间的**奖励**挤到截断 —— 奖励是这行的
+    //   主角,次数是配角 ⇒ 配角超过行宽 32% 就退化成紧凑写法「N×」,主角永远说得完整。
+    ctx.font = '9px sans-serif';
+    let rightTxt = on ? T('sol.adLeft', { n: o.left }) : T('sol.adTomorrow');
+    let rw = ctx.measureText(rightTxt).width;
+    if (rw > w * 0.32) { rightTxt = on ? o.left + '×' : '—'; rw = ctx.measureText(rightTxt).width; }
+    txtR(rightTxt, x + w - 8, y + h / 2, 'rgba(255,255,255,0.62)', '9px sans-serif');
+    // ── ② 奖励（中，图标 + 具体数量）──
+    const midX = bx + bw + 6, midW = (x + w - 8 - rw - 6) - midX;
+    const ic = o.icon ? 17 : 0, avail = midW - (ic ? ic + 4 : 0) - (x2 ? 24 : 0);
+    // ⚠ **奖励文案不许被截断** —— 它就是这行存在的理由。长语言（de「+320 Münzen & +10 Engel」）
+    //   在 13px 下装不下 ⇒ 逐级降字号找装得下的那一档（到 9px 为止），而不是省略号吃掉一半奖励。
+    const base = o.font ? (parseInt((o.font.match(/(\d+)px/) || [])[1], 10) || 13) : 13;
+    let f = 'bold ' + base + 'px sans-serif', tw = 0;
+    for (let sz = base; sz >= 9; sz--) {
+      f = 'bold ' + sz + 'px sans-serif'; ctx.font = f;
+      tw = ctx.measureText(o.reward).width;
+      if (tw <= avail) break;
+    }
+    const label = wrapLines(o.reward, avail, 1)[0];      // 9px 还装不下才截（极端兜底）
+    tw = ctx.measureText(label).width;
+    let mx = midX + Math.max(0, (midW - tw - ic - (x2 ? 24 : 0)) / 2);
+    if (ic) { uiIcon(o.icon, o.emoji || '🎁', mx + ic / 2, y + h / 2, ic); mx += ic + 4; }
+    txtL(label, mx, y + h / 2, col, f);
+    if (x2) {
+      const gx = mx + tw + 6;
+      fillRR(gx, y + h / 2 - 9, 22, 18, 5, '#ffd84d');
+      txt('×2', gx + 11, y + h / 2, '#3a2a00', 'bold 11px sans-serif');
+    }
+    if (o.action) addHit(x, y, w, h, o.action, o.data || {});
+  }
+
   function drawStar(x, y, r, on) {
     const im = UI.get('star');
     if (im) { ctx.globalAlpha = on ? 1 : 0.18; ctx.drawImage(im, x - r, y - r, r * 2, r * 2); ctx.globalAlpha = 1; return; }
@@ -345,13 +403,11 @@
     //   ⭐ 这类**玩家主动点开**的位置转化高于「拦路」的位置，观感也是「给我福利」。
     if (giftOn) {
       // ⚠ 用**整格宽**而不是 210（主按钮宽）：德/俄文案在 210 里必溢出（实拍：英文就已经出框）
-      const gyH = fh - 8;
-      fillRR(cx - w / 2, y, w, gyH, 11, 'rgba(255,216,77,0.26)');
-      const gl2 = T('sol.dailyGift', { c: AD_GIVE.giftCoins, a: AD_GIVE.giftAngels });
-      ctx.font = 'bold 12px sans-serif';                 // ⚠ wrapLines 按当前 font 量宽
-      iconText('gift', '\u{1F381}', wrapLines(gl2, w - 52, 1)[0], cx, y + gyH / 2,
-               'bold 12px sans-serif', '#ffd84d', 16);
-      addHit(cx - w / 2, y, w, gyH, 'DAILY_GIFT', {});
+      const gyH = fh - 8, gm = adMul('gift');
+      adRow(cx - w / 2, y, w, gyH, { icon: 'gift', emoji: '\u{1F381}', action: 'DAILY_GIFT',
+        font: 'bold 12px sans-serif',
+        reward: T('sol.adWinPack', { c: AD_GIVE.giftCoins * gm, a: AD_GIVE.giftAngels * gm }),
+        left: adLeft('gift'), x2: firstX2('gift') });
       y += fh - 8 + gap;
     }
 
@@ -536,9 +592,8 @@
 
     // 🔥 补签：昨天没来、连续天数正要断 ⇒ 看广告补上（条件出现，平时不占位）
     if (canMakeup() && !Money.noAds) {
-      fillRR(cx - w / 2, y, w, 38, 10, 'rgba(255,216,77,0.22)');
-      iconText('fire', '🔥', T('sol.makeup'), cx, y + 19, 'bold 12px sans-serif', '#ffd84d', 16);
-      addHit(cx - w / 2, y, w, 38, 'MAKEUP', {});
+      adRow(cx - w / 2, y, w, 38, { icon: 'fire', emoji: '🔥', action: 'MAKEUP', font: 'bold 12px sans-serif',
+        reward: T('sol.makeup'), left: adLeft('makeup') });
       y += 46;
     }
 
@@ -571,10 +626,9 @@
     // ⛔ 去广告 IAP **不做**（2026-07-31 拍板）：菜单里永远没有内购入口。
     //    （激励视频保留 —— 它不是 IAP，只换外观。）
     if (!Money.noAds && tall) {
-      fillRR(cx - w / 2, y, w, 44, 10, 'rgba(255,255,255,0.14)');
-      txt('▶ ' + T('sol.watchAdN', { n: AD_GIVE.coins }) + '   ' + T('sol.adLeft', { n: adLeft('coins') }),
-          cx, y + 22, adLeft('coins') ? '#fff' : 'rgba(255,255,255,0.45)', '13px sans-serif');
-      addHit(cx - w / 2, y, w, 44, 'EARN_AD', {});
+      adRow(cx - w / 2, y, w, 44, { icon: 'coin', emoji: '🪙', action: 'EARN_AD',
+        reward: T('sol.watchAdN', { n: AD_GIVE.coins * adMul('coins') }),
+        left: adLeft('coins'), x2: firstX2('coins') });
       y += 52;                                   // ⚠ 忘了推进 y ⇒ 下面那行小字直接压在按钮上（实拍）
     }
 
@@ -759,20 +813,16 @@
     // ⚠ 页面不滚动 ⇒ 这一条要**给底部返回键让位**：牌背分页后 y 已经压到很低，
     //   360×640 上原样画会和「‹ 返回」叠在一起（实拍抓到）。放不下就不画（图鉴/结算屏都有同款入口）。
     if (!Money.noAds && !free && y + 40 < L.botY - 92) {
-      const bl = adLeft('back');
-      fillRR(cx - w / 2, y, w, 40, 10, bl ? 'rgba(255,216,77,0.22)' : 'rgba(255,255,255,0.10)');
-      iconText('gift', '🎁', T('sol.adPick') + '   ' + T('sol.adLeft', { n: bl }), cx, y + 20,
-               'bold 12px sans-serif', bl ? '#ffd84d' : 'rgba(255,255,255,0.45)', 16);
-      addHit(cx - w / 2, y, w, 40, 'AD_BACK', {});
+      adRow(cx - w / 2, y, w, 40, { icon: 'gift', emoji: '🎁', action: 'AD_BACK', font: 'bold 12px sans-serif',
+        reward: T('sol.adPick'), left: adLeft('back') });
       y += 48;
     }
 
     // 小屏（SE 等）放不下这行 —— 图鉴/结算屏有同款激励入口，不缺
     if (!Money.noAds && GameGlobal.SH >= 760) {
-      fillRR(cx - w / 2, y, w, 42, 10, 'rgba(255,255,255,0.14)');
-      txt('▶ ' + T('sol.watchAdN', { n: AD_GIVE.coins }) + '   ' + T('sol.adLeft', { n: adLeft('coins') }),
-          cx, y + 21, adLeft('coins') ? '#fff' : 'rgba(255,255,255,0.45)', '12px sans-serif');
-      addHit(cx - w / 2, y, w, 42, 'EARN_AD', {});
+      adRow(cx - w / 2, y, w, 42, { icon: 'coin', emoji: '🪙', action: 'EARN_AD', font: 'bold 12px sans-serif',
+        reward: T('sol.watchAdN', { n: AD_GIVE.coins * adMul('coins') }),
+        left: adLeft('coins'), x2: firstX2('coins') });
     }
   }
 
@@ -848,11 +898,9 @@
 
     // 看广告 +3（纯增益消耗端）
     if (!Money.noAds && G.angels < total) {
-      fillRR(cx - w / 2, y, w, 38, 10, 'rgba(255,216,77,0.20)');
-      const gl = adLeft('gallery');
-      txt('▶ ' + T('sol.galleryAdN', { n: AD_GIVE.gallery }) + '   ' + T('sol.adLeft', { n: gl }),
-          cx, y + 19, gl ? '#ffd84d' : 'rgba(255,255,255,0.45)', 'bold 12px sans-serif');
-      addHit(cx - w / 2, y, w, 38, 'GAL_AD', {});
+      adRow(cx - w / 2, y, w, 38, { icon: 'frame', emoji: '👼', action: 'GAL_AD', font: 'bold 12px sans-serif',
+        reward: T('sol.galleryAdN', { n: AD_GIVE.gallery * adMul('gallery') }),
+        left: adLeft('gallery'), x2: firstX2('gallery') });
     }
 
     // 大图查看浮层
@@ -1513,18 +1561,24 @@
     if (!fc && !Money.noAds && downN > 0 && !s.won) {
       const peeking = G.peekUntil > Date.now();
       const px2 = L.playX + 8, py2 = L.proveY - 50;
-      const left = adLeft('peek');
+      const left = adLeft('peek'), pmul = adMul('peek');
       fillRR(px2, py2, 52, 42, 12, peeking ? 'rgba(126,242,160,0.30)'
-                                 : left ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.08)');
+                                 : left ? 'rgba(255,216,77,0.22)' : 'rgba(255,255,255,0.08)');
       if (peeking) {
         const sec = String(Math.ceil((G.peekUntil - Date.now()) / 1000));
         ctx.font = 'bold 13px sans-serif';
         uiIcon('eye', '👁', px2 + 26 - ctx.measureText(sec).width / 2 - 8, py2 + 16, 17);
         txtL(sec, px2 + 26 - ctx.measureText(sec).width / 2 + 3, py2 + 16, '#7ef2a0', 'bold 13px sans-serif');
-      } else uiIcon('eye', '👁', px2 + 26, py2 + 16, 18);
-      ctx.font = '8px sans-serif';
-      txt(peeking ? T('sol.peekOn') : T('sol.adLeft', { n: left }), px2 + 26, py2 + 33,
-          'rgba(255,255,255,0.7)', '8px sans-serif');
+      } else uiIcon('eye', '👁', px2 + 26, py2 + 15, 18);
+      // ⚠ 52px 放不下整行 ⇒ 紧凑版:**左上角 AD 角标**(广告标识)+ 底行写**奖励秒数**
+      //   (不是「剩几次」——奖励是什么必须先说清楚,次数退到 tap 后的 toast)。
+      if (!peeking) {
+        fillRR(px2 + 2, py2 + 2, 17, 11, 3, 'rgba(0,0,0,0.5)');
+        txt(T('sol.adBadge'), px2 + 10, py2 + 8, left ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.4)',
+            'bold 7px sans-serif');
+      }
+      txt(peeking ? T('sol.peekOn') : (left ? '+' + Math.round(AD_GIVE.peek * pmul / 1000) + 's' : T('sol.adTomorrow')),
+          px2 + 26, py2 + 33, left ? '#ffd84d' : 'rgba(255,255,255,0.5)', 'bold 9px sans-serif');
       if (!peeking) addHit(px2, py2, 52, 42, 'AD_PEEK', {});
     }
 
@@ -1664,12 +1718,19 @@
       // ⭐ 结算礼包：转化最高的位置（刚赢、瀑布刚放完）⇒ **也是给得最厚的位置**。
       //   ⚠ 按钮上把**实得数量写出来**（不写数量等于没给）；额度剩几次也一并写清。
       if (!Money.noAds && G.lastWinCoins > 0 && !G.winDoubled) {
-        const wl2 = adLeft('win');
-        fillRR(L.cx - 108, wy, 216, 44, 12, wl2 ? 'rgba(255,216,77,0.26)' : 'rgba(255,255,255,0.12)');
-        txt('▶ ' + T('sol.adWinPack', { c: winAdCoins(), a: AD_GIVE.winAngels }), L.cx, wy + 17,
-            wl2 ? '#ffd84d' : 'rgba(255,255,255,0.45)', 'bold 13px sans-serif');
-        txt(T('sol.adLeft', { n: wl2 }), L.cx, wy + 33, 'rgba(255,255,255,0.6)', '9px sans-serif');
-        addHit(L.cx - 108, wy, 216, 44, 'WIN_X2', {});
+        const mw = adMul('win');
+        // ⭐ 首看加成只在**转化最高的这一屏**额外说一句（其它位靠 ×2 角标表意就够，别到处刷）
+        if (mw > 1 && adLeft('win') > 0) {
+          ctx.font = 'bold 10px sans-serif';                 // ⚠ wrapLines 按当前 font 量宽
+          txt(wrapLines(T('sol.adX2'), wcw - 36, 1)[0], L.cx, wy + 6, '#ffd84d', 'bold 10px sans-serif');
+          wy += 16;
+        }
+        // ⚠ 宽度跟着**结算卡**走,不是写死 232：232 装不下「+320 coins & +10 angels」
+        //   ⇒ 被 wrapLines 截成「+320 coins…」,天使那半份奖励等于没说（实拍抓到）。
+        const aw = wcw - 28;
+        adRow(L.cx - aw / 2, wy, aw, 44, { icon: 'trophy', emoji: '🏆', action: 'WIN_X2',
+          reward: T('sol.adWinPack', { c: winAdCoins() * mw, a: AD_GIVE.winAngels * mw }),
+          left: adLeft('win'), x2: firstX2('win') });
         wy += 52;
       }
       winCardH = wy - wy0 + 8;                 // 量给下一帧的卡片高度
@@ -1686,9 +1747,19 @@
       ctx.font = '11px sans-serif';
       wrapLines(T('sol.hintNone'), pw - 40, 2).forEach((ln, i) =>
         txt(ln, L.cx, py + 128 + i * 14, 'rgba(0,0,0,0.55)', '11px sans-serif'));
-      fillRR(px + 24, py + 162, pw - 48, 44, 12, '#22c55e');
-      txt('▶ ' + T('sol.jokerAd'), L.cx, py + 184, '#fff', 'bold 13px sans-serif');
-      addHit(px + 24, py + 162, pw - 48, 44, 'JOKER_AD', {});
+      // ⚠ 这颗按钮在**白卡**上 ⇒ 不能用 adRow 那套金色（浅底上看不见）：自己画绿底,
+      //   但**广告标识 + 奖励数量 + 剩余次数**三件事一样不少（口径与 adRow 一致）。
+      const jl = adLeft('joker'), jw = pw - 48, jx = px + 24;
+      fillRR(jx, py + 162, jw, 44, 12, jl ? '#22c55e' : 'rgba(0,0,0,0.16)');
+      fillRR(jx + 8, py + 175, 34, 18, 5, 'rgba(0,0,0,0.34)');
+      uiIcon('video-ad', '▶', jx + 18, py + 184, 12);
+      txtL(T('sol.adBadge'), jx + 26, py + 184, 'rgba(255,255,255,0.92)', 'bold 9px sans-serif');
+      ctx.font = 'bold 12px sans-serif';
+      txt(wrapLines(T('sol.adJokerN', { n: Math.round(AD_GIVE.peek / 1000) }), jw - 92, 1)[0],
+          jx + 46 + (jw - 46 - 40) / 2, py + 184, jl ? '#fff' : 'rgba(0,0,0,0.4)', 'bold 12px sans-serif');
+      txtR(jl ? T('sol.adLeft', { n: jl }) : T('sol.adTomorrow'), jx + jw - 8, py + 184,
+           jl ? 'rgba(255,255,255,0.75)' : 'rgba(0,0,0,0.4)', '9px sans-serif');
+      addHit(jx, py + 162, jw, 44, 'JOKER_AD', {});
       txt(T('sol.keepLooking'), L.cx, py + 226, '#16a34a', 'bold 13px sans-serif');
       addHit(px + 24, py + 212, pw - 48, 30, 'JOKER_DISMISS', {});
     }

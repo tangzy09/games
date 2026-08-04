@@ -683,7 +683,7 @@ function dispatch(action, data) {
     case 'GAL_CLOSE': G.galView = null; break;
     // 图鉴里看广告 +3 张（纯增益,激励视频的又一消耗端）
     case 'GAL_AD': {
-      watchAd('gallery', () => gainAngels(AD_GIVE.gallery));
+      watchAd('gallery', mul => gainAngels(AD_GIVE.gallery * mul));
       break;
     }
     // 👼 大图存壁纸（snake 同款体验：Web Share 优先降级下载）
@@ -885,7 +885,7 @@ function dispatch(action, data) {
 
     // 激励视频 → 金币。⚠ **纯增益**：金币只能换外观，换不到提示/撤销（那是基本人权）
     case 'EARN_AD': {
-      watchAd('coins', () => Money.earnAd(AD_GIVE.coins));
+      watchAd('coins', mul => Money.earnAd(AD_GIVE.coins * mul));
       break;
     }
     // ⭐ 外观位·**免费解锁券**（1 次/天）：原来是「白送最便宜的那款牌背」＝ 20 币的货，
@@ -905,11 +905,11 @@ function dispatch(action, data) {
     // 🎁 每日礼物（主界面，1 次/天）：观感是「给我福利」而不是「拦我路」——
     //   这类**玩家主动点开**的位置转化高于逼着看的位置（skill §0 的补位原则）。
     case 'DAILY_GIFT': {
-      watchAd('gift', () => {
-        Money.state.coins += AD_GIVE.giftCoins;
+      watchAd('gift', mul => {
+        Money.state.coins += AD_GIVE.giftCoins * mul;
         Money.save();
-        const n = gainAngels(AD_GIVE.giftAngels);
-        G.toast = { msg: '🎁 +' + AD_GIVE.giftCoins + ' 🪙   +' + n + ' 👼', until: Date.now() + 2600 };
+        const n = gainAngels(AD_GIVE.giftAngels * mul);
+        G.toast = { msg: '🎁 +' + (AD_GIVE.giftCoins * mul) + ' 🪙   +' + n + ' 👼', until: Date.now() + 2600 };
         setTimeout(renderAll, 2700);
       });
       break;
@@ -919,11 +919,11 @@ function dispatch(action, data) {
     //   但它是外部帮助 ⇒ 与提示同口径记 usedHint，**不算干净赢**（统计不能撒谎）。
     case 'AD_PEEK': {
       if (s.won || s.mode === 'freecell') break;            // FreeCell 全明牌，没得透视
-      watchAd('peek', () => {
-        G.peekUntil = Date.now() + AD_GIVE.peek;
+      watchAd('peek', mul => {
+        G.peekUntil = Date.now() + AD_GIVE.peek * mul;
         G.s.usedHint = true;
         saveRun();
-        setTimeout(renderAll, AD_GIVE.peek + 100);
+        setTimeout(renderAll, AD_GIVE.peek * mul + 100);
       });
       break;
     }
@@ -936,12 +936,12 @@ function dispatch(action, data) {
     //    ⚠ 走统一的 watchAd（额度/回滚/冒烟都在里面）—— 原来它自己直连 Ads，口径漂在外面。
     case 'WIN_X2': {
       if (G.winDoubled || !G.lastWinCoins || !s.won) break;
-      watchAd('win', () => {
+      watchAd('win', mul => {
         G.winDoubled = true;
-        G.lastWinAdCoins = winAdCoins();
+        G.lastWinAdCoins = winAdCoins() * mul;
         Money.state.coins += G.lastWinAdCoins;
         Money.save();
-        G.lastAngelGain = (G.lastAngelGain || 0) + gainAngels(AD_GIVE.winAngels);
+        G.lastAngelGain = (G.lastAngelGain || 0) + gainAngels(AD_GIVE.winAngels * mul);
       });
       break;
     }
@@ -1256,14 +1256,26 @@ function hintFromProof() {
 //     买得动一款中级牌背，图鉴 8→12）；③ 救场要**真能救回来**（万能牌一次拉满 3 张 + 附送 30 秒
 //     透视，光给两张牌照样卡死）；④ 外观位从「白送最便宜的那款」（20 币的货）升级成
 //     **任选一款免费解锁券**（牌背/桌布/瀑布特效都行）。给厚 ⇒ 额度照旧兜底（见下）。
-const AD_CAPS = { gallery: 6, coins: 5, joker: 3, back: 1, peek: 3, makeup: 1, win: 6, gift: 1 };
+//  ⭐ 2026-08-03 再加厚一轮（用户点名「多给一些 + 让用户愿意点」）。**横幅关掉之后，
+//     激励视频就是主要收入** ⇒ 它值得被认真做。这轮改的仍然只有「给多少」和「怎么说」：
+//     ① 单次给厚 ~50%（一次见效的门槛涨了：150 币 = 买得动中高档牌背，18 张天使 ≈ 图鉴一集的 3/4）；
+//     ② **每日首看 ×2**（`FIRST_X2`）—— 每天只影响**一条**，对长线冲击 = 多给一次的量，
+//        却把「今天先看一条」的门槛降到最低；按钮上明写着，不是暗改；
+//     ③ 每个位一律走 `Render.adRow()` 画：**AD 标识 + 具体奖励数字 + 今日剩余次数**
+//        （AdMob 政策也要求激励广告明示「是广告」和「给什么」，合规与转化同向）。
+const AD_CAPS = { gallery: 6, coins: 5, joker: 3, back: 1, peek: 4, makeup: 1, win: 6, gift: 1 };
 const AD_GIVE = {
-  gallery: 12, coins: 100, joker: 3, peek: 30000,   // peek 单位是毫秒
-  winMin: 80, winAngels: 3,                          // 结算屏礼包：金币 max(×3, 80) + 👼×3
-  giftCoins: 100, giftAngels: 5,                     // 主界面每日礼物（1 次/天）
+  gallery: 18, coins: 150, joker: 3, peek: 60000,   // peek 单位是毫秒（30s → 60s）
+  winMul: 4, winMin: 120, winAngels: 5,             // 结算屏礼包：金币 max(×4, 120) + 👼×5
+  giftCoins: 200, giftAngels: 8,                    // 主界面每日礼物（1 次/天，只有一次 ⇒ 给厚零风险）
 };
-/** 结算屏礼包的金币数（`×3` 但有保底 —— 脏赢基础只有 10 币，×3 也不够看） */
-const winAdCoins = () => Math.max(AD_GIVE.winMin, (G.lastWinCoins || 0) * 3);
+/** ⭐ 每日首看 ×2（只对**数量型**奖励生效；救场/券/补签本来就是「拉满或没有」，翻倍无意义）*/
+const FIRST_X2 = ['coins', 'gallery', 'win', 'gift', 'peek'];
+/** 这一次点下去还能不能吃到首看加成（UI 要照实显示，别许诺了不给）*/
+function firstX2(kind) { return FIRST_X2.includes(kind) && !adsState().x2used; }
+const adMul = kind => (firstX2(kind) ? 2 : 1);
+/** 结算屏礼包的金币数（`×4` 但有保底 —— 脏赢基础只有 10 币，×4 也不够看） */
+const winAdCoins = () => Math.max(AD_GIVE.winMin, (G.lastWinCoins || 0) * AD_GIVE.winMul);
 
 /** 换玩法 = 换一局（玩法是开局前属性）；连关轮从头开始。MODE / MODE_SET 共用一份口径。 */
 function setMode(m) {
@@ -1297,7 +1309,12 @@ function adsState() {
 }
 function adLeft(kind) { return Math.max(0, (AD_CAPS[kind] || 0) - (adsState()[kind] || 0)); }
 
-/** 唯一的激励视频入口。拒绝观看 ⇒ 零发放且**不扣额度**。 */
+/**
+ * 唯一的激励视频入口。拒绝观看 ⇒ 零发放且**不扣额度**。
+ * `grant(mul)` 收到的 mul 是**本次实际生效**的倍率（首看 ×2，否则 1）——
+ * ⚠ 必须在**发放的那一刻**再算一次并落位，不能在点击时算好传进去：
+ *   广告是异步的，两条广告同时在飞的话，×2 会被兑现两次。
+ */
 function watchAd(kind, grant) {
   const st = adsState();
   if (adLeft(kind) <= 0) {
@@ -1310,7 +1327,9 @@ function watchAd(kind, grant) {
   st[kind] = (st[kind] || 0) + 1;
   Ads.showRewarded().then(function (got) {
     if (got) {
-      grant();
+      const mul = adMul(kind);
+      if (mul > 1) st.x2used = 1;                // 首看加成当天用掉（同上：发放这一刻才落位）
+      grant(mul);
       saveOpts();
       checkAchievements();
     } else {
