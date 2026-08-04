@@ -14,7 +14,10 @@
   const parts = [];     // 粒子
   const toasts = [];    // 浮字
   const dying = [];     // 正在消失的格子（逐格延迟）
+  const rings = [];     // ⚡ 冲击波环（消行越多、环越多越大 —— 2026-08-04 用户点名「特效依次增加」）
+  const beams = [];     // ⚡ 被消掉的整行/整列先闪一道光带（"是我打通了这条线"）
   let shakeT = 0, shakeMag = 0;
+  let flashA = 0;       // ⚡ 全屏闪白（只有 PERFECT 全清才配用）
 
   const FX = {
     enabled: true,
@@ -44,7 +47,9 @@
       // 新 toast 与在场的太近就往下错一行（截图验收抓到过 "Heating Up" 压在标题底下）。
       let yy = y;
       for (let guard = 0; guard < 6; guard++) {
-        const clash = toasts.some(t => Math.abs(t.y - yy) < 30 && Math.abs(t.x - x) < 220);
+        // ⚠ 阈值要盖得住**最大那号字**：30 对 40px 的 PERFECT/SWEEP 根本不够,
+        //   实拍到「DEEP SWEEP!」和「Unbelievable!」几乎完全重叠（特效变强后更挤）。
+        const clash = toasts.some(t => Math.abs(t.y - yy) < 46 && Math.abs(t.x - x) < 220);
         if (!clash) break;
         yy += 34;
       }
@@ -52,6 +57,25 @@
     },
 
     shake(mag) { if (FX.enabled) { shakeMag = Math.max(shakeMag, mag); shakeT = 0.28; } },
+
+    /**
+     * ⚡ 冲击波环：从消除中心扩散的一圈光。
+     * 这是「消 2 行 vs 消 5 行」在**视觉上分得开**的主力手段 —— 粒子多寡人眼其实不敏感，
+     * 但「几个环、铺多大」一眼就看得出来。delay 让多个环依次荡开（不是同时画三个圈）。
+     */
+    ring(x, y, color, maxR, delay, width) {
+      if (!FX.enabled) return;
+      rings.push({ x, y, color, maxR, delay: delay || 0, width: width || 4, age: 0, dur: 0.42 });
+    },
+
+    /** ⚡ 整行/整列的光带：消除瞬间先亮一下，再让格子逐个碎掉 */
+    beam(x, y, w, h, color) {
+      if (!FX.enabled) return;
+      beams.push({ x, y, w, h, color, age: 0, dur: 0.26 });
+    },
+
+    /** ⚡ 全屏闪白 —— ⛔ 只留给 PERFECT（全清）。到处用就不值钱了，而且晃眼 */
+    flash(a) { if (FX.enabled) flashA = Math.max(flashA, a); },
 
     /** 屏震偏移（render 在画之前 translate 一下）*/
     offset() {
@@ -61,7 +85,10 @@
     },
 
     /** 有没有动画在跑（main 用它决定是否继续逐帧重画）*/
-    busy() { return parts.length > 0 || toasts.length > 0 || dying.length > 0 || shakeT > 0; },
+    busy() {
+      return parts.length > 0 || toasts.length > 0 || dying.length > 0 || shakeT > 0
+          || rings.length > 0 || beams.length > 0 || flashA > 0;
+    },
 
     /** 某个格子是不是正在「消失动画」中（render 用它决定还画不画那一格）*/
     isDying(x, y) {
@@ -87,10 +114,30 @@
         d.age += dt;
         if (d.age >= d.delay + d.dur) dying.splice(i, 1);
       }
+      for (let i = rings.length - 1; i >= 0; i--) {
+        const r = rings[i];
+        r.age += dt;
+        if (r.age >= r.delay + r.dur) rings.splice(i, 1);
+      }
+      for (let i = beams.length - 1; i >= 0; i--) {
+        const b = beams[i];
+        b.age += dt;
+        if (b.age >= b.dur) beams.splice(i, 1);
+      }
+      if (flashA > 0) flashA = Math.max(0, flashA - dt * 2.6);
     },
 
     draw(ctx) {
       if (!FX.enabled) return;
+      // 光带画在最底下：格子碎掉的过程压在它上面，观感才是「线被打通了」
+      for (const b of beams) {
+        const k = b.age / b.dur;
+        ctx.globalAlpha = (1 - k) * 0.55;
+        ctx.fillStyle = b.color;
+        const grow = k * 6;
+        ctx.fillRect(b.x - grow, b.y - grow, b.w + grow * 2, b.h + grow * 2);
+      }
+      ctx.globalAlpha = 1;
       // 正在消失的格子：延迟到点后缩小+淡出
       for (const d of dying) {
         const t = d.age - d.delay;
@@ -133,9 +180,36 @@
         ctx.restore();
       }
       ctx.globalAlpha = 1;
+
+      for (const r of rings) {
+        const t = r.age - r.delay;
+        if (t < 0) continue;
+        const k = Math.min(t / r.dur, 1);
+        const rad = r.maxR * (0.15 + k * 0.85);
+        ctx.globalAlpha = Math.max(0, 1 - k) * 0.75;
+        ctx.strokeStyle = r.color;
+        ctx.lineWidth = r.width * (1 - k * 0.6);
+        ctx.beginPath();
+        ctx.arc(r.x, r.y, rad, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      ctx.lineWidth = 1;
+
+      if (flashA > 0) {
+        ctx.globalAlpha = Math.min(flashA, 0.85);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, (root.GameGlobal && root.GameGlobal.SW) || 2000,
+                           (root.GameGlobal && root.GameGlobal.SH) || 2000);
+        ctx.globalAlpha = 1;
+      }
     },
 
-    reset() { parts.length = 0; toasts.length = 0; dying.length = 0; shakeT = 0; shakeMag = 0; },
+    reset() {
+      parts.length = 0; toasts.length = 0; dying.length = 0;
+      rings.length = 0; beams.length = 0; flashA = 0;
+      shakeT = 0; shakeMag = 0;
+    },
   };
 
   root.FX = FX;

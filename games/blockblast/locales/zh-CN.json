@@ -277,6 +277,7 @@
     "stBrilliant": "妙手",
     "stLevel": "等级",
     "chapterN": "第 {n} 章",
-    "blocks": "送方块"
+    "blocks": "送方块",
+    "fast": "⚡ 手快！+{n}"
   }
 }

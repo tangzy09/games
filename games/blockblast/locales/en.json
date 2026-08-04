@@ -277,6 +277,7 @@
     "stBrilliant": "Brilliant moves",
     "stLevel": "Level",
     "chapterN": "Chapter {n}",
-    "blocks": "Blocks"
+    "blocks": "Blocks",
+    "fast": "⚡ Quick! +{n}"
   }
 }

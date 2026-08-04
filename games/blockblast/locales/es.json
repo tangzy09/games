@@ -277,6 +277,7 @@
     "stBrilliant": "Jugadas brillantes",
     "stLevel": "Nivel",
     "chapterN": "Capítulo {n}",
-    "blocks": "Bloques"
+    "blocks": "Bloques",
+    "fast": "⚡ ¡Rápido! +{n}"
   }
 }

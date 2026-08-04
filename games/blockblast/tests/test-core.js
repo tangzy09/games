@@ -343,3 +343,72 @@ console.log('test-core: 同种子同操作完全可复现 OK');
   assert.strictEqual(r.streamIndex, i0, '礼包手期间换手不吃块流');
   console.log('test-core: 礼包手的撤销/禁用/换手 OK');
 }
+
+// ⚡ 快速放置奖励（2026-08-04）——**纯增益**，四条红线写成测试
+{
+  // ⚠ 落点必须**真的合法**：place 对非法落子返回 null 且不改状态 ⇒ 手写坐标会让断言
+  //   莫名其妙地挂（第一版就踩了）。统一用 placements 取第一个能放的位置。
+  const put = (s, slot, now) => {
+    const p = Core.tray(s)[slot];
+    const ps = Core.placements(s.board, p);
+    if (!ps.length) return null;
+    return { evs: Core.place(s, slot, ps[0][0], ps[0][1], now), size: p.size };
+  };
+
+  // ① 不传 now ⇒ 一分不加、字段不动。这条保住了：模拟器 / 参考 AI / verify-levels
+  //    / 所有老测试的行为**一个字节都没变**（sim 的中位分仍落在基线上）。
+  const a = Core.newGame(11);
+  put(a, 0);
+  assert.strictEqual(a.speedChain, 0, '不传时钟 ⇒ 不进速度逻辑');
+  const b = Core.newGame(11);
+  const r0 = put(b, 0, 1000);
+  assert.strictEqual(b.score, r0.size, '第一手没有「上一手」⇒ 只有落子分，不给速度分');
+
+  // ② 连续快手递增；慢一手只是**归零** —— ⛔ 不扣分、不碰 streak
+  const c = Core.newGame(12);
+  let t = 10000;
+  put(c, 0, t);
+  const s0 = c.score;
+  t += 500;
+  const r1 = put(c, 1, t);                       // 快
+  assert.strictEqual(c.speedChain, 1, '第二手在 2.5s 内 ⇒ 链 = 1');
+  // ⚠ 直接查事件里的 bonus —— 拿 score 相减要扣掉落子分和可能的消行分,容易写成恒等式
+  const sp1 = r1.evs.find(e => e.t === 'speed');
+  assert.ok(sp1, '快手要发出 speed 事件');
+  assert.strictEqual(sp1.bonus, Core.speedBonus(1), '加的分精确等于常量表');
+  assert.strictEqual(sp1.chain, 1);
+
+  const beforeStreak = c.streak, before = c.score;
+  t += 9000;
+  put(c, 2, t);                                   // 慢
+  assert.strictEqual(c.speedChain, 0, '慢一手 ⇒ 链归零');
+  assert.strictEqual(c.streak, beforeStreak, '⛔ 慢不许断 streak');
+  assert.ok(c.score >= before, '⛔ 慢不许扣分（DESIGN §5：奖励快，不惩罚慢）');
+
+  // ③ 撤销要把速度状态一起回滚，否则「撤销→重放」可无限刷分
+  const d = Core.newGame(13);
+  let dt = 5000;
+  put(d, 0, dt);
+  dt += 400; put(d, 1, dt);
+  const chainAfter = d.speedChain, scoreAfter = d.score;
+  assert.ok(chainAfter > 0, '前置：第二手确实吃到了速度分');
+  Core.undo(d);
+  assert.strictEqual(d.speedChain, 0, '撤销回滚 speedChain');
+  dt += 400; put(d, 1, dt);
+  assert.strictEqual(d.speedChain, chainAfter, '重放后链与撤销前一致（没被刷高）');
+  assert.strictEqual(d.score, scoreAfter, '⛔ 撤销重放不许刷出更多分');
+
+  // ④ ⛔ 每日 / 挑战局**永不给**速度分 —— 那两条赛道承诺「同种子分数可比」，
+  //    掺进手速就不是同一道题了（与礼包手同一个先例）。
+  for (const mk of [x => { x.daily = 20260804; }, x => { x.challenge = true; }]) {
+    const e = Core.newGame(14); mk(e);
+    let et = 3000;
+    put(e, 0, et);
+    const before2 = e.score;
+    et += 300;
+    const r2 = put(e, 1, et);
+    assert.strictEqual(e.speedChain, 0, '每日/挑战：速度链恒 0');
+    assert.strictEqual(e.score - before2, r2.size, '每日/挑战：分数里没有速度奖励');
+  }
+  console.log('test-core: ⚡ 快速放置奖励（纯增益 / 撤销不可刷 / 每日挑战禁用）OK');
+}

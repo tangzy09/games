@@ -73,6 +73,22 @@
     return { rows, cols };
   }
 
+  // ── ⚡ 快速放置奖励（2026-08-04 用户点名「快速放置，时间加分」）──
+  //
+  // ⛔ DESIGN §5 写着「永不加倒计时/下落压力」——**这条没有被推翻**。区别在于：
+  //   · 倒计时 = **惩罚慢**（不快就死/扣分）⇒ 仍然禁止；
+  //   · 本机制 = **奖励快**（不快也一分不少）⇒ 纯增益，「块在托盘里等你」的承诺不变。
+  //   ⇒ 落实成三条硬约束：**慢了不扣分、不断 streak、UI 上绝不画倒计时条**。
+  //
+  // ⛔ **每日谜题 / 种子挑战里不给**（`s.daily || s.challenge`）——那两条赛道承诺
+  //   「同种子分数可比」（DESIGN §2），掺进手速就不再是同一道题了。
+  //   这与礼包手的处理是同一个先例。
+  // ⚠ `now` 是**从外部传入**的（main 的 rAF 时钟），core 仍是纯函数：不传 = 不给速度分
+  //   ⇒ 测试 / 参考 AI / verify-levels 的行为**一个字节都没变**。
+  const FAST_MS = 2500;              // 距上一手 ≤2.5s 算「流畅」（休闲拼图的落子间隔中位约 2-4s）
+  const SPEED_STEP = 5, SPEED_CAP = 5;  // 连续快手：+5/+10/…/+25 封顶
+  const speedBonus = chain => SPEED_STEP * Math.min(chain, SPEED_CAP);
+
   // ── 计分（DESIGN §3：streak 是主引擎，多消只是锦上添花）──
   const comboTier = L => (L <= 0 ? 0 : L === 1 ? 1.0 : L === 2 ? 1.5 : L === 3 ? 2.2 : 3.0);
   const streakMult = s => 1 + 0.5 * Math.min(Math.max(s - 1, 0), 6);   // 7 连封顶 ×4（模拟校准：最长 streak 中位 = 7）
@@ -104,6 +120,8 @@
       stats: { turns: 0, lines: 0, sweeps: 0, deeps: 0, perfects: 0, maxStreak: 0, bestL: 0 },
       undo: null,                     // 只存 1 步
       bonusHands: 0,                  // 🧱 礼包手剩余数（激励视频给的「三个单格块」；期间不从块流取）
+      lastPlaceAt: 0,                 // ⚡ 上一手的时间戳（0 = 还没落过；由外部传入，见 place）
+      speedChain: 0,                  // ⚡ 连续「快手」数（慢一次只是归零，**不扣分不断 streak**）
       // ── 关卡模式（无尽模式下这些是空的，逻辑完全不受影响）──
       mode: 'endless',
       stone: null,                    // 不可消除的惰性格
@@ -242,6 +260,7 @@
     streamIndex: s.streamIndex, board: s.board.slice(), placed: s.placed.slice(),
     bonusHands: s.bonusHands | 0,                            // 撤销必须把礼包手一起回滚
     score: s.score, streak: s.streak, dryTurns: s.dryTurns, stats: Object.assign({}, s.stats),
+    lastPlaceAt: s.lastPlaceAt, speedChain: s.speedChain,   // ⚡ 不回滚的话，撤销能反复刷速度分
     crystal: s.crystal ? s.crystal.slice() : null,           // 关卡：撤销必须把已收集的水晶吐回来
     collected: s.collected ? Object.assign({}, s.collected) : null,
     over: s.over, won: s.won, unwinnable: !!s.unwinnable,    // 否则在结算浮层上撤销会「复活」出畸形状态
@@ -251,7 +270,7 @@
    * 落子。slot ∈ {0,1,2}，(r,c) = 拼块 bounding box 左上角在棋盘上的位置。
    * 返回事件数组（供 fx/音效消费）；非法落子返回 null 且不改状态。
    */
-  function place(s, slot, r, c) {
+  function place(s, slot, r, c, now) {
     if (s.over) return null;
     const t = tray(s);
     const piece = t[slot];
@@ -268,6 +287,19 @@
     if (pc) s.crystal[idx(r + pc.cell[0], c + pc.cell[1])] = pc.kind;
     s.placed[slot] = true;
     s.score += piece.size;
+
+    // ⚡ 快速放置奖励：**只加分、从不减分**（见文件上方那段约束）
+    const canSpeed = now && !s.daily && !s.challenge;
+    if (canSpeed) {
+      const dt = s.lastPlaceAt ? now - s.lastPlaceAt : Infinity;
+      if (dt <= FAST_MS) {
+        s.speedChain = (s.speedChain || 0) + 1;
+        const b = speedBonus(s.speedChain);
+        s.score += b;
+        events.push({ t: 'speed', chain: s.speedChain, bonus: b });
+      } else s.speedChain = 0;        // ⛔ 归零而已 —— 不扣分、不碰 streak
+      s.lastPlaceAt = now;
+    }
     s.stats.turns++;
     events.push({ t: 'place', slot, r, c, piece: piece.id });
 
@@ -366,6 +398,7 @@
     s.streamIndex = u.streamIndex; s.board = u.board.slice(); s.placed = u.placed.slice();
     s.bonusHands = u.bonusHands | 0;
     s.score = u.score; s.streak = u.streak; s.dryTurns = u.dryTurns;
+    s.lastPlaceAt = u.lastPlaceAt; s.speedChain = u.speedChain;
     s.stats = Object.assign({}, u.stats);
     if (u.crystal) s.crystal = u.crystal.slice();
     if (u.collected) s.collected = Object.assign({}, u.collected);
@@ -378,6 +411,7 @@
   const API = {
     W, H, N, SAVE_VERSION, idx, canPlace, placements, canPlaceAnywhere, fillCount,
     findFullLines, comboTier, streakMult, clearScore, sweepOf,
+    FAST_MS, speedBonus,
     newGame, tray, nextHand, remaining, isOver, place, undo, snapshot,
     newLevel, goalsMet, isUnwinnable, starsFor, levelFill, refreshHand,
     grantBonusHands, BONUS_PIECE,

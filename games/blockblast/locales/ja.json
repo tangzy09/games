@@ -277,6 +277,7 @@
     "stBrilliant": "好手",
     "stLevel": "レベル",
     "chapterN": "第 {n} 章",
-    "blocks": "ブロック"
+    "blocks": "ブロック",
+    "fast": "⚡ スピード！+{n}"
   }
 }

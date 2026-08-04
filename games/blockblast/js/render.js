@@ -1829,16 +1829,43 @@
 
       if (s.won) {
         const stars = Core.starsFor(s);
+        // ⏱ 入场进度（秒）：星星逐颗弹、天使淡入都按它算。没有 wonAt 就当已播完（不卡在半路）。
+        const tIn = G0.wonAt ? (Date.now() - G0.wonAt) / 1000 : 9;
+
+        // 🎀 天使来祝贺 —— 本作 500 张收藏品的世界观，赢的这一屏正该让她出场。
+        // ⚠ 按关号**确定性**挑一张（同一关每次都是同一位；⛔ 每帧 Math.random 会疯狂闪）；
+        //   只从**已解锁**的里挑，素材没加载好就整块不占位（不留空框）。
+        const angN = (G0.wallet && G0.wallet.angels) | 0;
+        const ar = cmp ? 34 : 42;
+        if (angN > 0) {
+          rows.push(row(ar * 2 + (cmp ? 4 : 8), y => {
+            const ai = (s.levelId * 7919) % angN;
+            const acy = y + ar + 2;
+            const pop = Math.min(1, tIn / 0.32);                 // 淡入 + 轻微放大
+            ctx.save();
+            ctx.globalAlpha = pop;
+            drawHalo(cx, acy, ar * (0.9 + 0.1 * pop), G0.animClock);
+            const rr = ar * (0.86 + 0.14 * pop);
+            drawAngel(ai, cx - rr, acy - rr, rr * 2, rr * 2, rr);
+            ctx.restore();
+          }));
+        }
+
         rows.push(row(cmp ? 28 : 34, y =>
           txt(T('blockblast.levelWin'), cx, y + (cmp ? 14 : 17), '#fff', 'bold ' + (cmp ? 21 : 25) + 'px sans-serif')));
-        // 三颗星：拿到的用共享库那颗（带金色柔光 + 极缓的呼吸），没拿到的同一颗压很淡
+        // 三颗星**逐颗弹出**（第 i 颗在 0.18+i*0.22 秒落位）+ 落位后极缓呼吸。
+        // ⚠ 弹出要「冲过头再回弹」，线性放大看着像卡顿。
         const sr = cmp ? 22 : 27;
         rows.push(row(sr * 2 + (cmp ? 6 : 12), y => {
           for (let i = 0; i < 3; i++) {
             const on = i < stars;
-            const k = on ? 1 + 0.045 * Math.sin(G0.animClock * 2.4 + i * 0.7) : 1;
+            const t0 = 0.18 + i * 0.22;
+            const p = on ? Math.max(0, Math.min(1, (tIn - t0) / 0.26)) : 1;
+            if (on && p <= 0) continue;                          // 还没轮到它
+            const back = on && p < 1 ? 1 + Math.sin(p * Math.PI) * 0.34 : 1;
+            const breathe = on && p >= 1 ? 1 + 0.045 * Math.sin(G0.animClock * 2.4 + i * 0.7) : 1;
             if (on) { ctx.save(); ctx.shadowColor = 'rgba(255,214,74,0.75)'; ctx.shadowBlur = 18; }
-            drawStar(cx + (i - 1) * (sr * 2 + 6), y + sr + (cmp ? 3 : 6), sr * k, on);
+            drawStar(cx + (i - 1) * (sr * 2 + 6), y + sr + (cmp ? 3 : 6), sr * back * breathe, on);
             if (on) ctx.restore();
           }
         }));

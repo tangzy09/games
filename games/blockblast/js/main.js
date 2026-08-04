@@ -341,6 +341,10 @@ function consume(events) {
       const cells = [];
       for (const r of e.rows) for (let c = 0; c < 8; c++) cells.push([r, c]);
       for (const c of e.cols) for (let r = 0; r < 8; r++) cells.push([r, c]);
+      // ⚡ 强度随「同时消掉几条」递增（2026-08-04 用户点名）。四个维度一起涨，
+      //   单涨粒子数人眼其实不敏感 —— **环的个数**和**屏震**才是一眼看得出档位差的东西。
+      const LN = Math.min(e.L, 5);                    // 5 条以上按 5 档画（再多也看不出来）
+      const nParts = 3 + LN * 2;                      // 5 / 7 / 9 / 11 / 13
       for (const [r, c] of cells) {
         const { x, y } = Render.cellXY(r, c);
         const col = G.cellColor[Core.idx(r, c)] || Render.COLORS[4];
@@ -348,22 +352,68 @@ function consume(events) {
         const dist = e.rows.length ? Math.abs(c - 3.5) : Math.abs(r - 3.5);
         const delay = dist * 0.02;
         FX.killCell(x, y, Lo.cell, col, delay);
-        FX.burst(x + Lo.cell / 2, y + Lo.cell / 2, col, 4);
+        FX.burst(x + Lo.cell / 2, y + Lo.cell / 2, col, nParts);
         G.cellColor[Core.idx(r, c)] = null;
+      }
+      // 整行/整列先亮一道光带 ⇒ "这条线被我打通了"
+      const beamCol = LN >= 4 ? '#ffe08a' : LN >= 2 ? '#bfe9ff' : '#ffffff';
+      for (const r of e.rows) {
+        const { y } = Render.cellXY(r, 0);
+        FX.beam(Lo.boardX, y, Lo.boardW, Lo.cell, beamCol);
+      }
+      for (const c of e.cols) {
+        const { x } = Render.cellXY(0, c);
+        FX.beam(x, Lo.boardY, Lo.cell, Lo.boardW, beamCol);
+      }
+      // 冲击波环：**几个环** = 档位差最直观的那个维度（L=1 不给，留给 2 条起跳）
+      const cxb = Lo.boardX + Lo.boardW / 2, cyb = Lo.boardY + Lo.boardW / 2;
+      for (let i = 0; i < LN - 1; i++) {
+        FX.ring(cxb, cyb, LN >= 4 ? '#ffd76a' : '#9fe8ff',
+                Lo.boardW * (0.42 + 0.16 * i), i * 0.07, 5 - i * 0.6);
       }
       qdone.push(...Quests.bump(G.profile, qDay, 'lines', e.L));
       const praise = e.L >= 4 ? 'unbelievable' : e.L === 3 ? 'amazing' : e.L === 2 ? 'great' : 'good';
       FX.toast(T('blockblast.praise.' + praise), Lo.cx, Lo.boardY + Lo.boardW / 2,
-        '#ffe08a', 'bold 30px sans-serif', e.L >= 3 ? 1.25 : 1);
-      FX.shake(Math.min(3 + e.L * 3, 14));
+        LN >= 4 ? '#ffd76a' : '#ffe08a', 'bold 30px sans-serif', 1 + (LN - 1) * 0.14);
+      FX.shake(Math.min(4 + LN * 4, 24));          // 6→24：原来封顶 14，四条和两条几乎没差别
       Sound.clear(e.streak, e.L);
-      Haptics.medium ? Haptics.medium() : Haptics.light();
+      if (LN >= 4 && Haptics.heavy) Haptics.heavy();
+      else if (Haptics.medium) Haptics.medium(); else Haptics.light();
+
+    } else if (e.t === 'speed') {
+      // ⚡ 快速放置奖励：**事后惊喜**式呈现（落子后弹一下），
+      //   ⛔ 绝不画倒计时/进度条 —— 那本身就是压力源，即使不惩罚也违背 DESIGN §5
+      //   「块在托盘里等你」。慢的玩家一分不少，只是看不到这个浮字。
+      FX.toast(T('blockblast.fast', { n: e.bonus }),
+        Lo.cx + Lo.boardW * 0.28, Lo.boardY + Lo.boardW + 8,
+        e.chain >= 5 ? '#ffd76a' : '#9fe8ff',
+        'bold ' + (e.chain >= 5 ? 20 : 16) + 'px sans-serif', 1);
 
     } else if (e.t === 'sweep') {
       FX.toast(T('blockblast.sweep.' + e.kind), Lo.cx, Lo.boardY + Lo.boardW / 2 - 50,
         e.kind === 'perfect' ? '#ffffff' : '#7ef2a0',
         'bold ' + (e.kind === 'perfect' ? 40 : 30) + 'px sans-serif', 1.3);
-      FX.shake(e.kind === 'perfect' ? 22 : 12);
+      FX.shake(e.kind === 'perfect' ? 30 : e.kind === 'deep' ? 20 : 14);
+      // ⚡ 清屏特效分三档（2026-08-04 用户点名「清屏特效」）：
+      //   sweep(剩≤8) 2 环 · deep(剩≤4) 3 环+星雨 · perfect(全清) 4 环+星雨+**全屏闪**
+      {
+        const nR = e.kind === 'perfect' ? 4 : e.kind === 'deep' ? 3 : 2;
+        const cxb = Lo.boardX + Lo.boardW / 2, cyb = Lo.boardY + Lo.boardW / 2;
+        for (let i = 0; i < nR; i++) {
+          FX.ring(cxb, cyb, e.kind === 'perfect' ? '#fff5c2' : '#7ef2a0',
+                  Lo.boardW * (0.5 + 0.2 * i), i * 0.08, 6 - i * 0.8);
+        }
+        if (e.kind !== 'sweep') {                  // 星雨：从棋盘四角往中间迸
+          for (let i = 0; i < (e.kind === 'perfect' ? 26 : 14); i++) {
+            const a = (i / 26) * Math.PI * 2;
+            FX.burst(cxb + Math.cos(a) * Lo.boardW * 0.42,
+                     cyb + Math.sin(a) * Lo.boardW * 0.42,
+                     e.kind === 'perfect' ? '#ffe08a' : '#7ef2a0', 3);
+          }
+        }
+        // ⛔ 全屏闪只留给 PERFECT —— 到处用就不值钱了，而且晃眼
+        if (e.kind === 'perfect') FX.flash(0.55);
+      }
       Sound.sweep(e.kind);
       qdone.push(...Quests.bump(G.profile, qDay, 'sweep', 1));
       // 最爽的时刻要有触觉（DESIGN §8：PERFECT = 最高音效 + 长震动 —— 之前漏了）
@@ -382,6 +432,16 @@ function consume(events) {
       Sound.collect();                          // 水晶 = 玻璃质感，和 SWEEP 分得开
 
     } else if (e.t === 'win') {
+      // 🎉 过关画面的入场动画要有个**起点**（星星逐颗弹、天使淡入都按它算）
+      G.wonAt = Date.now();
+      // 🎊 彩色纸屑：从卡片上方两侧往下撒 —— 这是「可爱」最省事也最有效的一笔
+      {
+        const CONF = ['#ffd76a', '#ff9ecb', '#9fe8ff', '#a7f3a0', '#c4b5fd', '#fff5c2'];
+        for (let i = 0; i < 46; i++) {
+          const x = Lo.cx + (i % 2 ? 1 : -1) * (30 + (i * 37) % 140);
+          FX.burst(x, GameGlobal.safeTop + 40 + (i * 13) % 60, CONF[i % CONF.length], 2);
+        }
+      }
       const prev = G.progress[s.levelId] || 0;
       if (e.stars > prev) { G.progress[s.levelId] = e.stars; saveProgress(); }
       // 累计统计 → 成就（星数按「每关最好成绩」求和，重打不会灌水）
@@ -827,7 +887,7 @@ function onPlace(slot, r, c) {
   // 教练：评价和复盘都要**落子前**的局面 ⇒ 先拍快照、先判分，再真的落子
   const snap = Coach.clone(G.s);
   const verdict = Coach.judge(G.s, { slot, r, c });
-  const evs = Core.place(G.s, slot, r, c);
+  const evs = Core.place(G.s, slot, r, c, Date.now());   // ⚡ 时间从外部传入 —— core 仍是纯函数
   if (evs) {
     Shop.onTurn(G.items);                     // 每落一子给「换一手」充能
     noteCoach(snap, { slot, r, c }, verdict);
