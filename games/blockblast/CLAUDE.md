@@ -4,19 +4,23 @@
 
 **规格是权威**：`DESIGN.md`（改核心前必查；数值全部由 `tools/sim.js` 跑模拟校准，不是拍脑袋）。
 
-## 当前状态（2026-08-02）
+## 当前状态（2026-08-04）
 
-**1.0 已上架（`READY_FOR_SALE`，7-13 过审）。** 线上 web：<https://blocks.ai-speeds.com>
-（**领先 iOS 两个版本**：含 1.0.1 全部改良 + 1.0.2 的教练/激励八位/300 关/送方块/音效重做/画像去重）
+**iOS 1.0 与 1.0.1 均已上架 `READY_FOR_SALE`**（1.0：7-13 过审；1.0.1：已过审上线，build#2）。
+⚠ 本文件曾长期写着「1.0.1 已提交审核 WAITING_FOR_REVIEW」——**那是过时的**。
+**改状态前先查真值**（`node games/blockblast/tools/asc-status.cjs` / `node tools/asc-build.cjs 6790598746`），
+别照抄文档 —— solitaire 那边同一个坑刚踩过一次。
 
-**iOS 待出包**：`package.json` 还停在 1.0.1 ⇒ 出包前先 bump 到 **1.0.2**（与 ASC 版本一字不差，否则 build 挂不上）。
-⛔ 出包/提交必经用户批准。
+**web 领先 iOS 一整批**：线上 <https://blocks.ai-speeds.com> 含 1.0.1 全部内容 +
+教练/激励八位/300 关/送方块/音效重做/画像去重 + **2026-08-04 的爽感批**（见下）。
+**iOS 下个包 = 1.0.2**：`package.json` 还停在 1.0.1 ⇒ 出包前先 bump（与 ASC 版本一字不差，
+否则 build 挂不上）。⛔ 出包/提交必经用户批准。
 
 - **留存批（2026-07-31）**：①**每日任务**（`js/quests.js` 纯函数：dayNo 确定性生成 3 个轻任务，进度挂 consume 事件流，完成自动发 +30🪙+1👼，profile 只存进度）；②**连续奖励阶梯** 3/7/14/30 天（`Daily.streakReward`，断签清零重来）+ **金币补签**（恰好漏 1 天可花 100 币接回，`repairStreak`，结算页按钮）；③**统计页**（14 项终身数据；`achievements.settle` 新增 bestStreak/sweepsTotal 累计）；④**每日 Wordle 式分享**（SHARE_DAILY，日期+分数+同种子链接）；⑤**菜单目标提示条**（宝箱>任务>临近皮肤>临近连续奖励）；⑥**推送提醒** `js/notify.js`（19:00 每日 + 21:30 streak 保护、玩过即撤、默认关、开关在设置）；⑦**求好评** `js/rate.js`（幸福时刻=三星通关/破纪录，15 盘门槛+90 天冷却+3 次/年，调用即记账）；⑧**反馈** `js/feedback.js`（DOM 底部表单 → feedback.ai-speeds.com 共享 hub，离线入队 boot 补发）。⑥⑦要新二进制；⚠ 新依赖 local-notifications@^6.1 / in-app-review@^6 首次云端构建盯 npm/pod。
 - **生成美术（2026-07-31，本机 Flux 管线首批 9 张）**：`assets/art/`——5 水晶（cry_*）+ 3 章徽（ch_candy/ocean/forest）+ 宝箱（chest），comfyui-flux-local 管线（schnell Q4 生图 → InSPyReNet 抠图 → 512webp）。接入走 engine `makeArt('art',[ids])` + `drawCrystalArt`（**缺图回退矢量 drawCrystal/emoji，零改码换图**）；用在目标条/图鉴/章徽（关卡 HUD）/宝箱条，**棋盘小格仍用矢量**（小尺寸矢量更脆）。⚠ 生图坑：prompt 带「badge/emblem」会诱发英文字（ch_candy 首版被画上 CHAPTER），重生成需去措辞+强化 no text。
 - **天使榜（2026-07-31，DESIGN §7 幽灵追赶的落地形态）**：`js/ghosts.js` 20 个预设分数角色（200→20000，头像复用天使画廊图）。⛔ §7 红线照守：**明确是游戏角色，文案绝不称「玩家」**（单测钉死名字不含 player/玩家）。进度零存档（由最高分推导 `beatenCount`）；局中超越即 toast、结算页对比行（x/20 + 下一个差多少，点进全榜）、目标条挂「差 ≤600 分」的追赶目标。
 - **广告模型（2026-07-31 定稿，取代此前所有插屏规则）**：**前 50 盘零插屏**（明面卖点，商店页 adPolicy 文案明示）→ 之后**每 10 盘至多 1 个**，只在通关结算 / 无尽「再来一局」转场，≥2min 间隔；失败/局中/每日永远零插屏。唯一闸门 `Shop.canShowInterstitial` + `notePlayed/noteAdShown`（盘数 = 关卡赢/输、无尽、每日、挑战都计）。**插屏是姿态不是收入，收入主力 = 自愿激励视频（×2/换手/撤销/领币）。**
-## ✅ 1.0.1 已提交审核（2026-08-02，`WAITING_FOR_REVIEW`，过审自动上架）
+## ✅ 1.0.1 已过审上线（2026-08-02 提交 → 已 `READY_FOR_SALE`）
 
 build#2（marketing 1.0.1）已挂 · 39 语商店页 · 624 张截图 · 英文预览片 · 全部回读校验过。
 
@@ -249,6 +253,8 @@ npm run test:block        # 单测（pieces/dealer/core/levels/meta/shop/coach�
 npm run test:block:e2e    # 五个 E2E（P1 玩法 / P2 关卡 / P3 元层 / P4 广告红线 / rewards 激励八位）
 npm run test:block:home   # 🏠 主界面（启动落点 / 智能续继 / 入口角标 / 刘海）
 node games/blockblast/tools/audit-sfx.cjs   # 🔊 音效：渲染 16 个 wav 到 C:/tmp/blockblast/sfx（含 all.wav）+ 峰值/拖尾断言
+node games/blockblast/tools/shot-clearfx.cjs # ⚡ 消行特效梯度（五档各截一张，改 fx/特效必跑）
+node games/blockblast/tools/shot-ui.cjs      # 🎨 主界面/地图/结算 × 两种屏（改 UI 必跑）
 npm run sim:block         # 手感回归基线：mid 中位落子 ~143 / 中位分 ~2971 / SWEEP 局 ~23.7%
 npm run verify:levels     # 300 关通关率门禁（<80% 不许进包）；加 --write 标定 par
 npm run fix:levels        # ⭐ 生成 300 关 + 自动把不达标的关降难度重生成，收敛后自动标定 par
