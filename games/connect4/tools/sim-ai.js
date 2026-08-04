@@ -2,11 +2,12 @@
 // sim-ai.js —— ⭐ 20 级阶梯的**蒙特卡洛校准台**（DESIGN §3.1：`p` 由本脚本校准到目标胜率，
 // 不是调参数试手感）。`npm run sim:c4`
 //
-// 四种模式，一条命令：
+// 五种模式，一条命令：
 //   --mode=ladder   （默认）参考玩家 vs 每一级，出「胜/和/负 + 当前 p」整张表  ⇒ **回归基线**
 //   --mode=sweep    固定一级、扫一串 p **或 blunder**（`--knob=`），出响应曲线       ⇒ **校准的依据**
 //   --mode=weights  第 1-5 级中路权重表的复算（等差 vs 出厂几何，相邻级与跨度）⇒ **兑现 ai.js 里那句欠账**
 //   --mode=handicap ⭐ 让子（DESIGN §6.7）真的改变胜负分布吗                  ⇒ **P2c Task 1 的验收**
+//   --mode=kids     ⭐ 儿童档（DESIGN §6.7）比第 1 级更弱吗，而且仍然不是「坏了」  ⇒ **P2c Task 2 的验收**
 //
 // ⭐⭐ 为什么让子要**长在这个文件里**而不是另开一个脚本：本文件抬头那条「参考玩家 = 尺子」——
 //   量让子必须用**同一把尺子**，否则「让 2 子涨了多少」这句话没有可比的基线。⛔ 别为了「干净」
@@ -180,7 +181,7 @@ const MOVE_SALT = 7919;
  *   · `feeds`    = ⭐ **实际送头**的手（这一手让对手下一手就连四）。轻松档的明面指标；
  *     ⛔ 求解器档必须恒为 0（DESIGN §3.1 的按档分流，测试里是零容忍断言）。
  */
-function playVsRef(tier, gameIdx, seedBase, solid, pre, aiFirst) {
+function playVsRef(tier, gameIdx, seedBase, solid, pre, aiFirst, refFirstAlways) {
   // ⭐ 让子局里**强的一方（AI）恒先手**，⛔ 不再先后手各半 —— 与产品的规则逐字一致
   //   （state.js 的 newGame：`if (handicap > 0) humanFirst = false`）。弱方既拿预置子又先走
   //   是双重优势，量出来的数字会好看但那不是这个产品。
@@ -189,7 +190,12 @@ function playVsRef(tier, gameIdx, seedBase, solid, pre, aiFirst) {
   const hcap = (pre && pre.length) ? pre : null;
   // ⚠ `aiFirst` 是**对照组**用的（让 0 子 + AI 恒先手）：少了它就没法回答「涨的到底是
   //   让子还是先手」，而那正是这次验收唯一要回答的事。
-  const refFirst = (hcap || aiFirst) ? false : (gameIdx % 2) === 0;   // ⭐ 无让子时先后手各半
+  // ⭐⭐ `refFirstAlways` = **儿童档**（P2c T2）：孩子恒先手，**连让子局也不让给强方** ——
+  //   与产品的规则逐字一致（state.js 的 newGame：`if (kids) humanFirst = true` 排在
+  //   `if (handicap > 0) humanFirst = false` **之后**）。⛔ 少了这一路，儿童档 + 让子会被
+  //   量成「AI 先手」那一格 —— 数字全对、量的却不是这个产品，且没有一处会报错。
+  const refFirst = refFirstAlways ? true
+    : ((hcap || aiFirst) ? false : (gameIdx % 2) === 0);   // ⭐ 无让子时先后手各半
   const aiSeed = (seedBase + gameIdx * 104729) | 0;
   const refSeed = (seedBase ^ 0x5bf03635) + gameIdx * 40507;
   // ⭐ 预置子归**参考玩家**（= 弱方）。摆子走产品那一份实现（⛔ 别在这里自己写重力）。
@@ -259,7 +265,7 @@ function runJob(job) {
   for (let i = job.from; i < job.to; i++) {
     let s;
     if (job.kind === 'ref') {
-      const r = playVsRef(job.tier, i, job.seedBase, job.solid, job.pre, job.aiFirst);
+      const r = playVsRef(job.tier, i, job.seedBase, job.solid, job.pre, job.aiFirst, job.refFirst);
       s = r.s; mistakes += r.mistakes; blunders += r.blunders;
       feeds += r.feeds; aiMoves += r.aiMoves;
       if (r.blunders) blunderGames++;
@@ -816,9 +822,145 @@ function handicapGate(o, rows) {
   return { ok: true, fails: [] };
 }
 
+// ════════ ⭐⭐ 儿童档：它**真的**比第 1 级更弱吗，还是已经「坏了」（DESIGN §6.7 · P2c Task 2）════════
+//
+// ⛔⛔ 这一节存在的全部理由和让子那节同源：**「界面上多了一个儿童档按钮」不是验收。**
+//   「AI 明显放水」是一个**胜率**上的断言，只有蒙特卡洛答得了；而「放水」与「坏了」之间
+//   那条线（DESIGN §3.1 护栏②）也只有数字划得出来。
+//
+// ⭐ 五个对照档，缺一个结论就说不干净：
+//   · `t1-alt`  第 1 级 · 让0子 · **交替先手** —— 与 DESIGN §3.1 那张阶梯表**同口径**的基线，
+//                                                「儿童档比第 1 级更弱」比的就是它
+//   · `kids0`   儿童档 · 让0子（**孩子恒先手**）—— ⭐ 把儿童档自己那个旋钮**单独**量出来：
+//                                                这一格与 t1-alt 的差**只有先手**这一件事
+//   · `kids1`   儿童档 · 让1子（孩子恒先手）—— **产品默认**（C4State.KIDS_HANDICAP）
+//   · `kids2`   儿童档 · 让2子（孩子恒先手）—— 「最弱档 + 最大让子」那个角落
+//   · `h1-ai`   让1子 · **AI 先手**（T1 那一档）—— 与 kids1 只差先手 ⇒ 两个旋钮各值多少一目了然
+//
+// ⚠ 儿童档恒第 1 级（C4State.KIDS_TIER），但 `--tiers=` 仍然放行：把同一组对照跑在第 3/5 级上
+//   能看出「先手 + 让子」这两个旋钮的收益随对手变强怎么衰减 —— ⛔ 但产品只认第 1 级那一行。
+const KIDS_CASES = [
+  { id: 'alt',   label: '让0子·交替先手（本级阶梯基线）', hc: 0, refFirst: false },
+  { id: 'kids0', label: '儿童档·让0子（孩子先手）', hc: 0, refFirst: true },
+  { id: 'kids1', label: '儿童档·让1子（孩子先手）', hc: 1, refFirst: true },
+  { id: 'kids2', label: '儿童档·让2子（孩子先手）', hc: 2, refFirst: true },
+  { id: 'h1-ai', label: '让1子·AI先手（T1 口径）', hc: 1, refFirst: false, aiFirst: true }
+];
+// ⭐⭐ **锚点是「第 1 级 · 让0子 · 交替先手」，固定不动**（⛔ 不随 --tiers 变）：
+//   产品的断言是「儿童档比**第 1 级**更弱」，而 `--tiers=1-5` 时每一级都有自己的阶梯基线 ——
+//   拿本级基线当锚会让第 3 级的儿童档去和「第 3 级」比，**表头写着第 1 级、量的是第 3 级**，
+//   数字全对、结论全错，且没有一处会报错（同 modeHandicap 那条「标签由实际格子现算」的教训）。
+const KIDS_ANCHOR_TIER = 1;
+/** ⭐ 目标**定在校准之前**（理由三条写在 state.js 的 KIDS_HANDICAP 上方）：
+ *  儿童档开箱在 basic 上 ≥ .93，且两把尺子都 < .99、绝不 1.000。 */
+const KIDS_TARGET_BASIC = 0.93;
+const KIDS_CEILING = 0.99;
+
+async function modeKids(o) {
+  const tiers = o.tiers || [St.KIDS_TIER];
+  const cases = KIDS_CASES.map(c => Object.assign({}, c, { pre: St.HANDICAP_COLS[c.hc].slice() }));
+  const jobs = [];
+  const mk = (id, t, c) => ({
+    id: id, kind: 'ref', tier: t, from: 0, to: o.games,
+    seedBase: o.seedBase, solid: o.ref === 'solid',
+    pre: c.pre, aiFirst: !!c.aiFirst, refFirst: !!c.refFirst
+  });
+  // 固定锚点（第 1 级 · 让0子 · 交替先手）—— ⚠ 即使 --tiers 里没有第 1 级也要跑
+  jobs.push(mk('anchor', KIDS_ANCHOR_TIER, cases[0]));
+  for (const t of tiers) {
+    for (const c of cases) jobs.push(mk('t' + t + '|' + c.id, t, c));
+  }
+  const t0 = Date.now();
+  const acc = collect(await runParallel(jobs, o), jobs.map(j => j.id));
+  const wall = (Date.now() - t0) / 1000;
+
+  const base = acc['anchor'];
+  console.log('\n⭐⭐ 儿童档（DESIGN §6.7）· 参考玩家[' + o.ref + '] · ' + o.games + ' 局/格 · seed ' + o.seedBase);
+  console.log('   ⚠ 儿童档里 **孩子恒先手**（连让子局也不让给强方）—— 与产品的 newGame 逐字一致。');
+  console.log('   ⚠ 区间是 95% CI，标准误由**实测方差**算。');
+  console.log('   ⭐ 锚点 = **第 ' + KIDS_ANCHOR_TIER + ' 级 · 让0子 · 交替先手** = '
+    + base.score.toFixed(3) + '（固定，⛔ 不随 --tiers 变）\n');
+  console.log('级别  对照档                            参考玩家 胜/和/负        得分率   95% CI              vs 第1级锚点');
+  const rows = [];
+  for (const t of tiers) {
+    for (const c of cases) {
+      const a = acc['t' + t + '|' + c.id];
+      const lo = a.score - Z95 * a.se, hi = a.score + Z95 * a.se;
+      let delta = '';
+      if (!(t === KIDS_ANCHOR_TIER && c.id === 'alt')) {
+        const d = a.score - base.score;
+        const sed = Math.sqrt(a.se * a.se + base.se * base.se);
+        const sig = Math.abs(d) > Z95 * sed;
+        delta = (d >= 0 ? '+' : '') + d.toFixed(3) + ' ±' + (Z95 * sed).toFixed(3)
+          + (sig ? (d > 0 ? '  ⭐显著更弱' : '  ⚠显著更强') : '  （不显著）');
+      }
+      console.log(String(t).padStart(3) + '   ' + c.label.padEnd(32)
+        + (a.wins + '/' + a.draws + '/' + a.losses).padEnd(20)
+        + a.score.toFixed(3)
+        + ('[' + lo.toFixed(3) + ', ' + hi.toFixed(3) + ']').padStart(20) + '  ' + delta);
+      rows.push({ tier: t, id: c.id, score: a.score, se: a.se, n: a.n, losses: a.losses,
+                  base: base.score, baseSe: base.se });
+    }
+    console.log('');
+  }
+  console.log('（' + wall.toFixed(1) + 's · ' + o.workers + ' worker）');
+  return { gate: kidsGate(o, rows) };
+}
+
+/**
+ * ⭐ 退出码门禁 —— 三条，各自独立可失败：
+ *   ① **比第 1 级更弱**：产品默认那一格（kids{KIDS_HANDICAP}）相对 `t1-alt` 的差值 95% CI
+ *      不跨 0 且为正。⛔ 不是「点估计涨了」。
+ *   ② ⭐⭐ **仍然不是「坏了」**（DESIGN §3.1 护栏②）：得分率必须 < KIDS_CEILING，
+ *      **且真的输过至少一局**。「它必须仍然偶尔赢」是产品要求，不是统计洁癖 ——
+ *      一个从不赢的对手，孩子三局之内就会发现，那比赢不了更伤。
+ *   ③ **目标**（只在 basic 尺子上裁决，见 KIDS_TARGET_BASIC）：≥ .93。
+ * ⛔ 红了别改判据也别改目标 —— 先确认是不是儿童档的两个旋钮（先手 / 让子）真的接上了。
+ */
+function kidsGate(o, rows) {
+  const fails = [];
+  if (o.games < 400) {
+    console.log('\n⚠ 门禁跳过：--games=' + o.games + ' < 400，判不动');
+    return { ok: true, fails: [] };
+  }
+  const defId = 'kids' + St.KIDS_HANDICAP;
+  for (const r of rows) {
+    if (r.tier !== St.KIDS_TIER) continue;         // 产品只认第 1 级那一行
+    if (r.id !== defId) continue;
+    const d = r.score - r.base;
+    const half = Z95 * Math.sqrt(r.se * r.se + r.baseSe * r.baseSe);
+    if (!(d - half > 0)) {
+      fails.push('① 儿童档默认档（' + defId + '）得分率 ' + r.score.toFixed(3) + ' vs 第 1 级基线 '
+        + r.base.toFixed(3) + '，差 ' + d.toFixed(3) + ' ±' + half.toFixed(3)
+        + ' ⇒ **没有显著更弱**（儿童档的两个旋钮没接上，或收益小到孩子感觉不到）');
+    }
+    if (!(r.score < KIDS_CEILING) || !(r.losses > 0)) {
+      fails.push('② ⭐ 儿童档得分率 ' + r.score.toFixed(3) + '（输 ' + r.losses + ' 局 / ' + r.n
+        + '）⇒ 越过 ' + KIDS_CEILING + ' 或一局都没输过 —— 那不是「放水」是「坏了」（护栏②）');
+    }
+    if (o.ref === 'basic' && !(r.score >= KIDS_TARGET_BASIC)) {
+      fails.push('③ 儿童档在 basic 上只有 ' + r.score.toFixed(3) + '，够不着**校准前就定下**的目标 '
+        + KIDS_TARGET_BASIC + ' ⇒ ⛔ 别改目标，改 C4State.KIDS_HANDICAP（或如实报告够不着）');
+    }
+  }
+  if (!rows.some(r => r.tier === St.KIDS_TIER && r.id === defId)) {
+    console.log('\n⚠ 门禁跳过：这一轮没跑第 ' + St.KIDS_TIER + ' 级的 ' + defId + ' 那一格');
+    return { ok: true, fails: [] };
+  }
+  if (fails.length) {
+    console.log('\n⛔ 儿童档门禁未通过（' + fails.length + ' 条）：');
+    for (const f of fails) console.log('   · ' + f);
+    return { ok: false, fails: fails };
+  }
+  console.log('\n✅ 儿童档门禁通过：① 显著弱于第 1 级 · ② 仍然会赢（不是「坏了」）· ③ 打到了校准前定下的目标');
+  return { ok: true, fails: [] };
+}
+
 async function main() {
   const o = parseArgs(process.argv.slice(2));
   if (o.mode === 'weights') o.needBook = false;
+  // ⚠ 儿童档恒第 1 级（轻松档，一次求解器都不调）⇒ 不必有开局库。⛔ 同 handicap，硬传求解器档进来仍要真。
+  if (o.mode === 'kids') o.needBook = (o.tiers || [St.KIDS_TIER]).some(t => t >= AI.SOLVER_FROM);
   // ⚠ 让子只跑轻松档（1-5 级，一次求解器都不调）⇒ 不必有开局库，一局几十微秒。
   //   ⛔ 但若有人硬传求解器档进来，needBook 仍要为真，否则它会「看起来挂住」而不是当场炸。
   if (o.mode === 'handicap') o.needBook = (o.tiers || [1, 3, 5]).some(t => t >= AI.SOLVER_FROM);
@@ -828,7 +970,8 @@ async function main() {
   else if (o.mode === 'sweep') { await modeSweep(o); return null; }
   else if (o.mode === 'weights') { await modeWeights(o); return null; }
   else if (o.mode === 'handicap') return (await modeHandicap(o)).gate;
-  else throw new Error('不认识的 --mode=' + o.mode + '（ladder | sweep | weights | handicap）');
+  else if (o.mode === 'kids') return (await modeKids(o)).gate;
+  else throw new Error('不认识的 --mode=' + o.mode + '（ladder | sweep | weights | handicap | kids）');
 }
 
 if (isMainThread && require.main === module) {

@@ -35,7 +35,7 @@ const KEY = 'c4_settings';
   assert.strictEqual(S.defaults().threatHints, true);
   assert.notStrictEqual(S.defaults(), S.defaults(), 'defaults() 必须每次给新对象（⛔ 别共享常量）');
   assert.ok(Object.isFrozen(S.DEFAULTS), 'DEFAULTS 必须冻结');
-  assert.deepStrictEqual(S.KEYS.slice(), ['threatHints', 'reduceMotion', 'comfort', 'handicap']);
+  assert.deepStrictEqual(S.KEYS.slice(), ['threatHints', 'reduceMotion', 'comfort', 'handicap', 'kids']);
   console.log('test-settings: 默认 threatHints=true（新手默认开）OK');
 }
 
@@ -69,6 +69,29 @@ const KEY = 'c4_settings';
       '⭐ handicap=' + v + ' 没活过一次刷新（十有八九是字段没进 defaults）');
   }
   console.log('test-settings: ⭐ 让子档位（0/1/2 枚举 + cycle + 脏值退默认 + 持久化）OK');
+}
+
+// ─────────── ①d ⭐ P2c Task 2：儿童档（DESIGN §6.7）───────────
+{
+  assert.strictEqual(S.DEFAULTS.kids, false,
+    '儿童档默认关：它改的是「这一局怎么开」（锁档位 + 孩子恒先手），⛔ 不许替没提要求的人开');
+  assert.strictEqual(typeof S.DEFAULTS.kids, 'boolean',
+    '儿童档是**布尔**不是三态：要么是儿童档、要么不是，中间没有「跟随系统」');
+  assert.throws(() => S.set('kids', 'yes'), /类型/, '字符串必须抛（存进去之后到处是隐式转换）');
+  assert.throws(() => S.set('kids', 1), /类型/);
+  // ⭐⭐ 持久化：只走**非默认**方向（true）—— 写 true → 刷新 → 读回仍是 true。
+  //   ⛔ 别反过来断言「刷新后仍是 false」：那在字段根本没进 defaults 时照样绿。
+  {
+    const store = {};
+    S.attach(fakeBackend(store), KEY);
+    assert.strictEqual(S.toggle('kids'), true);
+    S.attach(fakeBackend(store), KEY);                  // 「刷新页面」
+    assert.strictEqual(S.get('kids'), true,
+      '⭐ kids=true 没活过一次刷新（十有八九是字段没进 defaults）');
+  }
+  assert.strictEqual(S.parse('{"kids":true}').kids, true, '合法值必须原样读回');
+  assert.strictEqual(S.parse('{"kids":"true"}').kids, false, '存档里的脏类型 ⇒ 退回默认');
+  console.log('test-settings: ⭐ 儿童档（默认关 + 布尔校验 + 持久化）OK');
 }
 
 // ─────────── ①b ⭐ P2b Task 6：减弱动态（三态）+ 舒适模式（DESIGN §6.8）───────────

@@ -598,15 +598,29 @@ const DRAW_MOVES = [3, 5, 5, 1, 6, 3, 2, 5, 1, 3, 5, 4, 4, 4, 2, 6, 5, 4, 6, 3, 
     '⭐ 存档里存的必须是**格子**（列号），⛔ 不是档位号 —— 档位表一调，老档就会摆出另一个盘');
 
   // ⛔ SAVE_VERSION 必须已经 bump（G 的形状变了）
-  assert.strictEqual(St.SAVE_VERSION, 2, 'G 加了 pre 字段 ⇒ SAVE_VERSION 必须 bump（root 铁律）');
-  // ⛔ v1 的老档一律丢弃、绝不迁移（⚠ 它长得完全合法，只是少了 pre）
+  //   ⚠ 判据写成 **≥ 3** 而不是「等于某个数」：P2c T1 加了 pre（1→2）、T2 加了 kids（2→3），
+  //     再加字段还会涨 —— 钉死一个数只会让下一个人来改这一行，那条断言就没在守任何东西了。
+  assert.ok(St.SAVE_VERSION >= 3,
+    'G 加了 pre / kids 字段 ⇒ SAVE_VERSION 必须 bump（root 铁律），现在是 ' + St.SAVE_VERSION);
+  // ⛔ v1 / v2 的老档一律丢弃、绝不迁移（⚠ 它们长得完全合法，只是少了 pre / kids）
   const v1 = { v: 1, mode: 'human', tier: null, gameNo: 0, humanFirst: true,
                seed: 1, paramsHash: AI.paramsDigest().hash, moves: [3, 3] };
   assert.strictEqual(St.deserialize(JSON.stringify(v1)), null,
     '⛔ v1 老档必须丢弃（⛔ 不迁移：少了 pre 的档若被宽容读成 pre:[]，让子局会静默变成普通局）');
-  // ⚠ 就算把版本号改成 2、pre 仍然缺 ⇒ 照样丢弃（与 human 局的 tier 同一条纪律）
-  assert.strictEqual(St.deserialize(JSON.stringify({ ...v1, v: 2 })), null,
+  assert.strictEqual(St.deserialize(JSON.stringify({ ...v1, v: 2, pre: [3, 3] })), null,
+    '⛔ v2 老档必须丢弃（少了 kids 的档若被读成 false，一局儿童档会静默变成普通局）');
+  // ⚠⚠ 「pre 必须在场」这条要用**当前**版本号造样本 —— ⛔ 别用老版本号：那样它是被上面的
+  //   版本检查拦下的，这条断言就空转了（本仓「加了断言但抓不住」的标准形状；改 SAVE_VERSION
+  //   时这里最容易变成恒绿）。
+  assert.strictEqual(
+    St.deserialize(JSON.stringify({ ...v1, v: St.SAVE_VERSION, kids: false })), null,
     'pre 字段**必须在场**（serialize 永远写得出它 ⇒ 缺了说明这份档不是我们写的）');
+  assert.strictEqual(
+    St.deserialize(JSON.stringify({ ...v1, v: St.SAVE_VERSION, pre: [] })), null,
+    'kids 字段**必须在场**（同上）');
+  // ⭐ 反向对照：**两个字段都在**的当前版本档必须读得回（⛔ 少了它，上面四条可能只是「什么都拒收」）
+  assert.ok(St.deserialize(JSON.stringify({ ...v1, v: St.SAVE_VERSION, pre: [], kids: false })),
+    '反向对照：字段齐全的当前版本档必须读得回');
   console.log('test-state: ⭐ 让子局存档往返 · 存格子不存档位 · v1 老档丢弃 OK');
 }
 

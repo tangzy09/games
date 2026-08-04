@@ -296,10 +296,17 @@ function serve() {
         '⑥ ⭐⭐ 且 **不等于** 只拿手数列表算出来的第 ' + wantMoves
         + ' 列 —— 这一条抓的正是「传 g.moves 而不是盘面」那个零报错的 bug');
     } else {
+      // ⚠⚠ **这一局还在进行中**（我们只看了 AI 的第一手）⇒ ⛔ 不能点［再来一局］：
+      //   那颗按钮只在**结算屏**注册热区，PLAYING 时 `pt('AGAIN')` 会当场抛
+      //   「找不到热区 action=AGAIN」。回菜单重开才是「换一个 seed」的合法走法
+      //   （autoSeed 每开一局 +1）。
+      //   ⚠ 这条重试路径**此前一直靠运气没走到**：seed 来自 Date.now，第一次尝试通常就是
+      //     可区分的，于是这个 bug 潜伏着；换一个时刻跑就当场炸（本次 P2c T2 收尾时实锤）。
       await page.waitForFunction(() => C4Fx.done(), null, { timeout: 6000 }).catch(() => {});
-      await click('AGAIN');
-      await page.waitForFunction(() => G.phase === 'PLAYING' && G.g.moves.length === 0 || G.g.moves.length >= 1,
-        null, { timeout: 6000 });
+      await click('HOME');
+      await page.waitForFunction(() => G.phase === 'HOME', null, { timeout: 4000 });
+      await click('PLAY_AI');
+      await page.waitForFunction(() => G.phase === 'PLAYING' && G.g.mode === 'ai', null, { timeout: 6000 });
     }
   }
   ok(disc === 1, '⑥ 找到了 1 个**可区分**的局面（试了 ' + checked + ' 局；两种算法答案相同的局面证明不了任何事）');

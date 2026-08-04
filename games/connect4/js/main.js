@@ -429,10 +429,47 @@ function effHandicap(mode, tier) {
   return C4State.handicapAllowed(mode, tier) ? n : 0;
 }
 
+// ════════ ⭐⭐ 儿童档（P2c Task 2 · DESIGN §6.7）════════
+// ⚠⚠ **两个不同的问题，别混用**（混用的表现是「一局打到一半家长翻了设置，这一局的文案
+//   当场跳成另一套，而规则并没有变」——画面正常、零报错）：
+//   · `kidsPref()` = 设置里选的，回答「**下一局**怎么开」（HOME 上画哪个按钮高亮）；
+//   · `kidsGame()` = `C4State.kidsOf(G.g)`，回答「**这一局**是不是儿童档」（局中/结算的
+//     文案、庆祝、结算版面全读它）。⭐ 单一真值在 G 里，与 seed/tier/pre 同一条纪律。
+function kidsPref() { return C4Settings.get('kids'); }
+function kidsGame() { return C4State.kidsOf(G.g); }
+
+/**
+ * ⭐ 打开儿童档：**一次性套用预设**（⛔ 不是锁）。
+ * 三项都是真的 `C4Settings.set` + 立刻落盘，家长事后**每一项都改得回**：
+ *   · 难度 → 儿童档那一级（C4State.KIDS_TIER，量出来的）
+ *   · 让子 → 至少 C4State.KIDS_HANDICAP 枚（孩子长大了就这么退下来：让2 → 让1 → 让0 → 轻松档）
+ *   · ⭐ 舒适模式 → 开（DESIGN §6.7 的「更大的字与按钮」）
+ * ⭐⭐ **舒适模式是「联动一次」而不是「强制」**，这是本 task 的第二个设计判断：
+ *   · 强制（儿童档期间锁死）⇒ 家长点得动却改不掉 —— 而这一家人里可能正好有个视力好、
+ *     嫌字大占地方的哥哥姐姐在同一台设备上玩，锁死就是把 §6.8 的开关废掉；
+ *   · 完全不联动 ⇒ 家长得自己去第三行设置里翻出来 —— 那条「更大的字与按钮」等于没做。
+ *   ⇒ 联动一次：打开的那一下把它打开，之后**再也不管它**（⛔ 别在每次开局时重新套用，
+ *     那就是「改不掉」的另一种写法）。
+ * ⚠ 只在 off → on 那一下调（dispatch 里判的）：已经在儿童档里再点一下不该把家长
+ *   刚调回去的让子又推上来。
+ */
+function applyKidsPreset() {
+  C4Settings.set('kids', true);
+  G.tier = C4State.KIDS_TIER;
+  if (C4Settings.get('handicap') < C4State.KIDS_HANDICAP) {
+    C4Settings.set('handicap', C4State.KIDS_HANDICAP);
+  }
+  if (!C4Settings.get('comfort')) C4Settings.set('comfort', true);
+}
+
 function startGame(mode, tier) {
   G.aiSeq++; setThinking(false); fxStop(); resetFork();
   G.result = null; G.hoverCol = -1; G.holdCol = -1; G.notice = '';
-  const opts = { mode: mode, gameNo: G.gameNo, handicap: effHandicap(mode, tier) };
+  // ⭐ 儿童档只对人机局成立（双人局那一侧的答案是让子，T1）。⚠ 档位由 state.js 说了算，
+  //   ⛔ 这里不许自己写 `tier = 1`：两份判据漂了就会出现「界面写儿童档、开的是别的级」。
+  const kids = mode === 'ai' && kidsPref();
+  if (kids) tier = C4State.KIDS_TIER;
+  const opts = { mode: mode, gameNo: G.gameNo, handicap: effHandicap(mode, tier), kids: kids };
   // ⛔ 别在这里算 humanFirst：交替先手 +「顶档必须玩家先手」+「让子局强方先手」三条都写在
   //    state.js 的 newGame 里（只写一处才守得住），这里传了就等于把那三条兜底覆盖掉。
   if (mode === 'ai') opts.tier = tier;
@@ -653,7 +690,13 @@ function dispatch(action, data) {
 
     case 'PLAY_AI':    G.gameNo = 0; startGame('ai', G.tier); return;
     case 'PLAY_HUMAN': G.gameNo = 0; startGame('human'); return;
-    case 'TIER':       G.tier = data.tier; renderAll(); return;
+    // ⭐ 选了别的档 ⇒ 儿童档**退出**（四选一，见 TIER_PRESETS 上方那段）。
+    //   ⚠ 让子与舒适模式**保持不动**：那是家长已经改过的东西，⛔ 退出儿童档不该把它们
+    //     悄悄回滚（回滚的表现是「我明明设了让 2 子，换个难度就没了」，零报错）。
+    case 'TIER':       if (kidsPref()) C4Settings.set('kids', false);
+                       G.tier = data.tier; renderAll(); return;
+    // ⭐ 儿童档：只在 off → on 那一下套预设（理由见 applyKidsPreset）。
+    case 'KIDS':       if (!kidsPref()) applyKidsPreset(); renderAll(); return;
     // ⭐ 设置开关：写完**立刻落盘**（C4Settings.set 自己做），⛔ 别攒到某个「保存」时机。
     case 'TOGGLE_HINTS': C4Settings.toggle('threatHints'); renderAll(); return;
     // ⭐ 减弱动态是**三态** ⇒ 点一下是 cycle（跟随系统 → 强制开 → 强制关 → …），⛔ 不是 toggle。
@@ -674,7 +717,15 @@ function dispatch(action, data) {
 
 // ════════ 绘制 ════════
 
+// ⭐⭐ 「对手」那一排 = 四个**推荐入口**（DESIGN §3.1「三档只是推荐入口」+ §6.7 儿童档）。
+// ⚠ 儿童档挂在**这一排**而不是另开一行开关：玩家找「对手有多强」只会看这里，
+//   开成第五行设置等于把它藏起来（家长找不到 = 这条功能等于没做）。而且它是**四选一**，
+//   「选了儿童档还能不能选难度」这个问题在版面上就自己回答了 —— 不能，它就是那个难度。
+// ⚠ 儿童档的 AI 恰好与「轻松」是同一级（C4State.KIDS_TIER = 3，量出来的，见 state.js）。
+//   ⛔ 别因此把两个按钮合并：儿童档还带着**让 2 子 + 孩子恒先手 + 简单文案 + 大字**，
+//   一句话是「对手和轻松档是同一个人，只是你多两颗子、还先走」。
 const TIER_PRESETS = [
+  { key: 'menu.kids',    tier: C4State.KIDS_TIER, kids: true },   // 儿童：见 DESIGN §6.7
   { key: 'menu.easy',    tier: 3  },   // 轻松：不调求解器，秒出
   { key: 'menu.medium',  tier: 12 },   // 进阶：求解器 + 明面失误率
   { key: 'menu.perfect', tier: 20 }    // 完美：零失误（⭐ state.js 会强制玩家先手）
@@ -782,10 +833,17 @@ function drawHome(L) {
   txt(T('menu.tier'), SW / 2, mid(b), C4Render.PAL.hudSub, b.px + 'px sans-serif');
 
   b = S.at('tiers');
-  const cw = (bw - 16) / 3;
+  // ⚠ 四个入口挤一排 ⇒ 间距收到 6（三个时是 8）。⚠ 字号由 fitTxt 自己缩到装得下，
+  //   ⛔ 别在这里写死一个更小的 px：德/俄那种长词会在别的语言上先炸。
+  const kd = kidsPref();
+  const gapT = 6;
+  const cw = (bw - gapT * (TIER_PRESETS.length - 1)) / TIER_PRESETS.length;
   TIER_PRESETS.forEach((p, i) => {
-    const sel = G.tier === p.tier;
-    btn(bx + i * (cw + 8), b.y, cw, b.h, T(p.key), 'TIER', { tier: p.tier }, {
+    // ⭐ 儿童档与三个难度是**四选一**：儿童档开着时，即使 G.tier 恰好等于某个预设的 tier
+    //   （KIDS_TIER 就等于「轻松」那一档），那个按钮也**不许**同时高亮 —— 两个亮着的按钮
+    //   会让玩家以为自己选了两样东西。
+    const sel = p.kids ? kd : (!kd && G.tier === p.tier);
+    btn(bx + i * (cw + gapT), b.y, cw, b.h, T(p.key), p.kids ? 'KIDS' : 'TIER', { tier: p.tier }, {
       bg: sel ? C4Render.PAL.accent : 'rgba(255,255,255,0.92)',
       fg: sel ? '#fff' : C4Render.PAL.hudText,
       outline: sel ? null : C4Render.PAL.hudEdge,
@@ -794,7 +852,10 @@ function drawHome(L) {
   });
 
   b = S.at('level');
-  txt(T('game.level', { n: G.tier }), SW / 2, mid(b), C4Render.PAL.hudSub, b.px + 'px sans-serif');
+  // ⭐ 儿童档下这一行不写「第 3 级」——「不说难懂的话」（§6.7）。写的是玩家**真正**拿到的
+  //   那两样东西（先手 + 让子），⛔ 不是一个级别号：级别号对家长毫无信息量。
+  txt(kd ? T('menu.kidsLine', { n: C4Settings.get('handicap') }) : T('game.level', { n: G.tier }),
+      SW / 2, mid(b), C4Render.PAL.hudSub, b.px + 'px sans-serif');
 
   // ⭐⭐ 让子（DESIGN §6.7）：「弱的一方可预置 1-2 枚子 —— 这是让全家人一起玩下去的唯一办法。」
   //   左边把**预置子本身**画出来当图例（同 threatHints 那行的理由：让「让 2 子」是一件看得见
@@ -813,7 +874,13 @@ function drawHome(L) {
              hcap > 0 && hcapOn, 'CYCLE_HANDICAP', (x, gy, h) => {
                if (hcap === 0) return x + 14;
                const gs = Math.min(fsz(24), Math.round(h * 0.58));
-               for (let i = 0; i < hcap; i++) C4Render.drawGlyph(1, x + 12 + gs / 2 + i * (gs + 4), gy, gs);
+               // ⭐ 图例必须画**弱方真正会拿到的那种棋子**（截图实锤）：预置子恒归弱方，
+               //   而弱方坐哪个位取决于谁先手 —— 让子局是强方先手 ⇒ 弱方是 ◇（第 2 号子）；
+               //   **儿童档里孩子恒先手 ⇒ 他拿的是 ▲（第 1 号子）**。
+               //   ⛔ 写死 1 的话，儿童档下图例画 ◇、盘上却是 ▲ —— 家长照着图例找不到自己的子，
+               //   而画面「看起来完全正常」（本仓最怕的失败模式）。
+               const owner = kd ? 0 : 1;
+               for (let i = 0; i < hcap; i++) C4Render.drawGlyph(owner, x + 12 + gs / 2 + i * (gs + 4), gy, gs);
                return x + 20 + hcap * (gs + 4);
              }, b.px);
 
@@ -874,7 +941,7 @@ function drawDropBand(L) {
   if (G.hoverCol >= 0) return;
   const cx = L.drop.x + L.drop.w / 2, cy = L.drop.y + L.drop.h / 2;
   if (G.thinking) {
-    const label = T('game.thinking');
+    const label = T(kidsGame() ? 'kids.thinking' : 'game.thinking');
     const f = 'bold ' + fsz(14) + 'px sans-serif';
     ctx.font = f;
     const tw = ctx.measureText(clean(label)).width;
@@ -900,7 +967,10 @@ function drawDropBand(L) {
   //   （nearWinOf 已经把「不成立就 null」钉死了），⛔ 别在这里补一句「安慰用」的兜底文案。
   //   ⚠ 措辞停在**事实**那一侧：说的是「那一手你有一个落下去当场连四的列」，
   //     ⛔ 不是「你本来赢定了」——后者要搜索才敢说（P3 的转折点）。
-  const nw = G.phase === 'OVER' && G.result ? G.result.nearWin : null;
+  // ⭐ 儿童档下**不说这一句**（§6.7「不说难懂的话」）：「你在第 17 手时只差一步就赢了」
+  //   对 4-5 岁既读不懂、也是在复盘一次失败 —— 与「让输不疼」正好反着。⛔ 别改成儿童版措辞：
+  //   这条信息本身（第几手 / 差一步）就不是这个年龄段的东西，改词也没用。
+  const nw = (G.phase === 'OVER' && G.result && !kidsGame()) ? G.result.nearWin : null;
   if (nw) {
     const g = G.g;
     const label = g.mode === 'ai'
@@ -919,6 +989,21 @@ function drawDropBand(L) {
 }
 
 function hudInfo(g) {
+  // ⭐⭐ 儿童档「不说难懂的话」（DESIGN §6.7）：HUD 那一行是全屏最大的字，也是孩子唯一
+  //   会去读的一行 ⇒ 整条换成儿童版措辞。⛔ 别只把「思考中」改掉就算完 ——
+  //   「本局结束」「轮到你了」对一个 5 岁孩子同样是书面语。
+  //   ⚠ 判据是 `kidsGame()`（这一局是不是），⛔ 不是设置里选了什么（见 kidsPref 上方那段）。
+  if (C4State.kidsOf(g)) {
+    if (G.phase === 'OVER' && G.result) {
+      const w = G.result.winner;
+      if (w === null) return { turn: null, left: T('kids.draw') };
+      // ⚠ §6.6「让输不疼」在儿童档里更要紧：输局**只**给一句轻的，⛔ 不给「你输了」。
+      return { turn: w, left: T(w === C4State.humanPlayer(g) ? 'kids.win' : 'kids.roundOver') };
+    }
+    const kt = C4State.turnOf(g);
+    if (C4State.isHumanTurn(g)) return { turn: kt, left: T('kids.yourTurn') };
+    return { turn: kt, left: T(!G.thinking && G.notice ? 'game.stopped' : 'kids.thinking') };
+  }
   if (G.phase === 'OVER' && G.result) {
     const w = G.result.winner;
     if (w === null) return { turn: null, left: T('game.draw') };
@@ -976,6 +1061,51 @@ function drawSettleStats(x, y, w, h) {
 }
 /** 占位符：⛔ 别换成 "0%" / "—%"（会被读成「你这局 0 分」，那是编出来的信息）。 */
 const SETTLE_PENDING = '—';
+
+/**
+ * ⭐⭐ 儿童档「赢了大撒花」（DESIGN §6.7 的第三条）。
+ *
+ * 它**占的正是**上面那张数据条的位置 —— 这是故意的，一举两得：
+ *   · 「精准度 —／转折点 —」对 4-5 岁是纯噪音（而且现在还是占位符），儿童档下本来就该拿掉；
+ *   · 腾出来的那一格正好给庆祝，⛔ 不必为了撒花去挤棋盘（§6.9 的退让顺序）。
+ *
+ * ⚠ **只在孩子赢的时候画**（输/平一律不画，那一格连位置都不留 —— 见 drawPlay 里的 statH）。
+ *   §6.6「让输不疼」在这里是硬的：输局给一句轻的就够了，⛔ 绝不给一张「安慰卡」。
+ * ⚠ 星星是**画出来的形状**不是字体字形：canvas 上 '★' 在部分安卓 WebView 里会落到
+ *   缺字回退框（豆腐块）——一个「画面上多了一排方块」的静默失败。
+ * ⚠ ⛔ 它**不做粒子动画**：减弱动态（§6.8）下必须能整条跳过，而这一格是**静态终态**
+ *   ⇒ 天然满足，不必再加第二套开关（fx.js 的三个门控点一个都不用动）。
+ */
+function drawKidsCheer(x, y, w, h) {
+  if (!(h > 0)) return;
+  fillRR(x, y, w, h, 12, '#ffd75e');
+  strokeRR(x + 0.5, y + 0.5, w - 1, h - 1, 12, '#e0a91d', 1.5);
+  const cy = y + h / 2;
+  const s = Math.min(h * 0.30, 16);
+  // 左右各三颗星，中间留给大字
+  for (let i = 0; i < 3; i++) {
+    drawStar(x + 16 + i * (s * 1.7), cy, s, '#f6a21d');
+    drawStar(x + w - 16 - i * (s * 1.7), cy, s, '#f6a21d');
+  }
+  const inner = w - 12 * s;
+  fitTxt(T('kids.cheer'), x + w / 2, cy, Math.max(60, inner), '#8a5a00', 'bold', fsz(20));
+}
+
+/** 五角星（⛔ 不用 '★' 字符，理由见 drawKidsCheer）。 */
+function drawStar(cx, cy, r, color) {
+  ctx.save();
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const rad = (i % 2 === 0) ? r : r * 0.45;
+    const a = -Math.PI / 2 + i * Math.PI / 5;
+    const px = cx + Math.cos(a) * rad, py = cy + Math.sin(a) * rad;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.restore();
+}
 
 /**
  * ⭐⭐ 盘下那块净空（`L.tray`）里到底怎么排（P2b T7 · DESIGN §6.9）。
@@ -1041,8 +1171,10 @@ function drawPlay(L) {
 
   const info = hudInfo(g);
   // ⭐ 右侧那串就是「先手指示」：同机双人局逐局翻转，第二局肉眼可见换了人。
+  // ⭐ 儿童档下右上角写「儿童档」而不是「第 3 级」（§6.7「不说难懂的话」）——
+  //   ⚠ 而且它必须**看得见**：这一局到底是不是儿童档是家长唯一能在局中确认的地方。
   info.right = g.mode === 'ai'
-    ? T('game.level', { n: g.tier })
+    ? (C4State.kidsOf(g) ? T('menu.kids') : T('game.level', { n: g.tier }))
     : T('game.gameLine', { n: g.gameNo + 1, p: firstSeatName(g) });
   // ⭐ 舒适模式（§6.8）：HUD 的字也一起放大。⚠ HUD 的**高度**不跟着变（那是 layout 的事）。
   C4Render.drawHUD(info, L, comfortOn() ? COMFORT_TEXT : 1);
@@ -1054,7 +1186,12 @@ function drawPlay(L) {
   //     于是**顶到盘上**去了 —— 实测 1024×768 对局中按钮压着盘底 15 px 还掉出屏幕，
   //     五视口 × 结算屏 10 个组合里 6 个在压盘。而「赢局那条连线必须一直看得见」是 §6.3。
   const plan = trayPlan(L, G.phase === 'OVER');
-  const gap = plan.gap, rowH = plan.rowH, statH = plan.statH;
+  const gap = plan.gap, rowH = plan.rowH;
+  // ⭐ 儿童档的结算（§6.7）：数据条整条拿掉（「精准度 —／转折点 —」对 4-5 岁是噪音），
+  //   那一格**只在孩子赢的时候**换成撒花；输/平连位置都不留（§6.6 让输不疼，⛔ 不给安慰卡）。
+  const kidsCheer = kidsGame() && G.phase === 'OVER' && G.result
+                    && G.result.winner !== null && G.result.winner === C4State.humanPlayer(g);
+  const statH = (kidsGame() && !kidsCheer) ? 0 : plan.statH;
   // ⭐ **底部对齐**：结算多出来的两块（数据条 + 主 CTA 行）从**棋盘那一侧**长出来，
   //   ［撤销］［菜单］原地不动 —— 玩家刚才在看的那两个按钮不会在结算那一刻跳走。
   //   ⚠ 同时按钮贴着底部安全区 = 竖屏手机上拇指最舒服的位置。
@@ -1063,12 +1200,16 @@ function drawPlay(L) {
   const full = L.tray.w;
 
   if (G.phase === 'OVER') {
-    drawSettleStats(marg, ry, full, statH);
+    if (kidsCheer) drawKidsCheer(marg, ry, full, statH);
+    else drawSettleStats(marg, ry, full, statH);
     if (statH) ry += statH + gap;
     // ⭐ 主 CTA：庆祝一播完就进焦点态（⛔ 但从终局第一帧起就**点得动** —— 热区在这里注册，
     //    与 overReady 无关；「庆祝期间点得动」由 e2e-p2b 用真实鼠标钉死）。
-    const wMain = Math.round((full - gap) * 0.60);
-    btn(marg, ry, wMain, rowH, T('game.again'), 'AGAIN', {}, {
+    // ⭐ 儿童档下它**占满整行**：第二个按钮（复盘 / 从那一步重来）是 P3 的留位，措辞对 4-5 岁
+    //   既读不懂又点不动 —— 一个读不懂的灰按钮就是噪音（§6.7「不说难懂的话」）。
+    const kd = kidsGame();
+    const wMain = kd ? full : Math.round((full - gap) * 0.60);
+    btn(marg, ry, wMain, rowH, T(kd ? 'kids.again' : 'game.again'), 'AGAIN', {}, {
       bg: G.overReady ? '#37a87c' : C4Render.PAL.accent,
       focus: G.overReady, size: 17
     });
@@ -1077,9 +1218,11 @@ function drawPlay(L) {
     //     disabled ⇒ btn 不注册热区 ⇒ 点不出任何反应，⛔ 不许做成「点了没反应」的活按钮
     //     —— 假按钮比没按钮更伤（玩家会以为坏了）。P3 填内容时去掉 disabled + 加 dispatch 分支。
     const lost = isLoss();
-    btn(marg + wMain + gap, ry, full - wMain - gap, rowH,
-        T(lost ? 'game.replayFrom' : 'game.review'), lost ? 'REPLAY_FROM' : 'REVIEW', {},
-        { disabled: true, size: 15 });
+    if (!kd) {
+      btn(marg + wMain + gap, ry, full - wMain - gap, rowH,
+          T(lost ? 'game.replayFrom' : 'game.review'), lost ? 'REPLAY_FROM' : 'REVIEW', {},
+          { disabled: true, size: 15 });
+    }
     const ry2 = ry + rowH + gap;
     const w2 = (full - gap) / 2;
     btn(marg, ry2, w2, rowH, T('game.undo'), 'UNDO', {}, { bg: '#61776f' });
@@ -1111,6 +1254,10 @@ async function boot() {
   await Platform.hydrate([CFG.key('lang'), CFG.key('sfx'), CFG.key('settings')]);
   // ⭐ 必须在 hydrate **之后**、第一次 renderAll **之前**接后端（HOME 首帧就要读 threatHints）。
   C4Settings.attach(Platform.storage, CFG.key('settings'));
+  // ⭐ 上次退出时开着儿童档 ⇒ 选中的档位要跟着回到儿童档那一级。⛔ 少了这一句，
+  //   HOME 上「儿童」按钮是高亮的、而让子那行按 G.tier（默认 3）去判能不能让子 ——
+  //   两者只在 KIDS_TIER 恰好等于 3 时碰巧一致，改一次 KIDS_TIER 就静默错开。
+  if (C4Settings.get('kids')) G.tier = C4State.KIDS_TIER;
   restoreAudioPrefs();
   Portal.boot();
   await Ads.init();
