@@ -7,7 +7,12 @@ const ROOT=path.resolve(__dirname,'..'), PORT=8179, SHOT='C:/tmp/notch-check';
 const MIME={'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.webp':'image/webp','.png':'image/png','.jpg':'image/jpeg','.wav':'audio/wav'};
 // 每项可以是游戏名，也可以是 {id, extras:[{label, js}]} —— extras 用来多截几屏
 // （有独立主界面/菜单的游戏，光截牌桌是查不出那些页的刘海问题的）。
-const GAMES=['minesweeper','snake','abyssshoot',
+const GAMES=[
+  // ⭐ 二级页也要截：返回键改到左上角后（2026-08-03 全仓规范），
+  //   最容易撞的就是右上角那条引擎 DOM 控制栏 —— 只截主界面查不出来。
+  {id:'minesweeper', extras:[{label:'codex', js:"dispatch('OPEN_CODEX'); renderAll();"},
+                             {label:'help',  js:"dispatch('CLOSE_OVERLAY'); dispatch('OPEN_HELP'); renderAll();"}]},
+  'snake','abyssshoot',
   {id:'blockblast', extras:[{label:'home', js:"G.phase='HOME'; renderAll();"}]},
   {id:'solitaire', extras:[{label:'home', js:"G.seenIntro=1; G.phase='HOME'; renderAll();"}]}];
 

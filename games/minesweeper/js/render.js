@@ -277,11 +277,19 @@ function drawHelp() {
   const { SW, SH } = GameGlobal;
   const page = G.helpPage || 0, pages = 4;
   // ⚠ 刘海：标题原本写死 y=46，灵动岛机型(safeTop=59)会被压住
-  txt(T('help.title') + `  ·  ${T('help.p' + (page + 1) + 't')}`, SW / 2, GameGlobal.safeTop + 12, '#ffe0b8', 'bold 19px sans-serif');
+  // ⚠ 顶行左右都被占着：左边是返回键（全仓规范），右边是引擎 DOM 的语言下拉 ⇒
+  //   中间只剩 ~215px，「主标题 · 副标题」拼一行必被两边裁掉（实拍两次）。
+  //   ⇒ **主标题独占顶行、副标题降到第二行**，两行都限宽。
+  ctx.font = 'bold 18px sans-serif';
+  txt(wrapLines(T('help.title'), SW - 200, 1)[0], SW / 2, GameGlobal.safeTop + 21,
+      '#ffe0b8', 'bold 18px sans-serif');
+  ctx.font = '13px sans-serif';
+  txt(wrapLines(T('help.p' + (page + 1) + 't'), SW - 60, 1)[0], SW / 2, GameGlobal.safeTop + 45,
+      'rgba(255,224,184,0.85)', '13px sans-serif');
   const lines = I18N.get('help.p' + (page + 1)) || [];
   const art = HELP_ART['p' + (page + 1)] || [];
   const AS = 40, textX = 26 + AS + 10, LH = 21;
-  let y = GameGlobal.safeTop + 52;
+  let y = GameGlobal.safeTop + 66;      // 标题两行 ⇒ 内容起点顺延
   const w = SW - textX - 20;
   lines.forEach((par, k) => {
     const id = art[k];
@@ -307,6 +315,9 @@ function drawHelp() {
     txt(T('help.next') + ' ▶', SW - 24 - 48, navY + 20, '#fff', 'bold 12px sans-serif');
     addHit(SW - 24 - 96, navY, 96, 40, 'HELP_PAGE', { d: 1 });
   }
+  // ⭐ 左上角 = **返回**（全仓统一）。⚠ help.close 的文案是「Adventure!」——
+  //   那是读完引导的 CTA，不是返回 ⇒ 左上角用 codex.back，CTA 留在底部原位。
+  backBtnTL(T('codex.back'));
   fillRR(SW / 2 - 80, navY + 50, 160, 42, 21, C.accent);
   txt(T('help.close'), SW / 2, navY + 71, '#fff', 'bold 14px sans-serif');
   addHit(SW / 2 - 80, navY + 50, 160, 42, 'CLOSE_OVERLAY', {});
@@ -315,7 +326,10 @@ function drawHelp() {
 function drawCodex() {
   drawDim('rgba(80,55,35,0.97)');
   const { SW, SH } = GameGlobal;
-  txt(T('codex.title'), SW / 2, GameGlobal.safeTop + 12, '#ffe0b8', 'bold 20px sans-serif');   // ⚠ 刘海：不能写死 46
+  // ⚠ 顶行左右都被占着（左=返回键、右=引擎语言下拉）⇒ 标题必须限宽，否则长语言被两边裁掉
+  ctx.font = 'bold 20px sans-serif';
+  txt(wrapLines(T('codex.title'), SW - 200, 1)[0], SW / 2, GameGlobal.safeTop + 21,
+      '#ffe0b8', 'bold 20px sans-serif');   // ⚠ 刘海：不能写死 46
   const ids = Object.keys(MONSTERS);
   const PER = 6, pages = Math.ceil(ids.length / PER);
   const page = Math.min(G.codexPage || 0, pages - 1);
@@ -344,9 +358,17 @@ function drawCodex() {
     txt('▶', SW - 24 - 44, navY + 20, '#fff', 'bold 16px sans-serif');
     addHit(SW - 24 - 88, navY, 88, 40, 'CODEX_PAGE', { d: 1 });
   }
-  fillRR(SW / 2 - 70, navY + 50, 140, 40, 20, 'rgba(255,255,255,0.2)');
-  txt(T('codex.back'), SW / 2, navY + 70, '#fff', 'bold 14px sans-serif');
-  addHit(SW / 2 - 70, navY + 50, 140, 40, 'CLOSE_OVERLAY', {});
+  backBtnTL(T('codex.back'));
+}
+
+// ⭐ 返回键一律画在**左上角**（2026-08-03 全仓规范，见根 CLAUDE.md）：与系统返回一致、不用学；
+//   底部是广告/工具条/home indicator 的地盘，放那儿迟早被压住。右上角是引擎 DOM 控制栏的地盘。
+//   ⛔ y 从 safeTop 起算（刘海/灵动岛），别写死。
+function backBtnTL(label, action) {
+  const { safeTop } = GameGlobal, bx = 16, by = safeTop + 4, bw = 66, bh = 34;
+  fillRR(bx, by, bw, bh, 11, 'rgba(0,0,0,0.38)');
+  txt(label, bx + bw / 2, by + bh / 2, '#fff', 'bold 13px sans-serif');
+  addHit(bx, by, bw, bh, action || 'CLOSE_OVERLAY', {});
 }
 
 function drawEnd(win) {

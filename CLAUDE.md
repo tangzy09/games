@@ -97,6 +97,24 @@ location /snake/assets/angels/ { alias /var/www/games/games/snake/assets/angels/
 `git commit` / `git push` **不用问**；但把代码放到线上（EC2 pull、nginx 改配置等一切影响
 线上站点的动作）**必须先停下来问**。准备到位后报状态、等用户说部署。
 
+## ⛔ 返回键一律在左上角（所有游戏，2026-08-03 用户定）
+
+**任何「返回上一层」的按钮都画在屏幕左上角，位置与样式全仓统一。新游戏第一版就这么做。**
+
+- 位置：`x = 游戏区左边 + 8`、**`y = GameGlobal.safeTop + 4`**，约 `62×34` 圆角，内容 `‹ 返回`。
+  ⛔ y 必须从 `safeTop` 起算（刘海/灵动岛），别写死。
+- 每个游戏抽**一个** `backBtn()`，所有二级页共用；页面标题仍可居中，但要**给左上角让出宽度**
+  （长语言的标题会压上去）。
+- **为什么不是底部**：底部是**广告横幅 + 工具条 + home indicator** 的地盘 —— solitaire 的二级页
+  返回键就被真横幅**整颗盖住、点都点不动**（2026-08-03 实锤，反证脚本三视口下 16 屏中招）。
+- **为什么不是右上**：那是引擎 DOM 控制栏（`#controls` 语言下拉，fixed 在 `safeTop+8`、高 `ctrlH`）
+  的地盘，canvas 画上去会被盖住**且点不动**（solitaire 的「✓ 有解」角标、abyssshoot 的
+  Deepest/Coins 都踩过）。
+- 现状：solitaire（`page()` + 公平页）· blockblast（`backButton()`）· minesweeper（帮助页 + 图鉴）
+  **均已改**；snake 的 canvas 浮层 HOME 角标本来就在卡片左上，合规。
+- ⚠ **边界**：DOM 模态面板（snake / abyssshoot 的 `#panel-close`）右上角那个 ✕ 是「关闭模态」，
+  不是「返回上一页」，跨平台惯例就在右上 ⇒ **暂不动**（要统一得先跟用户确认）。
+
 ## ⛔ 刘海/灵动岛适配（所有游戏，2026-07-31 用户定的铁律）
 
 **任何机型的顶部内容都不许被刘海/灵动岛/状态栏压住。** 引擎已做好地基，游戏侧只需守两条：

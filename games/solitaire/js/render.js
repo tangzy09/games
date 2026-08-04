@@ -162,7 +162,7 @@
     ctx.fillStyle = g; ctx.fillRect(0, 0, SW, SH);
 
     const cx = L.cx, w = Math.min(L.playW - 40, 420);
-    let y = GameGlobal.safeTop + 34;
+    let y = GameGlobal.safeTop + 48;      // ⚠ 让开左上角的返回键（safeTop+4 起,高 34）
 
     // ⚠ wrapLines 依赖当前 ctx.font ⇒ **先设 font、只调一次、复用数组**（调两次会算出不同行数 ⇒ 文字重叠）
     ctx.font = 'bold 19px sans-serif';
@@ -236,27 +236,44 @@
     const st = Pool.stats(s.drawCount);
     txt(st ? T('sol.fairPool', { n: st.total }) : '—', cx, infoY + 51, PAL.sub, '10px sans-serif');
 
-    // 底部双按钮：返回 + 分享此局（「你行你上」是纸牌玩家真实的社交冲动 —— 零后端的传播机制）
-    fillRR(cx - 150, L.botY - 70, 140, 44, 12, 'rgba(255,255,255,0.20)');
-    txt('‹ ' + T('sol.back'), cx - 80, L.botY - 48, '#fff', '14px sans-serif');
-    addHit(cx - 150, L.botY - 70, 140, 44, 'PLAY', {});
-    fillRR(cx + 10, L.botY - 70, 140, 44, 12, 'rgba(126,242,160,0.22)');
-    iconText('share', '📤', T('sol.share'), cx + 80, L.botY - 48, '13px sans-serif', '#7ef2a0', 15);
-    addHit(cx + 10, L.botY - 70, 140, 44, 'SHARE', {});
+    // ⭐ 返回在**左上角**（全仓规范）；底部只留「分享此局」——
+    //   「你行你上」是纸牌玩家真实的社交冲动，零后端的传播机制。
+    backBtn(L);
+    fillRR(cx - 80, L.botY - 70, 160, 44, 12, 'rgba(126,242,160,0.22)');
+    iconText('share', '📤', T('sol.share'), cx, L.botY - 48, '13px sans-serif', '#7ef2a0', 15);
+    addHit(cx - 80, L.botY - 70, 160, 44, 'SHARE', {});
     drawToast();
   }
 
-  /** 页面通用背景 + 返回按钮 */
+  /**
+   * ⭐ 返回键 —— **一律画在左上角**（2026-08-03 用户定的全仓规范，见根 CLAUDE.md）。
+   *
+   * 为什么是左上角：① 与 iOS/Android/浏览器的返回位置一致，**不用学**；
+   * ② 底部是广告、工具条、home indicator 的地盘 —— 放那儿迟早被压（这个游戏刚被真横幅
+   *    盖住过整颗返回键，玩家点不动）；③ 右上角是引擎 DOM 控制栏（语言下拉）的地盘。
+   * ⛔ 起点必须是 `safeTop`（刘海/灵动岛），别写死 y。
+   */
+  function backBtn(L, action) {
+    const bx = L.playX + 8, by = GameGlobal.safeTop + 4, bw = 62, bh = 34;
+    fillRR(bx, by, bw, bh, 11, 'rgba(0,0,0,0.34)');
+    txt('‹ ' + T('sol.back'), bx + bw / 2, by + bh / 2, '#fff', '13px sans-serif');
+    addHit(bx, by, bw, bh, action || 'PLAY', {});
+    return by + bh;                       // 返回底边：标题从这儿往下排
+  }
+
+  /** 页面通用背景 + 返回按钮（左上角） */
   function page(title, icon, emoji) {
     clearHits();
     const L = Layout.layout({ noBanner: true });
     const { SW, SH } = GameGlobal;
     Sprite.drawTable(ctx, 0, 0, SW, SH, Money.state.table);
-    if (icon) iconText(icon, emoji, title, L.cx, GameGlobal.safeTop + 30, 'bold 20px sans-serif', '#fff', 22);
-    else txt(title, L.cx, GameGlobal.safeTop + 30, '#fff', 'bold 20px sans-serif');
-    fillRR(L.cx - 70, L.botY - 70, 140, 44, 12, 'rgba(255,255,255,0.20)');
-    txt('‹ ' + T('sol.back'), L.cx, L.botY - 48, '#fff', '14px sans-serif');
-    addHit(L.cx - 70, L.botY - 70, 140, 44, 'PLAY', {});
+    backBtn(L);
+    // ⚠ 标题仍居中，但要**给左上角的返回键让出宽度**，否则长标题（de/ru）会压到它上面。
+    const tw = L.playW - 2 * 78;
+    ctx.font = 'bold 20px sans-serif';
+    const t1 = wrapLines(title, tw, 1)[0];
+    if (icon) iconText(icon, emoji, t1, L.cx, GameGlobal.safeTop + 21, 'bold 20px sans-serif', '#fff', 22);
+    else txt(t1, L.cx, GameGlobal.safeTop + 21, '#fff', 'bold 20px sans-serif');
     return L;
   }
 

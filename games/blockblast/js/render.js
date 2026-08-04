@@ -1398,11 +1398,14 @@
   }
 
   function backButton() {
-    const { SH } = GameGlobal, cx = L.cx;
-    fillRR(cx - 70, SH - 66, 140, 42, 12, 'rgba(255,255,255,0.20)');
-    txt('\u2039 ' + T('blockblast.back'), cx, SH - 45, '#fff', '14px sans-serif');
+    // 返回键一律画在**左上角**（2026-08-03 全仓规范,见根 CLAUDE.md）:与系统返回一致不用学;
+    // 底部是广告/工具条/home indicator 的地盘,放那儿迟早被压住(solitaire 被真横幅盖住过整颗)。
+    // ⛔ y 从 safeTop 起算(刘海/灵动岛),别写死。
+    const bx = Math.max(10, L.playX + 8), by = GameGlobal.safeTop + 4, bw = 62, bh = 34;
+    fillRR(bx, by, bw, bh, 11, 'rgba(0,0,0,0.34)');
+    txt('\u2039 ' + T('blockblast.back'), bx + bw / 2, by + bh / 2, '#fff', '13px sans-serif');
     // \u21d2 HOME \u4e0d\u662f MENU\uff1a\u6240\u6709\u5b50\u9875\u9762\u90fd\u662f**\u4ece\u4e3b\u754c\u9762\u8fdb\u6765\u7684**\uff0c\u5173\u5361\u5730\u56fe\u73b0\u5728\u53ea\u7ba1\u9009\u5173\uff08renderMenu \u7684\u6ce8\u91ca\uff09
-    addHit(cx - 70, SH - 66, 140, 42, 'HOME', {});
+    addHit(bx, by, bw, bh, 'HOME', {});
   }
 
   // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 \u7ed3\u7b97\u5361\u7247 \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
