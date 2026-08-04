@@ -169,8 +169,14 @@ function planLoss(moves, tier, seed, human) {
   // 同机双人局：两侧都是人 ⇒ 没有 AI 在中间插手，落子与不落子都归因得清清楚楚
   await clickAt(await pt('PLAY_HUMAN'));
   await page.waitForFunction(() => G.phase === 'PLAYING' && G.g.mode === 'human', null, { timeout: 4000 });
+  // ⭐ P2c T3：开局现在多了一段**猜先动画**（DESIGN §6.7）⇒ 先等它演完再问。
+  //   ⛔ 别把这条放宽成「反正开局有动画」：它守的是「**没有**动画在跑时 rAF 必须是停的」——
+  //   空转烧电是这个 rAF 唯一的、不报错的失败模式。
+  ok(await page.evaluate(() => C4Fx.pose().some(p => p.kind === 'coin')),
+    '⭐ P2c T3：开局在演猜先（§6.7），且它是 fx 里的一条 —— ⛔ 不是另起一套时间轴');
+  await page.waitForFunction(() => C4Fx.done(), null, { timeout: 5000 });
   ok(await page.evaluate(() => G.rafId === null && C4Fx.done()),
-    '开局时没有动画在跑，rAF 是停的（G.rafId === null）');
+    '猜先演完之后没有动画在跑，rAF 是停的（G.rafId === null）');
 
   // ═══════════ ② ⭐ 逐帧量棋子的 y ═══════════
   // 采样器自己起一条 rAF：在每一帧读画布，算**这一列里深色像素的质心 y**。
@@ -513,9 +519,17 @@ function planLoss(moves, tier, seed, human) {
     () => G.phase === 'PLAYING' && G.g.moves.length === 0, null, { timeout: 3000 }
   ).then(() => true, () => false);
   ok(restarted, '⑫ ⭐⭐ 庆祝期间点［再来一局］**立刻开了新局**（⛔ 动画不许吞掉点击）');
-  const clean = await page.evaluate(() => ({ raf: G.rafId, active: C4Fx.active(), ready: G.overReady }));
-  ok(clean.active === 0 && clean.raf === null && clean.ready === false,
-    '⑫ 新局开出来时庆祝被彻底停掉（' + JSON.stringify(clean) + '）');
+  // ⚠ P2c T3 起，新局一开就有一段**猜先**在跑 ⇒ 判据从「一条都不剩」收紧成
+  //   「⛔ 庆祝一条都不剩，剩下的只许是猜先」+「rAF 只在真有东西要动时才转」。
+  //   ⛔ 别退成「active 随便」：那样上一局的庆祝赖在新局上就抓不住了（画面上会是
+  //   新盘上凭空画出一条上一局的连线）。
+  const clean = await page.evaluate(() => ({
+    raf: G.rafId, active: C4Fx.active(), ready: G.overReady,
+    win: C4Fx.poseWin() !== null, kinds: C4Fx.pose().map(p => p.kind)
+  }));
+  ok(!clean.win && clean.ready === false && clean.kinds.every(k => k === 'coin')
+     && (clean.kinds.length ? clean.raf !== null : clean.raf === null),
+    '⑫ 新局开出来时庆祝被彻底停掉、只剩猜先（' + JSON.stringify(clean) + '）');
 
   // ═══════════ ⑬ 输局：播 lose，⚠ §6.6 别加惩罚性反馈 ═══════════
   console.log('\n⑬ 输局（人机·轻松档）：播的是 lose，不是 win');

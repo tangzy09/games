@@ -595,6 +595,115 @@ const FORK_CELLS = [{ c: 1, r: 0 }, { c: 5, r: 0 }];
   console.log('test-fx: fork 参数校验 / 只留一个 / 三种 kind 分流 OK');
 }
 
+// ═══ 7b. ⭐⭐ 猜先（P2c T3 · DESIGN §6.7）═══
+// 三条，每条都对应一种**零报错**的坏法：
+//   ⭐⭐ ① 落定那一面 ≠ 传进去的 `first` ⇒ 卡片上说的和盘上发生的不是一回事；
+//   ⭐⭐ ② 圈数不是 seed 的纯函数 / 用了 Math.random ⇒ 同一份存档重放演出不同的先手；
+//   ⭐   ③ 换面发生在硬币**正对着你**的那一帧 ⇒ 棋子当着你的面「啪」地变成另一种造型。
+{
+  const SPIN = Fx.COIN_SPIN, TOT = Fx.COIN_SPIN + Fx.COIN_HOLD;
+  const SEEDS = [0, 1, 2, 3, 7, -1, 123456789, -268435455, 0x7fffffff | 0];
+
+  // ① ⭐⭐ 落定面恒 === first。⚠ 用 sampleCoin 在 **t = SPIN 与 t = total** 两点上问
+  //   （step 播完就把 item 摘掉 ⇒ pose() 取不到最后那一帧，正是要断言的那一点）。
+  for (const first of [0, 1]) for (const seed of SEEDS) {
+    for (const t of [SPIN, SPIN + 1, TOT, TOT * 2]) {
+      const p = Fx.sampleCoin({ first: first, seed: seed }, t);
+      assert.strictEqual(p.face, first,
+        '⭐⭐ 猜先落定那一面必须 === 传进来的先手（first=' + first + ' seed=' + seed + ' t=' + t + '）');
+      assert.strictEqual(p.w, 1, '落定时硬币必须**正对着**（w=1），⛔ 不许停在半立着');
+    }
+    // 反向对照：转的过程中它**确实翻过面**（⛔ 否则上面那条在「face 恒 = first」的
+    //   假实现下也全绿 —— 那样硬币根本没在翻）
+    let flipped = false;
+    for (let i = 0; i <= 40; i++) {
+      if (Fx.sampleCoin({ first: first, seed: seed }, SPIN * i / 40).face !== first) flipped = true;
+    }
+    assert.ok(flipped, '⭐ 反向对照：过程中必须真的翻到过另一面（seed=' + seed + '）');
+  }
+
+  // ② ⭐⭐ 确定性：同 (first, seed) 两次采样**逐位相同**；不同 seed 至少有一组圈数不同
+  //   （⇒ 圈数真的是 seed 的函数，而不是一个常数把上一条变成恒绿）。
+  const sig = (first, seed) => {
+    const out = [];
+    for (let i = 0; i <= 60; i++) {
+      const p = Fx.sampleCoin({ first: first, seed: seed }, TOT * i / 60);
+      out.push(p.face + ':' + p.w.toFixed(12) + ':' + p.half);
+    }
+    return out.join('|');
+  };
+  for (const seed of SEEDS) {
+    assert.strictEqual(sig(0, seed), sig(0, seed), '同 seed 两次采样必须逐位相同（seed=' + seed + '）');
+  }
+  const halves = new Set(SEEDS.map(s => Fx.coinHalfTurns(s)));
+  assert.ok(halves.size >= 2, '⭐ 圈数必须**真的**由 seed 决定（现在只有一个值：' + [...halves] + '）');
+  for (const s of SEEDS) {
+    const h = Fx.coinHalfTurns(s);
+    assert.ok(Number.isInteger(h) && h >= Fx.COIN_HALF_MIN
+      && h < Fx.COIN_HALF_MIN + Fx.COIN_HALF_SPAN, '圈数越界：seed=' + s + ' → ' + h);
+    assert.strictEqual(Fx.coinHalfTurns(s), h, 'coinHalfTurns 必须是纯函数（同 seed 同值）');
+  }
+
+  // ③ ⭐ 换面**只发生在硬币立起来（w≈0）那一瞬**，⛔ 不许在正对着你时换。
+  //   ⚠ 判据取 w 的上界 0.30：真的写成 `floor(half*u)`（在 w=1 处跳变）时这里会当场红。
+  for (const seed of [0, 1, 2, 3]) {
+    let prev = Fx.sampleCoin({ first: 0, seed: seed }, 0);
+    for (let i = 1; i <= 4000; i++) {
+      const p = Fx.sampleCoin({ first: 0, seed: seed }, SPIN * i / 4000);
+      if (p.face !== prev.face) {
+        assert.ok(Math.min(p.w, prev.w) < 0.30,
+          '⭐ 换面时硬币必须是立着的（w=' + p.w.toFixed(3) + '，seed=' + seed + '）');
+      }
+      prev = p;
+    }
+  }
+
+  // ④ dt 幂等（与 drop/win/fork 同一条）：切 1 / 3 / 17 段推进到同一时刻，pose 必须一致。
+  const runCoin = (T, n) => {
+    Fx.reset();
+    Fx.start('coin', { first: 1, seed: 42 });
+    for (const dt of chunks(T, n)) Fx.step(dt);
+    const p = Fx.poseCoin();
+    const out = p ? { face: p.face, w: p.w, u: p.u } : null;
+    Fx.reset();
+    return out;
+  };
+  const T0 = SPIN * 0.61;
+  const a1 = runCoin(T0, 1), a3 = runCoin(T0, 3), a17 = runCoin(T0, 17);
+  assert.ok(a1 && a3 && a17, '猜先动画在 61% 处必须还活着');
+  assert.strictEqual(a1.face, a3.face); assert.strictEqual(a1.face, a17.face);
+  assert.ok(Math.abs(a1.w - a3.w) < 1e-9 && Math.abs(a1.w - a17.w) < 1e-9,
+    '⭐⭐ 猜先必须 dt 幂等（1/3/17 段：' + a1.w + ' / ' + a3.w + ' / ' + a17.w + '）');
+
+  // ⑤ 参数校验 + 只留一个 + 播完摘掉
+  Fx.reset();
+  for (const q of [undefined, {}, { first: 2 }, { first: '0' }, { first: null }]) {
+    assert.strictEqual(Fx.start('coin', q), null, '⛔ 先手缺了/坏了就不演（⛔ 别猜）：' + JSON.stringify(q));
+    assert.strictEqual(Fx.poseCoin(), null, '坏参数不许留下 item');
+  }
+  Fx.start('coin', { first: 0, seed: 1 });
+  Fx.start('coin', { first: 1, seed: 1 });
+  assert.strictEqual(Fx.pose().filter(p => p.kind === 'coin').length, 1, '一局只许有一次猜先');
+  assert.strictEqual(Fx.poseCoin().first, 1, '后起的那个说了算');
+  assert.strictEqual(Fx.coinTotal(), TOT);
+  Fx.step(TOT + 1);
+  assert.strictEqual(Fx.poseCoin(), null, '播完必须摘掉（⇒ done() ⇒ main 的 rAF 停下来）');
+  assert.ok(Fx.done(), 'coin 播完之后 done() 必须为真（⛔ 别空转烧电）');
+  Fx.reset();
+
+  // ⑥ ⛔⛔ 源码里零 Math.random（确定性的第二道，抓「没被用例覆盖到的分支里偷用」）
+  {
+    const fs = require('fs');
+    const src = fs.readFileSync(require('path').join(__dirname, '../js/fx.js'), 'utf8');
+    const strip = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+    assert.ok(/Math\.random/.test(src), '前提：fx.js 的注释里本来就写着这条禁令');
+    assert.ok(!/Math\s*\.\s*random/.test(strip(src)),
+      '⛔⛔ fx.js 的**代码**里出现了 Math.random —— 猜先当场变成真抛硬币，'
+      + '存档重放与三条先手规则一起破功');
+  }
+  console.log('test-fx: ⭐⭐ 猜先（落定面 === 先手 / seed 纯函数 / 换面在立起来那一瞬 / dt 幂等 / 零随机）OK');
+}
+
 // ═══ 8. 冻结：⛔ 别被「不报错只是不动了」的误用改掉 ═══
 {
   const orig = Fx.step;

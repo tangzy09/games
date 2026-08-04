@@ -35,6 +35,12 @@
 //       §6.4 下半整条功能删掉。玩家要静音有独立入口（🔊 / AudioState.sfxOn）——
 //       ⛔ 别把两个正交的偏好耦合成一个开关。这也与 T2/T3 已确立的写法一致：
 //       两处 fail-safe 分支（onPieceLanded / playResultSfx）都是**照常出声**。
+//   · `start('coin')` ⇒ ⭐ **要**被门控（P2c T3 · §6.7 猜先）：关掉时 main 走 `id == null`——
+//     **硬币不转，但「谁先手」那张卡照画**（静态终态：正面朝上 + 那句话）。
+//     ⚠⚠ 这一条与上面 win 那条是**同一个模板**，也是 P2b 留下的那个教训：
+//       减弱动态关掉的是**运动**，⛔ 不是**信息**。猜先的结果由 `g.humanFirst` 定死、
+//       与动画无关 ⇒ 动画是装饰、可以整条跳过；而「谁先走」是这局棋的规则，
+//       ⛔ 跳过它等于把 §6.7 那条功能删掉，且晕动症玩家正好是最需要被告知的那批人。
 //   ⛔ 别把门控写进 fx 内部（那样「动画到底跑没跑」就有两个真值了）。
 //
 // ⛔ 落子动画期间**不许锁输入**（casual-game-meta §6 / solitaire 实踩：发牌动画 1 秒内
@@ -83,6 +89,27 @@
   const FORK_FLASH = 220;       // 中心那一下亮闪的衰减时长
   const FORK_HOLD  = 60;        // 散完再留一拍（⛔ 别留长，局中特效拖尾就是黏）
   const FORK_LEAD_MAX = 700;    // 兜底上限（lead 是算出来的，⛔ 不许算飞了）
+
+  // ── ⭐⭐ 猜先（P2c Task 3 · DESIGN §6.7「猜先动画（抛硬币）」）──
+  // 「交替先手之外加一点『开始感』，几乎零成本。」
+  //
+  // ⭐⭐⭐ **它不掷骰子。** 落定那一面由调用方给（= state.js 已经算好的先手），本模块
+  //   只负责「把它演一遍」。⛔⛔ 本文件里绝不许出现 `Math.random`：
+  //   写成真随机会同时打碎三样东西 ——
+  //     ① 存档可重放（撤销 = 重放；同一份存档两次打开会演出不同的先手）；
+  //     ② §1.1 的交替先手 + T1 的「让子局强方先手」+ T2 的「孩子恒先手」三条规则；
+  //     ③ 「界面说的」与「盘上发生的」从此可以不一致，而且零报错。
+  // ⭐ 连**转几圈**都不许随机：圈数由**存档里的 seed** 定（`half()` 是纯函数）⇒
+  //   同一局重放逐位相同，而不同的局看起来又不一样。
+  const COIN_SPIN  = 760;       // 转多久（ms）
+  const COIN_HOLD  = 420;       // 定住之后停多久（⚠ 卡片本身在第一手落下前一直在，这只是动画的尾巴）
+  const COIN_HALF_MIN  = 5;     // 至少翻这么多个半圈（⚠ 少于 3 就看不出「在翻」）
+  const COIN_HALF_SPAN = 4;     // seed 决定 +0..3 个半圈
+  /** ⭐ 半圈数：`seed` 的纯函数（⛔ 不是 Math.random）。⚠ seed 是 i32（可能为负）⇒ 先转 u32。 */
+  function coinHalfTurns(seed) {
+    const s = (typeof seed === 'number' && isFinite(seed)) ? (seed >>> 0) : 0;
+    return COIN_HALF_MIN + (s % COIN_HALF_SPAN);
+  }
 
   // ── ⭐ 时间放慢（bullet time，DESIGN §6.3「时间放慢半秒」）──
   // ⛔ 「放慢」**不是**「卡住」：速率恒 ≥ SLOW_MIN > 0，棋子每一帧都在动。
@@ -264,6 +291,30 @@
     };
   }
 
+  // ════════ ②d ⭐ 猜先的 pose：仍然是 **t 的闭式纯函数** ════════
+  // 两条曲线，都只读 t：
+  //   w    横向压缩 |cos(π·half·u)|：1 = 正对着你、0 = 立成一条边
+  //   face 这一帧朝上的是哪一面（= 哪一枚棋子）
+  // ⭐⭐ 换面必须发生在 **w = 0 的那一瞬**（硬币立起来看不见的时候），⛔ 不是在 w = 1 时 ——
+  //   那样棋子会在正对着你的时候「啪」地换成另一种造型，一眼是 bug。
+  //   ⇒ `k = floor(half·u + 0.5)`（在半整数处跳变，正是 cos 过零点），
+  //     ⛔ 别写成 `floor(half·u)`（那是在整数处跳，恰好就是 w=1 的那一帧）。
+  // ⭐⭐ 终态**显式钉死**：`u = 1 ⇒ k = half ⇒ face === first`。
+  //   这就是「猜先的结果恒等于 state.js 已经算好的先手」在**算术上**的保证：
+  //   `first` 是入参、一路不被改写，⛔ 中间没有任何随机源。
+  function poseCoinOf(it) {
+    const u = clamp01(it.t / COIN_SPIN);
+    const w = Math.abs(Math.cos(Math.PI * it.half * u));
+    const k = Math.min(it.half, Math.floor(it.half * u + 0.5));
+    const face = ((it.half - k) % 2 === 0) ? it.first : (it.first ^ 1);
+    return {
+      id: it.id, kind: 'coin', first: it.first, half: it.half,
+      face: face, w: u >= 1 ? 1 : w, u: u,
+      phase: u < 1 ? 'spin' : 'hold',
+      t: it.t, total: it.total
+    };
+  }
+
   // ════════ ③ 状态机 ════════
   let items = [];
   let seq = 0;
@@ -298,6 +349,7 @@
   function start(kind, params) {
     if (kind === 'win') return startWin(params);
     if (kind === 'fork') return startFork(params);
+    if (kind === 'coin') return startCoin(params);
     if (kind !== 'drop') return null;
     const q = params || {};
     if (!num(q.c) || !num(q.r) || q.r < 0 || q.r >= H) return null;
@@ -389,6 +441,24 @@
   }
 
   /**
+   * ⭐ 起「猜先」（P2c Task 3 · DESIGN §6.7）。
+   * @param params { first: 0|1, seed: i32 }
+   *   first ⭐ **落定那一面** —— 由调用方从 `g.humanFirst` 那条已定的规则算出来（main.js），
+   *         ⛔ 本模块不生成它、不改写它、更不掷骰子（理由全文见上面 COIN_* 那段）。
+   *   seed  ⭐ 存档里的 seed ⇒ 圈数是它的**纯函数** ⇒ 同一局重放逐位相同。
+   * @returns id 或 null（参数坏了 ⇒ 什么都不做，调用方照常画**静态终态**卡）
+   */
+  function startCoin(params) {
+    const q = params || {};
+    if (q.first !== 0 && q.first !== 1) return null;   // ⛔ 别猜：先手是规则算出来的，缺了就不演
+    items = items.filter(it => it.kind !== 'coin');    // ⛔ 一局只许有一次猜先
+    const it = { id: ++seq, kind: 'coin', first: q.first, half: coinHalfTurns(q.seed),
+                 t: 0, raw0: clock, total: COIN_SPIN + COIN_HOLD };
+    items.push(it);
+    return it.id;
+  }
+
+  /**
    * 推进 dtMs 毫秒。**唯一的可变操作**，且只做一件事：`clock += dt`
    * （每个 item 的 t 都是由 clock **算出来**的，⛔ 不是各自累加出来的 —— 见 ①b）。
    * @returns 事件数组：
@@ -418,6 +488,14 @@
         } else keep.push(it);
         continue;
       }
+      if (it.kind === 'coin') {
+        // ⭐ 走**真实**时间（同 win：它是「开场镜头」不是世界里的物体）。
+        // ⚠ 它不发任何事件：⛔ 本次不加音（新增一个音要动 tools/gen-sfx.js 与 tests/test-sfx.js
+        //   的基频反查门禁，而猜先是**视觉开场**，紧接着第一手的落定音本来就来了）。
+        it.t = Math.min(clock - it.raw0, it.total);
+        if (it.t < it.total) keep.push(it);
+        continue;
+      }
       if (it.kind === 'fork') {
         it.t = Math.min(gt - it.g0, it.total);        // ⭐ 走**游戏**时间（钉在那枚棋子落地上）
         if (!it.burst && it.t >= it.lead) {
@@ -444,7 +522,9 @@
   function pose() {
     const out = [];
     for (const it of items) {
-      out.push(it.kind === 'win' ? poseWinOf(it) : (it.kind === 'fork' ? poseForkOf(it) : poseOf(it)));
+      out.push(it.kind === 'win' ? poseWinOf(it)
+        : (it.kind === 'fork' ? poseForkOf(it)
+          : (it.kind === 'coin' ? poseCoinOf(it) : poseOf(it))));
     }
     return out;
   }
@@ -457,6 +537,17 @@
   function poseFork() {
     for (const it of items) if (it.kind === 'fork') return poseForkOf(it);
     return null;
+  }
+  /** ⭐ 猜先的 pose，没有就 null（⇒ 调用方画**静态终态**：正面朝上 + 那句「谁先走」）。 */
+  function poseCoin() {
+    for (const it of items) if (it.kind === 'coin') return poseCoinOf(it);
+    return null;
+  }
+  /** ⭐ 这次猜先一共多久（raw ms）；没有在跑时是 0。
+   *  main 用它算「AI 先手时等演完再走」的时长（⛔ 别在 main 里写死一个数）。 */
+  function coinTotal() {
+    for (const it of items) if (it.kind === 'coin') return it.total;
+    return 0;
   }
   /** ⭐ 这次庆祝一共多久（raw ms）；没有庆祝在跑时是 0。
    *  main 用它算结算节奏的**上界**（⛔ 别在 main 里写死一个数：那样调长庆祝门禁就抓不住了）。 */
@@ -486,6 +577,18 @@
                     t: num(t) && t > 0 ? t : 0, plan: planDrop(fall) });
   }
 
+  /**
+   * ⭐ 猜先曲线的**纯采样**（不碰状态机）—— 与 `sample` 同一个理由：`step()` 播完就把 item
+   * 摘掉，⇒ `t === total` 那一帧用 `poseCoin()` 取不到，而「落定那一面恒 === first」
+   * 正是要在那一点断言。⛔ 与 poseCoinOf 共用同一段闭式解，不是另写一份。
+   */
+  function sampleCoin(params, t) {
+    const q = params || {};
+    if (q.first !== 0 && q.first !== 1) return null;
+    return poseCoinOf({ id: 0, kind: 'coin', first: q.first, half: coinHalfTurns(q.seed),
+                        t: num(t) && t > 0 ? t : 0, total: COIN_SPIN + COIN_HOLD });
+  }
+
   function done() { return items.length === 0; }
   function active() { return items.length; }
   /** ⛔ 撤销 / 换局 / 回菜单必须调：不然一枚已经不在盘上的棋子还在飞（画面上凭空多一子）。
@@ -493,15 +596,19 @@
   function reset() { items = []; clock = 0; slowFrom = Infinity; }
 
   const API = {
-    start, step, pose, poseWin, poseFork, poseAt, sample, done, active, reset, winTotal,
-    planDrop, dropDuration, fallForRow,
+    start, step, pose, poseWin, poseFork, poseCoin, poseAt, sample, done, active, reset,
+    winTotal, coinTotal,
+    planDrop, dropDuration, fallForRow, coinHalfTurns,
+    // ⭐ 猜先曲线的**纯采样**（同 sample 的理由：t === total 那一帧 pose() 取不到）
+    sampleCoin,
     // 慢放时钟（导出给 tests/test-fx.js 直接量 Φ 与 Φ⁻¹ 对不对）
     slowScale, warpInt, warpInv,
     // 常数导出给测试与 render 对表（⛔ 别在别处再抄一份数字）
     G_ACC, REST, HOPS, BAND, FALL_MIN, STRETCH, SQUASH, MAX_ACTIVE, H, W,
     WIN_DRAW, WIN_LIT, WIN_HOLD, WIN_DIM_IN, DIM_MAX, WIN_LEAD_MIN, WIN_LEAD_MAX,
     SLOW_MIN, SLOW_HOLD, SLOW_RAMP,
-    FORK_RING, FORK_GAP, FORK_RINGS, FORK_FLASH, FORK_HOLD, FORK_LEAD_MAX
+    FORK_RING, FORK_GAP, FORK_RINGS, FORK_FLASH, FORK_HOLD, FORK_LEAD_MAX,
+    COIN_SPIN, COIN_HOLD, COIN_HALF_MIN, COIN_HALF_SPAN
   };
   // 与 P1 六个模块同样冻结：挡住 `C4Fx.step = () => {}` 这类「不报错、只是不动了」的误用。
   Object.freeze(API);

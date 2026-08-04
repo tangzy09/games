@@ -110,6 +110,18 @@
   const RESERVE_FRAC  = 0.34;
   const RESERVE_CELLS = 1.7;
 
+  // ══ ⭐⭐ P2c T3 · DESIGN §6.7「对坐模式」════════════════════════════════════
+  // 「棋盘旋转 180°，两人各自面向自己那侧（平板尤其自然）。」
+  //
+  // ⭐⭐ **产品判断：转的是 HUD，⛔ 不是棋盘。** 全文写在 main.js 的 f2fOn 那一节，
+  //   这里只记与几何有关的那一半：对坐模式要在盘**上方**给对面那个人放一条**旋转 180°**
+  //   的第二 HUD，⇒ 它必须像 `tray` 一样**进 cell 的高度预算**（`F2F_RESERVE`）。
+  //   ⛔⛔ 少了这一条就是 T7 那个 bug 的镜像版：棋盘会一路长上去把第二 HUD 压在自己身上，
+  //     而**画面看起来完全正常**（HUD 是半透明白卡，压在盘顶上只是「有点脏」）。
+  //   ⚠ 它**不看 phase**：⛔ 结算时不许改变盘的几何（T7 已定：结算多出来的块从 tray 里长，
+  //     棋盘一个像素都不动）。
+  const F2F_RESERVE = HUD_H + 10;
+
   // ════════ ① 几何：纯函数，不碰 canvas ════════
   /**
    * 算出这一屏的棋盘几何。**纯函数**：给同样的四个数永远给同样的结果，
@@ -132,7 +144,10 @@
    *   ⚠ 具名不是为了好看：`tray` 进了 cell 的预算（见上面 TRAY_MIN 那段），
    *     调用方（main.js）也只许在 `L.tray` 里排东西 ⇒ 「按钮压到盘上」在结构上不可能。
    */
-  function layout(SW, SH, safeTop, safeBottom) {
+  function layout(SW, SH, safeTop, safeBottom, opts) {
+    // ⭐ P2c T3：`opts.faceToFace` = 对坐模式（DESIGN §6.7）。⚠ 不给就是**逐位的老行为**
+    //   （⛔ 老调用方——e2e-render / e2e-p2b-t7 的五视口门禁——一个像素都不变）。
+    const f2f = !!(opts && opts.faceToFace);
     const GG = (typeof GameGlobal !== 'undefined') ? GameGlobal : null;
     const st = safeTop    == null ? (GG ? GG.safeTop    : 44) : safeTop;
     const sb = safeBottom == null ? (GG ? GG.safeBottom : 0)  : safeBottom;
@@ -155,7 +170,10 @@
     // 盘体高 = 6*cell + 2*pad，pad = 0.14*cell，悬停带 = 1.05*cell ⇒ 总高 ≈ 7.33*cell；
     // 横向 ≈ 7.28*cell。取两边的较小者。
     const trayBudget = Math.max(TRAY_MIN, Math.min(TRAY_MAX, Math.round(availH * TRAY_FRAC)));
-    const cell = Math.max(18, Math.floor(Math.min(availW / 7.28, (availH - trayBudget) / 7.33)));
+    // ⭐ 对坐模式：盘**上方**那条给对面那个人的 HUD 与 tray 同一条纪律 —— 先扣掉，剩下的才归盘。
+    const resvBudget = f2f ? F2F_RESERVE : 0;
+    const cell = Math.max(18, Math.floor(Math.min(availW / 7.28,
+      (availH - trayBudget - resvBudget) / 7.33)));
 
     const pad = Math.max(3, Math.round(cell * 0.14));
     const boardW = W * cell + pad * 2;
@@ -166,8 +184,12 @@
     // ⭐ 余量分配（§6.9）。⚠ 第三项 `freeH - trayBudget` 是**硬约束**：无论比例怎么算，
     //   盘下都必须先留够 trayBudget，⛔ 上方那块只能拿它剩下的。
     const freeH = Math.max(0, availH - dropH - boardH);
-    const reserve = Math.max(0, Math.round(Math.min(
+    let reserve = Math.max(0, Math.round(Math.min(
       freeH * RESERVE_FRAC, cell * RESERVE_CELLS, freeH - trayBudget)));
+    // ⭐ 对坐模式的**硬底线**（照 TRAY_MIN 的先例，⛔ 别写成「比例够大就行」）：
+    //   第二 HUD 是一张 54 px 的卡，装不下就等于没做。cell 那一行已经先把它扣掉了 ⇒
+    //   这里的 max 只是把上面三条上限里的舍入误差补回来。
+    if (f2f) reserve = Math.max(reserve, F2F_RESERVE);
     const drop = { x: boardX, y: belowHud + reserve, w: boardW, h: dropH };
     const boardY = drop.y + drop.h;
     const trayY = boardY + boardH;
@@ -180,6 +202,10 @@
       reserve: { x: MARGIN, y: belowHud, w: SW - MARGIN * 2, h: reserve },
       tray:    { x: MARGIN, y: trayY,    w: SW - MARGIN * 2, h: Math.max(0, bottomLimit - trayY) },
       bottomLimit,
+      // ⭐ 这一份 layout 是**按对坐模式算的**吗（P2c T3）。⚠ 存在的理由是「画的那份 layout
+      //   与注册热区的那份必须是同一个对象」——门禁直接问 `G.L.faceToFace`，
+      //   ⛔ 别让 E2E 自己再 layout() 一次去猜（那就成了「测的不是画的那份」）。
+      faceToFace: f2f,
       W, H
     };
 
@@ -725,11 +751,26 @@
    *   一个像素都不变。⚠ HUD 的**高度不跟着变**（那是 layout 的事，改了整盘几何会跟着挪）——
    *   16px×1.3 ≈ 21px 在 54px 高的卡片里仍然宽裕。
    */
-  function drawHUD(info, L, scale) {
+  function drawHUD(info, L, scale, opts) {
     info = info || {};
     L = L || layout(GameGlobal.SW, GameGlobal.SH);
     const k = (typeof scale === 'number' && scale > 0) ? scale : 1;
-    const h = L.hud;
+    // ⭐⭐ P2c T3 · DESIGN §6.7「对坐模式」：同一张 HUD 卡可以画在**别的矩形**里、并且
+    //   **整张旋转 180°** —— 那就是给坐在对面那个人读的第二条 HUD。
+    //   ⚠ 旋转的支点是**这张卡自己的中心** ⇒ 卡片的外接矩形逐像素不变。
+    //     ⭐ 这一条是承重的：它让「画出来的位置」与「热区/取样矩形」在结构上不可能漂
+    //       （180° 绕自身中心的轴对齐矩形是它自己）。⛔ 别改成绕盘心或绕屏心转 ——
+    //       那样卡片会飞到屏幕另一头，而 `h` 这个矩形还留在原地。
+    //   ⛔ 两个参数都不给 = 逐位的老行为（老调用方一个像素都不变）。
+    const rect = (opts && opts.rect) ? opts.rect : L.hud;
+    const flip = !!(opts && opts.flip);
+    const h = rect;
+    if (flip) {
+      ctx.save();
+      ctx.translate(h.x + h.w / 2, h.y + h.h / 2);
+      ctx.rotate(Math.PI);
+      ctx.translate(-(h.x + h.w / 2), -(h.y + h.h / 2));
+    }
     fillRR(h.x, h.y, h.w, h.h, 16, PAL.hudCard);
     strokeRR(h.x + 0.5, h.y + 0.5, h.w - 1, h.h - 1, 16, PAL.hudEdge, 1);
 
@@ -763,14 +804,62 @@
       txtL(wrapLines(info.left, leftMaxW, 1)[0], tx, cy, PAL.hudText, f);
     }
     if (rightStr) txtR(rightStr, h.x + h.w - 14, cy, PAL.hudSub, rightFont);
+    if (flip) ctx.restore();
     return h;
+  }
+
+  // ════════ ⑦ ⭐ 猜先（P2c T3 · DESIGN §6.7「猜先动画（抛硬币）」）════════
+  //
+  // ⭐⭐ **硬币的两面就是两方的棋子**（实心六边形 / 圆环）—— 零新美术，而且它顺手把
+  //   「先手 = ▲ 这一枚」教给了第一次玩的人（§6.2 的双编码在这里白送一次）。
+  // ⭐⭐ **落定那一面恒是「先手那枚」（棋子 0 = 六边形）**，这不是偷懒：本作里
+  //   「先手 = 棋子 0」是**定义**，⛔ 不是我们能抛的东西。真正被「猜」出来的是
+  //   **「这一局它归谁」**，那句话就是 `label` —— 它由调用方从 `g.humanFirst` 算，
+  //   ⇒ 猜先只是把 state.js 已经定好的结果**演一遍**，⛔ 绝不是第二套先手规则。
+  // ⚠ 曲线（转到哪一面、压得多扁）全部来自 `C4Fx.poseCoin()`，⛔ 这里不算时间
+  //   （与 drawFork / drawBoard 的 lineProg 同一条纪律）。
+  /**
+   * @param coin { face: 0|1, w: 0..1 }  face = 这一帧朝上的那一面；w = 横向压缩
+   *   （1 = 正对着你，0 = 立成一条边 ⇒ 换面就藏在这一瞬）
+   * @param label 文案由调用方 localize 后传进来（render ⛔ 不做文案策略）
+   * @returns 卡片矩形（⭐ 门禁按它取样，⛔ 别在测试里手抄坐标）
+   */
+  function drawCoin(L, coin, label, scale) {
+    if (!coin) return null;
+    const k = (typeof scale === 'number' && scale > 0) ? scale : 1;
+    const face = coin.face === 1 ? 1 : 0;
+    // ⛔ 夹到 0.06：真的画成 0 宽时那一帧硬币整个消失，看起来像闪了一下丢帧。
+    const w = Math.max(0.06, Math.min(1, typeof coin.w === 'number' ? coin.w : 1));
+    const cx = L.drop.x + L.drop.w / 2, cy = L.drop.y + L.drop.h / 2;
+    const gs = Math.min(L.drop.h * 0.86, L.cell * 0.92);
+    let px = Math.round(14 * k);
+    let f = 'bold ' + px + 'px sans-serif';
+    const maxTxt = L.drop.w - gs - 60;
+    ctx.font = f;
+    while (px > 10 && ctx.measureText(clean(label || '')).width > maxTxt) {
+      px -= 1; f = 'bold ' + px + 'px sans-serif'; ctx.font = f;
+    }
+    const tw = label ? ctx.measureText(clean(label)).width : 0;
+    const bw = Math.min(L.drop.w - 6, gs + tw + 46);
+    const bh = Math.min(L.drop.h, Math.max(30, gs + 10));
+    const rc = { x: cx - bw / 2, y: cy - bh / 2, w: bw, h: bh };
+    fillRR(rc.x, rc.y, rc.w, rc.h, bh / 2, PAL.hudCard);
+    strokeRR(rc.x + 0.5, rc.y + 0.5, rc.w - 1, rc.h - 1, bh / 2, PAL.hudEdge, 1);
+    const gx = rc.x + 14 + gs / 2;
+    // ⚠ 借 drawPiece 的 sx/sy（支点在棋子底沿）：sy 恒 1 ⇒ 只横向压扁 ⇒ 就是一枚在翻的硬币。
+    //   ⭐ 与真落下去的那一枚**共用同一条路径** ⇒ 猜先里看到的形状和盘上那枚一模一样。
+    drawPiece(face, gx, cy, gs, { sx: w, sy: 1 });
+    if (label) txtL(label, gx + gs / 2 + 10, cy, PAL.hudText, f);
+    return rc;
   }
 
   const API = {
     W, H, PAL, HEX_R, RING_R, RING_I, TRI_R, DIA_R, DIA_W, FORK_R0, FORK_R1,
     // ⭐ P2b T7 · §6.9：门禁要拿这几个数当判据（⛔ 别在测试里手抄魔数）
     MARGIN, HUD_H, TRAY_MIN, TRAY_MAX,
-    layout, drawBackground, drawBoard, drawHUD, drawGlyph, drawPiece,
+    // ⭐ P2c T3 · §6.7 对坐模式：门禁要拿它当判据（⛔ 别在测试里手抄魔数）
+    F2F_RESERVE,
+    layout, drawBackground, drawBoard, drawHUD, drawCoin, drawGlyph, drawPiece,
     drawThreat, drawThreats, drawThreatGlyph, drawFork,
     cellOwner, landingRow
   };

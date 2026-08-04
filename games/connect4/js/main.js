@@ -71,6 +71,15 @@ var G = {
   //   forkCount 存在的理由就是「不刷屏」那条门禁要能**数**：连续两手都是双威胁时它必须还是 1。
   forkCount: 0,
   lastFork: null,     // { player, cells:[{c,r}], ply }
+  // ── ⭐ 猜先（P2c T3 · DESIGN §6.7）──
+  // ⭐ `coin` = 「这一局的猜先卡还该不该画」。⛔ **不进 G 的存档对象**：猜先没有任何自己的
+  //   随机性，它演的就是 `g.humanFirst`（state.js 早就算好了）⇒ 存它等于把同一个事实存两遍，
+  //   而两份一旦漂了就会出现「卡上说他先手、盘上是我先走」，零报错。
+  coin: false,
+  // ⭐ 这一局的猜先到底**放没放动画**（减弱动态下是 false）。只给 E2E / 调试看。
+  coinAnim: false,
+  coinRect: null,     // 上一帧猜先卡画在哪（只给 E2E 取样，⛔ 不是真值源）
+  f2fRect: null,      // 上一帧对坐 HUD 画在哪（同上）
   // ── 竖屏留白（P2b T7 · DESIGN §6.9）──
   // ⭐ HOME 上每一块排完的 { k, y, h }，**只给 E2E / 调试看**（⛔ 不是真值源，每帧重排）。
   //   门禁靠它断言「块与块不重叠、都不出屏」—— ⛔ 少了它，「小屏 + 舒适模式四行压成一坨」
@@ -123,7 +132,53 @@ function comfortOn() { return C4Settings.get('comfort'); }
 
 // ════════ 小工具 ════════
 
-function curLayout() { return C4Render.layout(GameGlobal.SW, GameGlobal.SH); }
+// ════════ ⭐⭐ 对坐模式（P2c Task 3 · DESIGN §6.7）════════
+// §6.7 原文：「**对坐模式**：棋盘旋转 180°，两人各自面向自己那侧（平板尤其自然）。」
+//
+// ⭐⭐⭐ ─── 产品判断 ①：**转的是 HUD，⛔ 不是棋盘。** ───
+//   规格那句话我照着做了一遍，然后把它推翻了。三条理由，按分量排：
+//   1. ⛔⛔ **重力是这局棋里唯一「两人必须共享」的约定。** 转 180° 之后「往下掉」在屏幕上
+//      变成「往上长」——**给谁转，谁的重力就是对的，另一个人就得看着棋子往上掉**。
+//      而且它不是能两边都满足的东西：平板平放在桌上时根本不存在一个两人都认同的「下」
+//      （真实的塑料四子棋是**立着**的，重力对两人是同一个真实方向 —— 那正是它躲开这个问题
+//      的方式，⛔ 平板躲不开）。
+//   2. ⛔ **「每手转一次」会让全盘棋子在屏幕上瞬移两次/回合。** 这个游戏的全部内容就是
+//      「读盘面」：我刚记住的那条三连换到了对角。对 §6.7 真正的主角（4-5 岁的孩子、
+//      让子局、儿童档）这是灾难。而且它是**大幅度的整屏运动** ⇒ §6.8 减弱动态必须把它关掉
+//      ⇒ 最需要「不歪头」的那批人反而拿不到这个功能，功能就自相矛盾了。
+//   3. ⭐ **盘面倒过来看几乎不丢信息，字才丢。** 两方棋子的造型是**正六边形**与**圆环**——
+//      两者在 180° 旋转下逐像素不变（§6.2 的双编码在对面那个人眼里原样成立）；
+//      威胁标记 ▲ 倒过来是 ▼、◇ 不变，实心/空心这一重编码也照样在。
+//      ⇒ 对面那个人真正读不了的是**字**：「轮到谁」「谁赢了」。
+//   ⇒ **对坐模式 = 在盘上方给对面那个人一条旋转 180° 的第二 HUD**（盘、重力、列热区
+//     一个像素都不动）。⚠ 那条 HUD 像 tray 一样**进 cell 的高度预算**（render 的 F2F_RESERVE），
+//     ⛔ 否则棋盘会长上去把它压在身下，而画面看起来完全正常。
+//
+// ⭐ ─── 产品判断 ②：**只对同机双人局开放** ───
+//   对坐模式的全部价值是「对面**坐着一个人**」。人机局对面没有人 ⇒ 第二条 HUD 是纯噪音，
+//   还要从棋盘身上收走 64 px（§6.9 的留白是有限资源）。
+//   ⚠ 但**⛔ 不静默**（§2.4 / T1 让子在求解器档下的先例）：设置**存得住**（家长的选择不该
+//     被清掉），HOME 上那一行的标签自己就写着「（双人）」，人机局开出来就是不生效。
+//   ⚠ 判据只有 `f2fOn()` 一份，⛔ 别在别处再写一次 `mode === 'human'`。
+//
+// ⭐ ─── 为什么它**不进存档**（与 kids 正好相反）───
+//   kids 进存档，是因为它**改规则**（锁档位 + 孩子恒先手）⇒ 「这一局是什么」必须钉在 G 上。
+//   对坐模式**一条规则都不改**，它只回答「这一屏怎么画」⇒ 读设置现算才是对的：
+//   两个人中途想换个坐法，改一下当场就该生效。⛔ 把它塞进 G 会白 bump 一次 SAVE_VERSION
+//   并把所有老档判死，换来的只是一个画面开关。
+function f2fPref() { return C4Settings.get('faceToFace'); }
+/** ⭐ 这一屏到底给不给第二条 HUD。⚠ HOME 上恒 false（那时还没有「对面那个人」）。 */
+function f2fOn() {
+  return f2fPref() && G.phase !== 'HOME' && !!G.g && G.g.mode === 'human';
+}
+
+// ⚠⚠ 全局只有这一处算 layout：**画出来的那份**与 `onHoldEnd` 拿去算列号的那份必须是
+//   同一个对象（renderAll 把它存进 G.L，drawBoard 用同一个 L 注册热区）。
+//   ⛔ 对坐模式改了几何（盘往下挪、平板上 cell 还会变小）——两处各算各的话就会出现
+//   「点哪儿都不对」而功能测试全绿（那些测试直接调 action，根本不走热区）。
+function curLayout() {
+  return C4Render.layout(GameGlobal.SW, GameGlobal.SH, null, null, { faceToFace: f2fOn() });
+}
 
 /** 单行文字**缩到装得下**（canvas 的 fillText 不换行也不截断，德/俄膨胀会直接压到隔壁）。 */
 function fitTxt(s, cx, cy, maxW, color, weight, size) {
@@ -318,6 +373,9 @@ function fxKick() {
 function fxStop() {
   if (G.rafId != null) { cancelAnimationFrame(G.rafId); G.rafId = null; }
   clearOverTimer();
+  // ⭐ 猜先那个「等演完再让 AI 走」的计时器一起清（同 _overTimer 的理由）：撤销/换局之后
+  //   它再触发就会在**另一局**上叫醒 AI。⚠ 里面还有一道 aiSeq 校验，两层都要有。
+  clearCoinTimer();
   G.overReady = false;
   C4Fx.reset();
 }
@@ -417,6 +475,7 @@ function interactive() {
 function goHome() {
   G.aiSeq++; setThinking(false); fxStop(); resetFork();
   G.phase = 'HOME'; G.g = null; G.result = null; G.hoverCol = -1; G.holdCol = -1; G.notice = '';
+  G.coin = false; G.coinAnim = false;
   renderAll();
 }
 
@@ -462,6 +521,57 @@ function applyKidsPreset() {
   if (!C4Settings.get('comfort')) C4Settings.set('comfort', true);
 }
 
+// ════════ ⭐⭐ 猜先（P2c Task 3 · DESIGN §6.7「猜先动画（抛硬币）」）════════
+// 「交替先手之外加一点『开始感』，几乎零成本。」
+//
+// ⭐⭐⭐ ─── 产品判断 ③：**猜先不掷骰子，它把已定的结果演一遍** ───
+//   先手在 `C4State.newGame` 里已经由**四条**规则算完了（交替先手 §1.1②、T1「让子局强方
+//   先手」、T2「孩子恒先手」、§1.1① 顶档必须玩家先手）。猜先如果自己再抛一次硬币，
+//   会同时打碎三样东西，而且全都零报错：
+//     ① **存档可重放**（撤销 = 重放到 n−1）—— 同一份存档两次打开会演出不同的先手；
+//     ② 上面那四条规则**当场失效**（儿童档的孩子会有一半局数后手）；
+//     ③ 「卡片上说的」与「盘上发生的」可以不一致。
+//   ⇒ 三条**结构性**保证（⛔ 不是靠自觉）：
+//     · 落定那一面 `first` 恒是**棋子 0**（本作里「先手 = 棋子 0」是定义，⛔ 不是能抛的东西）；
+//     · 真正被「猜」的是「**这一局它归谁**」，而那句话（coinLabel）**只读 `g.humanFirst`**
+//       —— 与 state.js 算先手用的是同一个字段，⛔ 不存第二份；
+//     · 硬币转几圈由**存档里的 seed** 定（C4Fx.coinHalfTurns，纯函数）⇒ 同 seed 逐位相同。
+//   ⛔ 本 task 改动的四个 js 里 `Math.random` 零出现（门禁 tests/e2e-p2c-t3 现场扫源码）。
+//
+// ⭐ 减弱动态（§6.8）：**硬币不转，卡片照画**（静态终态）—— 与 T3 赢局那条 fail-safe 同模板。
+//   ⚠ 但「静态卡也需要时间被读到」⇒ 关掉动画时仍然给一个**最小停留**，AI 先手时等它过去
+//     再走。⛔ 这不是「锁输入」（那时本来就不是玩家的回合；人先手时它一秒都不挡）。
+const COIN_STATIC_MS = 700;
+let _coinTimer = null;
+function clearCoinTimer() { if (_coinTimer) { clearTimeout(_coinTimer); _coinTimer = null; } }
+
+/** @returns 这次猜先要占多久（ms）—— AI 先手时先等这么久再让它走。 */
+function startCoinFx() {
+  const g = G.g;
+  G.coin = true;
+  // ⭐ 减弱动态的门控点之四（§6.8）：不 start ⇒ 硬币不转，⛔ 但下面那张卡照画。
+  const id = reduceMotion() ? null : C4Fx.start('coin', { first: 0, seed: g.seed });
+  G.coinAnim = id != null;
+  if (id == null) return COIN_STATIC_MS;
+  fxKick();
+  return C4Fx.coinTotal();
+}
+
+/** ⭐ 「这一局谁先走」那句话。⚠ **只读 `g.humanFirst`** —— 与 state.js 定先手用的是同一个
+ *  字段，⛔ 这里不许再算一次先手（两份判据漂了 = 卡片说的和盘上发生的不一样）。
+ *  ⚠ 儿童档换成「不说难懂的话」的那一套（§6.7）。 */
+function coinLabel(g) {
+  if (C4State.kidsOf(g)) return T(g.humanFirst ? 'kids.coinYou' : 'kids.coinAI');
+  if (g.mode === 'ai') return T(g.humanFirst ? 'game.coinYou' : 'game.coinAI');
+  return T('game.coinP', { p: firstSeatName(g) });
+}
+
+/** 猜先卡这一帧还该不该画。⭐ 判据是「**还没落第一手**」：它一出现在盘上，先手就是
+ *  看得见的事实了。⚠ 撤销回空盘时它会**回来**，那是对的（那时确实又是「还没开始」）。 */
+function coinShown() {
+  return G.coin && G.phase === 'PLAYING' && !!G.g && G.g.moves.length === 0;
+}
+
 function startGame(mode, tier) {
   G.aiSeq++; setThinking(false); fxStop(); resetFork();
   G.result = null; G.hoverCol = -1; G.holdCol = -1; G.notice = '';
@@ -475,8 +585,20 @@ function startGame(mode, tier) {
   if (mode === 'ai') opts.tier = tier;
   G.g = C4State.newGame(opts);
   G.phase = 'PLAYING';
+  // ⭐ 猜先（§6.7）。⚠ 必须在 newGame **之后**：它演的就是 newGame 刚算完的那个先手。
+  const wait = startCoinFx();
   renderAll();
-  maybeAI();
+  // ⭐ AI 先手时**等猜先演完再走**：否则「电脑先走」这句话在屏幕上活不过一帧（等于没做）。
+  //   ⛔ 这不是文件头 ② 那种「把玩家的点击吞掉」的锁：这段时间本来就不是玩家的回合，
+  //     而玩家先手时下面直接走 else 分支，一毫秒都不挡。
+  if (wait > 0 && !C4State.isHumanTurn(G.g)) {
+    const my = G.aiSeq;
+    _coinTimer = setTimeout(() => {
+      _coinTimer = null;
+      if (my !== G.aiSeq) return;   // 换局 / 撤销把它作废了
+      maybeAI();
+    }, wait);
+  } else maybeAI();
 }
 
 /** 再来一局：⭐ gameNo +1 ⇒ 下一局先手换人（同机双人），人机局同理轮换。 */
@@ -708,6 +830,9 @@ function dispatch(action, data) {
     //   （三档，⛔ 不是布尔）。⚠ 求解器档下这个选择**照样存得住**，只是那一局不生效
     //   （effHandicap 说了算）—— 玩家换回轻松档时不该发现自己的选择被清了。
     case 'CYCLE_HANDICAP': C4Settings.cycle('handicap'); renderAll(); return;
+    // ⭐ 对坐模式（DESIGN §6.7）：布尔 ⇒ toggle。⚠ 与让子同理，人机局下这个选择**照样存得住**，
+    //   只是那一局不生效（f2fOn 说了算）——⛔ 别在这里替玩家清掉他的选择。
+    case 'TOGGLE_F2F': C4Settings.toggle('faceToFace'); renderAll(); return;
     case 'UNDO':       doUndo(); return;
     case 'AGAIN':      again(); return;
     case 'HOME':       goHome(); return;
@@ -783,7 +908,10 @@ function homeStack(L) {
       { k: 'level',  h: Math.round(F(12) * 1.60), gap: 10, px: F(12) },
       // ⭐ 让子（§6.7）排在**档位与开始按钮之间**：它是「这一局怎么开」的设置，
       //   不是无障碍偏好 ⇒ ⛔ 别丢进下面那三行设置里（家长找不到 = 这条功能等于没做）。
-      { k: 'hcap',   h: B(46),                    gap: 12, px: F(14) },
+      { k: 'hcap',   h: B(46),                    gap: 8,  px: F(14) },
+      // ⭐ 对坐模式（§6.7）与让子并排：两条都是「这一局怎么开」，⛔ 别丢进下面那三行
+      //   无障碍设置里（家长找不到 = 这条功能等于没做）。
+      { k: 'f2f',    h: B(46),                    gap: 12, px: F(14) },
       { k: 'ai',     h: B(52),                    gap: 12, px: F(16) },
       { k: 'human',  h: B(52),                    gap: 18, px: F(16) },
       { k: 'set1',   h: B(46),                    gap: 8,  px: F(14) },
@@ -884,6 +1012,27 @@ function drawHome(L) {
                return x + 20 + hcap * (gs + 4);
              }, b.px);
 
+  // ⭐⭐ 对坐模式（DESIGN §6.7）：「两人各自面向自己那侧（平板尤其自然）」。
+  //   ⚠ 「只对双人局生效」这件事写在**标签**里（「对坐模式（双人）」）而不是右边的值栏 ——
+  //     值栏只有 `bw*0.5` 宽且 `wrapLines(…,1)` 只留一行，把「开 · 仅双人」拼进去会被
+  //     **截断**成半句话（T1 在让子那行踩过，⛔ 别再踩一次）。
+  //   ⭐ 左边的图例画的是**这条功能本身**：一枚正着的棋子 + 一枚倒过来的三角 ——
+  //     ⛔ 别只写一行字（家长得先猜「对坐模式」是什么才敢点）。
+  const f2f = f2fPref();
+  b = S.at('f2f');
+  settingRow(bx, b.y, bw, b.h, T('menu.faceToFace'), T(f2f ? 'menu.on' : 'menu.off'),
+             f2f, 'TOGGLE_F2F', (x, gy, h) => {
+               const gs = Math.min(fsz(26), Math.round(h * 0.62));
+               C4Render.drawThreatGlyph(0, x + 12 + gs / 2, gy, gs);
+               // 第二枚**旋转 180°** 画出来 = 这条功能的图例本身（对面那个人看到的样子）
+               ctx.save();
+               const px2 = x + 16 + gs * 1.5;
+               ctx.translate(px2, gy); ctx.rotate(Math.PI); ctx.translate(-px2, -gy);
+               C4Render.drawThreatGlyph(0, px2, gy, gs);
+               ctx.restore();
+               return x + 24 + gs * 2;
+             }, b.px);
+
   b = S.at('ai');
   btn(bx, b.y, bw, b.h, T('menu.vsAI'), 'PLAY_AI', {}, { disabled: dead, px: b.px });
   b = S.at('human');
@@ -954,6 +1103,16 @@ function drawDropBand(L) {
       ctx.fillStyle = i === G.spin ? C4Render.PAL.accent : 'rgba(47,143,106,0.28)';
       ctx.fill();
     }
+    return;
+  }
+  // ⭐⭐ 猜先卡（P2c T3 · §6.7）。⚠ 排在「思考中」**之后**：AI 真的在算的时候那句反馈更要紧。
+  //   ⭐ `C4Fx.poseCoin()` 为 null（播完了 / 减弱动态压根没 start）⇒ 退回**静态终态**
+  //     （正面朝上 + 那句「谁先走」）—— 与赢局那条 fail-safe 同一个写法：
+  //     ⛔ 关掉的是硬币在转，**不是**「谁先手」这条信息。
+  if (coinShown()) {
+    const cf = C4Fx.poseCoin();
+    G.coinRect = C4Render.drawCoin(L, cf || { face: 0, w: 1 }, coinLabel(G.g),
+                                   comfortOn() ? COMFORT_TEXT : 1);
     return;
   }
   if (G.notice) {
@@ -1179,6 +1338,17 @@ function drawPlay(L) {
   // ⭐ 舒适模式（§6.8）：HUD 的字也一起放大。⚠ HUD 的**高度**不跟着变（那是 layout 的事）。
   C4Render.drawHUD(info, L, comfortOn() ? COMFORT_TEXT : 1);
 
+  // ⭐⭐ 对坐模式（P2c T3 · §6.7）：盘上方那条**旋转 180°** 的第二 HUD —— 给坐在对面
+  //   那个人读的。⚠ 内容与下面那条**逐字相同**（同一个 info 对象）：⛔ 两条 HUD 说不同的话
+  //   就是两个真值，桌子两边的人会为「到底轮到谁」吵起来。
+  //   ⚠ 位置来自 layout 的 `L.reserve`（§6.9 具名留出的那块，F2F_RESERVE 已经把它进了
+  //     cell 的预算）⇒ ⛔ 它在结构上压不到棋盘。
+  if (L.faceToFace && L.reserve.h >= C4Render.HUD_H) {
+    const rect = { x: L.reserve.x, y: L.reserve.y, w: L.reserve.w, h: C4Render.HUD_H };
+    C4Render.drawHUD(info, L, comfortOn() ? COMFORT_TEXT : 1, { rect: rect, flip: true });
+    G.f2fRect = rect;
+  }
+
   drawDropBand(L);
 
   // ⭐⭐ 按钮 / 结算内容一律排进 layout 给的 **L.tray**（盘底之下的净空，P2b T7 · §6.9）。
@@ -1238,6 +1408,9 @@ function drawPlay(L) {
 
 function renderAll() {
   clearHits();
+  // ⚠ 每帧清掉：这两个矩形是「上一帧画在哪」，⛔ 不是真值源 —— 不清的话门禁会拿着
+  //   一个早就不画了的矩形去取样，量到的是别的东西（而且看起来很合理）。
+  G.coinRect = null; G.f2fRect = null;
   const L = curLayout();
   G.L = L;
   C4Render.drawBackground(L);

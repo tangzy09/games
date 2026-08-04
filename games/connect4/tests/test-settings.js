@@ -35,7 +35,8 @@ const KEY = 'c4_settings';
   assert.strictEqual(S.defaults().threatHints, true);
   assert.notStrictEqual(S.defaults(), S.defaults(), 'defaults() 必须每次给新对象（⛔ 别共享常量）');
   assert.ok(Object.isFrozen(S.DEFAULTS), 'DEFAULTS 必须冻结');
-  assert.deepStrictEqual(S.KEYS.slice(), ['threatHints', 'reduceMotion', 'comfort', 'handicap', 'kids']);
+  assert.deepStrictEqual(S.KEYS.slice(),
+    ['threatHints', 'reduceMotion', 'comfort', 'handicap', 'kids', 'faceToFace']);
   console.log('test-settings: 默认 threatHints=true（新手默认开）OK');
 }
 
@@ -92,6 +93,30 @@ const KEY = 'c4_settings';
   assert.strictEqual(S.parse('{"kids":true}').kids, true, '合法值必须原样读回');
   assert.strictEqual(S.parse('{"kids":"true"}').kids, false, '存档里的脏类型 ⇒ 退回默认');
   console.log('test-settings: ⭐ 儿童档（默认关 + 布尔校验 + 持久化）OK');
+}
+
+// ─────────── ①e ⭐ P2c Task 3：对坐模式（DESIGN §6.7）───────────
+{
+  assert.strictEqual(S.DEFAULTS.faceToFace, false,
+    '对坐模式默认关：它改的是界面版面（要从棋盘身上收走 64 px），⛔ 不许替没提要求的人改');
+  assert.strictEqual(typeof S.DEFAULTS.faceToFace, 'boolean',
+    '对坐模式是**布尔**：要么两人对坐、要么不是，中间没有第三档');
+  assert.throws(() => S.set('faceToFace', 'yes'), /类型/);
+  assert.throws(() => S.set('faceToFace', 1), /类型/);
+  // ⭐⭐ 持久化只走**非默认**方向（true）—— ⛔ 别反过来断言「刷新后仍是 false」：
+  //   那在字段根本没进 defaults 时照样绿（本文件 ②b 那条实锤）。
+  {
+    const store = {};
+    S.attach(fakeBackend(store), KEY);
+    assert.strictEqual(S.toggle('faceToFace'), true);
+    assert.strictEqual(JSON.parse(store[KEY]).faceToFace, true, '必须立刻落盘');
+    S.attach(fakeBackend(store), KEY);                  // 「刷新页面」
+    assert.strictEqual(S.get('faceToFace'), true,
+      '⭐ faceToFace=true 没活过一次刷新（十有八九是字段没进 defaults）');
+  }
+  assert.strictEqual(S.parse('{"faceToFace":true}').faceToFace, true, '合法值原样读回');
+  assert.strictEqual(S.parse('{"faceToFace":"true"}').faceToFace, false, '脏类型 ⇒ 退回默认');
+  console.log('test-settings: ⭐ 对坐模式（默认关 + 布尔校验 + 持久化）OK');
 }
 
 // ─────────── ①b ⭐ P2b Task 6：减弱动态（三态）+ 舒适模式（DESIGN §6.8）───────────
