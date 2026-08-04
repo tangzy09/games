@@ -366,7 +366,19 @@ blockblast 的一切数值都靠 `tools/sim.js` 钉死。solitaire 的所有难�
 | Spider **10 列** | §1.3 |
 | iPhone SE / 13 mini 竖屏 **CSS 宽 375px** ⇒ 每列 **≤35px** | 现实 |
 | 「60px 缩略图下也认得出」+ 大字号高对比 | §10 / §7.5（老年用户） |
-| 底部横幅**预留空间不遮牌**（再吃 50-60px 高） | §7.2 |
+| 底部横幅**预留空间不遮牌**（真机 **≈124px**，见下） | §7.2 |
+
+⛔ **「横幅 50-60px」是错的（2026-08-03 实机实锤，别再照这个数写布局）**：
+AdMob 的 `ADAPTIVE_BANNER` 高度按**设备屏高**分档（≤400dp:32 / ≤720:50 / **>720:90**）——
+现代 iPhone 屏高都 >720 ⇒ **90pt**；插件又把它约束在 `safeAreaLayoutGuide.bottom`
+（BannerExecutor.swift），底下还压着 home indicator 的 **34** ⇒ **实际吃掉约 124px**。
+插件**不会 resize webview**，只是盖上去 ⇒ 全靠布局自己让位。
+⇒ 预留量一律问 **`Ads.bannerReserve()`**（真值来自 `bannerAdSizeChanged` 事件，
+没填充时回报 0 ⇒ 不留白）；写死常数就是在破自己的「横幅绝不遮牌」红线。
+⚠ 横幅是**常驻**的（showBanner 一次就一直在）⇒ **菜单/图鉴/公平页也要让位**，
+它们的「‹ 返回」按 `SH - 70` 定位时被整颗盖住、点不动。
+**验收**：`node games/solitaire/tools/shot-banner.cjs`（三种视口逐页扫描预留带内的可点区，
+有一个就 FAIL —— 比目检硬，改底部布局后必跑）。
 
 **⇒ 三套玩法各给一张布局规格表**（P1 就要写，否则 `render.js` 会推倒重写）：
 `可用宽高 → cardW / 列间距 / 明牌 offset / 暗牌 offset（两者不同！）/ 最长列压缩策略 / 横幅预留 / safe-area`

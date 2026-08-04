@@ -145,20 +145,60 @@ const Ads = (() => {
   // of any casual genre) the banner, not the rewarded video, is the main revenue:
   // huge impression time and it never interrupts play.
   //
-  // ⚠ The game MUST reserve space for it in its layout (see Layout.BANNER_H) and
+  // ⚠ The game MUST reserve space for it in its layout (see bannerReserve()) and
   // draw its board above that band. A banner that covers the cards is the single
   // most-hated thing in this genre — never overlay it on the play area.
+  //
+  // ⛔ 2026-08-03 实机踩到的真坑：游戏侧写死「横幅 = 56px」，实际盖住了底部工具条。
+  //   两处都错了，加起来差 ~68px：
+  //   ① **ADAPTIVE_BANNER 不是 50 也不是 56** —— 高度由**设备屏幕高度**分档决定
+  //      （≤400dp:32 / ≤720dp:50 / **>720dp:90**）。现代手机屏高都 >720 ⇒ 实际 **90pt**。
+  //   ② 插件把横幅约束在 `safeAreaLayoutGuide.bottom`（见 BannerExecutor.swift）
+  //      ⇒ 横幅**下面**还压着 home indicator 的 safeBottom(34) ⇒ 预留必须 = 高度 + safeBottom。
+  //   插件**不会 resize webview**，只是 addSubview 盖上去 ⇒ 全靠游戏自己让位。
+  //   真值来自 `bannerAdSizeChanged` 事件（含 hide/失败时的 0），估算只用于广告到达前的首帧。
   let bannerShown = false;
+  let bannerSizeH = -1;         // 插件回报的真实高度（pt/dp = CSS px）；-1 = 还没回报，0 = 明确没有横幅
+  let sizeListener = null;
 
   function bannerId() {
     const p = Platform.platform;
     return (REAL.banner && REAL.banner[p]) || TEST_BANNER[p] || TEST_BANNER.android;
   }
 
+  // Google 官方 anchored-adaptive 分档（按设备屏高，不是屏宽）——只作为事件到达前的首帧估计。
+  function estBannerHeight() {
+    const h = (window.screen && window.screen.height) || window.innerHeight || 800;
+    return h <= 400 ? 32 : (h <= 720 ? 50 : 90);
+  }
+
+  /**
+   * 游戏布局应当为横幅**预留**多少 CSS px（0 = 不需要预留）。
+   * = 横幅自身高度 + 底部安全区（横幅贴在 safe area 之上，它下面那条 home indicator 区也不能画内容）。
+   * web 恒为 0（没有原生横幅，游戏自己决定要不要画占位条）。
+   */
+  //   ⚠ 广告没填充/加载失败时插件会回报 height:0 ⇒ 这时**不留白**（留一条空带比没广告更蠢）。
+  function bannerReserve() {
+    if (!bannerShown) return 0;
+    const h = bannerSizeH < 0 ? estBannerHeight() : bannerSizeH;
+    return h > 0 ? h + (GameGlobal.safeBottom || 0) : 0;
+  }
+
   async function showBanner() {
     if (bannerShown) return true;
     if (!Platform.isNative || !plugin) return false;   // web: the game draws a placeholder band
     try {
+      // 先订阅尺寸事件再展示，否则首次 bannerViewDidReceiveAd 可能早于监听注册。
+      if (!sizeListener) {
+        sizeListener = await plugin.addListener('bannerAdSizeChanged', ev => {
+          const h = (ev && Number(ev.height)) || 0;
+          if (h === bannerSizeH) return;
+          bannerSizeH = h;
+          try { if (API.onBannerSize) API.onBannerSize(bannerReserve()); } catch (e) {}
+        });
+      }
+      bannerShown = true; bannerSizeH = -1;   // 先置位：estBannerHeight 立刻生效，不等广告回来
+      try { if (API.onBannerSize) API.onBannerSize(bannerReserve()); } catch (e) {}
       await plugin.showBanner({
         adId: bannerId(),
         adSize: 'ADAPTIVE_BANNER',
@@ -166,15 +206,21 @@ const Ads = (() => {
         margin: 0,
         isTesting: !hasRealIds(),
       });
-      bannerShown = true;
       return true;
-    } catch (e) { console.warn('banner failed', e); return false; }
+    } catch (e) {
+      console.warn('banner failed', e);
+      bannerShown = false;                    // 没起来就别占着地皮
+      try { if (API.onBannerSize) API.onBannerSize(0); } catch (e2) {}
+      return false;
+    }
   }
 
   async function hideBanner() {
     if (!bannerShown || !plugin) return;
     try { await plugin.removeBanner(); } catch (e) {}
     bannerShown = false;
+    bannerSizeH = 0;
+    try { if (API.onBannerSize) API.onBannerSize(0); } catch (e) {}
   }
 
   // GDPR: let users change/withdraw ad consent anytime (required in EU).
@@ -185,7 +231,11 @@ const Ads = (() => {
     catch (e) { console.warn('privacy options failed', e); return false; }
   }
 
-  return { init, prepare, showRewarded, prepareInterstitial, showInterstitial,
-           showBanner, hideBanner, showPrivacyOptions,
-           get ready() { return initialized; }, get bannerShown() { return bannerShown; } };
+  // onBannerSize：横幅出现/尺寸变化/消失时回调（参数 = 应预留的 px）。
+  // 游戏侧接上它重新 layout + renderAll —— 广告是异步到达的，不重排就会错位一整局。
+  const API = { init, prepare, showRewarded, prepareInterstitial, showInterstitial,
+                showBanner, hideBanner, showPrivacyOptions, bannerReserve,
+                onBannerSize: null,
+                get ready() { return initialized; }, get bannerShown() { return bannerShown; } };
+  return API;
 })();

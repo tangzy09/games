@@ -1494,7 +1494,11 @@ async function boot() {
   Sprite.preloadBacks();                               // 图片牌背预热（几百 KB，onload 自动重画）
   settleMonthBadges();                                 // 上个月的每日奖牌（一次性结算）
   // ⭐ 横幅是**主力收入**（纸牌单次会话 10-15 分钟，曝光时长极高且不打断牌局）。
-  //    布局已为它**预留**了 Layout.BANNER_H —— 它永远不会盖在牌上（变现红线 §7.4-5）。
+  //    布局已为它**预留**空间 —— 它永远不会盖在牌上（变现红线 §7.4-5）。
+  //    ⚠ 预留多少**必须问 Ads.bannerReserve()**：真机的自适应横幅是 90pt + 底部安全区 34
+  //    ≈ 124px，而不是网页占位条那个 56（2026-08-03 实机上底部工具条被压掉大半就是这么来的）。
+  //    横幅是**异步**到达的，尺寸回来后要重排 + 重画，否则错位一整局。
+  Ads.onBannerSize = () => { try { renderAll(); } catch (e) {} };
   //    G.noAds = 「不占横幅位」：死开关 noAds 或**前 30 盘蜜月期**（跨过蜜月在 newGame 里亮出）。
   G.noAds = Money.noAds || Money.adFree(G.stats.played);
   if (!G.noAds) Ads.showBanner();

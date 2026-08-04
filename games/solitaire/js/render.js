@@ -179,12 +179,12 @@
     txt(st ? T('sol.fairPool', { n: st.total }) : '—', cx, infoY + 51, PAL.sub, '10px sans-serif');
 
     // 底部双按钮：返回 + 分享此局（「你行你上」是纸牌玩家真实的社交冲动 —— 零后端的传播机制）
-    fillRR(cx - 150, SH - 70, 140, 44, 12, 'rgba(255,255,255,0.20)');
-    txt('‹ ' + T('sol.back'), cx - 80, SH - 48, '#fff', '14px sans-serif');
-    addHit(cx - 150, SH - 70, 140, 44, 'PLAY', {});
-    fillRR(cx + 10, SH - 70, 140, 44, 12, 'rgba(126,242,160,0.22)');
-    iconText('share', '📤', T('sol.share'), cx + 80, SH - 48, '13px sans-serif', '#7ef2a0', 15);
-    addHit(cx + 10, SH - 70, 140, 44, 'SHARE', {});
+    fillRR(cx - 150, L.botY - 70, 140, 44, 12, 'rgba(255,255,255,0.20)');
+    txt('‹ ' + T('sol.back'), cx - 80, L.botY - 48, '#fff', '14px sans-serif');
+    addHit(cx - 150, L.botY - 70, 140, 44, 'PLAY', {});
+    fillRR(cx + 10, L.botY - 70, 140, 44, 12, 'rgba(126,242,160,0.22)');
+    iconText('share', '📤', T('sol.share'), cx + 80, L.botY - 48, '13px sans-serif', '#7ef2a0', 15);
+    addHit(cx + 10, L.botY - 70, 140, 44, 'SHARE', {});
     drawToast();
   }
 
@@ -196,9 +196,9 @@
     Sprite.drawTable(ctx, 0, 0, SW, SH, Money.state.table);
     if (icon) iconText(icon, emoji, title, L.cx, GameGlobal.safeTop + 30, 'bold 20px sans-serif', '#fff', 22);
     else txt(title, L.cx, GameGlobal.safeTop + 30, '#fff', 'bold 20px sans-serif');
-    fillRR(L.cx - 70, SH - 70, 140, 44, 12, 'rgba(255,255,255,0.20)');
-    txt('‹ ' + T('sol.back'), L.cx, SH - 48, '#fff', '14px sans-serif');
-    addHit(L.cx - 70, SH - 70, 140, 44, 'PLAY', {});
+    fillRR(L.cx - 70, L.botY - 70, 140, 44, 12, 'rgba(255,255,255,0.20)');
+    txt('‹ ' + T('sol.back'), L.cx, L.botY - 48, '#fff', '14px sans-serif');
+    addHit(L.cx - 70, L.botY - 70, 140, 44, 'PLAY', {});
     return L;
   }
 
@@ -244,7 +244,7 @@
     //   富余高度平摊进间隙只解决了「太高」，「太矮」得反过来收 —— 先压主视觉（最能压的一块），
     //   还不够再收间隙。⚠ 只压 hero 不动别的：它是装饰，其余每一行都是功能。
     let hs2 = hs;
-    let slack = SH - top0 - 12 - fixed - GAPS * base;
+    let slack = L.botY - top0 - 12 - fixed - GAPS * base;
     if (slack < 0) {
       const cut = Math.min(Math.round(hs * 0.38), -slack);
       hs2 -= cut; slack += cut;
@@ -578,7 +578,7 @@
       y += 52;                                   // ⚠ 忘了推进 y ⇒ 下面那行小字直接压在按钮上（实拍）
     }
 
-    txt(T('sol.freeForever'), cx, Math.min(y + 20, SH - 92), 'rgba(255,255,255,0.55)', '10px sans-serif');
+    txt(T('sol.freeForever'), cx, Math.min(y + 20, L.botY - 92), 'rgba(255,255,255,0.55)', '10px sans-serif');
   }
 
   /** 统计：**双口径**（DESIGN 4.5）—— 无限撤销会把总胜率架空，不分开记统计就是假的 */
@@ -758,7 +758,7 @@
     //   ⚠ 三个页签都要出现：券对牌背/桌布/瀑布通用，只挂在牌背页 = 大半玩家看不见它。
     // ⚠ 页面不滚动 ⇒ 这一条要**给底部返回键让位**：牌背分页后 y 已经压到很低，
     //   360×640 上原样画会和「‹ 返回」叠在一起（实拍抓到）。放不下就不画（图鉴/结算屏都有同款入口）。
-    if (!Money.noAds && !free && y + 40 < GameGlobal.SH - 92) {
+    if (!Money.noAds && !free && y + 40 < L.botY - 92) {
       const bl = adLeft('back');
       fillRR(cx - w / 2, y, w, 40, 10, bl ? 'rgba(255,216,77,0.22)' : 'rgba(255,255,255,0.10)');
       iconText('gift', '🎁', T('sol.adPick') + '   ' + T('sol.adLeft', { n: bl }), cx, y + 20,
@@ -1741,8 +1741,10 @@
     const { SW, SH } = GameGlobal;
     ctx.font = '12px sans-serif';
     const tw = Math.min(SW - 40, ctx.measureText(t.msg).width + 36);
-    fillRR(SW / 2 - tw / 2, SH - 132, tw, 36, 18, 'rgba(0,0,0,0.80)');
-    txt(t.msg, SW / 2, SH - 114, '#fff', '12px sans-serif');
+    // ⚠ toast 也要躲开横幅：真机上 SH-132 正好落在 90px 横幅里（贴底 = 看不见）
+    const bot = SH - ((Layout.L && Layout.L.bannerH) || 0);
+    fillRR(SW / 2 - tw / 2, bot - 132, tw, 36, 18, 'rgba(0,0,0,0.80)');
+    txt(t.msg, SW / 2, bot - 114, '#fff', '12px sans-serif');
   }
 
   root.Render = { renderAll, renderIntro, renderFair, renderMenu, renderStats, renderShop, renderSettings, PAL };

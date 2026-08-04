@@ -382,6 +382,15 @@ Klondike 的盲打 AI 打不到人类水平 = 规则有 bug（这个判据是对
 3. **不要体力，不要押注式金币**（Klondike 玩家零容忍）。
 4. **一次性去广告 IAP，不是订阅**（「付费还看广告」是微软最毒的一条差评）。
 5. **横幅绝不遮牌** —— 布局为它**预留**空间（`L.bannerH`），不是盖上去。
+   ⛔ **2026-08-03 这条被自己破了（用户实机反馈「下方广告占据了游戏显示」）**：预留量写死 56px，
+   而真机的 `ADAPTIVE_BANNER` 高度按**设备屏高**分档（>720dp ⇒ **90pt**）、又贴在 safe area 之上
+   （底下还有 home indicator 的 34）⇒ **实际 ~124px**，插件也**不 resize webview**。
+   现在预留量一律走 **`Ads.bannerReserve()`**（真值来自 `bannerAdSizeChanged` 事件；没填充回报 0 ⇒ 不留白），
+   横幅异步到达后由 `Ads.onBannerSize` 触发重排重画。
+   ⚠ 同一个 bug 的第二半：横幅是**常驻**的，`noBanner:true` 的二级页（菜单/图鉴/公平/收藏/统计）
+   底部「‹ 返回」按裸 `SH - 70` 定位 ⇒ **整颗按钮被广告盖住、点不动**（反证脚本实测 16 屏中招）。
+   ⇒ 布局新增 **`L.botY`（内容底边）**，所有页面的底部元素都用它，**别再写 `SH - N`**。
+   **验收**：`node games/solitaire/tools/shot-banner.cjs`（三视口逐页扫描预留带内可点区，有一个即 FAIL）。
 
 **主力收入是横幅**：纸牌单次会话 10-15 分钟（所有品类里最长的之一）⇒ 横幅曝光时长极高且不打断。
 激励视频只用于**纯增益**（牌背/桌布皮肤），且必须有**消耗端**（收集系统），否则那条腿约等于零收入。
@@ -420,6 +429,7 @@ npm run test:sol:spider     # Spider（三合一第三块）
 npm run test:sol:coach      # ⭐ 求解器当教练：难度阶梯 / 妙手 / 我的弱点 / 互动教学
 npm run test:sol:home       # 🏠 主界面（启动落点 / 智能续继 / 入口角标 / 刘海）
 npm run test:sol:boost      # ⭐ 提示=通往胜利 / foundation 取回 / 连击 / 广告经济红线
+node games/solitaire/tools/shot-banner.cjs   # ⭐ 底部横幅遮挡（改底部布局后必跑，自动断言）
 node games/solitaire/tools/test-freecell.js  # ⭐ 微软局号地面真值（#11982 必须无解）
 node games/solitaire/tools/test-prover.js    # ⭐ 证明器不许对已知有解的局说「死局」
 node games/solitaire/tools/measure-deadlock.js 40 3 blind   # 那个 45% 是怎么来的

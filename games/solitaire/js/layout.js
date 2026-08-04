@@ -16,7 +16,22 @@
   //   垂直方向也正好被 gameH(playW×1.35) 吃满，不再需要居中偏移去填空。
   const PLAY_MAX_TABLET = 1000;
   const BANNER_H = 56;                  // ⚠ 横幅**预留**空间（不是盖上去）—— DESIGN §7.2
+  //   ⛔ 但 56 只是**网页占位条**的高度，绝不是真机的横幅高度（2026-08-03 实机踩到）：
+  //   iOS 的 ADAPTIVE_BANNER 按设备屏高分档（屏高 >720 ⇒ **90pt**），且它贴在
+  //   safe area 之上 ⇒ 还要再让开 home indicator 的 safeBottom(34) ⇒ 真机实际要 ~124px。
+  //   写死 56 = 底部工具条被广告压掉大半（正是「横幅绝不遮牌」这条红线本身）。
+  //   ⇒ 真机一律问 `Ads.bannerReserve()`（真值来自插件的 bannerAdSizeChanged 事件）。
   const TABLET_W = 700;                 // ≥ 这个宽度算平板
+
+  // 本次布局要为底部横幅让出多少 px。
+  // ⚠ `noBanner`（菜单/图鉴等二级页）只免掉**网页的占位条** —— 原生横幅是**常驻**的
+  //   （showBanner 一次就一直贴在那儿，进菜单不会消失）⇒ 真机上任何页面都必须让位，
+  //   否则底部按钮同样被广告盖住（和牌桌是同一个 bug，只是没人只盯着菜单看）。
+  function bannerReserve(noBanner) {
+    const native = (typeof Ads !== 'undefined' && Ads && Ads.bannerReserve) ? Ads.bannerReserve() : 0;
+    if (native > 0) return native;                  // 真实横幅高度 + 底部安全区
+    return noBanner ? (GameGlobal.safeBottom || 0) : BANNER_H;
+  }
 
   function layout(opts) {
     const { SW, SH, safeTop } = GameGlobal;
@@ -36,7 +51,7 @@
     //   踩过的坑：HUD 原来画在 topY-24 = safeTop 之上，直接侵入状态栏/刘海区，
     //   而右上角那块正好被 DOM 控制栏（#controls: fixed, top:8px right:8px, z-index 20）压住
     //   ⇒ **「✓ 有解」角标（进公平页的唯一入口）点不动** —— E2E 真实鼠标点击才抓出来。
-    const bannerH = showBanner ? BANNER_H : 0;
+    const bannerH = bannerReserve(!showBanner);
 
     // ⚠ **iPad 必须单独处理**：手机的布局直接铺到 1024×1366 上，牌会挤在左上角、
     //   右边和下面全是空的 —— 在 App Store 的 iPad 截图里不只是难看，
@@ -85,6 +100,9 @@
       barH: 72,
       barY: gameBottom - 72 - 6,
       bannerY: SH - bannerH,                 // 横幅永远贴屏幕底（原生横幅就在那儿）
+      // ⭐ 内容底边 —— **所有页面的底部元素都要用它，别再写 `SH - 70`**。
+      //   二级页的「‹ 返回」原本按裸 SH 定位 ⇒ 真机上整颗按钮被横幅盖住、点不动。
+      botY: SH - bannerH,
       // ⭐ 「这局还有解吗？」条 —— 一等公民，占正经版面（在工具条正上方）
       proveH: 40,
       proveY: gameBottom - 72 - 6 - 40 - 6,
