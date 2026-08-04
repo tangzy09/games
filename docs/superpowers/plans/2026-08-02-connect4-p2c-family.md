@@ -1,5 +1,38 @@
 # connect4 P2c：家庭场景与模式 Implementation Plan
 
+> ## ⏸ 断点存档（2026-08-03，因 usage 见底暂停）
+>
+> **工作目录**：`C:\tmp\connect4-p1`（git worktree，分支 `connect4-p1`）。⚠ `main` 被**另一个会话** checkout 着，本分支 60+ commits **尚未合并**，⛔ 未经明确指示别合。
+>
+> ### 已交付并复核（全部 commit 在 `connect4-p1` 上）
+> | 任务 | commit | 结果 |
+> |---|---|---|
+> | T1 让子 | `cfc7a53` | `[3]`/`[3,3]`，恒归弱方，让子局强方先手且不再交替。⛔ 仅同机双人 + 轻松档（让子局面两方子数恒不等 ⇒ 开局库 100% 落空 ⇒ 求解器档撞 §9.2 断崖） |
+> | T2 儿童档 | `2d5bdfb` | 独立开关「儿童｜轻松｜进阶｜完美」，= 第 3 级 + 让 2 子 + 孩子恒先手；联动开舒适模式但不强制。`ai.js` 逐字未动 |
+> | T3 对坐+猜先 | `1c6c05e` | 转的是 **HUD 不是棋盘**；猜先只演已定结果（读 `g.humanFirst`），四条先手规则一条没动 |
+> | T4 双人悔棋 | `d42abe4` | `by = turnOf(g)^1` 指名道姓问对方；借 HUD + tray 两行，无弹窗无计时器；人机局零回归 |
+> | DESIGN 回填 | `581fffe` `8a7e0eb` `b28c029` | §6.7 全节 + §9.3 存档上界 195→204 |
+>
+> **`?v=` 已推到 12**（`index.html` 23 处含 `engine/*.js` 全部一致）。**`SAVE_VERSION` = 3**。
+>
+> ### ⏳ 未完成
+> 1. ⚠⚠ **T5 限时模式：被腰斩在半途。** 那个 subagent 会话结束后拿不回来，但**它的半成品还在工作区里未提交**（暂停那一刻是：新增 `js/clock.js` · `tests/test-clock.js` · `tests/e2e-p2c-t5.cjs`，另改了 `index.html`/`main.js`/`render.js`/`settings.js`/`state.js`/两个 locale/`test-browser-globals.js`/`test-settings.js`/`test-state.js`/`e2e-p2c-t4.cjs`/`package.json`）。
+>    ⛔ **别当垃圾清掉，也别当成品信它** —— 没跑过任何门禁，`?v` 与 `SAVE_VERSION` 也未必推到位。恢复时先 `git log --oneline -1`：
+>    - HEAD 仍是 `56dff86`（或 `d42abe4`）⇒ T5 **没提交过**。先 `git stash list` / `git diff` 看那堆改动**完成度如何**：接得上就派个 agent 接着做完（把「工作区已有半成品，先读再决定接着改还是推倒」写进任务书）；接不上就 `git checkout -- . && git clean -fd games/connect4` 清干净重派。
+>    - HEAD 是别的 ⇒ 它自己提交了，**照 T1-T4 的规矩独立复核**（commit / `?v` 统一 / 五条门禁的 `EXIT=` / 看它的数据与截图），再回填 DESIGN §6.10。
+>    ⚠ 无论哪条路：`?v` 要到 **13**，`SAVE_VERSION` 要 **3→4**（限时局要记进 `G` 好让 P3 的精准度排除它）。任务书原文见下方 Task 5。
+> 2. **T6 收尾**：`?v` 统一 +1 · `node tools/check-locales.js games/connect4/locales` 0 fail · **六个游戏 `npm test`**（⚠ 超 10 分钟，必须后台跑 + 读日志里的 `EXIT=` 行）· 文档回填（DESIGN 阶段索引表 P2c → ✅、root `CLAUDE.md`、`README.md`、本文件转历史记录）
+>
+> ### ⛔ 复核纪律（这一轮救过命的）
+> - **复合命令外层报的 exit 0 是 `echo` 的码**，恒 0。本轮咬过两次，一次是 5 条门禁**全是 127**（Bash 工具的 cwd 会被重置到 `C:\Users\tangz`，相对路径全废）却报 exit 0。**裁决只认日志里的 `EXIT=` 行**；跑门禁前先 `cd /c/tmp/connect4-p1`。
+> - **我的判断这四轮被纠正了四次**（让子叠中列实测最弱 · 儿童档不该用最弱档 · 对坐不该转棋盘 · 「确定吗」式弹窗根本没挡住单方悔棋）。⇒ 派活时继续写「⚠ 别默认我给的是对的」，并要求**数据/截图**而不是「做完了」。
+>
+> ### 已推 skill 并 push（`~/.claude/skills` → `claude-skills`）
+> `e1ba121` 放水不该靠把 AI 变笨 + 后台任务 exit 0 不可信 · `d61e522` 文案截断是「只有肉眼抓得到」的一整类 bug
+>
+> ---
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 让**一家人**能一起玩下去——家长和 5 岁孩子打得有来有回、两个人围着一台平板对坐着下、想快一点的人有快的下法。
