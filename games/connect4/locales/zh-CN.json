@@ -13,6 +13,8 @@
             "roundOver": "这局结束啦", "draw": "打平啦", "again": "再玩一局",
             "cheer": "太棒啦！",
             "coinYou": "你先走！", "coinAI": "我先走！" },
+  "undo": { "request": "悔棋", "ask": "{p}，同意悔这一手吗？", "barAsk": "同意悔棋？",
+            "agree": "同意", "refuse": "不同意" },
   "game": { "yourTurn": "轮到你了", "thinking": "思考中", "win": "你赢了",
             "roundOver": "本局结束",
             "accuracy": "精准度", "turningPoint": "转折点",

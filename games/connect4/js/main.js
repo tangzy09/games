@@ -80,6 +80,14 @@ var G = {
   coinAnim: false,
   coinRect: null,     // 上一帧猜先卡画在哪（只给 E2E 取样，⛔ 不是真值源）
   f2fRect: null,      // 上一帧对坐 HUD 画在哪（同上）
+  // ── ⭐ 双人局的悔棋请求（P2c T4 · DESIGN §6.7「不许单方悔棋 —— 对方同意才悔」）──
+  // ⭐ `undoAsk` = 「有一个悔棋请求正等着回答」。null = 没有。
+  //   ⛔ **不进 G 的存档对象**（照 T3 对坐模式的先例，与 T2 儿童档相反）：它一条规则都不改、
+  //     也不属于「这一局是什么」，它是**这一屏此刻在问一句话**。存它只会白 bump 一次
+  //     SAVE_VERSION 把所有老档判死，还会让一份存档被读回来时**卡在一个没人回答得了的问句上**。
+  undoAsk: null,      // { to: 0|1（该回答的那一位）, by: 0|1（请求方）, ply: number }
+  askRect: null,      // 上一帧确认条画在哪（只给 E2E 取样，⛔ 不是真值源）
+  askRectF2F: null,   // 对坐模式下那条**旋转 180°** 的确认条画在哪（同上）
   // ── 竖屏留白（P2b T7 · DESIGN §6.9）──
   // ⭐ HOME 上每一块排完的 { k, y, h }，**只给 E2E / 调试看**（⛔ 不是真值源，每帧重排）。
   //   门禁靠它断言「块与块不重叠、都不出屏」—— ⛔ 少了它，「小屏 + 舒适模式四行压成一坨」
@@ -468,14 +476,19 @@ function startDropFx(col, row, player) {
 // ════════ 状态机 ════════
 
 // ⛔ 别在这里加 `&& C4Fx.done()`（见上节）：落子动画期间点击必须照常生效。
+// ⚠ `!G.undoAsk`（P2c T4）是**唯一**一个「点击真的被挡住」的条件，而它与上面那条并不矛盾：
+//   挡输入之所以有害是因为**看不见**（玩家只知道点不动）；而悔棋请求挂着的时候，屏幕上正
+//   摆着一条写着问句的确认条和两个大按钮，⇒ 「为什么点不动」和「怎么解开」是同一眼看到的。
+//   ⛔ 反过来放行才是错的：等回答的这段时间里棋盘要是还能落子，两个人就会一边吵一边把
+//     局面走出去 —— 那正是这条规则要拦下的事。
 function interactive() {
-  return G.phase === 'PLAYING' && !!G.g && !G.thinking && C4State.isHumanTurn(G.g);
+  return G.phase === 'PLAYING' && !!G.g && !G.thinking && !G.undoAsk && C4State.isHumanTurn(G.g);
 }
 
 function goHome() {
   G.aiSeq++; setThinking(false); fxStop(); resetFork();
   G.phase = 'HOME'; G.g = null; G.result = null; G.hoverCol = -1; G.holdCol = -1; G.notice = '';
-  G.coin = false; G.coinAnim = false;
+  G.coin = false; G.coinAnim = false; G.undoAsk = null;
   renderAll();
 }
 
@@ -574,7 +587,7 @@ function coinShown() {
 
 function startGame(mode, tier) {
   G.aiSeq++; setThinking(false); fxStop(); resetFork();
-  G.result = null; G.hoverCol = -1; G.holdCol = -1; G.notice = '';
+  G.result = null; G.hoverCol = -1; G.holdCol = -1; G.notice = ''; G.undoAsk = null;
   // ⭐ 儿童档只对人机局成立（双人局那一侧的答案是让子，T1）。⚠ 档位由 state.js 说了算，
   //   ⛔ 这里不许自己写 `tier = 1`：两份判据漂了就会出现「界面写儿童档、开的是别的级」。
   const kids = mode === 'ai' && kidsPref();
@@ -676,12 +689,161 @@ function applyMove(col) {
   return true;
 }
 
+// ════════ ⭐⭐ 双人局的悔棋：对方同意才悔（P2c Task 4 · DESIGN §6.7）════════
+// §6.7 原文：「⚠ **双人对战不许单方悔棋**（会吵架）——『对方同意才悔』。」
+//
+// ⭐⭐⭐ ─── 我没有推翻这条规则，但它有三处是空的，而**坑全在那三处** ───
+//   规格只说了「要同意」。照字面最容易做出来的东西是一个「确定要悔棋吗？」的弹窗 ——
+//   那是**自我确认**，一下都没挡住单方悔棋（点的人自己点确定），纯属 §6「high-quality」
+//   要扣分的那种弹窗轰炸。三条把它补成一条真规则：
+//
+//   ① ⭐⭐ **「对方」是算出来的，⛔ 不是问出来的。**
+//      悔棋撤掉的是**最后那一手**，⇒ 得利的恒是**刚落子的那一位**，付账的恒是**现在该走的
+//      那一位**。⇒ `to = C4State.turnOf(g)`（该走的那一位）= 同意方，`by = to ^ 1` = 请求方。
+//      ⇒ 屏幕上那句话因此是**指名道姓**的（「玩家 1，同意悔这一手吗？」）而不是「确定吗？」,
+//        HUD 左边那枚棋子图示也换成**同意方自己的子**。这一条才是「不许单方悔棋」的全部内容：
+//        问句一旦指了名，桌子对面那个人就必须真的开口，⛔ 而「确定吗」谁都能替谁点。
+//
+//   ② ⭐ **不是弹窗，是把两块**既有**的面借过来**（⛔ 零新图层、零遮挡棋盘、零版面跳动）：
+//      · **HUD 那一行** —— 它本来就是「现在发生什么」，是全屏最大的字，且**对坐模式下
+//        T3 已经把它逐字复制到盘上方那条转 180° 的第二 HUD 上** ⇒ 「两边都读得到」这条
+//        要求在结构上白拿（⛔ 不必为它再发明一块几何）；
+//      · **tray 里［撤销］［菜单］那一行** —— 换成［不同意］［同意］，位置、高度一个像素不动。
+//      ⇒ 棋盘全程可见（§6.3「连线必须一直看得见」同源），拇指位置不变。
+//
+//   ③ ⛔ **没有计时器。** 超时自动同意 = 把这条规则整个删掉；超时自动拒绝 = 一家人商量两句
+//      就被判死（4-5 岁那一侧尤其）。⇒ 出口只有明面上的两个按钮（外加［菜单］／［再来一局］
+//      这两个本来就在的转移）。⚠ 验收里那句「超时」在这里的答案就是**我们不做超时**。
+//
+// ⚠⚠ ─── 一条做不到的事，如实写在这里（诚实纪律，⛔ 别把它讲成安全机制）───
+//   同机双人**没有身份**：请求方物理上也按得到［同意］。这不是能修的（一台设备、一双手，
+//   没有任何信号能区分是谁的手指）。⇒ 这条规则拦的是「**一方悄悄把棋撤了**」：盘面在收到
+//   一个**明面的、指了名的**回答之前**一个像素都不动**。⛔ 别为了「防作弊」去加密码/长按/
+//   双人同时按 —— 那是把一家人当贼防，成本全落在 4-5 岁那一侧。
+//   ⭐ 能做的那一半照做了：**对坐模式下确认条会镜像到对面那一侧**（见 drawConsentBar 的
+//     flip）—— 否则底下那一排离请求方最近、离同意方最远，这条规则就成了摆设。
+//
+// ⭐ ─── 4-5 岁那一侧怎么「同意」（⚠ 这是本 task 的第二个产品判断）───
+//   ⚠ 儿童档（T2）是**人机局**，⇒ 确认条**永远不会出现在儿童档里**（人机局根本不问）。
+//     但 §6.7 那一侧的孩子照样会坐在**双人 + 让子**局里 ⇒ 这三条是给他准备的：
+//     · 按钮和别处的按钮一样大，舒适模式（§6.8）照常把它们一起放大；
+//     · ✓ / ✗ 是**画出来的形状**（⛔ 不是 '✓' 这个字符 —— 部分安卓 WebView 会落到豆腐块，
+//       与 drawKidsCheer 里不用 '★' 是同一条教训），并且**形状 + 颜色双编码**（§6.2）：
+//       绿底 ✓ / 灰底 ✗，灰度下也分得出；
+//     · 确认条左边画的是**同意方自己的棋子** —— 不识字也能被告诉「有你的子的那一条在问你」。
+function undoNeedsConsent(g) { return !!g && g.mode === 'human'; }
+
+/** ⭐ 谁来回答。**单一判据**：现在该走的那一位（= 不是刚落子的那一位，见上面 ①）。
+ *  ⛔ 别在 UI 里再算一次「谁是对方」——两份判据漂了就会出现「问了不该问的人」。 */
+function undoApprover(g) { return C4State.turnOf(g); }
+
+/**
+ * ［撤销］按下去之后到底发生什么。
+ * ⭐⭐ **人机局照旧：一下都不许多点**（DESIGN §8「提示/复盘/悔棋/课程永远免费」，
+ *   §6.7 那条规则的理由是「会吵架」——人机局里没有对方可吵，加一次确认纯粹是收买路钱）。
+ */
+function requestUndo() {
+  const g = G.g;
+  if (!g || !g.moves.length) return;
+  if (!undoNeedsConsent(g)) { doUndo(); return; }
+  if (G.undoAsk) return;                    // 已经在问了（⛔ 别把同一句话问两遍）
+  const to = undoApprover(g);
+  G.undoAsk = { to: to, by: to ^ 1, ply: g.moves.length };
+  renderAll();
+}
+
+/**
+ * 回答那个请求。⭐ **两条出口都必须把 `undoAsk` 清掉**（同意与拒绝共用这一行）——
+ * ⛔ 拒绝时忘了清 = 棋盘永远卡在等回答的状态，两个人只能重开一局（零报错的死局）。
+ * ⚠ `ply` 是**陈旧性守卫**：等待期间局面本来就落不了子（interactive 已经挡住），
+ *   但同意这件事一旦对上的是另一个局面就是「撤掉了别人的一手」——那种 bug 不许靠
+ *   「上游应该不会发生」来防。
+ */
+function answerUndo(agree) {
+  const ask = G.undoAsk;
+  G.undoAsk = null;
+  if (!agree || !ask || !G.g || G.g.moves.length !== ask.ply) { renderAll(); return; }
+  doUndo();
+}
+
+/** ✓ / ✗ 是**画出来的**（⛔ 不用字体字形，理由见上面那段 ⭐）。 */
+function drawMark(kind, cx, cy, s, color) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(2, s * 0.17);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.beginPath();
+  if (kind === 'ok') {
+    ctx.moveTo(cx - s * 0.42, cy + s * 0.02);
+    ctx.lineTo(cx - s * 0.12, cy + s * 0.32);
+    ctx.lineTo(cx + s * 0.44, cy - s * 0.34);
+  } else {
+    ctx.moveTo(cx - s * 0.34, cy - s * 0.34); ctx.lineTo(cx + s * 0.34, cy + s * 0.34);
+    ctx.moveTo(cx + s * 0.34, cy - s * 0.34); ctx.lineTo(cx - s * 0.34, cy + s * 0.34);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** 确认条里的一颗按钮：**形状 + 颜色**双编码 + 文字。
+ *  @param hit 注册热区用的矩形 —— ⚠ 旋转 180° 那一条**必须传镜像后的矩形**（见 drawConsentBar）。 */
+function markBtn(x, y, w, h, kind, label, action, hit) {
+  const isOk = kind === 'ok';
+  fillRR(x, y, w, h, 10, isOk ? C4Render.PAL.accent : '#61776f');
+  const ms = Math.max(10, Math.round(h * 0.42));
+  const cy = y + h / 2;
+  drawMark(kind, x + 11 + ms / 2, cy, ms, '#fff');
+  const tx0 = x + 11 + ms + 6, tx1 = x + w - 8;
+  fitTxt(label, (tx0 + tx1) / 2, cy, Math.max(20, tx1 - tx0), '#fff', 'bold', fsz(14));
+  addHit(hit.x, hit.y, hit.w, hit.h, action, {});
+}
+
+/**
+ * ⭐⭐ 确认条本体。`flip` = 旋转 180°（对坐模式下给桌子对面那个人的那一条）。
+ *
+ * ⭐⭐ **旋转的支点是这条 bar 自己的中心** —— 与 T3 的第二 HUD 逐字同一条纪律，而且这里
+ *   比那时更要紧：那条 HUD **没有热区**，这条有两颗**会改变盘面**的按钮。
+ *   ⇒ 180° 绕自身中心之后，任何轴对齐子矩形 (x,y,w,h) 落在 (2cx−x−w, 2cy−y−h, w, h)，
+ *     `map()` 就是这条公式；画由 ctx 变换负责、热区由 map 负责。
+ *   ⛔⛔ 少了 map（只转画面不转热区）= 点「同意」实际点到「不同意」，而**画面完全正常**
+ *     —— 本仓最怕的那类失败，e2e-p2c-t4 ⑦ 用**真实鼠标点旋转那条的［同意］**钉死它。
+ */
+function drawConsentBar(x, y, w, h, flip) {
+  const ask = G.undoAsk, g = G.g;
+  if (!ask || !g) return null;
+  const cx = x + w / 2, cy = y + h / 2;
+  const map = r => flip ? { x: 2 * cx - r.x - r.w, y: 2 * cy - r.y - r.h, w: r.w, h: r.h } : r;
+  if (flip) {
+    ctx.save();
+    ctx.translate(cx, cy); ctx.rotate(Math.PI); ctx.translate(-cx, -cy);
+  }
+  fillRR(x, y, w, h, 12, 'rgba(255,255,255,0.92)');
+  strokeRR(x + 0.5, y + 0.5, w - 1, h - 1, 12, C4Render.PAL.hudEdge, 1.5);
+  // ⭐ 同意方**自己的棋子** —— 「有你的子的那一条在问你」（不识字也读得出，见上面那段 ⭐）
+  const gs = Math.min(fsz(26), Math.round(h * 0.56));
+  C4Render.drawGlyph(ask.to, x + 12 + gs / 2, cy, gs);
+  const bw = Math.min(Math.round(w * 0.30), 132);
+  const bh = Math.max(28, h - 12);
+  const by = y + (h - bh) / 2;
+  const okX = x + w - 10 - bw, noX = okX - 8 - bw;
+  markBtn(noX, by, bw, bh, 'no', T('undo.refuse'), 'UNDO_NO', map({ x: noX, y: by, w: bw, h: bh }));
+  markBtn(okX, by, bw, bh, 'ok', T('undo.agree'), 'UNDO_OK', map({ x: okX, y: by, w: bw, h: bh }));
+  // ⚠ 短句（长的那句指名道姓的在 HUD 上）：值栏宽度有限，拼长了会被 fitTxt 压到读不清。
+  const tx = x + 16 + gs, tw = Math.max(24, noX - 10 - tx);
+  fitTxt(T('undo.barAsk'), tx + tw / 2, cy, tw, C4Render.PAL.hudText, 'bold', fsz(13));
+  if (flip) ctx.restore();
+  return { x: x, y: y, w: w, h: h };
+}
+
 /** ⭐ 撤销要退回**该玩家走**的那个位置。
- *  只退一手的话，人机局里 AI 会立刻把它走回来 —— 表现为「撤销按钮没反应」，零报错。 */
+ *  只退一手的话，人机局里 AI 会立刻把它走回来 —— 表现为「撤销按钮没反应」，零报错。
+ *  ⚠ 双人局的入口是 requestUndo（对方同意才走到这里）；⛔ 本函数自己不判同意 ——
+ *    「撤销到底怎么发生」和「谁批准的」是两件事，混在一起会让人机局那条免费路径
+ *    跟着长出一个分支来。 */
 function doUndo() {
   const g = G.g;
   if (!g || !g.moves.length) return;
-  G.aiSeq++; setThinking(false); fxStop(); forkRewind(); G.notice = '';
+  G.aiSeq++; setThinking(false); fxStop(); forkRewind(); G.notice = ''; G.undoAsk = null;
   let n = g.moves.length - 1;
   if (g.mode === 'ai') {
     while (n > 0 && (n % 2) !== C4State.humanPlayer(g)) n--;
@@ -833,7 +995,11 @@ function dispatch(action, data) {
     // ⭐ 对坐模式（DESIGN §6.7）：布尔 ⇒ toggle。⚠ 与让子同理，人机局下这个选择**照样存得住**，
     //   只是那一局不生效（f2fOn 说了算）——⛔ 别在这里替玩家清掉他的选择。
     case 'TOGGLE_F2F': C4Settings.toggle('faceToFace'); renderAll(); return;
-    case 'UNDO':       doUndo(); return;
+    // ⭐⭐ 悔棋（P2c T4 · DESIGN §6.7）：**人机局立刻生效**（免费救济，⛔ 一下都不许多点），
+    //   **双人局先问对方**。判据只有 undoNeedsConsent 一份，⛔ 别在这里再写一次 mode 比较。
+    case 'UNDO':       requestUndo(); return;
+    case 'UNDO_OK':    answerUndo(true); return;
+    case 'UNDO_NO':    answerUndo(false); return;
     case 'AGAIN':      again(); return;
     case 'HOME':       goHome(); return;
     default: return;
@@ -1148,6 +1314,14 @@ function drawDropBand(L) {
 }
 
 function hudInfo(g) {
+  // ⭐⭐ 悔棋请求（P2c T4 · DESIGN §6.7）排在**最前面**：HUD 那一行本来就是「现在发生什么」，
+  //   而此刻正在发生的就是这个问句。⭐ 它**指名道姓**（⛔ 不是「确定要悔棋吗？」——那是自我
+  //   确认，一下都没挡住单方悔棋），左边那枚棋子图示换成**同意方自己的子**。
+  //   ⭐⭐ 对坐模式下这一行由 T3 的第二 HUD **逐字**复制到盘上方那条转 180° 的卡上
+  //     ⇒ 桌子两边**都读得到**这句话，⛔ 不需要为它再发明一块几何。
+  if (G.undoAsk) {
+    return { turn: G.undoAsk.to, left: T('undo.ask', { p: seatName(g, G.undoAsk.to) }) };
+  }
   // ⭐⭐ 儿童档「不说难懂的话」（DESIGN §6.7）：HUD 那一行是全屏最大的字，也是孩子唯一
   //   会去读的一行 ⇒ 整条换成儿童版措辞。⛔ 别只把「思考中」改掉就算完 ——
   //   「本局结束」「轮到你了」对一个 5 岁孩子同样是书面语。
@@ -1332,11 +1506,20 @@ function drawPlay(L) {
   // ⭐ 右侧那串就是「先手指示」：同机双人局逐局翻转，第二局肉眼可见换了人。
   // ⭐ 儿童档下右上角写「儿童档」而不是「第 3 级」（§6.7「不说难懂的话」）——
   //   ⚠ 而且它必须**看得见**：这一局到底是不是儿童档是家长唯一能在局中确认的地方。
-  info.right = g.mode === 'ai'
+  // ⭐⭐ 悔棋请求挂着时**右侧那串次要信息整条让位**（P2c T4 —— 截图实锤，⛔ 别删）：
+  //   drawHUD 会先给右侧留 42% 的宽，剩下的才归主句 ⇒ 414 宽的手机上那句指名道姓的问句
+  //   被压成了「Player 1, allow that mov…」。**问句被截断 = 这条规则没被问出口**，
+  //   而「第 1 局 · 谁先手」在这几秒里一点都不要紧（回答完它自己就回来了）。
+  info.right = G.undoAsk ? '' : (g.mode === 'ai'
     ? (C4State.kidsOf(g) ? T('menu.kids') : T('game.level', { n: g.tier }))
-    : T('game.gameLine', { n: g.gameNo + 1, p: firstSeatName(g) });
+    : T('game.gameLine', { n: g.gameNo + 1, p: firstSeatName(g) }));
   // ⭐ 舒适模式（§6.8）：HUD 的字也一起放大。⚠ HUD 的**高度**不跟着变（那是 layout 的事）。
   C4Render.drawHUD(info, L, comfortOn() ? COMFORT_TEXT : 1);
+
+  // ⚠ trayPlan 提到这里算（原来在下面那一节）：**对坐那条确认条要用底下那条的行高**（见下）。
+  //   ⛔ 它不读任何已经画出去的东西，提前算逐位不变。
+  const plan = trayPlan(L, G.phase === 'OVER');
+  const gap = plan.gap, rowH = plan.rowH;
 
   // ⭐⭐ 对坐模式（P2c T3 · §6.7）：盘上方那条**旋转 180°** 的第二 HUD —— 给坐在对面
   //   那个人读的。⚠ 内容与下面那条**逐字相同**（同一个 info 对象）：⛔ 两条 HUD 说不同的话
@@ -1344,9 +1527,25 @@ function drawPlay(L) {
   //   ⚠ 位置来自 layout 的 `L.reserve`（§6.9 具名留出的那块，F2F_RESERVE 已经把它进了
   //     cell 的预算）⇒ ⛔ 它在结构上压不到棋盘。
   if (L.faceToFace && L.reserve.h >= C4Render.HUD_H) {
+    // ⭐⭐ 悔棋请求挂着的时候，这条给对面那个人的带子上放的是**确认条**而不是 HUD 副本
+    //   （P2c T4 · DESIGN §6.7）。两条理由，缺一条我就不会动 T3 定下来的东西：
+    //   ① 「现在发生什么」此刻**就是**这个问句 —— HUD 副本那句「轮到谁」在等回答期间
+    //      本来就没有意义（谁也走不了）；
+    //   ② ⭐ **同意方得够得着按钮**：底下那一排离请求方最近、离对面那个人最远
+    //      （平板横过来是一整块玻璃的距离）—— 只在底下放一份，等于把「对方同意才悔」
+    //      做成「谁手快谁说了算」。
+    //   ⚠ 高度取**底下那条的高度**（rowH）：⇒ 上面这条就是下面那条的 180° 复制品，
+    //     E2E 才能拿 T3 ⑤ 那把尺子（旋转采样逐点比）真的量它。
+    //     ⚠ f2f 时 reserve.h ≥ F2F_RESERVE = HUD_H+10 = 64 ≥ 舒适模式的 rowH(61) ⇒ 装得下；
+    //       仍夹一道 min，⛔ 别让它溢出到棋盘上。
     const rect = { x: L.reserve.x, y: L.reserve.y, w: L.reserve.w, h: C4Render.HUD_H };
-    C4Render.drawHUD(info, L, comfortOn() ? COMFORT_TEXT : 1, { rect: rect, flip: true });
-    G.f2fRect = rect;
+    if (G.undoAsk) {
+      const bh = Math.min(rowH, L.reserve.h);
+      G.askRectF2F = drawConsentBar(L.reserve.x, L.reserve.y, L.reserve.w, bh, true);
+    } else {
+      C4Render.drawHUD(info, L, comfortOn() ? COMFORT_TEXT : 1, { rect: rect, flip: true });
+      G.f2fRect = rect;
+    }
   }
 
   drawDropBand(L);
@@ -1355,8 +1554,6 @@ function drawPlay(L) {
   //   ⛔ 别再自己从盘底往下量：改之前那版是「ry = 盘底 + 16，装不下就往上顶」，
   //     于是**顶到盘上**去了 —— 实测 1024×768 对局中按钮压着盘底 15 px 还掉出屏幕，
   //     五视口 × 结算屏 10 个组合里 6 个在压盘。而「赢局那条连线必须一直看得见」是 §6.3。
-  const plan = trayPlan(L, G.phase === 'OVER');
-  const gap = plan.gap, rowH = plan.rowH;
   // ⭐ 儿童档的结算（§6.7）：数据条整条拿掉（「精准度 —／转折点 —」对 4-5 岁是噪音），
   //   那一格**只在孩子赢的时候**换成撒花；输/平连位置都不留（§6.6 让输不疼，⛔ 不给安慰卡）。
   const kidsCheer = kidsGame() && G.phase === 'OVER' && G.result
@@ -1395,22 +1592,36 @@ function drawPlay(L) {
     }
     const ry2 = ry + rowH + gap;
     const w2 = (full - gap) / 2;
-    btn(marg, ry2, w2, rowH, T('game.undo'), 'UNDO', {}, { bg: '#61776f' });
-    btn(marg + w2 + gap, ry2, w2, rowH, T('game.menu'), 'HOME', {}, { bg: '#61776f' });
+    // ⭐⭐ 悔棋请求挂着 ⇒ 这一行换成确认条（P2c T4）。⚠ 结算屏**同样要问** —— 撤掉的正是
+    //   刚刚那手制胜子，那是这个游戏最会吵架的一刻，⛔ 不许因为「都结束了」就放行。
+    //   ⚠ ［再来一局］那一行照常在（它不是悔棋），⇒ 等回答期间也永远有一条出路。
+    if (G.undoAsk) G.askRect = drawConsentBar(marg, ry2, full, rowH, false);
+    else {
+      btn(marg, ry2, w2, rowH, undoLabel(g), 'UNDO', {}, { bg: '#61776f' });
+      btn(marg + w2 + gap, ry2, w2, rowH, T('game.menu'), 'HOME', {}, { bg: '#61776f' });
+    }
   } else {
     const w2 = (full - gap) / 2;
-    btn(marg, ry, w2, rowH, T('game.undo'), 'UNDO', {}, {
-      bg: '#61776f', disabled: !g.moves.length
-    });
-    btn(marg + w2 + gap, ry, w2, rowH, T('game.menu'), 'HOME', {}, { bg: '#61776f' });
+    if (G.undoAsk) G.askRect = drawConsentBar(marg, ry, full, rowH, false);
+    else {
+      btn(marg, ry, w2, rowH, undoLabel(g), 'UNDO', {}, {
+        bg: '#61776f', disabled: !g.moves.length
+      });
+      btn(marg + w2 + gap, ry, w2, rowH, T('game.menu'), 'HOME', {}, { bg: '#61776f' });
+    }
   }
 }
+
+/** ⭐ 双人局那颗按钮写的是「悔棋」而不是「撤销」（P2c T4）：按下去**不会**当场撤掉，
+ *  它是**向对方提一个请求** —— 按钮的名字必须说的是它真会做的那件事，⛔ 否则第一次按
+ *  下去的人会以为坏了。⚠ 人机局逐字不变（那里它真的就是「撤销」，一下生效）。 */
+function undoLabel(g) { return T(undoNeedsConsent(g) ? 'undo.request' : 'game.undo'); }
 
 function renderAll() {
   clearHits();
   // ⚠ 每帧清掉：这两个矩形是「上一帧画在哪」，⛔ 不是真值源 —— 不清的话门禁会拿着
   //   一个早就不画了的矩形去取样，量到的是别的东西（而且看起来很合理）。
-  G.coinRect = null; G.f2fRect = null;
+  G.coinRect = null; G.f2fRect = null; G.askRect = null; G.askRectF2F = null;
   const L = curLayout();
   G.L = L;
   C4Render.drawBackground(L);

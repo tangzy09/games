@@ -327,7 +327,9 @@ const forkAt = (mv, i) => Th.forkOf(B.fromMoves(mv.slice(0, i - 1)), B.fromMoves
 
   // ═══════════ ⑤ ⭐ 同一局面只触发一次（撤销 → 重下同一手）═══════════
   console.log('\n⑤ ⭐ 同一局面只触发一次：撤销之后重下同一手，不许再响');
+  // ⚠ P2c T4：双人局的悔棋要对方同意（§6.7）⇒ 两下（请求 + 同意），下同。
   await clickAt(await pt('UNDO'));
+  await clickAt(await pt('UNDO_OK'));
   await page.waitForFunction(k => window.G.g.moves.length < k, FIX_FORK.length, { timeout: 4000 });
   await clearSfx();
   await playCol(FIX_FORK[FIX_FORK.length - 1]);
@@ -345,6 +347,7 @@ const forkAt = (mv, i) => Th.forkOf(B.fromMoves(mv.slice(0, i - 1)), B.fromMoves
   //   ⚠ 那就必须再钉一条**反向**的：撤销之后换一手**别的**双威胁，它必须**照样能响** ——
   //     ⛔ 少了这条，「冷却在撤销后永久压死一切」这个真 bug 没有任何门禁看得见。
   await clickAt(await pt('UNDO'));
+  await clickAt(await pt('UNDO_OK'));
   await page.waitForFunction(k => window.G.g.moves.length < k, FIX_FORK.length, { timeout: 4000 });
   await playCol(ALT_COL);
   const alt = await page.evaluate(() => ({ n: G.forkCount, last: G.lastFork }));

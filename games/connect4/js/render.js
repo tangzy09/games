@@ -785,7 +785,7 @@
     // ⭐ P2b T7：右侧那串是**次要信息**（档位 / 第几局先手），先给它一个宽度上限，
     //   装不下由它自己截断。⛔ 别再让它把左边的主句挤掉：360 宽 + 舒适模式实测，
     //   「Player 1 to play」被压成了「Play…」—— 而那是全屏最该读到的一行（截图肉眼可见）。
-    let rightW = 0, rightStr = '';
+    let rightW = 0, rightStr = '', leftStr = '';
     if (info.right) {
       ctx.font = rightFont;
       rightStr = wrapLines(String(info.right), h.w * 0.42, 1)[0];
@@ -801,10 +801,17 @@
       while (px > 11 && ctx.measureText(clean(info.left)).width > leftMaxW) {
         px -= 1; f = 'bold ' + px + 'px sans-serif'; ctx.font = f;
       }
-      txtL(wrapLines(info.left, leftMaxW, 1)[0], tx, cy, PAL.hudText, f);
+      leftStr = wrapLines(info.left, leftMaxW, 1)[0];
+      txtL(leftStr, tx, cy, PAL.hudText, f);
     }
     if (rightStr) txtR(rightStr, h.x + h.w - 14, cy, PAL.hudSub, rightFont);
     if (flip) ctx.restore();
+    // ⭐ P2c T4：把**真的画上去的那两串**带回去（缩过字号、截过断的那一份）。
+    //   ⚠ 存在的理由只有一个：门禁要能问「那句话是不是被截成了半句」——
+    //     主句一旦被右边那串次要信息挤成 «Player 1, allow that mov…»，屏幕上那个问题
+    //     就没有被问出口，而画面看起来完全正常（截图实锤，⛔ 别让门禁只能靠肉眼）。
+    //   ⛔ 老调用方一个像素都不变：返回的仍是同一个矩形对象，只是多挂两个字段。
+    h.leftDrawn = leftStr; h.rightDrawn = rightStr;
     return h;
   }
 

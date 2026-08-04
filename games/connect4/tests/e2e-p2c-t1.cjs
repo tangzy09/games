@@ -228,10 +228,13 @@ function serve() {
   console.log('\n④ ⭐⭐ 撤销撤不掉预置子（真实鼠标）');
   for (const c of [0, 0, 6, 6, 1]) await playCol(c);
   ok(await page.evaluate(() => C4State.boardOf(G.g).n) === 7, '④ 走完 5 手 ⇒ 盘上 7 枚');
+  // ⚠ P2c T4：双人局的悔棋要对方同意（§6.7）⇒ 每一次都是两下（请求 + 同意）。
+  //   ⛔ 别只点第一下：那样 moves 一手都不会退，本节「撤到底」的前提就没了。
   for (let i = 0; i < 8; i++) {
     const has = await page.evaluate(() => hitAreas.some(h => h.action === 'UNDO' && h.data !== undefined));
     if (!has) break;
     await click('UNDO');
+    await click('UNDO_OK');
     await page.waitForTimeout(30);
   }
   await settle();
@@ -253,7 +256,8 @@ function serve() {
   for (const c of [0, 0, 6, 6, 1]) await playCol(c);
   for (let i = 0; i < 8; i++) {
     if (!await page.evaluate(() => hitAreas.some(h => h.action === 'UNDO'))) break;
-    await click('UNDO');
+    await click('UNDO');           // ⚠ P2c T4：双人局两下（请求 + 同意），同上
+    await click('UNDO_OK');
     await page.waitForTimeout(30);
   }
   await settle();

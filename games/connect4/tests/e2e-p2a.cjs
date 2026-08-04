@@ -388,8 +388,12 @@ function truthOf(moves) {
     '⑤ 取消 ⇒ **不落子**（手数仍是 ' + nBeforeCancel + '：' + JSON.stringify(sCancel2.moves) + '）');
 
   // ⑦ 撤销（同机双人局：退一手）
+  // ⚠ P2c T4 起**双人局的悔棋要对方同意**（DESIGN §6.7「不许单方悔棋」）⇒ 这里是**两下**：
+  //   ［悔棋］提请求，［同意］才真的退。⛔ 少了第二下盘面一动不动 —— 那正是 T4 的判据本身，
+  //   由 e2e-p2c-t4 ② 逐条钉死（本条只是跟着新规则走，不是它的门禁）。
   console.log('\n⑦ 撤销 / 再来一局　⑧ 同机双人先手交替');
   await clickAt(await pt('UNDO'));
+  await clickAt(await pt('UNDO_OK'));
   await soft(() => G.g.moves.length === 2);
   const s7 = await snap();
   ok(s7.moves.length === 2 && JSON.stringify(s7.moves) === JSON.stringify([0, 1]),

@@ -22,7 +22,7 @@
     "test:c4:sfx": "node games/connect4/tests/test-sfx.js",
     "test:c4:fx": "node games/connect4/tests/test-fx.js",
     "test:c4:p2b": "node games/connect4/tests/e2e-p2b.cjs && node games/connect4/tests/e2e-p2b-t4.cjs && node games/connect4/tests/e2e-p2b-t5.cjs && node games/connect4/tests/e2e-p2b-t6.cjs && node games/connect4/tests/e2e-p2b-t7.cjs",
-    "test:c4:p2c": "node games/connect4/tests/e2e-p2c-t1.cjs && node games/connect4/tests/e2e-p2c-t2.cjs && node games/connect4/tests/e2e-p2c-t3.cjs",
+    "test:c4:p2c": "node games/connect4/tests/e2e-p2c-t1.cjs && node games/connect4/tests/e2e-p2c-t2.cjs && node games/connect4/tests/e2e-p2c-t3.cjs && node games/connect4/tests/e2e-p2c-t4.cjs",
     "gen:c4sfx": "node games/connect4/tools/gen-sfx.js",
     "gen:c4book": "node games/connect4/tools/gen-book.js --ply=10",
     "verify:c4book": "node games/connect4/tests/test-book.js --k=400",

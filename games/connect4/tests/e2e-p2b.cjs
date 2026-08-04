@@ -297,7 +297,10 @@ function planLoss(moves, tier, seed, human) {
   console.log('\n⑦ 撤销 / 回菜单必须把在飞的棋子一起停掉');
   await page.mouse.move(pA.x, pA.y); await page.mouse.down(); await page.mouse.up();
   await page.evaluate(() => C4Fx.active());
+  // ⚠ P2c T4：双人局的悔棋要对方同意（§6.7）⇒ 两下（请求 + 同意）。⛔ 少了第二下这一段
+  //   量到的是「请求挂着」而不是「撤销发生了」，本条断言会变成假绿。
   await clickAt(await pt('UNDO'));
+  await clickAt(await pt('UNDO_OK'));
   const afterUndo = await page.evaluate(() => ({ raf: G.rafId, active: C4Fx.active() }));
   ok(afterUndo.active === 0 && afterUndo.raf === null,
     '撤销之后没有棋子还在飞、rAF 也停了（' + JSON.stringify(afterUndo) + '）');

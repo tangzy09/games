@@ -14,6 +14,8 @@
             "roundOver": "Good game!", "draw": "It's a tie!", "again": "Play again",
             "cheer": "Great job!",
             "coinYou": "You go first!", "coinAI": "I go first!" },
+  "undo": { "request": "Take back", "ask": "{p}, allow that move to be taken back?",
+            "barAsk": "Allow it?", "agree": "Allow", "refuse": "No" },
   "game": { "yourTurn": "Your turn", "thinking": "Thinking", "win": "You win",
             "roundOver": "Round over",
             "accuracy": "Accuracy", "turningPoint": "Turning point",
