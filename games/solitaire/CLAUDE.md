@@ -5,26 +5,49 @@ root `CLAUDE.md`（引擎契约、部署铁律、git 纪律、iOS 流水线）�
 
 **规格是权威**：`DESIGN.md`（改核心前必查；调研 + 红队驱动，数值靠 `tools/sim-blind.js` 校准）。
 
-## 当前状态（2026-08-01）
+## 当前状态（2026-08-04）
 
 **iOS 1.0 / 1.0.1 均已上架**（1.0：2026-07-23 过审；**1.0.1：已 `READY_FOR_SALE`**）。
 ⚠ 本文件曾长期写着「1.0.1 出包中」——**那是过时的**，ASC 查一下就知道它早过审了。
 **改状态前先跑 `node games/solitaire/tools/asc-version.cjs`（或 blockblast 的 asc-status）问真值，别信文档。**
 
-**⭐ 1.0.2 出包中（2026-08-03 触发，构建 `6a718bf8…`，commit `b53ee3c`）**：
-`package.json` 已 bump 到 1.0.2（⚠ Capacitor 的营销版本号恒 1.0，codemagic 从 package.json
-读它写进 Info.plist；不 bump 会被 90062 拒），ASC 1.0.2 版本已建（`35e1fbbc-…`）+ 两语
-whatsNew 已填并回读校验。**截图/预览片一张没动**（用户定的默认：要重截会明说）——
+**⭐ 1.0.2 已提交审核（2026-08-04 17:38 UTC，`WAITING_FOR_REVIEW`，`AFTER_APPROVAL` ⇒ 过审自动上架）**：
+提交单 `5795f84d-…`，版本载体 `35e1fbbc-…`，**build#3**（`7661ee4b-…`，VALID）。
+**内容** = 横幅遮挡修复 + **关掉横幅** + 激励视频加厚且全部带广告标识 + 返回键统一到左上角。
+**截图/预览片一张没动**（用户 2026-08-03 定的默认：要重截会明说）。
+
+出包这条链**每一步都回读校验**，工具都在，下次照跑（把 1.0.3 换成目标版本号）：
+
+```bash
+node games/solitaire/tools/asc-version.cjs 1.0.3    # 建版本载体 + 两语 whatsNew（幂等，不提交）
+# ⛔ 触发 CI 出包必须先经用户批准
+node tools/cm-build.cjs wait <buildId>              # 等 Codemagic 跑完
+node tools/asc-build.cjs 6790861224 wait 1.0.3      # 等 ASC 真收到并转 VALID
+node games/solitaire/tools/attach-build.cjs         # 挂 build + 回读（改里面的 VER/WANT）
+# ⛔ 提交审核必须先经用户批准
+node games/solitaire/tools/submit-review.cjs        # 提交（带 item 级 associatedErrors 诊断）
+```
+
+⛔ **「Codemagic Publishing success」不等于 ASC 已经有这个 build** —— 中间隔着 Apple 的处理期
+（本次约 2 分钟，也可能十几分钟）。这期间说「已上传」就是**没验证过的转述**；
+`tools/asc-build.cjs` 就是为这一步存在的。
+⚠ **ASC API 坑**：`fields[builds]=…` 一旦列白名单，**relationships 会被一并筛掉** ⇒
+`preReleaseVersion` 拿不到、marketing 版本号全成 `?`。要么把它写进白名单，
+要么单独查 `/v1/builds/{id}/preReleaseVersion`。
 ⚠ 顺带查清一个一直没人注意的事实：**zh-Hans 从来就是 0 组截图、只有 en-US 有 12 张**，
-1.0/1.0.1 都这样且都过审了（App Store 允许其它 locale 继承主语言的图），**不是这次丢的**。
-1.0.2 的内容 = 横幅遮挡修复 + **关掉横幅** + 激励视频加厚与全部带广告标识 + 返回键统一到左上角。
-差的只有：build 转 VALID → 挂 build → **送审（⛔ 要单独经用户批准）**。
-出包工具：`node tools/cm-build.cjs wait <buildId>` 等构建；`games/solitaire/tools/asc-version.cjs` 建版本载体。
+1.0/1.0.1 都这样且都过审了（App Store 允许其它 locale 继承主语言的图）——**不是哪次丢的**。
+⛔ 版本一进 `WAITING_FOR_REVIEW`，**截图/预览片就删改不了**（409）⇒ 要换图得先撤回重排队。
+⚠ `package.json` 的 version 必须与 ASC 版本号**一字不差**（Capacitor 的 marketing 版本恒 1.0，
+codemagic 从 package.json 读它写进 Info.plist；不 bump 会被 90062 拒）。
 商店名 **`Fair Deal: Patience & Cards`**
 （中文「公平发牌：接龙与空当接龙」），Apple ID `6790861224`，Bundle `com.aispeeds.solitaireproven`。
 线上 <https://cards.ai-speeds.com>。
 
-**1.0.1 改良包已完成（2026-07-30，web 已上线；iOS 待出新包——1.0 已过审，随时可出）**：
+⚠ **web 落后 iOS**（2026-08-04）：线上 `cards.ai-speeds.com` 还是 **v42**，仓库已到 **v46** ——
+横幅遮挡修复 / 关掉横幅 / 激励视频加厚 / 返回键统一**这四批网页版用户一个都没拿到**。
+⛔ 部署要**先问用户**（根 CLAUDE.md 的铁律），别自己 pull。
+
+**1.0.1 改良包（2026-07-30，已随 1.0.1 上架）**：
 双击自动落点 / seed 分享链接（`#d1-N`/`#d3-N`/`#fc-N`，boot + hashchange 双路径）/
 每日挑战盲打 AI 对比（`js/ai-blind.js`，与 sim-blind **同一份** AI —— 别改出两套）/
 难度旋钮（easy/hard 池分档）/ 舒适模式（四色+大字+900ms 点击窗）/
