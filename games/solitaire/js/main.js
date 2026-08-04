@@ -135,7 +135,8 @@ function newGame(drawCount, mode) {
   // 换局 = 放弃了上一局 ⇒ 连胜断（没打完就换，不能算赢）
   if (G.s && !G.s.won && G.s.moves.length > 0) G.stats.streak = 0;
   // 蜜月期结束的那一盘把横幅亮出来（前 30 盘连横幅都没有 —— 首因效应和评分关键期）
-  if (G.noAds && !Money.noAds && !Money.adFree(G.stats.played + 1)) {
+  // ⛔ 但 `Money.bannerOn` 是总闸：现在是关的（没量的时候横幅赚不到钱，却立刻吃掉 14.5% 屏幕）
+  if (G.noAds && Money.bannerOn && !Money.noAds && !Money.adFree(G.stats.played + 1)) {
     G.noAds = false;
     Ads.showBanner();
   }
@@ -1499,8 +1500,9 @@ async function boot() {
   //    ≈ 124px，而不是网页占位条那个 56（2026-08-03 实机上底部工具条被压掉大半就是这么来的）。
   //    横幅是**异步**到达的，尺寸回来后要重排 + 重画，否则错位一整局。
   Ads.onBannerSize = () => { try { renderAll(); } catch (e) {} };
-  //    G.noAds = 「不占横幅位」：死开关 noAds 或**前 30 盘蜜月期**（跨过蜜月在 newGame 里亮出）。
-  G.noAds = Money.noAds || Money.adFree(G.stats.played);
+  //    G.noAds = 「不占横幅位」：总闸 bannerOn 关着 / 死开关 noAds / **前 30 盘蜜月期**
+  //    （蜜月跨过后在 newGame 里亮出；总闸见 money.js 文件头那笔账，现在是关的）。
+  G.noAds = !Money.bannerOn || Money.noAds || Money.adFree(G.stats.played);
   if (!G.noAds) Ads.showBanner();
 
   Angels.load();                                       // 👼 图鉴 manifest（非阻塞,失败图鉴显示 0/0）

@@ -57,14 +57,22 @@ const winState=`(()=>{ const s=Core.newGame(7,3);
   d1=await page.evaluate(()=>Pool.difficultyOf(G.s.drawCount,G.s.seed));
   ok(d1==='easy', `第 2 局仍是 easy（played=${await page.evaluate(()=>G.stats.played)}）`);
 
-  // ── ①' 蜜月期：前 30 盘连横幅位都不占；第 31 盘起亮出 ──
+  // ── ①' 蜜月期：前 30 盘连横幅位都不占 ──
   ok(await page.evaluate(()=>G.noAds===true&&Layout.L.bannerH===0),
      '⭐ 蜜月期（前 30 盘）：横幅位都不占（首因效应/评分关键期）');
+
+  // ── ①'' ⛔ 横幅**总闸关着**（2026-08-03 用户拍板：没量的时候它赚不到钱，却立刻吃掉 14.5% 屏幕）──
+  //    ⇒ 蜜月之后也不出。这条钉的是**当前策略**；下面那条钉的是**开回来时的路径仍然对**。
   await page.evaluate(()=>{ G.stats.played=30; dispatch('NEW'); });
   await page.waitForTimeout(150);
+  ok(await page.evaluate(()=>Money.bannerOn===false&&G.noAds===true&&Layout.L.bannerH===0),
+     '⛔ 总闸关着 ⇒ 第 31 盘也不出横幅（把版面还给牌）');
+  // 打开总闸 ⇒ 原来的「第 31 盘亮出」路径必须仍然成立（开回来只该改那一个常量）
+  await page.evaluate(()=>{ Money.bannerOn=true; G.stats.played=30; dispatch('NEW'); });
+  await page.waitForTimeout(150);
   ok(await page.evaluate(()=>G.noAds===false&&Layout.L.bannerH>0),
-     '⭐ 第 31 盘起横幅亮出（主力收入）');
-  await page.evaluate(()=>{ G.stats.played=5; });   // 回到蜜月内，后续赢局不受插屏干扰
+     '⭐ 总闸打开 ⇒ 第 31 盘起横幅亮出（将来有量了就是改这一个常量）');
+  await page.evaluate(()=>{ Money.bannerOn=false; G.stats.played=5; });   // 复原：关闸 + 回到蜜月内
 
   // ── ② 赢局「金币 ×2」：纯增益激励位 ──
   await page.evaluate(()=>dispatch('TOG_RFX'));            // 免瀑布,直接见结算
