@@ -3,7 +3,10 @@
   "version": "1.0.1",
   "private": true,
   "wwwExtras": [
-    { "from": "games/snake/assets/angels", "to": "assets/angels" }
+    {
+      "from": "games/snake/assets/angels",
+      "to": "assets/angels"
+    }
   ],
   "description": "Cube Blast: Block Puzzle — 8x8 block puzzle with a pre-generated piece stream (the pieces are decided before you start; iOS via Capacitor; web build assembled into www/).",
   "scripts": {
@@ -14,7 +17,6 @@
   },
   "dependencies": {
     "@capacitor-community/admob": "^6.0.0",
-    "@openforge/capacitor-game-connect": "^1.1.1",
     "@capacitor/android": "^6.1.2",
     "@capacitor/app": "^6.0.1",
     "@capacitor/core": "^6.1.2",

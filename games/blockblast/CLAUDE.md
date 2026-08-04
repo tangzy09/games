@@ -45,7 +45,9 @@ node games/blockblast/tools/asc-status.cjs        # 只读体检：还差什么
 - **iOS 1.0.1 待出包**（package.json 已 bump 1.0.1；⚠ 出包/提交必经批准）：
   - **ASC 1.0.1 版本载体已建（2026-07-31，PREPARE_FOR_SUBMISSION）**，并补上了缺失的 **marketingUrl = https://blocks.ai-speeds.com**（两 locale，已回读校验）。⛔ **为什么必须补**：AdMob 的 app-ads.txt 验证只认商店页的「Developer Website」(= 版本本地化的 marketingUrl 字段)，**不认「App Support」(= supportUrl 字段)**；1.0 只填了后者 ⇒ 商店页没有 Developer Website 那一行 ⇒ AdMob 无处可爬、Verify 永远失败。⚠ 该字段在 READY_FOR_SALE 版本上**锁死**（PATCH 报 409 STATE_ERROR「cannot be edited at this time」，supportUrl 同样锁），只能随 1.0.1 上架生效。**提交前还差 whatsNew（更新版必填）+ 新 build**。
   - **IAP `cubeblast_noads` 封存不提交**（ASC id 6796603142 元数据齐全 READY_TO_SUBMIT，放着；将来要上：随版提交 + 从 git 历史 b6c19aa 取回 `js/iap.js` + RC dashboard 建 app）。商店页「Remove Ads」按钮已撤（假按钮伤信任）；`wallet.noAds` 历史开关继续兑现不收回。**RevenueCat 不再需要 ⇒ 出包零手工步。**
-  - **Game Center**：bundle 能力已开，榜 `cubeblast.endless.best` / `cubeblast.daily.best` 已建；CI 钩子 `tools/ios-extra.sh` 注入 entitlement（codemagic 模板加了通用钩子：游戏目录有 `tools/ios-extra.sh` 就跑）。⚠ 新依赖 `@openforge/capacitor-game-connect@^1.1` 首次云端构建盯 npm/pod 两步。
+  - **Game Center：1.0.1 这一版不接（依赖装不上，2026-08-02 实锤）**。bundle 能力已开、两个榜（`cubeblast.endless.best` / `cubeblast.daily.best`）已建、`tools/ios-extra.sh` 的 entitlement 注入也留着，**只把 npm 依赖去掉了**。
+    ⛔ 根因：`@openforge/capacitor-game-connect` 在 npm 上**根本没有 1.1.x**（只有 1.0.x 和 5.0.x），而装上的那个目录里没有 podspec ⇒ `pod install` 报 `No podspec found for OpenforgeCapacitorGameConnect`，构建在「生成 iOS 工程」那步直接挂。
+    ✅ 安全降级已验证：`gc.js` 对插件缺失是静默 no-op，`render.js` 的排行榜按钮有 `if (GC.available)` 门控⇒ 玩家看不到死按钮。**下次要接：先本地 `npm i` 装真版本（5.0.x 起）并确认包里有 `.podspec`，再进 package.json。**
 
 - **🏠 主界面（2026-08-01）**：新 `HOME` phase = **启动落点/门面**。原来的 MENU 一屏塞了
   章节页签 + 30 关网格 + 宝箱 + 每日 + 无尽 + 四个 tab + 三个小钮 + 目标条 —— 功能全，
