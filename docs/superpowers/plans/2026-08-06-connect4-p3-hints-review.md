@@ -20,6 +20,7 @@
 > | 计划 | `767d7bb` | 本文件 |
 > | **T1 判分层** | `e34deb5` | `js/review.js` 纯函数。判据是**胜负态不是分差**；变异实测确认 ③④ 各自独立承重 |
 > | **T2 边打边算** | `fbcfe17` | `js/analysis.js`。E2E 实测**终局那一刻已算完 100%**、点击到落子中位 **21 ms** |
+> | **T3 判据层**（UI 未接） | `5574829` | `review.js` 加 `hintLevel1/safeCols/hintLevel2`。⭐ 抓出「有几列不输」与「该走哪列」是**两个概念**（混用会让必败局面的提示指向**输得最快**的列） |
 >
 > **`?v=` 仍是 13**（T7 收尾时统一 +1）。**`SAVE_VERSION` = 4**（P3 至今没动 `G` 的形状）。
 >
@@ -31,7 +32,23 @@
 > ⚠ **T3 的提示按钮会走同一条路**（`C4Analysis.request(moves, {priority:true})`）⇒ 库没就位时
 > 提示同样要**如实说「正在准备」而不是转到天荒地老**。
 >
-> ### ⏳ 未完成：T3 提示 · T4 妙手 · T5 复盘页 · T6 精准度进结算 · T7 收尾
+> ### ⏳ 未完成：**T3 的 UI 接线** · T4 妙手 · T5 复盘页 · T6 精准度进结算 · T7 收尾
+>
+> **T3 剩下的就是把判据接到界面上**（判据层已交付并测绿，⛔ 别重写它）：
+> - 取真值：`C4Analysis.get(g.moves)`（null = 还没算 ⇒ 显示「正在准备」，⛔ 不是转到天荒地老）；
+>   要立刻算就 `C4Analysis.request(g.moves, {priority:true})`（插队已实现并测过）。
+> - 第一按：`C4Review.hintLevel1(sa)` → `{safe, total, kind}`，**文案按 `kind` 分四支**
+>   （win/draw/only/**lost**）。⛔ `kind==='lost'` 时绝不许说「有 N 列不输」——那个 `safe` 在
+>   必败局面下没有产品含义（三列同为 LOSS 时它就是 3）。
+> - 第二按：`C4Review.hintLevel2(sa, {col, makesFork, blocksFork})` → `{col, reason}`，
+>   四条理由 `only/makeFork/blockFork/steady` 各一条 locale。fork 那两个布尔用
+>   `C4Threats.forkOf`（**零搜索**）在 main.js 里算好传进去。
+> - **按钮位**：DESIGN §6.9 明写 `L.reserve` / `L.tray` 是**给 P3 留的空位** ⇒ 提示的**输出**
+>   画进 `L.reserve`（盘上方那条），**按钮**进 tray 那一行。⚠ 那一行现在是［撤销］［菜单］两个，
+>   加第三个之前先看 `trayPlan()`：矮屏是要退让的，⛔ 别把按钮挤成截断的文案
+>   （「文案截断是只有肉眼抓得到的一整类 bug」——已进 skill）。
+> - ⛔ 三条红线：广告调用 = 0 · 不限次数 · 限时局按提示**必须停表**（复用 `clockBlock()` 的
+>   `G.thinking` 那一支，⛔ 别新开判据）。
 >
 > ⚠ 复核纪律（P2c 那一轮救过命的，仍然适用）：
 > **裁决只认日志里的 `EXIT=` 行**（复合命令外层的 exit 是最后一条命令的码）；跑门禁前先 `cd /c/tmp/connect4-p1`。
