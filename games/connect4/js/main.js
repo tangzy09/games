@@ -635,6 +635,8 @@ function goHome() {
   G.coin = false; G.coinAnim = false; G.undoAsk = null;
   // ⭐ 表停掉（⛔ 别让一个 100 ms 的 interval 在 HOME 上空转 —— 与 fxStop 里那条 rAF 同源）
   G.autoNote = null; G.coinUntil = 0; stopClock();
+  // ⭐ 上一局的真值不许漏进下一局（缓存 key 里没有「哪一局」这一维，靠 reset 划界）
+  C4Analysis.reset();
   renderAll();
 }
 
@@ -748,6 +750,11 @@ function startGame(mode, tier) {
   if (mode === 'ai') opts.tier = tier;
   G.g = C4State.newGame(opts);
   G.phase = 'PLAYING';
+  // ⭐ 边打边算（P3 T2 · §9.2）：这一局的真值从现在起在 Worker 空闲时慢慢算，
+  //   到终局时复盘几乎瞬开。⚠ 让子局会在 start() 里被整个关掉（两条理由见 analysis.js 文件头）。
+  //   ⛔ 它永远不阻塞任何一次点击 —— 没算完只是复盘页显示进度。
+  C4Analysis.start(G.g);
+  C4Analysis.onMove(G.g);
   // ⭐ 猜先（§6.7）。⚠ 必须在 newGame **之后**：它演的就是 newGame 刚算完的那个先手。
   const wait = startCoinFx();
   // ⭐ 表（§6.10）：⚠ 必须在 startCoinFx **之后** —— 猜先那段是**停表**的（clockBlock 的 'coin'），
@@ -856,6 +863,9 @@ function applyMove(col, auto) {
   //   才能把光环与落地对齐（lead）；⛔ 也必须在 checkOver 之前 —— 判据自己会挡终局，
   //   但顺序反了会让「这一手直接连四」的局面多算一遍。
   if (row >= 0) maybeFork(bdBefore, C4State.boardOf(G.g));
+  // ⭐ 边打边算（P3 T2）：把新的前缀局面排进队。⚠ 放在这里（落子后、renderAll 之前）而
+  //   ⛔ **不是放进 renderAll** —— 后者每帧都跑，有副作用的东西放进去会递归（P2c-T5 实锤）。
+  C4Analysis.onMove(G.g);
   const over = checkOver();
   renderAll();
   if (!over) maybeAI();
@@ -1947,8 +1957,14 @@ async function boot() {
   Controls.render();
   renderAll();
 
+  // ⭐ 边打边算（P3 T2）用的就是同一个 Worker 门面。⚠ 注入而不是让 analysis.js 自己去取，
+  //   是为了让它在 node 门禁里能塞一个假 client（那里要钉的是**调度**，不是求解器）。
+  C4Analysis.attach(EngineClient);
+
   // ⭐ 首屏**不 await** 引擎：让玩家先看见界面（DESIGN §9.2）。
-  EngineClient.onChange(() => renderAll());
+  // ⭐ 引擎状态一变就 kick 一下边打边算：**开局库到位的那一刻**正是它该开工的时刻
+  //   （在那之前 analysis 一个请求都不发 —— 无库的 n≤9 是几十分钟，见它的判断④）。
+  EngineClient.onChange(() => { C4Analysis.kick(); renderAll(); });
   EngineClient.start().then(okv => {
     renderAll();
     if (okv) EngineClient.ensureBook();   // 3.6 MB 开局库懒加载，到位后自然变快

@@ -82,6 +82,10 @@
      但必须在 main.js **之前**：主循环每 100 ms 问它一次「这一手还剩多少」。
      ⛔ 它不认识棋盘 —— 超时落哪一列在 state.js 的 timeoutMove（纯函数、⛔ 不读时钟）。 -->
 <script src="js/clock.js?v=13"></script>
+<!-- P3：判分层（纯函数）与边打边算的调度。⚠ analysis.js 只发消息给 Worker，
+     主线程一行搜索都不许跑（test-analysis §⑨ 源码级钉死）。 -->
+<script src="js/review.js?v=13"></script>
+<script src="js/analysis.js?v=13"></script>
 <script src="js/main.js?v=13"></script>
 </body>
 </html>
