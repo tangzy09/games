@@ -10,6 +10,34 @@
 
 ---
 
+> ## 🚧 进度存档（2026-08-06）
+>
+> **工作目录**：`C:\tmp\connect4-p1`（git worktree，分支 `connect4-p1`）。⚠ 本分支尚未合并到 `main`，⛔ 未经明确指示别合。
+>
+> | 任务 | commit | 结果 |
+> |---|---|---|
+> | 前置测量 | `1ead067` `2aec96d` | 整局复盘 0.36-3.30 s · 倒序更快是错的 · 让子局是**奇偶性**问题（让 1 子 1.19 s / 让 2 子 **173.5 s**） |
+> | 计划 | `767d7bb` | 本文件 |
+> | **T1 判分层** | `e34deb5` | `js/review.js` 纯函数。判据是**胜负态不是分差**；变异实测确认 ③④ 各自独立承重 |
+> | **T2 边打边算** | `fbcfe17` | `js/analysis.js`。E2E 实测**终局那一刻已算完 100%**、点击到落子中位 **21 ms** |
+>
+> **`?v=` 仍是 13**（T7 收尾时统一 +1）。**`SAVE_VERSION` = 4**（P3 至今没动 `G` 的形状）。
+>
+> ### ⭐ T2 踩到并修掉的那个坑（下一个动手的人务必知道）
+> `analysis` 是**从 n=0 的前缀开始排队**的，而 `engine-client.js:209` 明写「库没就位时**绝不许**对
+> n≤9 调 `scores()` —— 那是**几十分钟**」。第一版没查 `bookReady()` ⇒ 开局那几秒会把 Worker
+> **焊死几十分钟**，画面上只是「复盘一直在转」，**零报错**。
+> ⇒ 已加 `bookOk()` 闸（fail-closed）+ `kick()`，单测 ⑥b 与 E2E ② 两层钉死。
+> ⚠ **T3 的提示按钮会走同一条路**（`C4Analysis.request(moves, {priority:true})`）⇒ 库没就位时
+> 提示同样要**如实说「正在准备」而不是转到天荒地老**。
+>
+> ### ⏳ 未完成：T3 提示 · T4 妙手 · T5 复盘页 · T6 精准度进结算 · T7 收尾
+>
+> ⚠ 复核纪律（P2c 那一轮救过命的，仍然适用）：
+> **裁决只认日志里的 `EXIT=` 行**（复合命令外层的 exit 是最后一条命令的码）；跑门禁前先 `cd /c/tmp/connect4-p1`。
+
+---
+
 ## ⭐ 开工前已经量掉的三件事（⛔ 别重新推导，也别推翻它们的结论）
 
 `tools/bench-review.js`（2026-08-06，本机；⛔ 每个变体独立进程）：
@@ -56,7 +84,7 @@ DESIGN §3.2 原文，且**已经是 E2E 断言**（P2c-T5 的门禁里就有「
 
 > §4：求解器给**每一手**打标签（最优 / 次优 / 失误 / 败招），一局算出 **Accuracy %**。
 
-- [ ] **Step 1：先定口径，⚠ 别急着写** —— 下面是**已经定好的方案**（理由附在后面，⛔ 别改成「按分差扣分」）：
+- [x] **Step 1：先定口径，⚠ 别急着写** —— 下面是**已经定好的方案**（理由附在后面，⛔ 别改成「按分差扣分」）：
 
   **判据是「胜负态」而不是分差。** `solver.js` 的分数约定：`>0 必胜 / =0 和 / <0 必败`，`|score|` 只表示**分出胜负的早晚**。
   ⇒ 把 `sign(score)` 归成三档 `WIN(+1) / DRAW(0) / LOSS(-1)`，**标签只看这一手把胜负态从哪档带到哪档**：
@@ -72,7 +100,7 @@ DESIGN §3.2 原文，且**已经是 E2E 断言**（P2c-T5 的门禁里就有「
   ⭐ **副产品，而且是产品上想要的**：必败局面里**怎么走都不掉档 ⇒ 不扣分**。你不该因为对手完美而被判失误——这正是 §4 那句「输了但精准度 91%，是你的新高」能成立的前提。
   ⚠ **视角**：`scoreAll(落子前的局面)` 是**当前行棋方**视角，而当前行棋方就是**要落这一手的人** ⇒ 直接拿 `sa[实际落的列]` 与 `max(sa)` 比，两者同视角，⛔ 别取反。
 
-- [ ] **Step 2：TDD —— 先写 `tests/test-review.js`，⛔ 此时 `review.js` 还不存在**
+- [x] **Step 2：TDD —— 先写 `tests/test-review.js`，⛔ 此时 `review.js` 还不存在**
 
   必须覆盖的用例（⚠ 每条都用**手摆的 `scoreAll` 结果**当输入，⛔ 别在单测里真调求解器：那样测的是求解器不是判分）：
   1. 四种标签各一条：`{3:5}` 单列必胜走 3 ⇒ `best`；`{3:5, 4:3}` 走 4 ⇒ `good`（同为 WIN）；`{3:5, 4:0}` 走 4 ⇒ `slip`；`{3:5, 4:-3}` 走 4 ⇒ `loss`。
@@ -85,20 +113,20 @@ DESIGN §3.2 原文，且**已经是 E2E 断言**（P2c-T5 的门禁里就有「
      ⚠ 用「第一次」而不是「最严重的一次」：§3.3 那句话是「你到第 14 手为止一直是必胜的」——它讲的是**故事的转折**，不是扣分最多的那手。
   8. ⛔ **脏输入 fail-fast**：`scoreAll` 给了空对象 `{}`（终局局面）⇒ 抛错而不是返回一个标签（终局局面上没有「这一手多好」这个问题）。
 
-- [ ] **Step 3：跑测试确认它红** —— `node games/connect4/tests/test-review.js`，预期 `Cannot find module '../js/review.js'`
+- [x] **Step 3：跑测试确认它红** —— `node games/connect4/tests/test-review.js`，预期 `Cannot find module '../js/review.js'`
 
-- [ ] **Step 4：写 `js/review.js`**
+- [x] **Step 4：写 `js/review.js`**
 
   导出：`SIGN_WIN/SIGN_DRAW/SIGN_LOSS`、`SCORE_OF_LABEL`（那张 100/85/40/0 表，**导出是为了让门禁读同一份**，⛔ 别在测试里抄一份）、`labelOf(scoreAll, col)`、`accuracyOf(labels, opts)`、`turningPoint(labels)`。
   ⚠ 模块形状照 `clock.js`／`threats.js`：IIFE + `inNode` 双导出 + `Object.freeze(API)`。
   ⛔ 本文件**零 IO、零 Solver、零 EngineClient**（它只吃已经算好的 `scoreAll` 结果）——写进文件头，并在 Step 5 用源码级检查钉死。
 
-- [ ] **Step 5：加两条源码级红线断言**（照 `test-threats.js` 的先例）：本文件源码里不许出现 `Solver` / `EngineClient` / `Math.random`。
+- [x] **Step 5：加两条源码级红线断言**（照 `test-threats.js` 的先例）：本文件源码里不许出现 `Solver` / `EngineClient` / `Math.random`。
   ⚠ 「注释里写了纯函数」和「真的是纯函数」是两件事——本仓已经为这条写过一次检查，照抄。
 
-- [ ] **Step 6：挂进 `package.json` 的 `test:c4`**（⚠ 本仓铁律：不挂 = 永远不会被跑到），跑 `npm run test:c4` 全绿
+- [x] **Step 6：挂进 `package.json` 的 `test:c4`**（⚠ 本仓铁律：不挂 = 永远不会被跑到），跑 `npm run test:c4` 全绿
 
-- [ ] **Step 7：Commit** —— `git add games/connect4/js/review.js games/connect4/tests/test-review.js package.json`
+- [x] **Step 7：Commit** —— `git add games/connect4/js/review.js games/connect4/tests/test-review.js package.json`
 
 ## Task 2：边打边算 `js/analysis.js`（P3 的性能地基）
 
@@ -106,7 +134,7 @@ DESIGN §3.2 原文，且**已经是 E2E 断言**（P2c-T5 的门禁里就有「
 
 > ⭐ 每落一手就在 Worker 空闲时算那一手的真值 ⇒ 终局时复盘几乎瞬开。
 
-- [ ] **Step 1：先想清楚它与既有三条纪律的关系，⚠ 写进文件头再动手**
+- [x] **Step 1：先想清楚它与既有三条纪律的关系，⚠ 写进文件头再动手**
   - ⚠ **AI 优先**：`EngineClient` 的 `send` 是「同一个 op 只认最新一次」——`scores` 这个 op 会被 P3 自己反复用，⛔ 别让复盘的排队请求把**提示**那次 `scores` 顶掉（两者同 op）。⇒ **排队必须在 analysis.js 这一层做**（一次只在飞一个），⛔ 不是甩给 EngineClient 并发。
   - ⚠ **撤销不作废**：缓存的 key 是**局面**（`moves` 前缀序列化，或 `Solver.keyOf` 的等价物），不是「第几手」⇒ 撤销只是不再需要后面那些，已算的前缀**照旧有效**。⛔ 别按 ply 号存。
   - ⛔ **让子局（1 子和 2 子都）直接关掉这条流水线**，判据 `C4State.handicapOf(g) > 0`。
@@ -122,7 +150,7 @@ DESIGN §3.2 原文，且**已经是 E2E 断言**（P2c-T5 的门禁里就有「
       个人精准度本来就意义不大。⇒ **P3 第一版不支持**，如实说明（红线 2），要做留到 P5。
   - ⚠ **零阻塞**：这条流水线**永远不许**让任何一次点击等它。它没算完 = 复盘页显示进度，⛔ 不是禁用按钮。
 
-- [ ] **Step 2：TDD —— `tests/test-analysis.js`**（⚠ 用**假 EngineClient**注入，⛔ 别在单测里起真 Worker）
+- [x] **Step 2：TDD —— `tests/test-analysis.js`**（⚠ 用**假 EngineClient**注入，⛔ 别在单测里起真 Worker）
   1. 喂 3 手 ⇒ 依次请求 3 个前缀局面，**一次只在飞一个**（断言假 client 的并发峰值 === 1）。
   2. ⭐ **AI 优先**：`request(优先级高的那次)` 插队后，下一次出队的是它。
   3. **撤销**：算完 5 手后撤到 3 手，再问前 3 手 ⇒ **命中缓存，零新请求**。
@@ -130,17 +158,17 @@ DESIGN §3.2 原文，且**已经是 E2E 断言**（P2c-T5 的门禁里就有「
   5. **求解器死了**：假 client 一律 reject ⇒ 状态变成 `failed`、`disabledReason()` 如实说，⛔ 不许把 reject 吞掉当成「算完了」。
   6. ⭐ **进度**：`progress()` 返回 `{done, total}`，且 `done` **单调不减**（⛔ 撤销之后 total 变小时不许出现 done > total）。
 
-- [ ] **Step 3：跑测试确认红**，然后写 `js/analysis.js`，再跑绿
+- [x] **Step 3：跑测试确认红**，然后写 `js/analysis.js`，再跑绿
 
-- [ ] **Step 4：接进 `main.js`** —— 落子后 / AI 落完后触发 `Analysis.onMove(g)`；`startGame` / `goHome` 时 `Analysis.reset()`。
+- [x] **Step 4：接进 `main.js`** —— 落子后 / AI 落完后触发 `Analysis.onMove(g)`；`startGame` / `goHome` 时 `Analysis.reset()`。
   ⚠ **别放进 `renderAll()`**（P2c-T5 那条教训：renderAll 每帧都跑，把有副作用的东西放进去会递归）。
 
-- [ ] **Step 5：⭐ 验收（E2E，`tests/e2e-p3-t2.cjs`）** —— 真实鼠标下一整局人机，然后断言：
+- [x] **Step 5：⭐ 验收（E2E，`tests/e2e-p3-t2.cjs`）** —— 真实鼠标下一整局人机，然后断言：
   - 终局那一刻 `Analysis.progress().done / total` **≥ 80%**（证明「边打边算」真的摊掉了，⛔ 不是终局才开始算）
   - ⛔ 全程零 pageerror；⛔ 广告调用 = 0
   - ⛔ 每一次点击的响应都没被拖慢（量点击到落子的时间，与 P2b 的基线同量级）
 
-- [ ] **Step 6：Commit**
+- [x] **Step 6：Commit**
 
 ## Task 3：提示（分层两按，**永远免费**）
 
