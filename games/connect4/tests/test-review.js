@@ -158,6 +158,68 @@ const RV = require('../js/review.js');
   console.log('test-review: ⑨ 计分表导出 + accuracyOf 读同一份 OK');
 }
 
+// ─────────── ⑫ ⭐ 提示第一按：数「有几列不输」（P3 T3 · §3.2）───────────
+// ⭐⭐ 「不输」= 与最优列**同一个胜负态**。⛔ 不是「分数 ≥ 0」——
+//   必败局面里一列都不会 ≥0，那样会说出「0 列不输」这种既吓人又没用的话。
+{
+  // 必胜局面：3 列都通向必胜，1 列只到和
+  let l1 = RV.hintLevel1({ 0: 5, 1: 3, 2: 1, 3: 0 });
+  assert.strictEqual(l1.safe, 3, '三列同为必胜 ⇒ 3 列不输');
+  assert.strictEqual(l1.total, 4);
+  assert.strictEqual(l1.kind, 'win');
+
+  // ⭐ 只有一列不输 —— 这正是「妙手」与「教育价值最高」的那个局面
+  l1 = RV.hintLevel1({ 0: -5, 3: 2, 6: -9 });
+  assert.strictEqual(l1.safe, 1, '只有一列通向必胜');
+  assert.strictEqual(l1.kind, 'only', '⭐ 只有 1 列不输 ⇒ kind=only（第一按最该说的那句话）');
+
+  // ⭐⭐ 必败局面：⛔ 绝不许说成「还有 N 列不输」
+  l1 = RV.hintLevel1({ 0: -5, 3: -3, 6: -9 });
+  assert.strictEqual(l1.kind, 'lost',
+    '⭐⭐ 全部必败 ⇒ kind=lost —— ⛔ 绝不许说「有 N 列不输」（那是谎，§2.4）');
+  assert.strictEqual(l1.safe, 3,
+    '⚠ 必败局面里三列同为 LOSS ⇒ safe=3。**这个数在 kind=lost 时没有产品含义**，'
+    + '⛔ 文案层绝不许把它说成「有 3 列不输」—— 判据是 kind，不是 safe');
+  // ⭐⭐ 而第二按必须指「输得最慢」的那一列（-3），⛔ 不是同胜负态里的第一列（-5）
+  assert.deepStrictEqual(RV.safeCols({ 0: -5, 3: -3, 6: -9 }), [3],
+    '⭐⭐ 必败局面下 safeCols 必须是**分数最高**（输得最慢）的那列 —— '
+    + '若按「同胜负态」挑，提示会指出一个**输得最快**的列，而产品的全部卖点就是它不会指错');
+  assert.strictEqual(RV.hintLevel2({ 0: -5, 3: -3, 6: -9 }).col, 3,
+    '⭐⭐ 必败局面下第二按指的仍是最优（输得最慢）的那列');
+
+  // 和棋局面
+  l1 = RV.hintLevel1({ 0: 0, 3: 0, 6: -3 });
+  assert.strictEqual(l1.kind, 'draw');
+  assert.strictEqual(l1.safe, 2);
+
+  assert.throws(() => RV.hintLevel1({}), /终局/, '⛔ 终局局面上没有「该走哪」这个问题');
+  console.log('test-review: ⑫ ⭐ 提示第一按（有几列不输 / 四种 kind）OK');
+}
+
+// ─────────── ⑬ ⭐ 提示第二按：理由**机械导出**，只有四条 ───────────
+// §3.2：「理由从求解器评分结构**机械导出，不手写解说**。」
+{
+  const sa = { 0: -5, 3: 2, 6: -9 };
+  // 唯一不败的一列 ⇒ 理由恒是 only（⛔ 它压过 fork：那才是这一手真正的分量）
+  let h = RV.hintLevel2(sa, { makesFork: true });
+  assert.strictEqual(h.col, 3, '第二按指的列必须来自 safeCols（= scoreAll 的最优之一）');
+  assert.strictEqual(h.reason, 'only');
+
+  const sa2 = { 0: 5, 3: 5, 6: 1 };
+  assert.strictEqual(RV.hintLevel2(sa2, { col: 3, makesFork: true }).reason, 'makeFork');
+  assert.strictEqual(RV.hintLevel2(sa2, { col: 3, blocksFork: true }).reason, 'blockFork');
+  assert.strictEqual(RV.hintLevel2(sa2, { col: 3 }).reason, 'steady',
+    '⚠ 三条都不成立 ⇒ 说「这一列最稳」，⛔ 别硬凑一个听起来聪明的理由（那是手写解说的开始）');
+
+  // ⛔ 指的列**永远**是最优之一 —— 反向对照：给一个次优列，也不许采纳
+  const h2 = RV.hintLevel2(sa2, { col: 6 });
+  assert.ok([0, 3].indexOf(h2.col) >= 0,
+    '⛔ 调用方传了个次优列（6）也不许采纳，实际给了 ' + h2.col + ' —— 提示指错列 = 产品的卖点当场破产');
+
+  assert.deepStrictEqual(RV.safeCols(sa2), [0, 3], 'safeCols 返回全部并列最优');
+  console.log('test-review: ⑬ ⭐ 提示第二按（四条机械理由 + 指的列恒最优）OK');
+}
+
 // ─────────── ⑩ ⛔⛔ 源码级红线：纯函数，零 IO ───────────
 // ⚠ 剥掉注释再查 —— 本文件与 review.js 的注释里都写着这些词，不剥的话恒红。
 {

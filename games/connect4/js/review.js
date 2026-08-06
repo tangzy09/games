@@ -128,9 +128,80 @@
     return null;
   }
 
+  // ════════ ⭐ 提示（P3 Task 3 · DESIGN §3.2）════════
+  //
+  // §3.2：「**第一按**：只说这步关不关键——『有 4 列都不输，随便走』vs『**只有 1 列不输**』。
+  //   教育价值最高且不剧透。**第二按**：指出走哪一列 + 一句理由。
+  //   理由从求解器评分结构**机械导出，不手写解说**。」
+  //
+  // ⭐⭐ 「不输」的定义：**与最优列同一个胜负态**。⛔ 不是「分数 ≥ 0」——
+  //   必败局面里一列都不会 ≥0，那样会说出「0 列不输」这种既吓人又没用的话。
+  //   而真正该说的是「这局已经很难了」。⇒ `kind` 把三种局面分开，让文案层各说各的。
+  //
+  // ⛔ 本节仍然是**纯函数**：它只吃 scoreAll，以及调用方用 C4Threats（零搜索）算好的
+  //   两个布尔。⛔ 绝不在这里碰盘面 —— 那会把 review.js 拖进「要棋规才能测」的泥潭。
+
+  /** ⭐ 有几列「不输」（与最优列同一胜负态），以及这是个什么局面。 */
+  function hintLevel1(sa) {
+    if (!sa || typeof sa !== 'object') throw new Error('hintLevel1：scoreAll 结果必须是对象');
+    const cols = Object.keys(sa);
+    if (!cols.length) throw new Error('hintLevel1：scoreAll 是空的（终局局面）—— 终局上没有「该走哪」这个问题');
+    let bestScore = -Infinity;
+    for (const k of cols) { const v = sa[k]; if (v > bestScore) bestScore = v; }
+    const bs = signOf(bestScore);
+    let safe = 0;
+    for (const k of cols) if (signOf(sa[k]) === bs) safe++;
+    // ⭐ kind 决定文案走哪一支：⛔ 必败局面绝不许说成「还有 N 列不输」（那是谎）
+    const kind = bs === SIGN_LOSS ? 'lost' : (safe === 1 ? 'only' : (bs === SIGN_WIN ? 'win' : 'draw'));
+    return { safe: safe, total: cols.length, kind: kind, bestSign: bs };
+  }
+
+  /**
+   * ⭐ **并列最高分**的那些列（第二按要从里面挑，⛔ 别只回一个）。
+   * ⚠⚠ 这与 `hintLevel1().safe` 是**两个不同的概念**，⛔ 千万别混：
+   *   · `safe`（第一按用）= 与最优**同胜负态**的列数 ⇒ 回答「有几列不输」；
+   *   · `safeCols`（第二按用）= **分数最高**的列 ⇒ 回答「该走哪一列」。
+   *   两者在必胜/和棋局面下经常不同，而在**必败局面下混用是有害的**：
+   *   那时所有列同为 LOSS（`safe` = 全部），若第二按也按「同胜负态」挑，
+   *   就会指出一个**输得最快**的列 —— 提示指错列 = 产品的卖点当场破产。
+   *   ⇒ 这里恒按 `bestScore` 挑（必败局面里那就是「输得最慢」的那条路）。
+   */
+  function safeCols(sa) {
+    if (!sa || typeof sa !== 'object') throw new Error('safeCols：scoreAll 结果必须是对象');
+    const keys = Object.keys(sa);
+    if (!keys.length) throw new Error('safeCols：scoreAll 是空的（终局局面）');
+    let bestScore = -Infinity;
+    for (const k of keys) { const v = sa[k]; if (v > bestScore) bestScore = v; }
+    const out = [];
+    for (const k of keys) if (sa[k] === bestScore) out.push(Number(k));
+    return out;
+  }
+
+  /**
+   * ⭐ 第二按：走哪一列 + **机械导出**的理由。
+   * @param ctx.makesFork 走完这一列**自己**多出一个双威胁吗（调用方用 C4Threats.forkOf 算，零搜索）
+   * @param ctx.blocksFork 走完这一列**对方**少了一个双威胁吗（同上）
+   * @returns { col, reason: 'only' | 'makeFork' | 'blockFork' | 'steady' }
+   * ⚠ 理由只有这四条，⛔ 三条都不成立时就说「这一列最稳」——
+   *   **别硬凑一个听起来聪明的理由**，那是「手写解说」的开始，而 §3.2 明确不要。
+   * ⚠ col 必须来自 `safeCols`（⇒ 恒是 scoreAll 的最优之一），⛔ 不许自己挑一列。
+   */
+  function hintLevel2(sa, ctx) {
+    const l1 = hintLevel1(sa);
+    const safe = safeCols(sa);
+    // ⚠ 并列时优先取调用方给的那一列（它带着 fork 信息），否则取中路优先序的第一个
+    const c = ctx && typeof ctx.col === 'number' && safe.indexOf(ctx.col) >= 0 ? ctx.col : safe[0];
+    let reason = 'steady';
+    if (l1.kind === 'only') reason = 'only';
+    else if (ctx && ctx.makesFork) reason = 'makeFork';
+    else if (ctx && ctx.blocksFork) reason = 'blockFork';
+    return { col: c, reason: reason };
+  }
+
   const API = {
     SIGN_WIN, SIGN_DRAW, SIGN_LOSS, SCORE_OF_LABEL,
-    signOf, labelOf, accuracyOf, turningPoint
+    signOf, labelOf, accuracyOf, turningPoint,
+    hintLevel1, safeCols, hintLevel2
   };
   // 与其余模块同样冻结：挡住 `C4Review.labelOf = () => 'best'` 这类「精准度永远 100%」
   // 的误用 —— 画面正常、零报错，本仓最怕的失败模式。
