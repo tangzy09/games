@@ -14,7 +14,7 @@
     "sim:block": "node games/blockblast/tools/sim.js",
     "verify:levels": "node games/blockblast/tools/verify-levels.js",
     "test:sol": "node games/solitaire/tests/test-klondike.js && node games/solitaire/tests/test-spider.js",
-    "test:c4": "node games/connect4/tests/test-bitboard.js && node games/connect4/tests/test-rules.js && node games/connect4/tests/test-solver.js && node games/connect4/tests/test-book.js && node games/connect4/tests/test-ai-determinism.js && node games/connect4/tests/test-browser-globals.js && node games/connect4/tests/test-state.js && node games/connect4/tests/test-threats.js && node games/connect4/tests/test-settings.js && node games/connect4/tests/test-clock.js && node games/connect4/tests/test-kids.js && node games/connect4/tests/test-noclone.js && node games/connect4/tests/test-sfx.js && node games/connect4/tests/test-fx.js",
+    "test:c4": "node games/connect4/tests/test-bitboard.js && node games/connect4/tests/test-rules.js && node games/connect4/tests/test-solver.js && node games/connect4/tests/test-book.js && node games/connect4/tests/test-ai-determinism.js && node games/connect4/tests/test-browser-globals.js && node games/connect4/tests/test-state.js && node games/connect4/tests/test-threats.js && node games/connect4/tests/test-settings.js && node games/connect4/tests/test-clock.js && node games/connect4/tests/test-review.js && node games/connect4/tests/test-kids.js && node games/connect4/tests/test-noclone.js && node games/connect4/tests/test-sfx.js && node games/connect4/tests/test-fx.js",
     "test:c4:deep": "node games/connect4/tests/test-solver.js --deep",
     "test:c4:worker": "node games/connect4/tests/e2e-worker.cjs",
     "test:c4:render": "node games/connect4/tests/e2e-render.cjs",
