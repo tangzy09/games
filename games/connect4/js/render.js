@@ -52,7 +52,14 @@
     hudCard:   'rgba(255,255,255,0.90)',
     hudEdge:   'rgba(47,85,70,0.16)',
     hudText:   '#264a3d',
-    hudSub:    'rgba(38,74,61,0.62)'
+    hudSub:    'rgba(38,74,61,0.62)',
+    // ⭐ 限时模式的倒计时（P2c T5 · §6.10）。⛔ 红线复核：这不是 §0.1 的 trade dress ——
+    //   那条钉的是「**红/黄同形圆片** + 蓝色竖框栅栏」这套**棋子与盘体**的外观；
+    //   这里是 HUD 上一颗告急数字牌，既不是棋子、也不是盘，且盘上一点红黄都没有。
+    // ⚠ 灰度：timeHot ≈ 111、timeCool 是压在白卡上的淡色 ≈ 233 ⇒ 两态在灰度图上也分得开
+    //   （但真正承载信息的是**条的长度和数字**，颜色只是第三重冗余，见 drawHUD 那段 ⭐⭐）。
+    timeCool:  'rgba(38,74,61,0.10)',
+    timeHot:   '#c8502f'
   };
 
   // 棋子尺寸（相对 cell）。⚠ 这三个数就是灰度门禁量的那个「覆盖率差」的来源，
@@ -781,6 +788,17 @@
       drawGlyph(info.turn, tx + gs / 2, cy, gs);
       tx += gs + 10;
     }
+    // ⭐⭐ P2c T5 · DESIGN §6.10「限时模式」：倒计时**画在 HUD 卡里**。
+    //   ⛔ 为什么不画在盘上/悬停带里（这两个是最容易想到的地方，都不行）：
+    //     · 悬停带（L.drop）在**按住预览时整条让位**（drawDropBand 第一行就 return）——
+    //       而那正是玩家最需要看时间的一刻；
+    //     · 画在盘上/盘边 = 侵占棋盘几何 ⇒ 撞 P2b T7 的五视口版面门禁（§6.9「按钮不压棋盘」
+    //       同源），而且**只在某些视口**压得到，正是那次抓出 8 个缺陷的那类失败。
+    //   ⇒ HUD 是「现在发生什么」，倒计时就是现在发生的事；它有自己的矩形，
+    //     ⭐ 且对坐模式（T3）那条第二 HUD **逐字复制** ⇒ 桌子两边都看得见，零额外几何。
+    // ⭐⭐ 告急是**双编码**的（§6.2：靠颜色区分的信息一律形状 + 颜色，灰度可辨）：
+    //   条的**长度**在缩、数字在变，颜色只是第三重冗余。⛔ 别做成「只变红」。
+    const timer = (opts && opts.timer) ? opts.timer : null;
     const rightFont = Math.round(12 * k) + 'px sans-serif';
     // ⭐ P2b T7：右侧那串是**次要信息**（档位 / 第几局先手），先给它一个宽度上限，
     //   装不下由它自己截断。⛔ 别再让它把左边的主句挤掉：360 宽 + 舒适模式实测，
@@ -790,6 +808,14 @@
       ctx.font = rightFont;
       rightStr = wrapLines(String(info.right), h.w * 0.42, 1)[0];
       rightW = ctx.measureText(clean(rightStr)).width + 16;
+    }
+    // ⭐ 倒计时的秒数占右侧那一格（⚠ 与 info.right **互斥**：main 在限时局里把 right 让空 ——
+    //   T4 实锤，右侧那串次要信息会把左边的主句挤成半句话，而主句是全屏最该读到的一行）。
+    let chip = null;
+    if (timer) {
+      const cw = Math.round(Math.max(34, 40 * k)), ch = Math.round(Math.min(h.h - 12, 30 * k));
+      chip = { x: h.x + h.w - 12 - cw, y: cy - ch / 2, w: cw, h: ch };
+      rightW = cw + 18;
     }
     const leftMaxW = Math.max(40, h.w - (tx - h.x) - 14 - rightW);
     if (info.left) {
@@ -805,6 +831,30 @@
       txtL(leftStr, tx, cy, PAL.hudText, f);
     }
     if (rightStr) txtR(rightStr, h.x + h.w - 14, cy, PAL.hudSub, rightFont);
+    // ⭐⭐ 倒计时：右边一颗数字牌 + 卡片下沿一条**长度 = 剩余占比**的进度条。
+    //   ⚠ 两者都只读入参（frac / secs / urgent），⛔ 这里不算时间（同 lineProg / poseFork 的纪律：
+    //     时间只有 C4Clock 一个真值源）。
+    if (timer) {
+      const urgent = !!timer.urgent;
+      const f = Math.max(0, Math.min(1, typeof timer.frac === 'number' ? timer.frac : 1));
+      const secs = Math.max(0, Math.round(timer.secs || 0));
+      fillRR(chip.x, chip.y, chip.w, chip.h, chip.h / 2, urgent ? PAL.timeHot : PAL.timeCool);
+      // ⚠ 数字字号跟着 chip 走（舒适模式 ×1.3 时它也大一圈），告急时再加一点 ——
+      //   **大小本身也是一重编码**（灰度下颜色那一重会消失）。
+      txt(String(secs), chip.x + chip.w / 2, chip.y + chip.h / 2,
+          urgent ? '#fff' : PAL.hudText,
+          'bold ' + Math.round(chip.h * (urgent ? 0.66 : 0.58)) + 'px sans-serif');
+      // 进度条：底槽 + 实条。⛔ 实条从**左**往右缩（与「时间在流走」同向），⛔ 别居中缩。
+      const bx = h.x + 14, bw2 = h.w - 28, by = h.y + h.h - 8, bh2 = 4;
+      fillRR(bx, by, bw2, bh2, bh2 / 2, 'rgba(38,74,61,0.14)');
+      if (f > 0.001) fillRR(bx, by, Math.max(bh2, bw2 * f), bh2, bh2 / 2, urgent ? PAL.timeHot : PAL.accent);
+      // ⭐ 门禁按这两个矩形取样（⛔ 别在测试里手抄坐标）
+      h.timerChip = chip;
+      h.timerBar = { x: bx, y: by, w: bw2, h: bh2 };
+      h.timerFill = { x: bx, y: by, w: Math.max(bh2, bw2 * f), h: bh2 };
+    } else {
+      h.timerChip = null; h.timerBar = null; h.timerFill = null;
+    }
     if (flip) ctx.restore();
     // ⭐ P2c T4：把**真的画上去的那两串**带回去（缩过字号、截过断的那一份）。
     //   ⚠ 存在的理由只有一个：门禁要能问「那句话是不是被截成了半句」——

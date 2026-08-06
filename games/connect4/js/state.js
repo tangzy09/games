@@ -4,12 +4,14 @@
 // ⭐ 核心决定（已定稿，⛔ 别改）：**存「先后手 + 手数列表」，不存局面快照栈。**
 //    一个决定同时白送四样：
 //      · 撤销      = 重放到 n−1
-//      · 中断恢复  = 存 42 个个位数（⚠ **实测整局 ≤204 字节**，上界取在 seed 最长时；
+//      · 中断恢复  = 存 42 个个位数（⚠ **实测整局 ≤241 字节**，上界取在 seed 最长时；
 //                    手数列表本体 89 字节，其余全是元数据键名。快照栈是几十 KB ——
 //                    量级差三个数量级，但「几十字节」只对手数列表本身成立，别再复制那个数。
 //                    ⚠ 这个数由 tests/test-state.js 现场量并断言，⛔ 改了这里就去对一遍。
 //                    ⚠ P2c T1 从 195 涨到 204、T2 再到 217（`"kids":false,` = 13 字节）：让子的 `pre` 字段（`"pre":[2,4],` = 12 字节，
-//                      让 0 子时 `"pre":[],` = 9 字节）。**DESIGN §9.3 里那个 195 已过期。**）
+//                      让 0 子时 `"pre":[],` = 9 字节）；**T5 再到 241**（`"timed":false,` = 14 +
+//                      `"auto":[],` = 10 字节；⚠ 限时局里 auto 每记一手再 +2 左右，一局最多 21 手 ⇒
+//                      真实上界还要高一点，但仍是「几百字节」这个量级）。**DESIGN §9.3 里那个 195 已过期。**）
 //      · 「从第 N 步重来」= rewindTo(g, N)（DESIGN §3.3 复盘那颗按钮）
 //      · 一条 URL 分享整局（§11 异步对弈直接开）
 //    ⚠ 代价只有一个，而且是**故意收下**的：**手搓的局面不可撤销**（没有手数列表 ⇒ 重放不出来）。
@@ -42,8 +44,12 @@
    *    的老档若被「宽容地」读成 `pre: []`，让子局会**静默变成普通局**，玩家眼里是「我的让子没了」。
    *  · v3 = P2c Task 2：加了儿童档字段 `kids`（DESIGN §6.7）。⚠ 同上，v2 的档一律丢弃 ——
    *    少了 kids 的老档若被读成 `false`，一局儿童档会**静默变成普通第 1 级局**（先手规则跟着
-   *    反过来、文案变回「第 1 级」），而盘面看起来完全正常。 */
-  const SAVE_VERSION = 3;
+   *    反过来、文案变回「第 1 级」），而盘面看起来完全正常。
+   *  · v4 = P2c Task 5：加了限时字段 `timed` + 时钟代落手的 ply 列表 `auto`（DESIGN §6.10）。
+   *    ⚠ v3 的档一律丢弃：少了 `timed` 的老档若被宽容读成 `false`，一局限时局读回来会
+   *    **静默变成普通局**（表不见了）；反过来，`auto` 缺失会让 §4 的精准度纪录**把一局
+   *    限时局当成正常局收进去** —— 而 §6.10 白纸黑字要求「限时局不计入精准度纪录」。 */
+  const SAVE_VERSION = 4;
 
   /** 对局模式的**闭集**。⛔ 别在别处写 `'ai'` 字面量比较——跨模块比字符串、没有单一来源，
    *  正是 P1 终审点名的那个活口（`=== 'load'` 静默恒假）。 */
@@ -261,6 +267,113 @@
    *   靠设置去画的那些文案会当场跳，而这一局的规则并没有变）。 */
   function kidsOf(g) { return !!(g && g.kids); }
 
+  // ════════ ⭐⭐ 限时模式（DESIGN §6.10，P2c Task 5）════════
+  //
+  // §6.10 全文：「每手 10 秒倒计时，超时随机落子（偏中路）。四子棋在时间压力下完全是另一个
+  //   游戏，紧张感翻倍且一局压到 1 分钟内；实现成本近乎为零。
+  //   ⚠ **绝不能是默认** —— 休闲玩家讨厌计时。⚠ 限时局**不计入精准度纪录**。」
+  //
+  // 本模块负责其中**规则**的那一半（表本身在 clock.js，停表判据在 main.js）：
+  //   · `timed`  这一局是不是限时局 —— 与 kids 同一条纪律：**改规则的东西必须钉在 G 上**，
+  //              ⛔ 不许「读设置现算」（一局打到一半有人翻了设置，这一局的规则并没有变）；
+  //   · `auto`   哪几手是**时钟替他落的**（ply 下标）；
+  //   · `timeoutMove(g)` 超时落哪一列 —— **纯函数**。
+  //
+  // ⭐⭐ ─── 判断③：超时手怎么做到「可重放」 ───
+  //   `timeoutMove` 是 **(盘面, g.seed, g.moves.length)** 的纯函数：
+  //     ⛔ 零 `Math.random`（本仓公平承诺，且 fx.js/state.js 的猜先那一节已经为同一条理由
+  //        把随机源赶出去过一次）；
+  //     ⛔⛔ **一行都不读时钟** —— 这是本条最容易做砸的地方：只要它掺进「当时表上还剩多少」
+  //        「超时发生在墙钟第几毫秒」，重放（= 撤销、= 读档、= 分享 URL）就**再也复现不出来**，
+  //        而落下去的那一手看起来完全合法 ⇒ 零报错。
+  //   ⇒ 落完之后它在 `moves` 里就是**一个普通的列号**，与玩家自己落的一手在存档里逐位无差别
+  //     ⇒ §9.3 那条「撤销 = 重放到 n−1」原样成立，⛔ 一行都不用改。
+  //   ⚠ `auto` **不参与重建盘面**（重建只读 pre + moves），它只回答「这一手是谁落的」——
+  //     §3.3 复盘要说得出「第 17 手是时钟落的，不是你」。归因是本作的资产（§2.3），
+  //     ⛔ 别因为「盘面不需要它」就省掉。
+  //
+  // ⭐⭐⭐ ─── 我推翻了规格里的「超时**随机**落子」那半句（本 task 的第五个判断）───
+  //   §6.10 写的是「超时随机落子（偏中路）」。**偏中路的伪随机保留，但加两道零搜索的护栏**：
+  //     ① **有当场连四就连**；② **绝不主动送对方当场连四**（除非所有列都送）。
+  //   理由：本作的差异化是「完美求解器 + 会讲道理的复盘 + **失败必须可归因**」（§2.3 / §3.3 / §4）。
+  //   一个纯随机的代打专门制造两种最毒的差评 ——「它把我赢定的棋扔了」「它直接把棋送给对面」——
+  //   而这两种**恰好零搜索就能挡掉**（≤7 + ≤49 次 `B.isWinningMove`，微秒级，与 threats.js 同源，
+  //   ⛔ 绝不碰 Solver：§9.2 的断崖是每手 1.7 秒，而这是在倒计时归零那一瞬间要出结果的）。
+  //   ⛔ 但**到此为止，绝不替玩家下好棋**：再往上走（比如调 AI 按玩家的档位代打）会让超时
+  //     **没有代价**，计时器本身就失去意义。⇒ 停在「一手平庸但不自杀的棋」。
+  //   ⚠ 归因照做：落完当场如实写「时间到 · 第 N 列由时钟落下」，并把 ply 记进 `auto`。
+  //
+  // ⭐ ─── 判断④：儿童档**不给**限时，且 ⛔ 不静默 ───
+  //   4-5 岁读不懂倒计时；儿童档整套设计（让 2 子 + 恒先手 + 大撒花 + 不说难懂的话）就是
+  //   「让他赢」，加一个会替他乱下的时钟正好反着来。⇒ 照 T1「让子在求解器档下」的先例：
+  //   设置**存得住**（家长的选择不该被清掉）、HOME 那行如实写「儿童档不适用」、
+  //   而 `newGame({kids:true, timed:true})` **当场抛**（⛔ 不静默改写成非限时局）。
+
+  /** ⭐ 这一局是不是限时局。⭐ 单一真值是 `g.timed`（同 kidsOf 那条 ⚠）。 */
+  function timedOf(g) { return !!(g && g.timed); }
+  /** 这一局里由时钟代落的那些 ply（⛔ 只读，别改返回的数组）。 */
+  function autoOf(g) { return (g && g.auto) ? g.auto.slice() : []; }
+  /** 第 ply 手是不是时钟落的（§3.3 复盘的归因入口）。 */
+  function isAutoPly(g, ply) { return !!(g && g.auto && g.auto.indexOf(ply) >= 0); }
+
+  /** ⭐ 这个（儿童档）组合许不许限时。**纯函数**，UI 与 newGame 读同一个判据。
+   *  ⛔ 别在 UI 里再写一份 `!kids`：两份判据漂了就会出现「界面上开得了、开局当场抛」
+   *  （与 handicapAllowed 逐字同一条纪律）。 */
+  function timedAllowed(kids) { return !kids; }
+
+  /** ⭐ 超时落子的**中路权重**（DESIGN §6.10 的「偏中路」）。中列参与 13 条四连线、边列只有 3 条，
+   *  这张表就是那个事实的粗略投影。⚠ **产品数值**，改它不必 bump SAVE_VERSION
+   *  （存档存的是落下去的列号，⛔ 不是「按哪张表抽的」），但会改变同一份 seed 的重放结果 ——
+   *  ⇒ 与 HANDICAP_COLS 同一条：改了就去把门禁里那几个期望列号一起重量。 */
+  const TIMEOUT_W = Object.freeze([1, 2, 3, 4, 3, 2, 1]);
+
+  /** ⭐ (seed, ply) → u32。**纯函数**（FNV/murmur 混合，与 autoSeed 同一套手法）。
+   *  ⚠ 必须把 ply 混进去：只用 seed 的话同一局里每一次超时都落同一列（而且是同一列的
+   *    第 1/2/3 枚），肉眼看着像 bug，且「偏中路」会退化成「恒中列」。 */
+  function timeoutRand(seed, ply) {
+    let h = (seed | 0) ^ 0x9e3779b9;
+    h = Math.imul(h ^ (ply | 0), 0x85ebca6b);
+    h ^= h >>> 13;
+    h = Math.imul(h, 0xc2b2ae35);
+    h ^= h >>> 16;
+    return h >>> 0;
+  }
+
+  /** 在一组列里按 TIMEOUT_W 加权挑一个。⚠ `cols` 的**顺序必须是确定的**（调用方一律来自
+   *  `R.moves`，中路优先的固定序）—— 顺序一变，同一个 r 会挑出另一列。 */
+  function pickWeighted(cols, r) {
+    let total = 0;
+    for (const c of cols) total += TIMEOUT_W[c];
+    let x = r % total;
+    for (const c of cols) { x -= TIMEOUT_W[c]; if (x < 0) return c; }
+    return cols[cols.length - 1];   // 浮点/取模都不可能到这，留个不会静默返回 undefined 的兜底
+  }
+
+  /**
+   * ⭐⭐ 倒计时归零时**落哪一列**。**纯函数**：同 (盘面, seed, 手数) 恒同一列。
+   * ⛔ 不读时钟、⛔ 不用 Math.random、⛔ 不调求解器（理由全文见上面那段 ⭐⭐⭐）。
+   * @throws 非限时局 / 已终局（都是程序 bug：调用方是我们自己的计时器）
+   */
+  function timeoutMove(g) {
+    if (!timedOf(g)) throw new Error('timeoutMove：只有限时局才会有超时手（这一局 timed=false）');
+    const bd = boardOf(g);
+    if (R.terminal(bd) !== null) throw new Error('timeoutMove：这一局已终局，不该再有超时手');
+    const legal = R.moves(bd);                        // ⚠ 中路优先的**固定序**，非终局 ⇒ 恒非空
+    // ① ⭐ 有当场连四就连 —— ⛔ 系统绝不许替玩家把一局已经赢了的棋扔掉
+    const win = legal.filter(c => B.isWinningMove(bd, c));
+    let pool = win;
+    if (!pool.length) {
+      // ② ⭐ 绝不主动送对方当场连四（⚠ 全都送时退回全集：那种局面本来就已经输了，
+      //    此时再挑三拣四只会让「护栏」变成一条恒不成立的死代码）
+      const safe = legal.filter(c => {
+        const nb = B.play(bd, c);
+        return !R.moves(nb).some(d => B.isWinningMove(nb, d));
+      });
+      pool = safe.length ? safe : legal;
+    }
+    return pickWeighted(pool, timeoutRand(g.seed, g.moves.length));
+  }
+
   // ════════ seed ════════
   // ⭐ 要求是**同一份存档重放出同一局**（AI 的随机性是 (position,tier,seed) 的纯函数），
   //    不是「每次开局都一样」——后者会让玩家连开三局撞上同一条 AI 线。
@@ -361,6 +474,16 @@
       }
     }
 
+    // ⭐ 限时模式（DESIGN §6.10）。⚠ 与 kids / handicap 同一条纪律：**默认关**，非法组合当场抛。
+    const timed = opts.timed === undefined ? false : opts.timed;
+    if (typeof timed !== 'boolean') throw new Error('newGame：timed 必须是布尔值，收到 ' + String(opts.timed));
+    if (timed && !timedAllowed(kids)) {
+      // ⛔ 静默改成 false 会让「我明明开了限时」变成一局普通局；静默把 kids 关掉更糟
+      //   （家长会发现儿童档自己没了）。⇒ 抛，UI 先问 timedAllowed（见 main.js 的 effTimed）。
+      throw new Error('newGame：儿童档不许限时 —— 4-5 岁读不懂倒计时，而儿童档整套设计'
+        + '（让子 + 恒先手 + 大撒花）就是为了让孩子赢，一个会替他乱下的时钟正好反着来（DESIGN §6.10 / §6.7）');
+    }
+
     let humanFirst;
     if (opts.humanFirst === undefined) {
       humanFirst = gameNo % 2 === 0;
@@ -402,8 +525,29 @@
       // ⭐ 儿童档是**这一局的属性**（⛔ 不是「读设置现算」）：设置是「下一局怎么开」，
       //   一局打到一半家长翻了设置，这一局的规则并没有跟着变（见 kidsOf 上方那段 ⚠）。
       kids: kids,
+      // ⭐ 限时是**这一局的属性**（⛔ 不是「读设置现算」，同 kids 的理由）。
+      timed: timed,
+      // ⭐ 由时钟代落的那几手的 ply 下标（升序）。⚠ 它**不参与重建盘面** —— 盘面恒由
+      //   pre + moves 现算；这个字段只回答「这一手是谁落的」（§3.3 复盘的归因、§4 精准度的排除）。
+      auto: [],
       moves: []
     };
+  }
+
+  /**
+   * ⭐ 由**时钟**落一子（超时）。= `play` + 把这一手的 ply 记进 `auto`。
+   * ⚠ 列号由调用方从 `timeoutMove(g)` 拿（两件事拆开：一个是「落哪」，一个是「谁落的」，
+   *   各自能被单独钉死）。
+   * @throws 非限时局（程序 bug：只有限时局才有时钟）；其余非法入参由 play 抛。
+   */
+  function playAuto(g, col) {
+    if (!timedOf(g)) throw new Error('playAuto：只有限时局才会有时钟代落的手');
+    const ply = g.moves.length;
+    const out = play(g, col);
+    // ⚠ concat 而不是 push：与 moves 同一条纪律 —— 各代 G 之间不许共享这个数组
+    //   （共享的话撤销会把「历史」那一份一起改掉，零报错）。
+    out.auto = (g.auto || []).concat([ply]);
+    return out;
   }
 
   /** ⭐ 由「预置子 + 手数列表」**现算**盘面。⛔ 绝不缓存（缓存会和撤销打架）。
@@ -460,7 +604,14 @@
   function rewindTo(g, n) {
     if (!Number.isInteger(n)) throw new Error('rewindTo：n 必须是整数，收到 ' + (typeof n) + ' ' + String(n));
     const k = Math.max(0, Math.min(g.moves.length, n));
-    return Object.assign({}, g, { moves: g.moves.slice(0, k) });
+    return Object.assign({}, g, {
+      moves: g.moves.slice(0, k),
+      // ⭐ 撤销/重来必须把**被砍掉那几手的归因**一起砍掉（P2c T5）。⛔ 少了这一行，
+      //   撤销一手时钟落的子之后再自己下一手，那一手会**顶着别人的名字**：复盘会说
+      //   「第 9 手是时钟落的」而它其实是玩家自己下的 —— 盘面完全正确、零报错。
+      //   ⚠ 判据是 `p < k`（第 k 手起被砍掉；auto 存的是 0 起的 ply 下标）。
+      auto: (g.auto || []).filter(p => p < k)
+    });
   }
 
   /** ⭐ 撤销 = 重放到 n−1，**不是**弹快照栈。空局是 no-op（下界由 rewindTo 夹住）。 */
@@ -486,6 +637,8 @@
       paramsHash: g.paramsHash,
       pre: g.pre,          // ⚠ undefined 会被 JSON.stringify 静默吃掉 ⇒ 下面的自校验当场抓住
       kids: g.kids,        // ⚠ 同上（`kids: undefined` 会整键消失 ⇒ deserialize 拒收 ⇒ 自校验红）
+      timed: g.timed,      // ⚠ 同上（P2c T5）
+      auto: g.auto,        // ⚠ 同上
       moves: g.moves
     });
     // ⭐ 自校验：**存得进 ⇒ 必须读得回**。这是本文件那条纪律唯一漏掉对称的地方 ——
@@ -532,7 +685,25 @@
     // ⛔ 儿童档与 mode/tier 的绑定在这里也要成立，否则手改一份存档就能造出
     //   「儿童档 + 第 20 级」这种 newGame 明令抛错的 G，绕过唯一的构造入口。
     if (d.kids && (d.mode !== 'ai' || d.tier !== KIDS_TIER)) return null;
+    // ⭐ 限时（P2c T5）。⚠ 与 tier / pre / kids 同一条纪律：**字段必须在场且是布尔** ——
+    //   ⛔ 别宽容成「缺了当 false」：那会把一局限时局静默读成普通局（表不见了），
+    //     更要命的是 §4 的精准度纪录会**把它当成一局正常棋收进去**，而 §6.10 明写不许。
+    if (typeof d.timed !== 'boolean') return null;
+    // ⛔ 「儿童档 + 限时」在 newGame 里是当场抛的 ⇒ 这里也必须拦，否则手改一份存档就能
+    //   绕过唯一的构造入口造出一个 4-5 岁 + 10 秒倒计时的局（照 kids × mode/tier 的先例）。
+    if (d.timed && !timedAllowed(d.kids)) return null;
     if (!Array.isArray(d.moves) || d.moves.length > B.CELLS) return null;
+    // ⭐ 时钟代落手的 ply 列表。⚠ 三条各挡一种坏档，缺一条都会让归因静默说谎：
+    //   ① 非限时局不许有 auto（那是「没有表的局里有一手是表落的」）；
+    //   ② 下标必须落在 moves 之内（越界 = 指着一手不存在的棋说话）；
+    //   ③ **严格递增** ⇒ 顺带挡掉重复（同一手被记两次，P3 统计会重复计数）。
+    if (!Array.isArray(d.auto)) return null;
+    if (!d.timed && d.auto.length) return null;
+    for (let i = 0; i < d.auto.length; i++) {
+      const p = d.auto[i];
+      if (!Number.isInteger(p) || p < 0 || p >= d.moves.length) return null;
+      if (i > 0 && p <= d.auto[i - 1]) return null;
+    }
     // ⚠ 这一行是**故意的冗余**（变异实测：删掉它整份测试仍绿）—— 下面 B.play 的守卫已经能拦下
     //   每一种非法列号。留着是为了「意图写在字段校验里」+ 早退，⛔ 但别因此以为它是承重的：
     //   真正承重的是下面那个 try/catch（拆掉立刻红）。删这一行前先确认 B.play 的守卫还在。
@@ -563,6 +734,8 @@
       paramsHash: d.paramsHash,
       pre: d.pre.slice(),         // ⚠ 同 moves：拷一份，别让解析出来的数组被外部句柄捏在手里
       kids: d.kids,
+      timed: d.timed,
+      auto: d.auto.slice(),       // ⚠ 同上
       moves: d.moves.slice()      // ⚠ 拷一份：别让解析出来的数组被外部句柄捏在手里
     };
   }
@@ -575,6 +748,9 @@
     // ⭐ 让子（DESIGN §6.7）。HANDICAP_COLS 导出是为了 UI 画图例 + `tools/sim-handicap.js`
     //   量胜率时**摆的是同一批格子**（⛔ 别让模拟台自己抄一份，那就成了「量的不是产品」）。
     HANDICAP_MAX, HANDICAP_COLS, handicapAllowed, handicapOf, placeHandicap,
+    // ⭐ 限时模式（DESIGN §6.10 · P2c Task 5）。TIMEOUT_W 导出是为了门禁读**同一张表**
+    //   （⛔ 别让测试自己抄一份权重，那就成了「测的不是产品」）。
+    TIMEOUT_W, timedOf, timedAllowed, autoOf, isAutoPly, timeoutMove, playAuto,
     newGame, play, canPlay, undo, rewindTo,
     boardOf, isOver, turnOf, humanPlayer, isHumanTurn,
     serialize, deserialize, paramsChanged

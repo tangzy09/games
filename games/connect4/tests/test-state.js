@@ -612,14 +612,17 @@ const DRAW_MOVES = [3, 5, 5, 1, 6, 3, 2, 5, 1, 3, 5, 4, 4, 4, 2, 6, 5, 4, 6, 3, 
   // ⚠⚠ 「pre 必须在场」这条要用**当前**版本号造样本 —— ⛔ 别用老版本号：那样它是被上面的
   //   版本检查拦下的，这条断言就空转了（本仓「加了断言但抓不住」的标准形状；改 SAVE_VERSION
   //   时这里最容易变成恒绿）。
+  // ⚠ P2c T5 又加了 timed / auto ⇒ 造「当前版本」的样本时要把它们一起带上，
+  //   否则这几条测的又变成了「少了 timed 会被拒」，pre / kids 那两条就空转了。
+  const NOW = { v: St.SAVE_VERSION, timed: false, auto: [] };
   assert.strictEqual(
-    St.deserialize(JSON.stringify({ ...v1, v: St.SAVE_VERSION, kids: false })), null,
+    St.deserialize(JSON.stringify({ ...v1, ...NOW, kids: false })), null,
     'pre 字段**必须在场**（serialize 永远写得出它 ⇒ 缺了说明这份档不是我们写的）');
   assert.strictEqual(
-    St.deserialize(JSON.stringify({ ...v1, v: St.SAVE_VERSION, pre: [] })), null,
+    St.deserialize(JSON.stringify({ ...v1, ...NOW, pre: [] })), null,
     'kids 字段**必须在场**（同上）');
-  // ⭐ 反向对照：**两个字段都在**的当前版本档必须读得回（⛔ 少了它，上面四条可能只是「什么都拒收」）
-  assert.ok(St.deserialize(JSON.stringify({ ...v1, v: St.SAVE_VERSION, pre: [], kids: false })),
+  // ⭐ 反向对照：**字段都在**的当前版本档必须读得回（⛔ 少了它，上面四条可能只是「什么都拒收」）
+  assert.ok(St.deserialize(JSON.stringify({ ...v1, ...NOW, pre: [], kids: false })),
     '反向对照：字段齐全的当前版本档必须读得回');
   console.log('test-state: ⭐ 让子局存档往返 · 存格子不存档位 · v1 老档丢弃 OK');
 }
@@ -696,6 +699,264 @@ const DRAW_MOVES = [3, 5, 5, 1, 6, 3, 2, 5, 1, 3, 5, 4, 4, 4, 2, 6, 5, 4, 6, 3, 
     'placeHandicap 与 boardOf 必须给出同一个盘（⛔ 两份实现 = 模拟台量的不是产品）');
   assert.strictEqual(St.placeHandicap(empty, [], 1).n, 0, '空 pre 是 no-op');
   console.log('test-state: ⭐ placeHandicap 纯函数、与 boardOf 同一条路 OK');
+}
+
+// ════════════════════════════════════════════════════════════════════
+// ⭐⭐ 限时模式（P2c Task 5 · DESIGN §6.10）
+//
+// 「每手 10 秒倒计时，超时随机落子（偏中路）…… ⚠ **绝不能是默认**。
+//   ⚠ 限时局**不计入精准度纪录**。」
+//
+// 这一组守四件事，每一件都对应一个**静默**的失败模式：
+//   ① 超时手是**纯函数** ⇒ 存档重放得出同一列（⛔ 一旦掺进「当时表上还剩多少」就再也复现不出来，
+//      而落下去那一手看起来完全合法）；
+//   ② 两道零搜索护栏（有连四就连 / 不送对方连四）—— 我推翻规格里「纯随机」那半句的理由；
+//   ③ `auto` 的归因跟着撤销一起退（⛔ 否则玩家自己下的一手会顶着「时钟落的」这个名字）；
+//   ④ `timed` 进存档 + bump SAVE_VERSION（⇒ P3 的精准度纪录排除得掉这一局）。
+// ════════════════════════════════════════════════════════════════════
+
+// ─── ⭐ 开局：默认**关**，且限时是这一局的属性 ───
+{
+  const g0 = St.newGame({ mode: 'human', gameNo: 0 });
+  assert.strictEqual(g0.timed, false,
+    '⛔⛔ DESIGN §6.10：「绝不能是默认」—— newGame 不给 timed 时必须是 false');
+  assert.deepStrictEqual(g0.auto, []);
+  assert.strictEqual(St.timedOf(g0), false);
+  const g1 = St.newGame({ mode: 'human', gameNo: 0, timed: true });
+  assert.strictEqual(St.timedOf(g1), true);
+  assert.deepStrictEqual(g1.auto, [], '开局还没有任何一手是时钟落的');
+  // ⚠ 限时**不动任何一条先手规则**（它只加一块表）
+  for (let n = 0; n < 4; n++) {
+    assert.strictEqual(St.newGame({ mode: 'human', gameNo: n, timed: true }).humanFirst,
+      St.newGame({ mode: 'human', gameNo: n }).humanFirst,
+      '⛔ 限时不许改交替先手（第 ' + n + ' 局）');
+  }
+  for (const bad of ['yes', 1, null, 0]) {
+    assert.throws(() => St.newGame({ mode: 'human', gameNo: 0, timed: bad }), /timed/,
+      'timed=' + String(bad) + ' 必须抛');
+  }
+  console.log('test-state: ⭐ 限时默认关 / 不动先手规则 / 入参校验 OK');
+}
+
+// ─── ⭐⭐ 判断④：儿童档**不许**限时，且当场抛（⛔ 不静默改写）───
+{
+  assert.strictEqual(St.timedAllowed(false), true, '非儿童档许');
+  assert.strictEqual(St.timedAllowed(true), false,
+    '⛔ 儿童档不许：4-5 岁读不懂倒计时，而儿童档整套设计就是让孩子赢');
+  assert.throws(
+    () => St.newGame({ mode: 'ai', tier: St.KIDS_TIER, gameNo: 0, kids: true, timed: true }),
+    /儿童档/,
+    '⛔ 静默把 timed 改成 false 会让「我明明开了限时」变成普通局；'
+    + '静默把 kids 关掉更糟（家长会发现儿童档自己没了）⇒ 必须抛');
+  // 反向对照：两条各自单独都合法（⛔ 否则上面那条可能只是「什么都拒」）
+  assert.ok(St.newGame({ mode: 'ai', tier: St.KIDS_TIER, gameNo: 0, kids: true }).kids);
+  assert.ok(St.newGame({ mode: 'ai', tier: St.KIDS_TIER, gameNo: 0, timed: true }).timed);
+  console.log('test-state: ⭐⭐ 儿童档 × 限时互斥（当场抛，⛔ 不静默）OK');
+}
+
+// ─── ⭐⭐ ①：超时手是**纯函数** —— 同 (盘面, seed, 手数) 恒同一列 ───
+{
+  let g = St.newGame({ mode: 'human', gameNo: 0, seed: 20260803, timed: true });
+  for (const c of [3, 2, 4, 1]) g = St.play(g, c);
+  const first = St.timeoutMove(g);
+  for (let i = 0; i < 200; i++) {
+    assert.strictEqual(St.timeoutMove(g), first, '同一个 G 问 200 次必须是同一列（第 ' + i + ' 次不同）');
+  }
+  // ⭐ 反向对照：换 seed / 换手数**会**换列 —— ⛔ 少了它，「恒返回 3」也满足上面那条
+  const bySeed = new Set();
+  for (let s = 0; s < 60; s++) {
+    let h = St.newGame({ mode: 'human', gameNo: 0, seed: s, timed: true });
+    for (const c of [3, 2, 4, 1]) h = St.play(h, c);
+    bySeed.add(St.timeoutMove(h));
+  }
+  assert.ok(bySeed.size >= 3,
+    '⭐ 反向对照：不同 seed 必须落到多个不同的列（只见到 ' + [...bySeed].join(',')
+    + '）—— ⛔ 否则「恒返回中列」也能让上面那条纯函数断言全绿');
+  // ⭐ 「偏中路」（§6.10 括号里那半句）：中列必须是最常出现的那一列
+  const cnt = new Array(7).fill(0);
+  for (let s = 0; s < 3000; s++) {
+    let h = St.newGame({ mode: 'human', gameNo: 0, seed: s, timed: true });
+    cnt[St.timeoutMove(h)]++;                      // 空盘 ⇒ 七列全合法、无护栏干预
+  }
+  const best = cnt.indexOf(Math.max.apply(null, cnt));
+  assert.strictEqual(best, 3,
+    '⭐ §6.10「偏中路」：空盘上中列必须是最常落的一列（实测分布 ' + cnt.join('/') + '）');
+  assert.ok(cnt[0] > 0 && cnt[6] > 0, '⚠ 但边列也得摸得到（⛔ 别退化成「恒中列」）');
+  assert.ok(cnt[3] > cnt[0] * 2, '中列的权重必须明显高于边列（' + cnt[3] + ' vs ' + cnt[0] + '）');
+  // ⛔ 非限时局问超时手 = 程序 bug
+  assert.throws(() => St.timeoutMove(St.newGame({ mode: 'human', gameNo: 0 })), /限时/);
+  console.log('test-state: ⭐⭐ 超时手是纯函数 / 偏中路 / 非限时局抛 OK');
+}
+
+// ─── ⭐⭐ ②：两道零搜索护栏（= 我推翻规格里「纯随机」那半句的全部内容）───
+{
+  // 护栏①：有当场连四就连 —— ⛔ 系统绝不许替玩家把一局已经赢了的棋扔掉
+  //   夹具：先手在第 0 列已经三连（0,0,0 vs 1,1,1），轮到先手 ⇒ 第 0 列是制胜手
+  const LINE = [0, 1, 0, 1, 0, 1];
+  {
+    let g = St.newGame({ mode: 'human', gameNo: 0, seed: 1, timed: true });
+    for (const c of LINE) g = St.play(g, c);
+    const bd = St.boardOf(g);
+    assert.strictEqual(R.terminal(bd), null, '前提：这个夹具必须非终局');
+    assert.deepStrictEqual(R.winningMoves(bd), [0], '前提：轮走方只有第 0 列是当场连四');
+    for (let s = 0; s < 200; s++) {
+      const h = { ...g, seed: s };
+      assert.strictEqual(St.timeoutMove(h), 0,
+        '⭐⭐ 有当场连四时必须连（seed=' + s + ' 落了 ' + St.timeoutMove(h) + ' 列）'
+        + ' —— ⛔ 纯随机会在这里把一局赢定的棋扔掉，那正是「它坑我」那条最毒的差评');
+    }
+  }
+  // 护栏②：绝不主动送对方当场连四
+  //   ⚠ 夹具是**搜出来的**（随机对局里找「恰好只有一列会送」的局面），⛔ 不是手搓的掩码：
+  //     前提全部当场自证（非终局 / 轮走方自己没有连四 / 那一列合法 / 落完对方真能连四）。
+  const SEND = [3, 3, 6, 0, 1, 0, 3, 1];    // ⇒ 轮到先手，**只有第 2 列**会送对方当场连四
+  {
+    let g = St.newGame({ mode: 'human', gameNo: 0, seed: 1, timed: true });
+    for (const c of SEND) g = St.play(g, c);
+    const bd = St.boardOf(g);
+    assert.strictEqual(R.terminal(bd), null, '前提：非终局');
+    assert.strictEqual(R.winningMoves(bd).length, 0, '前提：轮走方自己没有当场连四（不然会走护栏①）');
+    assert.ok(R.moves(bd).indexOf(2) >= 0, '前提：第 2 列**是合法的**（⇒ 护栏在真的排除它）');
+    const after = B.play(bd, 2);
+    assert.ok(R.winningMoves(after).length > 0,
+      '前提：落第 2 列之后对方能当场连四（这就是「送」）');
+    // ⚠ 而且**只有它**会送 —— 否则「一次都没落第 2 列」可能只是碰巧挑了另一列
+    const bads = R.moves(bd).filter(c => {
+      const nb = B.play(bd, c);
+      return R.moves(nb).some(d => B.isWinningMove(nb, d));
+    });
+    assert.deepStrictEqual(bads, [2], '前提：会送的只有第 2 列（实际 ' + JSON.stringify(bads) + '）');
+    let sent = 0;
+    for (let s = 0; s < 300; s++) {
+      if (St.timeoutMove({ ...g, seed: s }) === 2) sent++;
+    }
+    assert.strictEqual(sent, 0,
+      '⭐⭐ 300 个 seed 里一次都不许落第 2 列（实际 ' + sent + ' 次）—— '
+      + '⛔ 那一手直接把棋送给对面，是「超时随机落子」最毒的那一种失败');
+    // ⭐ 反向对照：**没有护栏**的加权随机会以约 w[2]/Σw 的概率落第 2 列 ⇒ 300 次里几乎必然出现。
+    //   这条把「上面那个 0 到底是护栏挡的还是运气好」量出来。
+    const w = St.TIMEOUT_W;
+    const pTotal = R.moves(bd).reduce((s2, c) => s2 + w[c], 0);
+    const p = w[2] / pTotal;
+    assert.ok(p > 0.1,
+      '⭐ 反向对照：没有护栏的话第 2 列的权重占比是 ' + (p * 100).toFixed(1)
+      + '% ⇒ 300 次里出现 0 次的概率是 ' + Math.pow(1 - p, 300).toExponential(1)
+      + ' —— 上面那条确实在量护栏，⛔ 不是在量运气');
+    // ⭐ 而且**每一个** seed 落的都必须是安全列（⛔ 别只盯着第 2 列：护栏是「排除会送的那些」）
+    for (let s = 0; s < 300; s++) {
+      const c = St.timeoutMove({ ...g, seed: s });
+      assert.ok(bads.indexOf(c) < 0, 'seed=' + s + ' 落了会送的第 ' + c + ' 列');
+    }
+  }
+  console.log('test-state: ⭐⭐ 两道零搜索护栏（有连四就连 / 绝不送对方连四）OK');
+}
+
+// ─── ⭐⭐ ①的兑现：**超时手可重放**（存档 → 读回 → 重放，落在同一列）───
+{
+  let g = St.newGame({ mode: 'ai', tier: 3, gameNo: 0, seed: -77777, timed: true });
+  for (const c of [3, 2]) g = St.play(g, c);
+  const col = St.timeoutMove(g);
+  g = St.playAuto(g, col);                        // ⭐ 时钟落的那一手
+  for (const c of [1, 5]) g = St.play(g, c);
+  assert.deepStrictEqual(g.auto, [2], '第 2 手（0 起）是时钟落的');
+  assert.strictEqual(St.isAutoPly(g, 2), true);
+  assert.strictEqual(St.isAutoPly(g, 3), false);
+
+  // ⭐⭐ 存档 → 读回 → 回到那一手之前 → **重新算一次超时手**
+  const back = St.deserialize(St.serialize(g));
+  assert.deepStrictEqual(back, g, '限时局的存档必须逐字段无损往返');
+  const at = St.rewindTo(back, back.auto[0]);
+  assert.strictEqual(St.timeoutMove(at), back.moves[back.auto[0]],
+    '⭐⭐ **存档读回来重放，超时那一手必须落在同一列** —— ⛔ 这就是「超时手不许依赖当时的时钟」'
+    + '那条的判据本身：一旦它读了表，这里就再也复现不出来，而落下去那一手看起来完全合法');
+  // ⭐ 反向对照：换一个 seed 就该换一列（否则上面那条在「恒返回第 3 列」时也绿）
+  const other = new Set();
+  for (let s = 0; s < 40; s++) other.add(St.timeoutMove({ ...at, seed: s }));
+  assert.ok(other.size >= 2,
+    '⭐ 反向对照：同一个局面换 seed 会换列（' + [...other].join(',') + '）');
+  // ⭐ 落下去之后它在 moves 里就是一个**普通的列号** —— 与玩家自己落的一手逐位无差别
+  const manual = St.play(St.rewindTo(g, 2), col);
+  assert.deepStrictEqual(manual.moves, St.rewindTo(g, 3).moves,
+    '⭐ 时钟落的那一手在 moves 里与玩家自己落的同一列**逐位相同**（差别只在 auto 这个归因字段）');
+  assert.deepStrictEqual(manual.auto, [], '而玩家自己落的那一手不许被记成时钟落的');
+  console.log('test-state: ⭐⭐ 超时手可重放（读档后重算落同一列）OK');
+}
+
+// ─── ⭐⭐ ③：撤销必须把**归因**一起退 ───
+{
+  let g = St.newGame({ mode: 'human', gameNo: 0, seed: 5, timed: true });
+  g = St.play(g, 3);
+  g = St.playAuto(g, St.timeoutMove(g));          // ply 1 = 时钟落的
+  g = St.play(g, 5);
+  assert.deepStrictEqual(g.auto, [1]);
+  assert.deepStrictEqual(St.undo(g).auto, [1], '撤到 ply 2 ⇒ 归因还在（那一手还在盘上）');
+  const u = St.undo(St.undo(g));                  // 把时钟那一手也撤掉
+  assert.deepStrictEqual(u.moves, [3]);
+  assert.deepStrictEqual(u.auto, [],
+    '⭐⭐ 撤掉时钟落的那一手之后，归因必须**一起消失** —— ⛔ 少了这一行，玩家接着自己下的'
+    + '那一手会顶着「时钟落的」这个名字（盘面完全正确、零报错，而复盘会指着它撒谎）');
+  // ⭐ 兑现：撤完自己再下同一列 ⇒ 这一手是**他自己的**
+  const mine = St.play(u, 3);
+  assert.deepStrictEqual(mine.auto, []);
+  assert.strictEqual(St.isAutoPly(mine, 1), false, '⭐ 撤销后自己下的那一手绝不许被记成时钟落的');
+  // rewindTo 同理（复盘滑杆）
+  assert.deepStrictEqual(St.rewindTo(g, 0).auto, []);
+  assert.deepStrictEqual(St.rewindTo(g, 2).auto, [1]);
+  assert.notStrictEqual(St.rewindTo(g, 3).auto, g.auto, 'auto 也必须给新数组（⛔ 别跨代共享）');
+  // ⛔ 非限时局不许有时钟代落的手
+  assert.throws(() => St.playAuto(St.newGame({ mode: 'human', gameNo: 0 }), 3), /限时/);
+  console.log('test-state: ⭐⭐ 撤销把归因一起退（⛔ 别让玩家的手顶着时钟的名字）OK');
+}
+
+// ─── ⭐ ④：存档 + 版本 + 脏输入 ───
+{
+  assert.ok(St.SAVE_VERSION >= 4,
+    'G 加了 timed / auto ⇒ SAVE_VERSION 必须再 bump（root 铁律），现在是 ' + St.SAVE_VERSION);
+  // ⛔ v3 老档一律丢弃（它长得完全合法，只是少了 timed / auto）
+  const v3 = { v: 3, mode: 'human', tier: null, gameNo: 0, humanFirst: true, seed: 1,
+               paramsHash: AI.paramsDigest().hash, pre: [], kids: false, moves: [3, 3] };
+  assert.strictEqual(St.deserialize(JSON.stringify(v3)), null,
+    '⛔ v3 老档必须丢弃 —— 少了 timed 的档若被宽容读成 false，一局限时局会静默变成普通局；'
+    + '而 §4 的精准度纪录会把它当成一局正常棋收进去（§6.10 明写不许）');
+  // ⚠ 「字段必须在场」要用**当前**版本号造样本（⛔ 否则它是被版本检查拦下的，断言空转）
+  assert.strictEqual(St.deserialize(JSON.stringify({ ...v3, v: St.SAVE_VERSION, auto: [] })), null,
+    'timed 字段**必须在场**');
+  assert.strictEqual(St.deserialize(JSON.stringify({ ...v3, v: St.SAVE_VERSION, timed: false })), null,
+    'auto 字段**必须在场**');
+  assert.ok(St.deserialize(JSON.stringify({ ...v3, v: St.SAVE_VERSION, timed: false, auto: [] })),
+    '反向对照：两个字段都在的当前版本档必须读得回');
+
+  const good = JSON.parse(St.serialize((() => {
+    let g = St.newGame({ mode: 'human', gameNo: 0, seed: 9, timed: true });
+    g = St.play(g, 3); g = St.playAuto(g, 2); g = St.play(g, 4);
+    return g;
+  })()));
+  assert.deepStrictEqual(good.auto, [1], '⭐ 存档里看得见「第几手是时钟落的」');
+  const bad = [
+    { ...good, timed: 'yes' }, { ...good, timed: null },
+    { ...good, auto: null }, { ...good, auto: '1' }, { ...good, auto: [1.5] },
+    { ...good, auto: [-1] },
+    { ...good, auto: [3] },            // 越界（只有 3 手 ⇒ 合法下标是 0..2）
+    { ...good, auto: [1, 1] },         // 重复（P3 统计会重复计数）
+    { ...good, auto: [1, 0] },         // 不是升序
+    { ...good, timed: false },         // ⛔ 非限时局却有 auto
+    // ⛔ 手改一份存档造出「儿童档 + 限时」——绕过 newGame 那条当场抛的守卫
+    { ...good, mode: 'ai', tier: St.KIDS_TIER, kids: true, humanFirst: true, auto: [] }
+  ];
+  for (const b of bad) {
+    let r;
+    assert.doesNotThrow(() => { r = St.deserialize(JSON.stringify(b)); },
+      'deserialize 对脏 timed/auto 不许抛：' + JSON.stringify(b).slice(0, 70));
+    assert.strictEqual(r, null, '这份档必须丢弃：' + JSON.stringify(b).slice(0, 90));
+  }
+  assert.ok(St.deserialize(JSON.stringify(good)), '反面：合法限时档不许被误杀');
+  // serialize 的自校验同样要挡住手搓的坏 G
+  const g2 = St.play(St.newGame({ mode: 'human', gameNo: 0, timed: true }), 3);
+  for (const badG of [{ ...g2, timed: undefined }, { ...g2, auto: undefined }, { ...g2, auto: [9] }]) {
+    assert.throws(() => St.serialize(badG), /存得进读不回|serialize/,
+      'serialize 必须拒绝一个读不回的限时 G：' + JSON.stringify(badG.auto));
+  }
+  console.log('test-state: ⭐ 限时局存档往返 · v3 老档丢弃 · 脏输入丢弃 ' + bad.length + ' 类 OK');
 }
 
 // ════════ ⭐ 浏览器加载路径（照 test-browser-globals.js 的做法）════════

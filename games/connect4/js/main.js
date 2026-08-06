@@ -88,11 +88,22 @@ var G = {
   undoAsk: null,      // { to: 0|1（该回答的那一位）, by: 0|1（请求方）, ply: number }
   askRect: null,      // 上一帧确认条画在哪（只给 E2E 取样，⛔ 不是真值源）
   askRectF2F: null,   // 对坐模式下那条**旋转 180°** 的确认条画在哪（同上）
+  // ── ⭐ 限时模式（P2c T5 · DESIGN §6.10）──
+  // ⭐ 这三个都**只给 E2E / 调试看**（⛔ 不是真值源：表的真值恒在 C4Clock，每拍现问）。
+  clockKey: null,     // 现在在给哪一手计时（null = 没有表在跑）
+  clockBlock: null,   // 这一拍**为什么**停表（null = 没停）——见 clockBlock()
+  clockOn: false,     // 上一帧到底画没画倒计时
+  // ⭐ 「时间到 · 第 N 列由时钟落下」这条**归因**（⛔ 不进存档：存档里记的是 g.auto 那个 ply）。
+  autoNote: null,     // { col, player, until }
+  // 猜先要占到哪一刻为止（**停表**用，见 clockBlock 的 'coin' 那一支）
+  coinUntil: 0,
   // ── 竖屏留白（P2b T7 · DESIGN §6.9）──
   // ⭐ HOME 上每一块排完的 { k, y, h }，**只给 E2E / 调试看**（⛔ 不是真值源，每帧重排）。
   //   门禁靠它断言「块与块不重叠、都不出屏」—— ⛔ 少了它，「小屏 + 舒适模式四行压成一坨」
   //   这种事只有肉眼抓得到（改之前就是这样：脚本全绿、截图一眼是坏的）。
-  homeRows: []
+  homeRows: [],
+  // ⭐ HOME 上每一行设置**真的画上去**的标签与值（只给 E2E / 调试看，⛔ 不是真值源，每帧重建）。
+  homeSettings: []
 };
 
 // ════════ 无障碍：减弱动态 / 舒适模式（P2b Task 6 · DESIGN §6.8）════════
@@ -178,6 +189,139 @@ function f2fPref() { return C4Settings.get('faceToFace'); }
 /** ⭐ 这一屏到底给不给第二条 HUD。⚠ HOME 上恒 false（那时还没有「对面那个人」）。 */
 function f2fOn() {
   return f2fPref() && G.phase !== 'HOME' && !!G.g && G.g.mode === 'human';
+}
+
+// ════════ ⭐⭐ 限时模式（P2c Task 5 · DESIGN §6.10）════════
+// §6.10：「每手 10 秒倒计时，超时随机落子（偏中路）…… ⚠ **绝不能是默认**。
+//   ⚠ 限时局**不计入精准度纪录**。」
+//
+// 三块分工（⛔ 别合并，合并之后就再也没法单独钉死其中一条）：
+//   · `C4Clock`（js/clock.js）  —— **表**：累计「这一手玩家真正拥有过的毫秒」。⛔ 不认识棋盘。
+//   · `C4State.timeoutMove`     —— **规则**：超时落哪一列（纯函数，⛔ 不读时钟）。
+//   · 本节                      —— **接线**：什么时候停表、超时了做什么、画在哪。
+//
+// ⭐⭐⭐ ─── 判断②：哪些事件停表（**单一判据 clockBlock()**）───
+//   判据只有一句话：**「玩家现在是不是真的可以想、也真的可以落子」**。
+//     · 不是他的回合（AI 在算）        ⇒ 表**根本不存在**（turnKey() 恒 null）——
+//       这一条比「停表」更强：连超时都不可能触发 ⇒ ⛔ 绝不会出现「时钟替 AI 落了一手」。
+//       §9.2 那个断崖（n=10..15 中位 1.7 秒、尾部 4 秒）因此一毫秒都进不了玩家的 10 秒。
+//     · `G.thinking`（引擎在替**玩家**算）⇒ 停。⭐ **P3 的［提示］按钮直接复用这一条**：
+//       按下提示 → 求解器要算 1.7 秒（§9.2）→ 那是**我们**欠他的，不是他的思考时间；
+//       ⛔ 但算完之后**表要接着走** —— 读提示、想清楚，那是他的时间。
+//     · 猜先动画（T3）⇒ 停。那 ~1.2 秒是开场镜头，牌面信息（谁先手）还在交付，
+//       占 10 秒预算的 12%。⚠ 减弱动态下硬币不转，但仍有 COIN_STATIC_MS 的静态停留 ——
+//       ⇒ 判据用 `G.coinUntil` 这个**时刻**，⛔ 不是「动画还在不在」（那会漏掉减弱动态那一半）。
+//     · 悔棋确认（T4）⇒ 停。等对方开口可能好几秒，而那时棋盘本来就落不了子（interactive 已挡）。
+//       ⚠⚠ 诚实记一笔（与 T4 那条「同机双人没有身份」同源）：一台设备一双手 ⇒ 一方**能**靠
+//         挂着一个问句把表冻住。⛔ 但反过来（问句挂着还跑表）明显更坏 —— 那等于让一个人
+//         能把另一个人的表耗光，而被耗的那位连子都落不了。⇒ 收下这条，⛔ 不加「确认超时」。
+//     · 切后台 / 切到别的 app ⇒ 停（`document.hidden` + visibilitychange，见下）。
+//   ⛔ **不**停表的：自己刚落的那枚还在飞（~270 ms）。落点是确定的、不遮任何信息，
+//     而为它停表等于把「规则」又挂回 fx 那一层（本 task 判断①刚把它拆开）。
+const CLOCK_TICK_MS = 100;      // ⚠ 表的精度由它定；显示重画另有节流（见 clockTick）
+const AUTO_NOTE_MS = 3600;      // 「时间到 · 第 N 列由时钟落下」这条归因留多久
+
+/** 设置里选的（HOME 上画哪个值）。⚠ 与 `timedGame()` 是两个问题，别混用（同 kidsPref/kidsGame）。 */
+function timedPref() { return C4Settings.get('timed'); }
+/** ⭐ 这一局**实际**限不限时（⛔ 判据只有 C4State.timedAllowed 一份，别在这再写一次 !kids）。
+ *  ⚠ 玩家选的一直存着（他下一局退出儿童档时不该发现自己的选择被清了）。 */
+function effTimed(kids) { return timedPref() && C4State.timedAllowed(kids); }
+/** ⭐ **这一局**是不是限时局（单一真值在 G 里，⛔ 不是设置）。 */
+function timedGame() { return C4State.timedOf(G.g); }
+
+/** ⭐ 现在在给**哪一手**计时；null = 没有表在跑。
+ *  ⚠ 身份里必须有 `aiSeq`：撤销之后手数可能回到同一个数，而那是**另一手**（表该重新开始）。 */
+function turnKey() {
+  const g = G.g;
+  if (!g || G.phase !== 'PLAYING' || !C4State.timedOf(g)) return null;
+  // ⭐⭐ 轮到 AI 时**根本不建表** —— 见上面那段：这比「停表」更强。
+  if (!C4State.isHumanTurn(g)) return null;
+  return G.aiSeq + ':' + g.moves.length;
+}
+
+/** ⭐ 这一拍**为什么**停表（null = 不停）。⛔ 全局只有这一处判据。 */
+function clockBlock() {
+  // ⭐ 切后台/切 app：⛔ 别只靠 visibilitychange 事件 —— 后台里 setInterval 会被节流到 ≥1 s，
+  //   回到前台后的第一拍可能带着一个几秒的 dt，而那时 hidden 已经是 false 了。
+  //   ⇒ **每一拍都现问 document.hidden**（事件那一层另外还有，两层都要，见 boot）。
+  try { if (typeof document !== 'undefined' && document.hidden) return 'hidden'; } catch (e) { /* 没有 document 的壳 */ }
+  if (G.thinking) return 'engine';       // 引擎在替他算（AI 落子 / 将来 P3 的提示）
+  if (G.undoAsk) return 'ask';           // 等对方回答悔棋（T4）
+  if (coinShown() && nowMs() < G.coinUntil) return 'coin';   // 猜先还在演（T3，含减弱动态的静态停留）
+  return null;
+}
+
+let _clockTimer = null;
+let _clockPaint = '';        // 上一次真的重画时的「显示状态」指纹（⇒ 没变就不重画）
+let _timeoutPending = false; // ⭐ 见 clockSync：越线由谁去执行
+
+function stopClock() {
+  if (_clockTimer) { clearInterval(_clockTimer); _clockTimer = null; }
+  C4Clock.forget();
+  G.clockKey = null; G.clockBlock = null; _clockPaint = ''; _timeoutPending = false;
+}
+/** ⚠ 幂等：startGame / doUndo / answerUndo 都调得到它。 */
+function startClock() {
+  if (_clockTimer) return;
+  _clockPaint = '';
+  _clockTimer = setInterval(clockTick, CLOCK_TICK_MS);
+}
+/** ⭐ 这一局要不要有表。⛔ 别在别处 setInterval：启停只有这一个入口。 */
+function syncClock() {
+  if (G.phase === 'PLAYING' && timedGame()) startClock(); else stopClock();
+}
+
+/**
+ * ⭐⭐ 把表推到**此刻**，并更新 `G.clockKey / G.clockBlock`。⛔ 它自己**不重画**。
+ *
+ * ⚠⚠ 它被 `renderAll()` 每帧调一次，理由是一次实测：只在 100 ms 的 tick 里同步的话，
+ *   **换手那一瞬画出来的是上一拍的剩余时间** —— 刚落完子 / AI 刚落完 / 悔棋刚被回答的那
+ *   最多 100 ms 里，HUD 上挂着的是**别人那一手**的秒数（画面完全正常、零报错）。
+ *   ⇒ 「画出来的那份」与「表的状态」必须是同一时刻的，同 curLayout 那条「全局只算一处」。
+ *
+ * ⭐ 越线**不在这里执行**，只置 `_timeoutPending`：
+ *   ⛔ 在 renderAll 里直接 onTimeout 会 renderAll → clockSync → onTimeout → applyMove → renderAll
+ *     递归下去；而 `expired` 在 C4Clock 里**只报一次**，⇒ 若这里吞掉它，那一手的超时就
+ *     **永远丢了**（表走完了却没人落子，零报错）。⇒ 记下来，交给 clockTick 统一执行。
+ */
+function clockSync(now) {
+  const t = typeof now === 'number' ? now : nowMs();
+  const key = turnKey();
+  const why = key === null ? null : clockBlock();
+  G.clockKey = key; G.clockBlock = why;
+  const r = C4Clock.tick(key, t, why !== null);
+  if (r.expired && key !== null) _timeoutPending = true;
+  return r;
+}
+
+function clockTick() {
+  const now = nowMs();
+  clockSync(now);
+  // ⭐ 归因提示到点就撤（⛔ 别让它赖在屏幕上：下一手开始之后它就不是「现在发生的事」了）
+  if (G.autoNote && now >= G.autoNote.until) { G.autoNote = null; _clockPaint = ''; }
+  if (_timeoutPending) { _timeoutPending = false; onTimeout(); return; }   // ⚠ onTimeout 自己会重画
+  // ⭐ 重画节流：只在**显示真的会变**的时候重画。⛔ 别每 100 ms 无脑全屏重画。
+  //   ⚠ 减弱动态（§6.8）下指纹只取**整秒** ⇒ 条不再连续动，但「还剩几秒」这条**信息**
+  //     一秒不差 —— P2b 的教训：关掉的是运动，⛔ 不是信息。
+  const sig = G.clockKey === null ? 'off:' + (G.autoNote ? 1 : 0)
+    : (G.clockBlock || '-') + ':' + (reduceMotion() ? C4Clock.seconds()
+                                                    : Math.round(C4Clock.frac() * 240))
+      + ':' + (G.autoNote ? 1 : 0);
+  if (sig !== _clockPaint) { _clockPaint = sig; renderAll(); }
+}
+
+/**
+ * ⭐⭐ 倒计时归零 —— 由**时钟**落一手。
+ * ⚠ 落哪一列全权交给 `C4State.timeoutMove`（纯函数、零搜索、⛔ 不读时钟）⇒ 这一手**可重放**：
+ *   它进 `moves` 之后与玩家自己落的一手逐位无差别，而「是谁落的」记在 `g.auto` 里。
+ */
+function onTimeout() {
+  const g = G.g;
+  if (!g || G.phase !== 'PLAYING' || !C4State.timedOf(g) || !C4State.isHumanTurn(g)) return;
+  const col = C4State.timeoutMove(g);
+  G.autoNote = { col: col, player: C4State.turnOf(g), until: nowMs() + AUTO_NOTE_MS };
+  _clockPaint = '';
+  applyMove(col, true);
 }
 
 // ⚠⚠ 全局只有这一处算 layout：**画出来的那份**与 `onHoldEnd` 拿去算列号的那份必须是
@@ -489,6 +633,8 @@ function goHome() {
   G.aiSeq++; setThinking(false); fxStop(); resetFork();
   G.phase = 'HOME'; G.g = null; G.result = null; G.hoverCol = -1; G.holdCol = -1; G.notice = '';
   G.coin = false; G.coinAnim = false; G.undoAsk = null;
+  // ⭐ 表停掉（⛔ 别让一个 100 ms 的 interval 在 HOME 上空转 —— 与 fxStop 里那条 rAF 同源）
+  G.autoNote = null; G.coinUntil = 0; stopClock();
   renderAll();
 }
 
@@ -588,11 +734,15 @@ function coinShown() {
 function startGame(mode, tier) {
   G.aiSeq++; setThinking(false); fxStop(); resetFork();
   G.result = null; G.hoverCol = -1; G.holdCol = -1; G.notice = ''; G.undoAsk = null;
+  G.autoNote = null;
   // ⭐ 儿童档只对人机局成立（双人局那一侧的答案是让子，T1）。⚠ 档位由 state.js 说了算，
   //   ⛔ 这里不许自己写 `tier = 1`：两份判据漂了就会出现「界面写儿童档、开的是别的级」。
   const kids = mode === 'ai' && kidsPref();
   if (kids) tier = C4State.KIDS_TIER;
-  const opts = { mode: mode, gameNo: G.gameNo, handicap: effHandicap(mode, tier), kids: kids };
+  const opts = { mode: mode, gameNo: G.gameNo, handicap: effHandicap(mode, tier), kids: kids,
+                 // ⭐ 限时（§6.10）。⚠ 儿童档下 effTimed 恒 false（判据在 C4State.timedAllowed），
+                 //   ⛔ 但设置里那个选择照样存着 —— 家长退出儿童档时不该发现它被清了。
+                 timed: effTimed(kids) };
   // ⛔ 别在这里算 humanFirst：交替先手 +「顶档必须玩家先手」+「让子局强方先手」三条都写在
   //    state.js 的 newGame 里（只写一处才守得住），这里传了就等于把那三条兜底覆盖掉。
   if (mode === 'ai') opts.tier = tier;
@@ -600,6 +750,10 @@ function startGame(mode, tier) {
   G.phase = 'PLAYING';
   // ⭐ 猜先（§6.7）。⚠ 必须在 newGame **之后**：它演的就是 newGame 刚算完的那个先手。
   const wait = startCoinFx();
+  // ⭐ 表（§6.10）：⚠ 必须在 startCoinFx **之后** —— 猜先那段是**停表**的（clockBlock 的 'coin'），
+  //   而它要读 G.coinUntil。
+  G.coinUntil = nowMs() + wait;
+  syncClock();
   renderAll();
   // ⭐ AI 先手时**等猜先演完再走**：否则「电脑先走」这句话在屏幕上活不过一帧（等于没做）。
   //   ⛔ 这不是文件头 ② 那种「把玩家的点击吞掉」的锁：这段时间本来就不是玩家的回合，
@@ -663,20 +817,39 @@ function checkOver() {
   G.phase = 'OVER';
   G.result = { t: t, winner: w, line: w === null ? null : findWinLine(bd, w), nearWin: nearWinOf(w) };
   G.hoverCol = -1;
+  // ⭐⭐ 若这一局是**时钟**替他落的那一手结束的，那句归因必须留到玩家自己离开结算屏为止：
+  //   「我怎么就输了」正是这一刻最该被回答的问题（§2.3 公平即资产 / §3.3 归因）。
+  //   ⚠ **显式**抬掉到期时间，⛔ 别依赖「反正表停了就没人去 tick 它」那个副作用 ——
+  //     那种「靠另一处的实现细节碰巧成立」的行为，下一次改 ticker 时会静默消失。
+  if (G.autoNote) G.autoNote.until = Infinity;
+  // ⭐ 终局 ⇒ 表停掉（§6.10 的 10 秒是「轮到你走」的 10 秒，结算屏上没有「该谁走」）。
+  //   ⛔ 也别留着 interval 空转 —— 同 fxStop 里那条 rAF 的纪律。
+  syncClock();
   startWinFx();         // ⭐ 赢的那 3 秒（⚠ 此刻赢的那一枚通常**还在飞**，lead 就是等它落地）
   setThinking(false);   // ⚠ 放最后：它会重画一帧，前面的字段得先摆好
   return true;
 }
 
-/** 落一子（人或 AI 都走这里）。⚠ 先问 canPlay —— C4State.play 对非法列是**抛**的。 */
-function applyMove(col) {
+/**
+ * 落一子（人 / AI / ⭐ 限时模式的时钟 都走这里）。⚠ 先问 canPlay —— C4State.play 对非法列是**抛**的。
+ * @param auto ⭐ true = 这一手是**时钟**落的（P2c T5 · §6.10）⇒ 走 C4State.playAuto，
+ *   ply 记进 `g.auto`（§3.3 复盘要说得出「第 17 手是时钟落的，不是你」）。
+ */
+function applyMove(col, auto) {
   if (!G.g || !C4State.canPlay(G.g, col)) return false;
   // ⚠ 落点与执子方必须在 play **之前**读：落完盘面就变了，那时候 h[col] 已经加过一。
   //   ⭐ 这个 row 直接就是落定音的编号（land0 = 最底行 = 最低音，DESIGN §6.3）。
   const bdBefore = C4State.boardOf(G.g);      // ⭐ T5 的双威胁判据要「落子之前」那一份
   const row = C4Render.landingRow(bdBefore, col);
   const player = C4State.turnOf(G.g);
-  G.g = C4State.play(G.g, col);
+  G.g = auto ? C4State.playAuto(G.g, col) : C4State.play(G.g, col);
+  // ⛔ 时钟落完子必须把「手指还按在盘上」这件事清掉（P2c T5）：同机双人局里，超时那一瞬
+  //   轮走方就换人了 —— 上一位玩家的手指一松，onHoldEnd 会拿着旧的 holdCol **替下一位落一手**，
+  //   而画面上完全看不出发生了什么。⚠ 人机局够不着这条，但判据不该依赖那个前提。
+  if (auto) G.holdCol = -1;
+  // ⭐ 玩家自己落了子 ⇒ 上一条「时间到」的归因该撤下（它说的是**刚才**那一手）。
+  //   ⚠ 只在非 auto 时撤：连着两次超时时，第二条会在 onTimeout 里覆盖第一条。
+  if (!auto) G.autoNote = null;
   G.hoverCol = -1;
   if (row >= 0) startDropFx(col, row, player);
   // ⭐ 双威胁（§6.4 下半）。⚠ 必须在 startDropFx **之后**：fx 要问「那枚棋子还差多久落地」
@@ -851,6 +1024,9 @@ function doUndo() {
   G.g = C4State.rewindTo(g, n);
   G.phase = 'PLAYING';
   G.result = null; G.hoverCol = -1; G.holdCol = -1;
+  // ⭐ 撤销之后表要重新开始（aiSeq 已经 +1 ⇒ turnKey 变了 ⇒ C4Clock 自己会清零）。
+  //   ⚠ 这里只负责「结算屏撤回对局中」时把 interval 重新起起来（结算时它是停的）。
+  G.autoNote = null; syncClock();
   renderAll();
   maybeAI();   // ⚠ 兜底：万一退到的仍是 AI 的回合（human 局恒 false），别把局面卡死
 }
@@ -995,6 +1171,9 @@ function dispatch(action, data) {
     // ⭐ 对坐模式（DESIGN §6.7）：布尔 ⇒ toggle。⚠ 与让子同理，人机局下这个选择**照样存得住**，
     //   只是那一局不生效（f2fOn 说了算）——⛔ 别在这里替玩家清掉他的选择。
     case 'TOGGLE_F2F': C4Settings.toggle('faceToFace'); renderAll(); return;
+    // ⭐⭐ 限时模式（DESIGN §6.10）：布尔 ⇒ toggle。⚠ 与让子/对坐同理，儿童档下这个选择
+    //   **照样存得住**，只是那一局不生效（effTimed 说了算）——⛔ 别在这里替家长清掉他的选择。
+    case 'TOGGLE_TIMED': C4Settings.toggle('timed'); renderAll(); return;
     // ⭐⭐ 悔棋（P2c T4 · DESIGN §6.7）：**人机局立刻生效**（免费救济，⛔ 一下都不许多点），
     //   **双人局先问对方**。判据只有 undoNeedsConsent 一份，⛔ 别在这里再写一次 mode 比较。
     case 'UNDO':       requestUndo(); return;
@@ -1037,10 +1216,15 @@ function settingRow(bx, y, bw, h, label, value, hot, action, icon, px) {
   const f = 'bold ' + (px || fsz(14)) + 'px sans-serif';
   ctx.font = f;
   const vw = Math.min(bw * 0.5, ctx.measureText(clean(value)).width);
-  txtR(wrapLines(value, bw * 0.5, 1)[0], bx + bw - 14, gy,
-       hot ? C4Render.PAL.accent : C4Render.PAL.hudSub, f);
+  const vDrawn = wrapLines(value, bw * 0.5, 1)[0];
+  txtR(vDrawn, bx + bw - 14, gy, hot ? C4Render.PAL.accent : C4Render.PAL.hudSub, f);
   ctx.font = f;
-  txtL(wrapLines(label, Math.max(30, bx + bw - 22 - vw - tx), 1)[0], tx, gy, C4Render.PAL.hudText, f);
+  const lDrawn = wrapLines(label, Math.max(30, bx + bw - 22 - vw - tx), 1)[0];
+  txtL(lDrawn, tx, gy, C4Render.PAL.hudText, f);
+  // ⭐ 把**真的画上去的那两串**（截过断的那一份）记下来，⛔ 只给 E2E / 调试看，不是真值源。
+  //   ⚠ 存在的理由与 drawHUD 的 leftDrawn 逐字相同（P2c T4 实锤）：门禁要能问
+  //     「界面上那句『儿童档不适用』是不是被截成了半句」——⛔ 别让它只能靠肉眼。
+  G.homeSettings.push({ a: action, label: lDrawn, value: vDrawn, hot: !!hot });
   addHit(bx, y, bw, h, action, {});
 }
 
@@ -1077,7 +1261,11 @@ function homeStack(L) {
       { k: 'hcap',   h: B(46),                    gap: 8,  px: F(14) },
       // ⭐ 对坐模式（§6.7）与让子并排：两条都是「这一局怎么开」，⛔ 别丢进下面那三行
       //   无障碍设置里（家长找不到 = 这条功能等于没做）。
-      { k: 'f2f',    h: B(46),                    gap: 12, px: F(14) },
+      { k: 'f2f',    h: B(46),                    gap: 8,  px: F(14) },
+      // ⭐⭐ 限时模式（§6.10）同一组：它是「这一局怎么开」里**最重**的一条（它会替玩家落子），
+      //   ⛔ 绝不能丢进下面那三行无障碍设置里。⚠ 加这一块会让 360×640 + 舒适模式的块栈再缩一档
+      //   （homeStack 的 hk 迭代自己会处理），门禁 e2e-p2b-t7 ⑤/⑤b 逐块量重叠与墨迹越界。
+      { k: 'timed',  h: B(46),                    gap: 12, px: F(14) },
       { k: 'ai',     h: B(52),                    gap: 12, px: F(16) },
       { k: 'human',  h: B(52),                    gap: 18, px: F(16) },
       { k: 'set1',   h: B(46),                    gap: 8,  px: F(14) },
@@ -1112,6 +1300,7 @@ function drawHome(L) {
   const bw = Math.min(300, SW - 60), bx = (SW - bw) / 2;
   const S = homeStack(L);
   G.homeRows = S.it.map(b => ({ k: b.k, y: b.y, h: b.h }));
+  G.homeSettings = [];      // ⚠ 每帧重建（⛔ 不清的话门禁会拿到上一帧的串）
   const mid = b => b.y + b.h / 2;
 
   let b = S.at('title');
@@ -1197,6 +1386,26 @@ function drawHome(L) {
                C4Render.drawThreatGlyph(0, px2, gy, gs);
                ctx.restore();
                return x + 24 + gs * 2;
+             }, b.px);
+
+  // ⭐⭐ 限时模式（DESIGN §6.10）：「每手 10 秒 —— 四子棋在时间压力下完全是另一个游戏。」
+  //   ⚠ 右侧的值在**开着**时写的是「每手 10 秒」而不是一个「开」字：玩家在按下之前
+  //     就该知道到底给他多久（10 这个数是产品数值，来自 C4Clock.TURN_MS，⛔ 别在文案里硬写）。
+  //   ⚠ 儿童档下必须**如实说它不生效**（§2.4：降级必须可见，照让子在求解器档下的先例）——
+  //     ⛔ 绝不许「界面上写着限时、开出来没有表」，也 ⛔ 不许替家长把这个选择清掉。
+  //   ⭐ 左边的图例是**一个走了一格的表盘**（画出来的形状，⛔ 不用 '⏱' 这类字形：部分安卓
+  //     WebView 会落到豆腐块 —— 与 drawKidsCheer 不用 '★'、drawMark 不用 '✓' 同一条教训）。
+  const tmd = timedPref();
+  const tmdOn = C4State.timedAllowed(kd);
+  b = S.at('timed');
+  settingRow(bx, b.y, bw, b.h, T('menu.timed'),
+             !tmd ? T('menu.off')
+                  : (tmdOn ? T('menu.timedOn', { n: Math.round(C4Clock.TURN_MS / 1000) })
+                           : T('menu.timedNA')),
+             tmd && tmdOn, 'TOGGLE_TIMED', (x, gy, h) => {
+               const gs = Math.min(fsz(24), Math.round(h * 0.58));
+               drawClockGlyph(x + 12 + gs / 2, gy, gs, tmd && tmdOn);
+               return x + 20 + gs;
              }, b.px);
 
   b = S.at('ai');
@@ -1286,6 +1495,29 @@ function drawDropBand(L) {
     ctx.font = f;
     wrapLines(G.notice, L.drop.w - 24, 2).forEach((ln, i) =>
       txt(ln, cx, cy - 7 + i * 15, '#a33', f));
+    return;
+  }
+  // ⭐⭐ 「时间到 · 第 N 列由时钟落下」（P2c T5 · §6.10）——**归因**，不是装饰。
+  //   §2.3「公平即资产」/ §3.3「复盘告诉你输在第几手」的同一条：⛔ 系统替玩家落了一手，
+  //   就必须当场说清楚**是它落的、落在哪**。少了这一句，玩家看到的是「盘上凭空多了一子」，
+  //   而那正好踩中「它坑我」那条最毒的差评（这也是我给「超时随机落子」加两道护栏的同一个理由）。
+  //   ⛔ 别把它做成红字（那是 §2.4 的降级措辞）：这不是故障，是规则在生效。
+  if (G.autoNote) {
+    const label = T('game.timeUp', { n: G.autoNote.col + 1 });
+    const f = 'bold ' + fsz(12) + 'px sans-serif';
+    ctx.font = f;
+    const lines = wrapLines(label, L.drop.w - 56, 2);
+    const gs = Math.min(fsz(20), Math.round(L.drop.h * 0.62));
+    const tw = Math.max.apply(null, lines.map(s => ctx.measureText(s).width));
+    const bw = Math.min(L.drop.w - 8, tw + gs + 34);
+    const bh = Math.min(L.drop.h, lines.length > 1 ? 44 : 34);
+    fillRR(cx - bw / 2, cy - bh / 2, bw, bh, bh / 2, 'rgba(255,255,255,0.94)');
+    strokeRR(cx - bw / 2 + 0.5, cy - bh / 2 + 0.5, bw - 1, bh - 1, bh / 2, C4Render.PAL.timeHot, 1.5);
+    // ⭐ 左边画**那一手到底是谁的子** —— 不识字/读不快的人也知道这一手记在谁头上（同 T4 的确认条）
+    C4Render.drawGlyph(G.autoNote.player, cx - bw / 2 + 12 + gs / 2, cy, gs);
+    const tx0 = cx - bw / 2 + 18 + gs, tx1 = cx + bw / 2 - 10;
+    lines.forEach((ln, i) => txt(ln, (tx0 + tx1) / 2, cy - (lines.length - 1) * 8 + i * 16,
+                                 C4Render.PAL.hudText, f));
     return;
   }
   // ⭐⭐ §6.6②「你差一手就赢了」——求解器知道，那就说出来。⚠ 只在**真的成立**时才有这一句
@@ -1424,6 +1656,30 @@ function drawKidsCheer(x, y, w, h) {
   fitTxt(T('kids.cheer'), x + w / 2, cy, Math.max(60, inner), '#8a5a00', 'bold', fsz(20));
 }
 
+/** ⭐ 表盘图例（P2c T5 · §6.10）：一圈 + 一段扇形「已经走掉的时间」+ 两根指针。
+ *  ⛔ 不用 '⏱'/'⏰' 这类 emoji 字形（部分安卓 WebView 落到豆腐块 —— 同 drawStar / drawMark）。
+ *  ⚠ 扇形是**形状**编码：关着时也画得出这是一个表，不靠颜色说话（§6.2）。 */
+function drawClockGlyph(cx, cy, s, on) {
+  const R = s * 0.46;
+  const fg = on ? C4Render.PAL.accent : C4Render.PAL.hudSub;
+  ctx.save();
+  // 已经走掉的那一格（12 点 → 2 点方向），提示「这是个在走的表」
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.arc(cx, cy, R * 0.86, -Math.PI / 2, -Math.PI / 2 + Math.PI / 3);
+  ctx.closePath();
+  ctx.fillStyle = on ? 'rgba(47,143,106,0.22)' : 'rgba(38,74,61,0.14)';
+  ctx.fill();
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2);
+  ctx.lineWidth = Math.max(1.5, s * 0.09); ctx.strokeStyle = fg; ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx, cy); ctx.lineTo(cx, cy - R * 0.62);          // 长针指 12
+  ctx.moveTo(cx, cy); ctx.lineTo(cx + R * 0.42, cy - R * 0.24);
+  ctx.lineWidth = Math.max(1.5, s * 0.085); ctx.lineCap = 'round'; ctx.strokeStyle = fg;
+  ctx.stroke();
+  ctx.restore();
+}
+
 /** 五角星（⛔ 不用 '★' 字符，理由见 drawKidsCheer）。 */
 function drawStar(cx, cy, r, color) {
   ctx.save();
@@ -1513,8 +1769,21 @@ function drawPlay(L) {
   info.right = G.undoAsk ? '' : (g.mode === 'ai'
     ? (C4State.kidsOf(g) ? T('menu.kids') : T('game.level', { n: g.tier }))
     : T('game.gameLine', { n: g.gameNo + 1, p: firstSeatName(g) }));
+  // ⭐⭐ 倒计时（P2c T5 · §6.10）。⚠ 只在**表真的在跑**的那些时刻画（G.clockKey 非空）——
+  //   轮到 AI / 结算 / 非限时局一律不画。⛔ 别改成「限时局就一直画」：那样 AI 思考期间
+  //   屏幕上会挂着一个不动的倒计时，玩家读到的是「我的表停了？坏了？」。
+  //   ⚠ 停表的那几拍（切后台/等回答悔棋/猜先）**照画**，数字停住就是「表停了」这条信息本身。
+  //   ⭐ 右侧那串次要信息在限时局里整条让位（照 T4 的先例：414 宽的手机上两串会互相挤）。
+  const tk = G.clockKey !== null && G.phase === 'PLAYING';
+  const hudOpts = tk ? { timer: {
+    // ⚠ 减弱动态（§6.8）下条按**整秒**分十档走，⇒ 它不再连续动，但「还剩几秒」一秒不差。
+    frac: reduceMotion() ? C4Clock.seconds() / (C4Clock.TURN_MS / 1000) : C4Clock.frac(),
+    secs: C4Clock.seconds(), urgent: C4Clock.urgent()
+  } } : null;
+  G.clockOn = tk;
+  if (tk) info.right = '';
   // ⭐ 舒适模式（§6.8）：HUD 的字也一起放大。⚠ HUD 的**高度**不跟着变（那是 layout 的事）。
-  C4Render.drawHUD(info, L, comfortOn() ? COMFORT_TEXT : 1);
+  C4Render.drawHUD(info, L, comfortOn() ? COMFORT_TEXT : 1, hudOpts);
 
   // ⚠ trayPlan 提到这里算（原来在下面那一节）：**对坐那条确认条要用底下那条的行高**（见下）。
   //   ⛔ 它不读任何已经画出去的东西，提前算逐位不变。
@@ -1543,7 +1812,10 @@ function drawPlay(L) {
       const bh = Math.min(rowH, L.reserve.h);
       G.askRectF2F = drawConsentBar(L.reserve.x, L.reserve.y, L.reserve.w, bh, true);
     } else {
-      C4Render.drawHUD(info, L, comfortOn() ? COMFORT_TEXT : 1, { rect: rect, flip: true });
+      // ⭐ 倒计时一并复制到对面那一条（P2c T5）：⛔ 只有请求方那一侧看得见表的话，
+      //   桌子对面那个人就是在「不知道还剩几秒」的情况下被判超时 —— 那正是这条功能最坏的形态。
+      C4Render.drawHUD(info, L, comfortOn() ? COMFORT_TEXT : 1,
+                       { rect: rect, flip: true, timer: hudOpts ? hudOpts.timer : null });
       G.f2fRect = rect;
     }
   }
@@ -1618,10 +1890,13 @@ function drawPlay(L) {
 function undoLabel(g) { return T(undoNeedsConsent(g) ? 'undo.request' : 'game.undo'); }
 
 function renderAll() {
+  // ⭐ 画之前先把表推到**此刻**（P2c T5 · §6.10）：⛔ 否则换手那一瞬 HUD 上挂的是
+  //   **上一手**的剩余秒数（最多一拍 100 ms，画面完全正常、零报错）。理由全文见 clockSync。
+  if (_clockTimer) clockSync();
   clearHits();
   // ⚠ 每帧清掉：这两个矩形是「上一帧画在哪」，⛔ 不是真值源 —— 不清的话门禁会拿着
   //   一个早就不画了的矩形去取样，量到的是别的东西（而且看起来很合理）。
-  G.coinRect = null; G.f2fRect = null; G.askRect = null; G.askRectF2F = null;
+  G.coinRect = null; G.f2fRect = null; G.askRect = null; G.askRectF2F = null; G.clockOn = false;
   const L = curLayout();
   G.L = L;
   C4Render.drawBackground(L);
@@ -1660,6 +1935,15 @@ async function boot() {
     if (_mqReduce && _mqReduce.addEventListener) _mqReduce.addEventListener('change', () => renderAll());
     else if (_mqReduce && _mqReduce.addListener) _mqReduce.addListener(() => renderAll());   // 老 Safari
   } catch (e) { /* 没有 matchMedia 的壳：设置里仍然能强制开/关 */ }
+  // ⭐⭐ 限时模式（P2c T5 · §6.10）：**切后台不许偷跑** —— 切到别的 app 回来不该发现
+  //   自己超时输了。⚠ 这里是**两层**里的第二层，两层都要：
+  //     ① clockBlock() 每一拍现问 `document.hidden`（后台里 setInterval 被节流到 ≥1 s，
+  //        回前台的第一拍可能带着几秒的 dt，而那时 hidden 已经是 false 了 ⇒ 光靠事件挡不住）；
+  //     ② 这个事件：切回来的**那一瞬**立刻同步一次基准并重画（⛔ 否则要等下一拍才更新，
+  //        中间那段仍可能被算进去；顺带让画面立刻恢复成「表在走」）。
+  try {
+    document.addEventListener('visibilitychange', () => { clockTick(); renderAll(); });
+  } catch (e) { /* 没有 document 的壳 */ }
   Controls.render();
   renderAll();
 

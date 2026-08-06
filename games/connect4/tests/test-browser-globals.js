@@ -50,7 +50,10 @@ const LOAD_ORDER = [
   path.join(JS_DIR, 'threats.js'),
   path.join(JS_DIR, 'render.js'),
   path.join(JS_DIR, 'fx.js'),
-  path.join(JS_DIR, 'settings.js')
+  path.join(JS_DIR, 'settings.js'),
+  // ⭐ P2c T5：限时模式的表（DESIGN §6.10）。无跨模块依赖，但 `root.C4Clock = API` 那条
+  //   浏览器分支同样只有本文件覆盖得到。
+  path.join(JS_DIR, 'clock.js')
 ];
 
 /** 造一个尽量像浏览器的沙箱：有 self、有 console，⛔ **没有 module / require / exports**
@@ -89,7 +92,7 @@ console.log('test-browser: ' + LOAD_ORDER.length + ' 个 <script> 按序求值�
   assert.strictEqual(vm.runInContext('typeof PRNG.create', sandbox), 'function');
   // 反过来，五个游戏模块用的是 `root.X = API` ⇒ 必须是 self 的属性
   const NAMES = ['Bitboard', 'RulesClassic', 'Solver', 'Book', 'ConnectAI', 'C4State', 'C4Render', 'C4Fx',
-                 'C4Threats', 'C4Settings'];
+                 'C4Threats', 'C4Settings', 'C4Clock'];
   for (const name of NAMES) {
     assert.strictEqual(vm.runInContext('typeof self.' + name, sandbox), 'object',
       'self.' + name + ' 没挂上（模块结尾的 root.' + name + ' = API 没生效？）');
@@ -213,6 +216,43 @@ console.log('test-browser: ' + LOAD_ORDER.length + ' 个 <script> 按序求值�
       node: () => {
         const S = require('../js/settings.js');
         return JSON.stringify([S.parse(null), S.parse('{"threatHints":false,"zzz":1}'), S.parse('}{'), S.KEYS]);
+      }
+    },
+    // ─── ⭐ P2c T5：限时模式（DESIGN §6.10）。两条，各守一半 ───
+    // ⭐ 超时手是 **(盘面, seed, 手数)** 的纯函数 ⇒ 浏览器与 node 必须落**同一列**，
+    //   否则「一条 URL 分享整局」在两端重放出两局不同的棋（与上面 aiMove 那条同源）。
+    {
+      name: 'C4State.timeoutMove（限时局的超时手，两端必须同一列）',
+      browser: 'JSON.stringify((function(){var out=[];'
+        + 'for(var s=0;s<6;s++){var g=C4State.newGame({mode:"human",gameNo:0,seed:s,timed:true});'
+        + '[3,2,4,1].forEach(function(c){g=C4State.play(g,c);});out.push(C4State.timeoutMove(g));}'
+        + 'return out;})())',
+      node: () => {
+        const out = [];
+        for (let s = 0; s < 6; s++) {
+          let g = St.newGame({ mode: 'human', gameNo: 0, seed: s, timed: true });
+          [3, 2, 4, 1].forEach(c => { g = St.play(g, c); });
+          out.push(St.timeoutMove(g));
+        }
+        return JSON.stringify(out);
+      }
+    },
+    // ⭐ 表本身：时间是**注入**的 ⇒ 同一串 (now, blocked) 在两端必须给出同一条曲线。
+    //   ⚠ 中间那两拍 blocked=true —— 「停表期间一毫秒都不算」这条在浏览器分支上也要成立。
+    {
+      name: 'C4Clock.tick（注入时间；停表那两拍一毫秒都不许累加）',
+      browser: 'JSON.stringify((function(){C4Clock.forget();var o=[];'
+        + '[[0,false],[1000,false],[2000,true],[9000,true],[9500,false],[20000,false]]'
+        + '.forEach(function(p){var r=C4Clock.tick("k",p[0],p[1]);o.push([r.used,r.remain,r.expired]);});'
+        + 'C4Clock.forget();return o;})())',
+      node: () => {
+        const C = require('../js/clock.js');
+        C.forget();
+        const o = [];
+        [[0, false], [1000, false], [2000, true], [9000, true], [9500, false], [20000, false]]
+          .forEach(p => { const r = C.tick('k', p[0], p[1]); o.push([r.used, r.remain, r.expired]); });
+        C.forget();
+        return JSON.stringify(o);
       }
     },
     {

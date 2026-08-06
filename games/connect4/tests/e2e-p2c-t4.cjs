@@ -423,13 +423,20 @@ function serve() {
     const back = C4State.deserialize(s1);
     return { s1: s1, s2: back ? C4State.serialize(back) : null,
              keys: Object.keys(G.g).sort().join(','), v: C4State.SAVE_VERSION,
-             hasAsk: JSON.stringify(G.g).indexOf('undoAsk') >= 0 };
+             sv: JSON.parse(s1).v,
+             hasAsk: JSON.stringify(G.g).indexOf('undoAsk') >= 0
+                     || Object.keys(G.g).some(k => /ask|consent/i.test(k)) };
   });
   ok(sv.s1 === sv.s2 && sv.s2 !== null,
     '⑧ ⭐ 请求挂着时存档**往返逐位相同**（' + sv.s1.length + ' 字节）');
-  ok(sv.v === 3 && !sv.hasAsk,
-    '⑧ ⭐ SAVE_VERSION 仍是 ' + sv.v + '、`G.g` 上没有多出任何字段（键：' + sv.keys + '）'
-    + ' —— ⛔ 把「正在问一句话」存进档 = 一份存档被读回来时卡在没人回答得了的问句上');
+  // ⚠⚠ 判据是「**这一条功能**没往 G 上加字段」，⛔ 不是「SAVE_VERSION 等于某个数」——
+  //   钉死一个字面量的话，下一个 task 合法地 bump 版本（P2c T5 的限时局就 3→4）会让这条红，
+  //   而下一个人的修法多半是**把数字改掉**，于是它就再也不守任何东西了
+  //   （test-state.js 里那条 `SAVE_VERSION >= 3` 的注释写的就是同一个坑）。
+  ok(!sv.hasAsk && sv.sv === sv.v,
+    '⑧ ⭐ `G.g` 上没有任何「正在问一句话」的字段（键：' + sv.keys + '），存档里的 v='
+    + sv.sv + ' 就是当前 SAVE_VERSION —— ⛔ 把确认态存进档 = 一份存档被读回来时'
+    + '卡在没人回答得了的问句上');
   await click('UNDO_NO');
 
   console.log('\n⑨ ⭐⭐ 对坐模式：桌子两边各有一条，且**画哪儿点哪儿**');

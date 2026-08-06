@@ -36,7 +36,7 @@ const KEY = 'c4_settings';
   assert.notStrictEqual(S.defaults(), S.defaults(), 'defaults() 必须每次给新对象（⛔ 别共享常量）');
   assert.ok(Object.isFrozen(S.DEFAULTS), 'DEFAULTS 必须冻结');
   assert.deepStrictEqual(S.KEYS.slice(),
-    ['threatHints', 'reduceMotion', 'comfort', 'handicap', 'kids', 'faceToFace']);
+    ['threatHints', 'reduceMotion', 'comfort', 'handicap', 'kids', 'faceToFace', 'timed']);
   console.log('test-settings: 默认 threatHints=true（新手默认开）OK');
 }
 
@@ -117,6 +117,42 @@ const KEY = 'c4_settings';
   assert.strictEqual(S.parse('{"faceToFace":true}').faceToFace, true, '合法值原样读回');
   assert.strictEqual(S.parse('{"faceToFace":"true"}').faceToFace, false, '脏类型 ⇒ 退回默认');
   console.log('test-settings: ⭐ 对坐模式（默认关 + 布尔校验 + 持久化）OK');
+}
+
+// ─────────── ①f ⭐⭐ P2c Task 5：限时模式（DESIGN §6.10）───────────
+// ⚠⚠ 这一格的「默认关」比前面几条都硬：§6.10 白纸黑字写着「**绝不能是默认** —— 休闲玩家
+//   讨厌计时」，而且它是唯一一条**会替玩家在盘上落子**的设置。
+{
+  assert.strictEqual(S.DEFAULTS.timed, false,
+    '⛔⛔ DESIGN §6.10：「⚠ **绝不能是默认** —— 休闲玩家讨厌计时」。'
+    + '而且它是唯一一条会**替玩家落子**的设置，默认开 = 开箱就有人替你下棋');
+  assert.strictEqual(S.defaults().timed, false, 'defaults() 每次给的新对象里也必须是 false');
+  assert.strictEqual(S.parse(null).timed, false, '干净存档 ⇒ 关');
+  assert.strictEqual(S.parse('{}').timed, false, '老存档缺字段 ⇒ 关（⛔ 不许「缺了当开」）');
+  assert.strictEqual(typeof S.DEFAULTS.timed, 'boolean',
+    '限时是**布尔**：10 秒那个数是产品数值（C4Clock.TURN_MS），⛔ 不做成秒数枚举');
+  assert.throws(() => S.set('timed', 'yes'), /类型/);
+  assert.throws(() => S.set('timed', 1), /类型/);
+  // ⭐⭐ 持久化只走**非默认**方向（true）。⛔ 别反过来断言「刷新后仍是 false」——
+  //   本文件 ②b 那条实锤：字段根本没进 defaults 时，默认值方向的断言**照样绿**。
+  {
+    const store = {};
+    S.attach(fakeBackend(store), KEY);
+    assert.strictEqual(S.toggle('timed'), true);
+    assert.strictEqual(JSON.parse(store[KEY]).timed, true, '必须立刻落盘');
+    S.attach(fakeBackend(store), KEY);                  // 「刷新页面」
+    assert.strictEqual(S.get('timed'), true,
+      '⭐⭐ timed=true 没活过一次刷新（十有八九是字段没进 defaults）');
+    assert.ok(Object.prototype.hasOwnProperty.call(S.all(), 'timed'),
+      '⭐ 字段本身必须还在（被 merge 丢掉时它会整个消失，读到 undefined —— 而 `!undefined` 也是真）');
+    // 再关回去也要活过刷新（⛔ 别只测一个方向）
+    S.set('timed', false);
+    S.attach(fakeBackend(store), KEY);
+    assert.strictEqual(S.get('timed'), false);
+  }
+  assert.strictEqual(S.parse('{"timed":true}').timed, true, '合法值必须原样读回');
+  assert.strictEqual(S.parse('{"timed":"true"}').timed, false, '存档里的脏类型 ⇒ 退回默认（关）');
+  console.log('test-settings: ⭐⭐ 限时模式（⛔ 默认关 + 布尔校验 + 非默认方向的持久化）OK');
 }
 
 // ─────────── ①b ⭐ P2b Task 6：减弱动态（三态）+ 舒适模式（DESIGN §6.8）───────────
