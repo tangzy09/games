@@ -27,7 +27,9 @@
 //   ④ ⭐ **不刷屏**：连续两手都形成双威胁的真实局面（随机对局搜出来的），
 //      node 侧先证明两手**都**满足判据，浏览器里必须只触发**一次**（⛔ 要能真的失败）
 //   ⑤ ⭐ **同一局面只触发一次**：撤销 → 重下同一手 ⇒ 计数与音效都不许再涨
-//   ⑥ ⭐⭐ **零搜索**：以上全程 `EngineClient.scores` 调用 **0 次**，而 fork 真的触发过
+//   ⑥ ⭐⭐ **零搜索**：以上全程**渲染期间**的 `EngineClient.scores` 调用 **0 次**，而 fork 真的触发过
+//      ⚠ 判据在 P3 收紧过（2026-08-06）：原来是「全程 0 次」，而 P3 的边打边算合法地
+//        在每手之后请求真值 ⇒ 那个数不再是 0，**红线却一点没破**（详见 e2e-p2b-t4 ⑦）。
 //      （⚠ 「整局人机跑完 0 次」那半条在 e2e-p2b-t4 ⑦，⛔ 不在这里重复写）
 //
 // ⚠ E2E（起浏览器）⇒ 单独挂 script（进 `npm run test:c4:p2b`），⛔ 不进 `npm test`。
@@ -269,8 +271,21 @@ const forkAt = (mv, i) => Th.forkOf(B.fromMoves(mv.slice(0, i - 1)), B.fromMoves
   //     但对象本身没冻结，换掉 .play 就行；main.js 是 `Sfx.play(...)` 调用时才取属性。
   await page.evaluate(() => {
     window.__scores = 0; window.__ai = 0; window.__sfx = [];
+    // ⭐⭐ **渲染路径里**的 scores 调用（判据在 P3 收紧过，理由见下面 ⑥ 那段）
+    window.__renderScores = 0; window.__inRender = 0;
     const os = EngineClient.scores, oa = EngineClient.ai;
-    EngineClient.scores = function () { window.__scores++; return os.apply(EngineClient, arguments); };
+    EngineClient.scores = function () {
+      window.__scores++;
+      if (window.__inRender > 0) window.__renderScores++;
+      return os.apply(EngineClient, arguments);
+    };
+    // ⚠ main.js 是裸脚本 ⇒ renderAll 是全局函数；双威胁判据（C4Threats.forkOf）
+    //   与威胁高亮一样只在渲染那条路上跑。
+    const orr = window.renderAll;
+    window.renderAll = function () {
+      window.__inRender++;
+      try { return orr.apply(this, arguments); } finally { window.__inRender--; }
+    };
     EngineClient.ai = function () { window.__ai++; return oa.apply(EngineClient, arguments); };
     const op = Sfx.play;
     Sfx.play = function (n) { window.__sfx.push({ n: n, t: performance.now() }); return op.call(Sfx, n); };
@@ -535,10 +550,31 @@ const forkAt = (mv, i) => Th.forkOf(B.fromMoves(mv.slice(0, i - 1)), B.fromMoves
 
   // ═══════════ ⑥ ⭐⭐ 零搜索 ═══════════
   console.log('\n⑥ ⭐⭐ 零搜索（DESIGN §9.2 的断崖：scoreAll 中位 1,678 ms，而这条判据每落一子都要跑）');
-  const cnt = await page.evaluate(() => ({ scores: window.__scores, ai: window.__ai }));
-  ok(cnt.scores === 0,
-    '⭐⭐ 以上全部场景跑完 `EngineClient.scores` 调用 ' + cnt.scores + ' 次（必须是 0）'
-    + ' —— 双威胁判据只走 C4Threats.forkOf（≤14 次 B.isWinningMove）');
+  const cnt = await page.evaluate(() => ({ scores: window.__scores, ai: window.__ai,
+                                           renderScores: window.__renderScores }));
+  // ⭐ 反证：这把尺子量得动（⛔ 否则「渲染期间 0 次」只是包装没生效的恒真）
+  {
+    const probe = await page.evaluate(() => {
+      window.__probe = -1;
+      const o = window.addHit;
+      window.addHit = function () {
+        if (window.__probe < 0) window.__probe = window.__inRender;
+        return o.apply(this, arguments);
+      };
+      renderAll();
+      window.addHit = o;
+      return window.__probe;
+    });
+    ok(probe > 0, '⭐ 反证：渲染期间 __inRender = ' + probe + ' > 0 ⇒ 这把尺子真的量得动');
+  }
+  // ⭐⭐ 判据在 P3 收紧过（2026-08-06），**红线本身一个字没松**：原来断言「全程 0 次」，
+  //   而 P3 的边打边算（analysis.js）合法地在每手之后请求真值 ⇒ 那个数不再是 0。
+  //   双威胁判据与威胁高亮一样**只在渲染路径上跑** ⇒ 只看渲染期间，比原来更精确。
+  //   （同源改动见 e2e-p2b-t4 ⑦ 那段的长注释。）
+  ok(cnt.renderScores === 0,
+    '⭐⭐ 以上全部场景跑完**渲染期间**的 `EngineClient.scores` 调用 ' + cnt.renderScores + ' 次（必须是 0）'
+    + ' —— 双威胁判据只走 C4Threats.forkOf（≤14 次 B.isWinningMove）'
+    + '（全程共 ' + cnt.scores + ' 次，全部来自 P3 的边打边算，⛔ 与渲染路径无关）');
   ok(cnt.ai === 0, '前提：本文件全是双人局 ⇒ EngineClient.ai 也是 ' + cnt.ai
     + ' 次（「引擎通道确实在用」那半条由 e2e-p2b-t4 ⑦ 的整局人机负责，⛔ 不在这里重复）');
 

@@ -86,6 +86,14 @@ var G = {
   //     也不属于「这一局是什么」，它是**这一屏此刻在问一句话**。存它只会白 bump 一次
   //     SAVE_VERSION 把所有老档判死，还会让一份存档被读回来时**卡在一个没人回答得了的问句上**。
   undoAsk: null,      // { to: 0|1（该回答的那一位）, by: 0|1（请求方）, ply: number }
+  // ── ⭐ 提示（P3 T3 · DESIGN §3.2「分层，且**永远免费**」）──
+  // ⭐ `hint` = 「这一手的提示按到第几层了」。**⛔ 不进存档**（照 undoAsk 的先例）：
+  //   它不改任何规则，只是这一屏此刻在说一句话。
+  //   ⚠ `ply` 是它属于**哪一手** —— 落子/撤销之后这条提示就过期了（⛔ 别让上一手的答案
+  //     挂在这一手上：那是「看起来完全合法」的错答案，本仓最怕的失败模式）。
+  //   level: 0 没按 / 1 只说关不关键（不剧透）/ 2 指出走哪列 + 一句机械导出的理由
+  hint: null,         // { ply, level, kind, safe, total, col, reason, pending, why }
+  hintRect: null,     // 上一帧提示条画在哪（只给 E2E 取样，⛔ 不是真值源）
   askRect: null,      // 上一帧确认条画在哪（只给 E2E 取样，⛔ 不是真值源）
   askRectF2F: null,   // 对坐模式下那条**旋转 180°** 的确认条画在哪（同上）
   // ── ⭐ 限时模式（P2c T5 · DESIGN §6.10）──
@@ -245,7 +253,10 @@ function clockBlock() {
   //   回到前台后的第一拍可能带着一个几秒的 dt，而那时 hidden 已经是 false 了。
   //   ⇒ **每一拍都现问 document.hidden**（事件那一层另外还有，两层都要，见 boot）。
   try { if (typeof document !== 'undefined' && document.hidden) return 'hidden'; } catch (e) { /* 没有 document 的壳 */ }
-  if (G.thinking) return 'engine';       // 引擎在替他算（AI 落子 / 将来 P3 的提示）
+  // ⭐ 引擎在替他算 —— 两种：AI 落子，以及**玩家按下的提示**（P3 T3 兑现了上面那句预告）。
+  //   ⚠ 同一个原因码 'engine'：语义就是同一条「这段等待是**我们**欠他的，不是他的思考时间」。
+  //   ⛔ 算完之后表要接着走 —— 读提示、想清楚，那是他的时间。
+  if (G.thinking || (G.hint && G.hint.pending)) return 'engine';
   if (G.undoAsk) return 'ask';           // 等对方回答悔棋（T4）
   if (coinShown() && nowMs() < G.coinUntil) return 'coin';   // 猜先还在演（T3，含减弱动态的静态停留）
   return null;
@@ -632,7 +643,7 @@ function interactive() {
 function goHome() {
   G.aiSeq++; setThinking(false); fxStop(); resetFork();
   G.phase = 'HOME'; G.g = null; G.result = null; G.hoverCol = -1; G.holdCol = -1; G.notice = '';
-  G.coin = false; G.coinAnim = false; G.undoAsk = null;
+  G.coin = false; G.coinAnim = false; G.undoAsk = null; G.hint = null;
   // ⭐ 表停掉（⛔ 别让一个 100 ms 的 interval 在 HOME 上空转 —— 与 fxStop 里那条 rAF 同源）
   G.autoNote = null; G.coinUntil = 0; stopClock();
   // ⭐ 上一局的真值不许漏进下一局（缓存 key 里没有「哪一局」这一维，靠 reset 划界）
@@ -736,7 +747,7 @@ function coinShown() {
 function startGame(mode, tier) {
   G.aiSeq++; setThinking(false); fxStop(); resetFork();
   G.result = null; G.hoverCol = -1; G.holdCol = -1; G.notice = ''; G.undoAsk = null;
-  G.autoNote = null;
+  G.autoNote = null; G.hint = null;
   // ⭐ 儿童档只对人机局成立（双人局那一侧的答案是让子，T1）。⚠ 档位由 state.js 说了算，
   //   ⛔ 这里不许自己写 `tier = 1`：两份判据漂了就会出现「界面写儿童档、开的是别的级」。
   const kids = mode === 'ai' && kidsPref();
@@ -866,6 +877,8 @@ function applyMove(col, auto) {
   // ⭐ 边打边算（P3 T2）：把新的前缀局面排进队。⚠ 放在这里（落子后、renderAll 之前）而
   //   ⛔ **不是放进 renderAll** —— 后者每帧都跑，有副作用的东西放进去会递归（P2c-T5 实锤）。
   C4Analysis.onMove(G.g);
+  // ⭐ 上一手的提示当场过期（⛔ 别让它挂在这一手上 —— 那是「看起来完全合法」的错答案）
+  expireHint();
   const over = checkOver();
   renderAll();
   if (!over) maybeAI();
@@ -919,6 +932,99 @@ function undoNeedsConsent(g) { return !!g && g.mode === 'human'; }
 /** ⭐ 谁来回答。**单一判据**：现在该走的那一位（= 不是刚落子的那一位，见上面 ①）。
  *  ⛔ 别在 UI 里再算一次「谁是对方」——两份判据漂了就会出现「问了不该问的人」。 */
 function undoApprover(g) { return C4State.turnOf(g); }
+
+// ════════ ⭐⭐ 提示：分层两按，且**永远免费**（P3 Task 3 · DESIGN §3.2）════════
+//
+// §3.2 原文：「**第一按**：只说这步关不关键——『有 4 列都不输，随便走』vs『**只有 1 列不输**』。
+//   教育价值最高且不剧透。**第二按**：指出走哪一列 + 一句理由。
+//   理由从求解器评分结构**机械导出，不手写解说**。」
+// ⛔⛔ 红线（§3.2 明写、E2E 断言）：**提示 / 复盘 / 悔棋 / 全部课程——永远免费，永不看广告，
+//   且不限次数**。竞品把提示做成 9 次限量道具——这正是不学的东西。
+//
+// ⭐ 判据全在 `review.js`（纯函数、node 里逐条钉死），本节只做三件事：
+//   ① 问 `C4Analysis` 要这一手的真值（没算过就**插队**现算）；
+//   ② 把 `C4Threats`（**零搜索**）算出的两个布尔喂给 hintLevel2 —— 那两条理由要它；
+//   ③ 把结果挂到 `G.hint` 上等着被画。
+//
+// ⚠⚠ **提示是有「哪一手」的**：落子 / 撤销之后它当场过期（`hint.ply !== moves.length` ⇒ 丢）。
+//   ⛔ 少了这一条，上一手的答案会挂在这一手上 —— 一个**看起来完全合法**的错答案，零报错。
+
+/** 这一局给不给精确提示（⛔ 判据只有 C4Analysis 一份，别在这再写一次「让子局不给」）。 */
+function hintAvailable() { return C4Analysis.enabled(); }
+
+/** 提示过期了就清掉（⭐ 落子/撤销/换局后必须调得到）。 */
+function expireHint() {
+  if (G.hint && (!G.g || G.hint.ply !== G.g.moves.length)) G.hint = null;
+}
+
+/**
+ * ⭐ ［提示］按下去。第一次 → level 1（只说关不关键）；再按 → level 2（指出走哪列）。
+ * ⛔ 零广告、零消耗、不限次数。
+ */
+function askHint() {
+  const g = G.g;
+  if (!g || G.phase !== 'PLAYING' || C4State.isOver(g)) return;
+  // ⚠ 不是玩家的回合就别提示（AI 在想，盘上也落不了子）
+  if (!C4State.isHumanTurn(g)) return;
+  expireHint();
+  const ply = g.moves.length;
+
+  // ⛔ 这一局不给精确提示（让子局 / 求解器不可用）⇒ **如实说**，⛔ 绝不编一个列号出来（§2.4）
+  if (!hintAvailable()) {
+    G.hint = { ply: ply, level: 1, pending: false, why: C4Analysis.disabledReason() || T('game.hintOff') };
+    renderAll();
+    return;
+  }
+
+  const sa = C4Analysis.get(g.moves);
+  if (!sa) {
+    // ⭐ 还没算到这一手 ⇒ **插队**现算（玩家主动按下的等待，§9.2 裁定可接受），
+    //   ⚠ 但界面上要如实说「正在算」，⛔ 不是转到天荒地老、更不是假装有答案。
+    //   ⚠ 库还没就位时 request 会被 analysis 的 bookOk() 闸挡住（无库的 n≤9 是几十分钟）
+    //     ⇒ 那时这条 pending 会一直挂着，而 HUD 上本来就写着「开局库准备中」。
+    G.hint = { ply: ply, level: G.hint && G.hint.ply === ply ? G.hint.level : 1, pending: true, why: '' };
+    C4Analysis.request(g.moves, { priority: true });
+    renderAll();
+    return;
+  }
+
+  const l1 = C4Review.hintLevel1(sa);
+  const prev = G.hint && G.hint.ply === ply ? G.hint : null;
+  // ⭐ 已经在 level 1 ⇒ 这一按进 level 2（⚠ pending 那次不算「按过一层」）
+  const level = prev && !prev.pending && prev.level >= 1 ? 2 : 1;
+  const h = { ply: ply, level: level, pending: false, why: '',
+              kind: l1.kind, safe: l1.safe, total: l1.total, col: -1, reason: '' };
+  if (level >= 2) {
+    // ⭐ 两条 fork 理由用 C4Threats（**零搜索**，≤14 次 isWinningMove）现算，
+    //   ⛔ 绝不为了一句解说去调求解器（§9.2 的断崖 + threats.js 的头号红线）。
+    const bd = C4State.boardOf(g);
+    const me = C4State.turnOf(g);
+    const cols = C4Review.safeCols(sa);
+    // ⚠ 在**并列最优**里优先挑一个能说出理由的（⛔ 不是「挑一个更好的列」——
+    //   它们分数完全相同，挑哪个都是最优；只是有理由可说的那个更有教育价值）。
+    let pick = cols[0], makes = false, blocks = false;
+    for (const c of cols) {
+      const after = C4Threats.forkOf(bd, B_play(bd, c));
+      const mk = !!(after && after.player === me);
+      const bl = forkBlocked(bd, c, me);
+      if (mk || bl) { pick = c; makes = mk; blocks = bl; break; }
+    }
+    const l2 = C4Review.hintLevel2(sa, { col: pick, makesFork: makes, blocksFork: blocks });
+    h.col = l2.col; h.reason = l2.reason;
+  }
+  G.hint = h;
+  renderAll();
+}
+
+/** 落这一列之后，**对方**原本的双威胁是不是没了。⛔ 零搜索（同 threats.js 的红线）。 */
+function forkBlocked(bd, col, me) {
+  const before = C4Threats.forPlayer(bd, me ^ 1);
+  if (!before || before.length < 2) return false;
+  const after = C4Threats.forPlayer(B_play(bd, col), me ^ 1);
+  return after.length < before.length;
+}
+/** 借 Bitboard 落一子（⚠ 纯函数，不改入参）。⛔ 主线程一行搜索都不许有，这只是落子。 */
+function B_play(bd, col) { return Bitboard.play(bd, col); }
 
 /**
  * ［撤销］按下去之后到底发生什么。
@@ -1034,6 +1140,8 @@ function doUndo() {
   G.g = C4State.rewindTo(g, n);
   G.phase = 'PLAYING';
   G.result = null; G.hoverCol = -1; G.holdCol = -1;
+  // ⭐ 撤销之后上一手的提示当场过期（⛔ 同 applyMove 那条：错答案看起来完全合法）
+  expireHint();
   // ⭐ 撤销之后表要重新开始（aiSeq 已经 +1 ⇒ turnKey 变了 ⇒ C4Clock 自己会清零）。
   //   ⚠ 这里只负责「结算屏撤回对局中」时把 interval 重新起起来（结算时它是停的）。
   G.autoNote = null; syncClock();
@@ -1186,6 +1294,8 @@ function dispatch(action, data) {
     case 'TOGGLE_TIMED': C4Settings.toggle('timed'); renderAll(); return;
     // ⭐⭐ 悔棋（P2c T4 · DESIGN §6.7）：**人机局立刻生效**（免费救济，⛔ 一下都不许多点），
     //   **双人局先问对方**。判据只有 undoNeedsConsent 一份，⛔ 别在这里再写一次 mode 比较。
+    // ⭐ 提示（§3.2）：⛔ 零广告、零消耗、不限次数 —— 与 UNDO 同一条红线
+    case 'HINT':       askHint(); return;
     case 'UNDO':       requestUndo(); return;
     case 'UNDO_OK':    answerUndo(true); return;
     case 'UNDO_NO':    answerUndo(false); return;
@@ -1723,15 +1833,52 @@ function drawStar(cx, cy, r, color) {
  *     为了给一个占位卡片腾地方把按钮缩回去，等于把 §6.8 削掉一半。
  *   ⛔ 更不许「挤不下就往上顶」—— 往上就是棋盘（这正是改之前的 bug）。
  */
-function trayPlan(L, over) {
+function trayPlan(L, over, hint) {
   const avail = Math.max(0, L.tray.h - 10);      // 盘底与第一行之间留一点呼吸
   const rows = over ? 2 : 1;
   let gap = 12, rowH = bht(46), statH = over ? bht(40) : 0;
-  const H = () => rowH * rows + gap * (rows - 1) + (statH ? statH + gap : 0);
+  // ⭐ 提示条（P3 T3）：对局中**有提示时**才占一行（⛔ 没按提示时一个像素都不占）。
+  //   ⚠ 它画在 tray 而不是 §6.9 那块 `L.reserve` —— 实测 reserve 在 **iPad 竖屏只有 2 px、
+  //     横屏 5 px**（手机才有 50-90），把提示塞进去等于在平板上根本看不见。
+  let hintH = (!over && hint) ? bht(34) : 0;
+  const H = () => rowH * rows + gap * (rows - 1) + (statH ? statH + gap : 0) + (hintH ? hintH + gap : 0);
   if (H() > avail) gap = 8;
   if (H() > avail && statH) statH = 0;
+  // ⭐⭐ 退让顺序：提示条**排在 statH 之后让路，但排在按钮的「舒适加高」之前**。
+  //   ⚠ 与 statH 那条「让路成本最低」的理由正好相反：statH 画的是两个「—」的**占位**，
+  //     而提示条是**玩家刚刚主动按出来的内容** —— 挤掉它 = 按了提示什么都没看到。
+  //   ⭐⭐ 这一段是被**截图**改过的（2026-08-06）：第一版照搬了 statH 那条「⛔ 不许为它缩按钮」，
+  //     结果 **360×640 + 舒适模式下提示条整条消失**（tray 只有 97 px，舒适按钮就吃掉 61）——
+  //     而舒适模式恰恰是给「需要大字」的人用的，他们更需要看见那句话。
+  //     ⇒ 改成**先把按钮从舒适高度退回普通高度（46，仍然完全点得中）**，把空间让给内容；
+  //       这样那一屏变成 46 + 33 —— 两样都在。⛔ 只有连这样都放不下时才丢提示条。
+  //   ⚠ 门禁看不出这个（三个按钮当时全都「在屏内且有热区」）—— 只有逐张看图才抓得到。
+  if (H() > avail && hintH) {
+    const plain = 46;                            // 普通（非舒适）按钮高度
+    if (rowH > plain) rowH = Math.max(plain, avail - hintH - gap * rows);
+    if (H() > avail) {
+      const shrunk = Math.max(0, avail - (rowH * rows + gap * (rows - 1)) - gap);
+      hintH = shrunk >= 24 ? shrunk : 0;         // 24 px 以下就读不清了，⛔ 宁可不画
+    }
+  }
   if (H() > avail) rowH = Math.max(36, Math.floor((avail - gap * (rows - 1)) / rows));
-  return { gap: gap, rowH: rowH, statH: statH, h: H() };
+  return { gap: gap, rowH: rowH, statH: statH, hintH: hintH, h: H() };
+}
+
+/** ⭐ 提示条上写什么（**文案层的唯一出口**）。⛔ 判据一律来自 review.js，这里只挑句子。
+ *  ⚠⚠ `kind === 'lost'` 时**绝不许**说「有 N 列不输」—— 必败局面里三列同为必败，
+ *    那个 `safe` 就是 3，说出来就是谎（§2.4）。判据只能是 kind。 */
+function hintText(h) {
+  if (!h) return '';
+  if (h.why) return h.why;                       // 让子局 / 求解器不可用 ⇒ 如实说
+  if (h.pending) return T('game.hintWait');
+  if (h.level >= 2 && h.col >= 0) {
+    const why = T('game.r' + h.reason.charAt(0).toUpperCase() + h.reason.slice(1));
+    return T('game.hintCol', { n: h.col + 1 }) + ' — ' + why;
+  }
+  if (h.kind === 'only') return T('game.hintOnly');
+  if (h.kind === 'lost') return T('game.hintLost');
+  return T(h.kind === 'win' ? 'game.hintWin' : 'game.hintDraw', { n: h.safe, t: h.total });
 }
 
 function drawPlay(L) {
@@ -1797,7 +1944,10 @@ function drawPlay(L) {
 
   // ⚠ trayPlan 提到这里算（原来在下面那一节）：**对坐那条确认条要用底下那条的行高**（见下）。
   //   ⛔ 它不读任何已经画出去的东西，提前算逐位不变。
-  const plan = trayPlan(L, G.phase === 'OVER');
+  // ⭐ 提示条只在对局中、且**真的按出了内容**时占位（⛔ 没按提示时一个像素都不占）
+  expireHint();
+  const showHint = G.phase === 'PLAYING' && !!G.hint && !G.undoAsk;
+  const plan = trayPlan(L, G.phase === 'OVER', showHint);
   const gap = plan.gap, rowH = plan.rowH;
 
   // ⭐⭐ 对坐模式（P2c T3 · §6.7）：盘上方那条**旋转 180°** 的第二 HUD —— 给坐在对面
@@ -1883,15 +2033,40 @@ function drawPlay(L) {
       btn(marg + w2 + gap, ry2, w2, rowH, T('game.menu'), 'HOME', {}, { bg: '#61776f' });
     }
   } else {
-    const w2 = (full - gap) / 2;
+    // ⭐ 提示条（§3.2）画在按钮行**上方** —— 紧挨着按出它的那颗按钮。
+    //   ⚠ plan.hintH 为 0 = 这一屏实在放不下（最窄屏 + 舒适模式）⇒ 不画，⛔ 但按钮照旧在。
+    if (showHint && plan.hintH) {
+      G.hintRect = drawHintBar(marg, ry, full, plan.hintH);
+      ry += plan.hintH + gap;
+    } else G.hintRect = null;
     if (G.undoAsk) G.askRect = drawConsentBar(marg, ry, full, rowH, false);
     else {
-      btn(marg, ry, w2, rowH, undoLabel(g), 'UNDO', {}, {
+      // ⭐⭐ 三个按钮：［提示］［撤销］［菜单］。⚠ btn 的 fitTxt 带 maxW ⇒ 长文案会自适应缩，
+      //   ⛔ 但仍然要在 E2E 里逐张肉眼看（「文案截断是只有肉眼抓得到的一整类 bug」）。
+      const w3 = (full - gap * 2) / 3;
+      // ⭐ 提示**永远免费、不限次数**（§3.2）⇒ ⛔ 这里绝不许有「剩几次」的角标或禁用态。
+      //   ⚠ 唯一的禁用是「现在不是你的回合」——那时盘上本来也落不了子。
+      btn(marg, ry, w3, rowH, T('game.hint'), 'HINT', {}, {
+        bg: '#61776f', disabled: !C4State.isHumanTurn(g) || C4State.isOver(g)
+      });
+      btn(marg + w3 + gap, ry, w3, rowH, undoLabel(g), 'UNDO', {}, {
         bg: '#61776f', disabled: !g.moves.length
       });
-      btn(marg + w2 + gap, ry, w2, rowH, T('game.menu'), 'HOME', {}, { bg: '#61776f' });
+      btn(marg + (w3 + gap) * 2, ry, w3, rowH, T('game.menu'), 'HOME', {}, { bg: '#61776f' });
     }
   }
+}
+
+/**
+ * ⭐ 提示条：一句话，画在一张与结算卡同族的浅色条上。
+ * ⚠ 文案过 `fitTxt` 的 maxW（canvas 不自动换行，⛔ 长语言会静默溢出）。
+ * @returns 它画在哪（只给 E2E 取样，⛔ 不是真值源）
+ */
+function drawHintBar(x, y, w, h) {
+  fillRR(x, y, w, h, 10, 'rgba(255,255,255,0.92)');
+  const txt = hintText(G.hint);
+  fitTxt(txt, x + w / 2, y + h / 2, w - 20, '#2f4f43', '600', fsz(14));
+  return { x: x, y: y, w: w, h: h, text: txt };
 }
 
 /** ⭐ 双人局那颗按钮写的是「悔棋」而不是「撤销」（P2c T4）：按下去**不会**当场撤掉，

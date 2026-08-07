@@ -55,6 +55,17 @@
   let want = new Set();       // 这一局「应该算」的全部 key ⇒ progress().total
   let off = '';               // 非空 = 停用，内容就是**给玩家看的**原因（⛔ 别留空字符串）
   let curPre = [];            // 这一局的让子前缀（进 key，见判断②）
+  let stale = 0;              // ⭐ 连续被顶掉几次（见 pump 里那段 ⛔⛔）
+  let epoch = 0;              // ⭐ 换了几局（在飞的请求靠它作废，见 reset）
+  /** 连续 stale 的上限。⚠ 超了就丢掉这一条 —— 它是后台预算，⛔ 不值得把主线程转死。 */
+  const STALE_MAX = 8;
+
+  /** ⭐⭐ 让出一拍再泵（**宏任务**）。⛔ 别在 `then` 里同步递归 pump：
+   *  那是一条 microtask 链，**优先于宏任务** ⇒ 会把浏览器的输入事件饿死
+   *  （页面还能截图、evaluate 也答得动，但鼠标点不动了，零报错）。 */
+  function pumpSoon() {
+    if (typeof setTimeout === 'function') setTimeout(pump, 0); else pump();
+  }
 
   /** ⭐ 缓存 key：让子前缀 + moves 前缀。⛔ 别用「第几手」当 key（撤销就全废了）。 */
   function keyOf(moves, pre) {
@@ -74,6 +85,11 @@
     inflight = false;
     off = '';
     curPre = [];
+    stale = 0;
+    // ⭐ 换局：在飞的那一条回来时会看到 epoch 变了 ⇒ 自己作废
+    //   （⛔ 否则上一局的答案会被写进这一局的缓存，而两局的 moves 前缀经常一模一样 ⇒
+    //     盘面完全正确、评分却是别的局的，零报错）
+    epoch++;
   }
 
   function attach(c) { client = c; }
@@ -164,6 +180,7 @@
     const item = queue.shift();
     if (cache.has(item.key)) { pump(); return; }
     inflight = true;
+    const ep = epoch;                             // ⭐ 这一条属于哪一局（reset 会 +1）
     let p;
     try {
       p = client.scores(item.moves);
@@ -177,10 +194,32 @@
       inflight = false;
       // ⚠ 被顶掉的旧请求 resolve 成 { stale:true }（engine-client 的约定）——
       //   它不是错误，重新排一次即可。
-      if (r && r.stale) { queue.unshift(item); pump(); return; }
+      if (r && r.stale) {
+        // ⭐⭐ 被顶掉的旧请求（engine-client 的约定：同 op 只认最新一次）。
+        // ⛔⛔ **绝不许无脑重排**：`then` 里同步 unshift + pump 会形成一条**microtask 链**，
+        //   而 microtask **优先于宏任务** ⇒ 它把浏览器的**输入事件饿死** ——
+        //   表现是「页面还能截图、evaluate 也答得动，但鼠标点不动了」，**零报错**。
+        //   （2026-08-06 实锤：e2e-p2b-t7 在结算屏点［再来一局］卡死 3 分钟，就是这条。）
+        // ⇒ ① 重排次数封顶；② 用宏任务（setTimeout 0）让出一拍，别在 microtask 里接着转。
+        stale++;
+        if (stale > STALE_MAX) {
+          if (typeof console !== 'undefined' && console.warn) {
+            console.warn('[analysis] 连续 ' + stale + ' 次 stale，放弃这一条（⛔ 别转成忙循环）');
+          }
+          pumpSoon();
+          return;
+        }
+        queue.unshift(item);
+        pumpSoon();
+        return;
+      }
+      stale = 0;
+      // ⭐ 换局了 ⇒ 这一条是**上一局**的答案，⛔ 别写进新一局的缓存、也别接着泵它的队列
+      if (ep !== epoch) return;
       if (r && r.scores) cache.set(item.key, r.scores);
       else if (r && r.terminal !== null && r.terminal !== undefined) cache.set(item.key, {});
-      pump();
+      // ⚠ 同上：让出一拍（宏任务）再泵，⛔ 别在 then 里同步递归（microtask 会饿死输入事件）
+      pumpSoon();
     }, function (e) {
       // ⛔ 绝不吞掉 reject：吞掉的表现是「进度条停在 60% 再也不动」，零报错（§2.4）
       inflight = false;

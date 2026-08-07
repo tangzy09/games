@@ -36,15 +36,27 @@ function fakeClient(opts) {
       });
     }
   };
-  /** 把队列里最早那个请求放行（模拟 Worker 回话）。 */
-  st.flush = function () {
+  /**
+   * 把队列里最早那个请求放行（模拟 Worker 回话）。
+   * ⚠⚠ 必须等一个**宏任务**（setTimeout 0），⛔ 不能只等 microtask ——
+   *   analysis 的 pump 是**故意**用 setTimeout 让出一拍的（⛔ 在 then 里同步递归会形成
+   *   microtask 链，把浏览器的输入事件饿死：页面还能截图、evaluate 也答得动，但鼠标点不动，
+   *   2026-08-06 被 e2e-p2b-t7 实锤）。这里跟着它走。
+   */
+  const macro = () => new Promise(r => setTimeout(r, 0));
+  st.flush = async function () {
     const r = st.resolvers.shift();
     if (r) r();
-    return Promise.resolve().then(() => {});     // 让 then 链跑一拍
+    await macro();
   };
   st.flushAll = async function () {
     let guard = 0;
-    while (st.resolvers.length && guard++ < 200) await st.flush();
+    // ⚠ 队列可能在 flush 之后才补上新的一条（pump 是异步接力的）⇒ 空转几拍再判结束
+    let idle = 0;
+    while (guard++ < 400 && idle < 3) {
+      if (st.resolvers.length) { idle = 0; await st.flush(); }
+      else { idle++; await macro(); }
+    }
   };
   return st;
 }
@@ -206,6 +218,52 @@ const g0 = (moves, extra) => Object.assign({ mode: 'ai', moves: moves.slice(), p
     assert.ok(p2.done <= p2.total,
       '⛔ 撤销之后 done(' + p2.done + ') 仍不许超过 total(' + p2.total + ')');
     console.log('test-analysis: ⑦ ⭐ 进度单调不减且不越界 OK');
+  }
+
+  // ─────────── ⑦b ⛔⛔ stale 不许转成忙循环（2026-08-06 实锤的那个卡死）───────────
+  // engine-client 的约定：同一个 op 只认最新一次，被顶掉的旧请求 resolve 成 { stale:true }。
+  // 第一版在 `then` 里同步 `unshift + pump()` ⇒ 形成一条 **microtask 链**，
+  // 而 microtask **优先于宏任务** ⇒ 它把浏览器的**输入事件饿死**：
+  //   页面还能截图、`evaluate` 也答得动，**但鼠标点不动了**，零报错。
+  // （e2e-p2b-t7 在结算屏点［再来一局］卡死 3 分钟，就是这条。）
+  {
+    let calls = 0;
+    const c = {
+      alive: () => true, bookReady: () => true,
+      scores: function () { calls++; return Promise.resolve({ stale: true }); }   // ⭐ 永远被顶掉
+    };
+    AN.attach(c);
+    AN.start(g0([]));
+    AN.onMove(g0([3]));
+    // ⚠ 等若干个**宏任务**：忙循环的话 calls 会爆掉（第一版实测直接把主线程转死）
+    for (let i = 0; i < 20; i++) await new Promise(r => setTimeout(r, 0));
+    assert.ok(calls <= 12,
+      '⛔⛔ 恒 stale 的情况下发了 ' + calls + ' 次请求 —— 它必须有上限（STALE_MAX），'
+      + '否则就是一条把输入事件饿死的 microtask 忙循环（页面看着好好的，鼠标就是点不动）');
+    assert.ok(calls >= 1, '前提：至少真的发过一次（否则这条是空过的）');
+    console.log('test-analysis: ⑦b ⛔⛔ 恒 stale 有上限（' + calls + ' 次），不转成忙循环 OK');
+  }
+
+  // ─────────── ⑦c ⭐ 换局：在飞的旧答案不许写进新一局 ───────────
+  // ⚠ 两局的 moves 前缀经常一模一样 ⇒ 写串了的话盘面完全正确、评分却是别的局的，零报错。
+  {
+    let resolveIt = null;
+    const c = {
+      alive: () => true, bookReady: () => true,
+      scores: () => new Promise(res => { resolveIt = res; })
+    };
+    AN.attach(c);
+    AN.start(g0([]));
+    AN.onMove(g0([3]));
+    await new Promise(r => setTimeout(r, 0));
+    assert.ok(resolveIt, '前提：确实有一条在飞');
+    AN.reset();                                   // ⭐ 换局（在飞的那条还没回来）
+    AN.start(g0([]));
+    resolveIt({ scores: { 3: 99 } });              // 旧答案现在才回来
+    await new Promise(r => setTimeout(r, 0));
+    assert.strictEqual(AN.get([]), null,
+      '⭐ 换局之后，上一局在飞的答案**不许**落进新一局的缓存');
+    console.log('test-analysis: ⑦c ⭐ 换局作废在飞的旧答案 OK');
   }
 
   // ─────────── ⑧ reset 之后干净 ───────────

@@ -35,5 +35,18 @@
             "enginePrep": "Getting the engine ready…",
             "bookLoading": "Loading opening book…",
             "engineDown": "Engine unavailable on this device — computer play is off",
-            "engineSlow": "Opening book unavailable: this level would take minutes per move, so it is paused" }
+            "engineSlow": "Opening book unavailable: this level would take minutes per move, so it is paused",
+            "hint": "Hint",
+            "hintNext": "Which column?",
+            "hintWin": "{n} of {t} columns keep your win — take your pick",
+            "hintDraw": "{n} of {t} columns hold the draw",
+            "hintOnly": "Only 1 column holds. The rest give it away",
+            "hintLost": "This one is already hard — no column turns it around",
+            "hintCol": "Column {n}",
+            "rOnly": "the only column that holds",
+            "rMakeFork": "it makes a double threat",
+            "rBlockFork": "it blocks their double threat",
+            "rSteady": "it is the steadiest column",
+            "hintWait": "Working it out…",
+            "hintOff": "No exact hint for this game" }
 }

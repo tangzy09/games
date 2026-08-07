@@ -34,5 +34,18 @@
             "enginePrep": "引擎准备中…",
             "bookLoading": "开局库加载中…",
             "engineDown": "本机引擎不可用 —— 人机对战暂不可用",
-            "engineSlow": "开局库不可用：这一档每手要几秒到几分钟，已暂停" }
+            "engineSlow": "开局库不可用：这一档每手要几秒到几分钟，已暂停",
+            "hint": "提示",
+            "hintNext": "走哪一列？",
+            "hintWin": "{t} 列里有 {n} 列都保住胜势 —— 随便走",
+            "hintDraw": "{t} 列里有 {n} 列守得住和棋",
+            "hintOnly": "只有 1 列守得住，其余都会送掉",
+            "hintLost": "这局已经很难了 —— 没有哪一列能翻回来",
+            "hintCol": "第 {n} 列",
+            "rOnly": "唯一守得住的一列",
+            "rMakeFork": "能做出双威胁",
+            "rBlockFork": "挡掉对方的双威胁",
+            "rSteady": "这一列最稳",
+            "hintWait": "正在算…",
+            "hintOff": "这局不显示精确提示" }
 }

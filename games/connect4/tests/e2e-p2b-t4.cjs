@@ -14,7 +14,11 @@
 //      两个标记之间、标记与棋子之间的**剪影 IoU** 必须低；空心/实心中心判据必须成立
 //   ⑤ ⭐ 同一格两方都能赢 ⇒ **两个标记都画**（ink 明显高于单标记）
 //   ⑥ ⭐ 关掉开关 ⇒ 同一个局面上标记**全部消失**（ink 回到空井水平）
-//   ⑦ ⭐⭐ **零搜索**：整局人机跑完，`EngineClient.scores` 调用 **0 次**
+//   ⑦ ⭐⭐ **零搜索**：整局人机跑完，**渲染期间**的 `EngineClient.scores` 调用 **0 次**
+//      ⚠ 判据在 P3 收紧过一次（2026-08-06）：原来是「整局 0 次」，而 P3 的边打边算
+//        （analysis.js）合法地在每手之后请求真值 ⇒ 那个数变成 39，**红线本身却一点没破**。
+//        现在只看渲染路径（威胁高亮恰恰只在 renderAll 里算）—— 比原来更精确，
+//        且配了「这把尺子量得动」的反证。
 //      （同时 `EngineClient.ai` > 0 ⇒ 引擎通道确实在用，只是威胁这条路没碰它；
 //        并且途中 `G.threats` 确实非空过 ⇒ 这条路真的跑了，⛔ 不是恒真）
 //   ⑧ ⭐ **持久化**：关 → **真的刷新页面** → 仍然是关，且 `=== false`（⛔ 不是「假值」：
@@ -273,9 +277,22 @@ const truth = mv => Th.cells(B.fromMoves(mv));
   //   所以可以在这里包一层。⚠ 必须在开局**之前**装上，否则少数几次调用会漏计。
   await page.evaluate(() => {
     window.__scores = 0; window.__ai = 0;
+    // ⭐⭐ **渲染路径里**的 scores 调用（P3 改判据后这个才是承重的那个，见下面 ⑦ 那段）
+    window.__renderScores = 0; window.__inRender = 0;
     const os = EngineClient.scores, oa = EngineClient.ai;
-    EngineClient.scores = function () { window.__scores++; return os.apply(EngineClient, arguments); };
+    EngineClient.scores = function () {
+      window.__scores++;
+      if (window.__inRender > 0) window.__renderScores++;
+      return os.apply(EngineClient, arguments);
+    };
     EngineClient.ai = function () { window.__ai++; return oa.apply(EngineClient, arguments); };
+    // ⚠ main.js 是裸脚本（不是 IIFE）⇒ renderAll 是全局函数，包得住；
+    //   而威胁高亮**恰恰只在 renderAll 里算**（drawPlay 里那行 C4Threats.cells）。
+    const orr = window.renderAll;
+    window.renderAll = function () {
+      window.__inRender++;
+      try { return orr.apply(this, arguments); } finally { window.__inRender--; }
+    };
   });
 
   console.log('\n① 加载 / 默认值');
@@ -436,15 +453,44 @@ const truth = mv => Th.cells(B.fromMoves(mv));
     await playCol(col, 8000);
   }
   const cnt = await page.evaluate(() => ({ scores: window.__scores, ai: window.__ai,
+                                           renderScores: window.__renderScores,
                                            phase: G.phase, moves: G.g.moves.length,
                                            forks: G.forkCount }));
   ok(cnt.phase === 'OVER', '这一局真的下完了（' + cnt.moves + ' 手，phase=' + cnt.phase + '）');
   ok(cnt.ai > 0, '前提：整局里 EngineClient.ai 被调了 ' + cnt.ai + ' 次 ⇒ 引擎通道确实在用');
   ok(sawThreat > 0, '前提：途中 ' + sawThreat + '/' + plies +
     ' 手上真的算出过威胁 ⇒ 威胁这条路跑过了（⛔ 否则「零调用」是恒真的）');
-  ok(cnt.scores === 0,
-    '⭐⭐ **整局跑完 EngineClient.scores 调用 ' + cnt.scores + ' 次**（必须是 0）'
+  // ⭐⭐ **判据在 P3 改过一次（2026-08-06），红线本身一个字没松**：
+  //   原来断言的是「整局 scores 调用 **0** 次」。P3 的**边打边算**（analysis.js）合法地
+  //   在每落一手后请求那一手的真值 ⇒ 这个数变成了 39，而威胁高亮**一次都没碰过求解器**。
+  //   ⇒ 那条断言当时守的是「威胁高亮零搜索」，判据却写成了「全局零调用」——
+  //     P3 一来它就把**合法的新行为**报成违规（本仓 P2a/P2b/P2c 各实锤一次的
+  //     「别的门禁的前提被合法地改变了」，这是第四次）。
+  //   ⇒ 判据收紧到**真正承重的那一段**：威胁高亮只在 `renderAll` 里算（drawPlay 那行
+  //     `C4Threats.cells`）⇒ 断言「**渲染期间**的 scores 调用 = 0」。
+  //     这比原来那条更精确：就算哪天有人把 Solver 塞进 drawPlay，它照样当场红。
+  // ⭐ 反证：**这把新尺子量得动**（⛔ 否则「渲染期间 0 次」可能只是包装没生效的恒真）。
+  //   addHit 是 main.js 的全局函数、每帧渲染必调 ⇒ 用它探一下 __inRender 在渲染期间的值。
+  {
+    const probe = await page.evaluate(() => {
+      window.__probe = -1;
+      const o = window.addHit;
+      window.addHit = function () {
+        if (window.__probe < 0) window.__probe = window.__inRender;
+        return o.apply(this, arguments);
+      };
+      renderAll();
+      window.addHit = o;
+      return window.__probe;
+    });
+    ok(probe > 0,
+      '⭐ 反证：渲染期间 __inRender = ' + probe + ' > 0 ⇒ 这把尺子真的量得动'
+      + '（⛔ 否则下面那条「渲染期间 0 次」只是包装没生效的恒真）');
+  }
+  ok(cnt.renderScores === 0,
+    '⭐⭐ **渲染期间 EngineClient.scores 调用 ' + cnt.renderScores + ' 次**（必须是 0）'
     + ' —— 威胁判据只走 B.isWinningMove，⛔ 一次求解器都不许碰'
+    + '（整局共 ' + cnt.scores + ' 次，全部来自 P3 的边打边算，⛔ 与渲染路径无关）'
     // ⭐ P2b T5 接上来的一句：双威胁判据（C4Threats.forkOf）也在**同一局**里跑过，
     //   走的也是 isWinningMove ⇒ 这条「零调用」同时罩住 §6.4 的上下两半。
     //   ⚠ 这里只报数不断言 >0：某一局恰好没形成双威胁是完全正常的；
