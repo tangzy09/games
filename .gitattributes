@@ -1,0 +1,18 @@
+# ⛔ 二进制资产**绝不许**走行尾转换。
+# 本仓在 Windows 上 core.autocrlf=true：git 靠「有没有 NUL 字节」自动判二进制，
+# 判错一次就是把 games/connect4/data/book-classic.bin（63 万条开局库）里的每个
+# 0x0A 换成 0x0D0A —— 文件长度变了、校验和当场不符，book.js 会判成「没有库」，
+# 于是游戏还能玩、只是**永远慢**，而且没有任何一处报错（最难查的那一类）。
+# 这一行把它钉死，不靠自动判定。
+*.bin -text
+*.png -text
+*.jpg -text
+*.mp3 -text
+# wav 更危险：里面**大量** 0x0A（16bit PCM 的采样字节天然会撞上），而它又常常
+# 不含足够的 NUL 让 git 自动判成二进制 ⇒ 一次 CRLF 转换就把波形改了、data 块长度
+# 与文件大小对不上，播出来是噼啪声或干脆不播。钉死。
+*.wav -text
+*.mp4 -text
+*.aab -text
+*.ipa -text
+*.p8 -text

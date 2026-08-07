@@ -5,3 +5,7 @@ node_modules/
 games/*/www/
 games/*/ios/
 games/*/android/
+# 开局库的**断点续跑中间态**与生成日志(几百 MB 的碎块,重跑即可再生)
+# ⚠ 成品 games/connect4/data/book-classic.bin 是**入库**的(DESIGN §9.2:它是进包资产)
+games/*/data/*.parts/
+games/*/data/gen-book.log

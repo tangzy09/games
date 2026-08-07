@@ -2,6 +2,25 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> ## ✅ 已执行完毕（2026-08-01）——本文件转为**历史记录**，别再照它施工
+>
+> 九个任务全部完成，每个走了「实现 → 规格评审 → 质量评审 → 修复 → 复审」。**权威规格是 `games/connect4/DESIGN.md`（已按实测回填多轮），不是本文件。**
+>
+> **⭐ 目标达成**：空盘七列 `−3 −1 0 +2 0 −1 −3`，与 Allis 1988 逐列相符，中列精确分 2（先手第 41 子），取胜手数全部对上；`verify:c4truth` 52 分钟无库真跑 exit 0，节点指纹 `8,256,675,460` 四次独立复现。装库后同一结论 **25 ms** 复现。
+>
+> **⚠ 计划里被实测推翻/修正的（本文件的原始内容有这些错，别照抄）**：
+> - `play()` 不校验列 ⇒ 往满列落子写出「第 7 行的幽灵子」并被判成竖四连（Task 2 code review 实锤）
+> - 「满盘和」那串手数其实是**先手横四连遍地**，而原测试只断言 `n===42`、从不检查 `winner`（Task 2）
+> - αβ 上界 `CELLS-2-n` 在 **n=41 算出 −1**，父节点取反后**凭空长出「用最后一子取胜」的假必胜** ⇒ 必须夹 `Math.max(...,0)`（Task 4，对拍抓到的）
+> - 双制胜手用例选的 `[1,5]` **恰好等于数值升序**，杀不掉「按数值 sort」的变异体（Task 3）
+> - TT 草稿在热路径用纯函数 `play` ⇒ 慢 3.6×；只存「相对上界」+ `return alpha` 是 fail-hard 时代的写法，白扔 EXACT/LOWER 两种界（Task 5）
+> - 开局库深度 **N=16 不可行**（约 1.4 亿条 ≈ 800 MiB）；5 MB 红线把 N 卡死在 **10**，且「N=10 的库只覆盖根 n ≤ 9」（Task 7）
+> - ⛔ **最贵的一条**：我把「绝不走立即败招」从**进阶档**一刀切到**所有档**，导致最弱的第 1 级仍比「会挡会抓的懂规则玩家」还强（参考玩家只赢 .486，目标 .90）⇒ **「让新手能赢」在旧规格下数学上不可能**。改的是规格：轻松档准许送头，求解器档零容忍（Task 9，见 DESIGN §3.1）
+>
+> **⚠ 终审抓到的阻塞项**：`ai.js` 写 `root.PRNG`，而 `engine/prng.js` 顶层是 `const PRNG = {...}`（**全局词法环境绑定，不是 self/window 的属性**）⇒ 浏览器里整条 AI 阶梯 100% 崩。**P1 的全部测试都在 node 跑，`root.X` 那条分支至今零消费者验证** ⇒ 已补 `tests/test-browser-globals.js` 门禁。
+>
+> **下一步**：P2（可玩本体）需要**另起一份 writing-plans**。交接要点见 `DESIGN.md` §11b。
+
 **Goal:** 建出 connect4 的位棋盘 + 完美求解器 + 开局库 + 20 级 AI 阶梯，并让它通过 Allis 1988 的**外部地面真值门禁**（空盘先手必胜 / 第 3、5 列开局和棋 / 外侧四列后手必胜）。
 
 **Architecture:** 纯 node 可测的逻辑层，零 DOM。每列一个 6 位掩码（列内位运算，天然不跨列串味）→ 着法生成 → negamax + αβ + 置换表 + 中路优先排序 → 离线预算开局库 → `aiMove(position, tier, seed)`。**求解器是本产品全部承诺的地基：地面真值对不上，后面所有功能都是系统性谎言**（规格 §2.2）。
