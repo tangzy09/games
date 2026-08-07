@@ -79,6 +79,21 @@
     return LABEL_OF_DROP[drop] || 'good';
   }
 
+  /**
+   * ⭐ 这一手的**完整**判据：标签 + 胜负态从哪档到哪档（P3 T5 复盘要它）。
+   * @returns { label, from, to }
+   *   from = 落子**前**「最好能到什么结果」的胜负态；to = 落这一列**之后**的胜负态。
+   * ⚠⚠ 两者**同视角**（都是要落这一手的人）—— `sa[col]` 本来就是「落这一列之后从我这边看
+   *   的结果」⇒ ⛔ 别去取下一个局面的 scoreAll 再取反：那要多算一次，还多一处符号错的机会。
+   * ⭐ 与 labelOf 读的是同一组数 ⇒ 标签与曲线**不可能对不上**（⛔ 别写成两条独立的算法）。
+   */
+  function labelDetail(sa, col) {
+    const label = labelOf(sa, col);            // ⚠ 脏输入的 fail-fast 全在它那儿
+    let bestScore = -Infinity;
+    for (const k of Object.keys(sa)) { const v = sa[k]; if (v > bestScore) bestScore = v; }
+    return { label: label, from: signOf(bestScore), to: signOf(sa[col]) };
+  }
+
   /** 这条记录算不算进来（`side` / `skipPlies` 两个过滤器的唯一实现）。 */
   function picked(e, opts) {
     if (!e || typeof e.label !== 'string') return false;
@@ -226,7 +241,7 @@
 
   const API = {
     SIGN_WIN, SIGN_DRAW, SIGN_LOSS, SCORE_OF_LABEL,
-    signOf, labelOf, accuracyOf, turningPoint,
+    signOf, labelOf, labelDetail, accuracyOf, turningPoint,
     hintLevel1, safeCols, hintLevel2, isBrilliant
   };
   // 与其余模块同样冻结：挡住 `C4Review.labelOf = () => 'best'` 这类「精准度永远 100%」

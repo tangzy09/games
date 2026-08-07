@@ -53,7 +53,7 @@
   const queue = [];           // 待算的 { key, moves, priority }
   let inflight = false;       // ⭐ 一次只放一个（见判断①）
   let want = new Set();       // 这一局「应该算」的全部 key ⇒ progress().total
-  let off = '';               // 非空 = 停用，内容就是**给玩家看的**原因（⛔ 别留空字符串）
+  let off = '';               // 非空 = 停用，内容是**原因码**（⛔ 不是给玩家看的句子，见 disable 上方）
   let curPre = [];            // 这一局的让子前缀（进 key，见判断②）
   let stale = 0;              // ⭐ 连续被顶掉几次（见 pump 里那段 ⛔⛔）
   let epoch = 0;              // ⭐ 换了几局（在飞的请求靠它作废，见 reset）
@@ -75,8 +75,15 @@
   function enabled() { return !off && !!client; }
   function disabledReason() { return off; }
 
-  /** 停用并记下**给玩家看的**原因。⚠ 第一条原因优先（后面的失败别覆盖掉真正的病因）。 */
-  function disable(why) { if (!off) off = String(why || '已停用'); }
+  // ⭐⭐ 停用**原因码**（⛔ 不是给玩家看的句子）。
+  //   ⚠ 本文件是纯模块、拿不到 `T()` ⇒ 在这里写死一句中文/英文就是**硬编码文案**，
+  //     本仓铁律明令禁止（截图实测：英文界面上弹出一句中文，2026-08-06）。
+  //   ⇒ 这里只返回码，翻译在 UI 层（main.js 的 `reviewBlocked`）。
+  const OFF_HANDICAP = 'handicap';   // 这一局有让子
+  const OFF_ENGINE = 'engine';       // 求解器不可用
+
+  /** 停用并记下**原因码**。⚠ 第一条原因优先（后面的失败别覆盖掉真正的病因）。 */
+  function disable(why) { if (!off) off = String(why || OFF_ENGINE); }
 
   function reset() {
     cache.clear();
@@ -101,13 +108,10 @@
   function start(g) {
     reset();
     curPre = (g && g.pre) ? g.pre.slice() : [];
-    if (curPre.length >= 2) {
-      // 性能上就不可能：库 100% 落空，实测整局 173.5 s、单个局面 101 s
-      disable('这局有让子，不做精确复盘');
-    } else if (curPre.length === 1) {
-      // 协议表达不了（worker 的 scores 从空盘重放）—— 与上面是**两件事**，只是对玩家同一句话
-      disable('这局有让子，不做精确复盘');
-    }
+    // ⚠ 两条**不同的**理由，但对玩家是同一句话 ⇒ 同一个原因码：
+    //   · 让 2 子：性能上就不可能（库 100% 落空，实测整局 173.5 s、单个局面 101 s）；
+    //   · 让 1 子：协议表达不了（worker 的 scores 从空盘重放，没有预置子这一说）。
+    if (curPre.length >= 1) disable(OFF_HANDICAP);
   }
 
   /** 已经算好的真值（null = 还没算 / 不给算）。⛔ 别把 null 当成 0。 */
@@ -187,7 +191,9 @@
     } catch (e) {
       // 同步就抛（client 形状不对）⇒ 如实停用，⛔ 别静默吞掉
       inflight = false;
-      disable('求解器不可用：' + String((e && e.message) || e));
+      // ⚠ 只记**码**（⛔ 别把异常消息当成给玩家看的句子：那是英文/中文混杂的技术串）
+      disable(OFF_ENGINE);
+      if (typeof console !== 'undefined' && console.warn) console.warn('[analysis] scores 同步抛错：' + String((e && e.message) || e));
       return;
     }
     p.then(function (r) {
@@ -223,7 +229,7 @@
     }, function (e) {
       // ⛔ 绝不吞掉 reject：吞掉的表现是「进度条停在 60% 再也不动」，零报错（§2.4）
       inflight = false;
-      disable('求解器不可用，这局不显示精确评分');
+      disable(OFF_ENGINE);
       if (typeof console !== 'undefined' && console.warn) {
         console.warn('[analysis] 求解器请求失败：' + String((e && e.message) || e));
       }

@@ -150,8 +150,8 @@ const g0 = (moves, extra) => Object.assign({ mode: 'ai', moves: moves.slice(), p
       await c.flushAll();
       assert.strictEqual(c.calls.length, 0,
         '⛔ 让 ' + h + ' 子局必须一个请求都不发（发了就是把玩家晾在那儿等一个永远不对的答案）');
-      assert.ok(AN.disabledReason().length > 0,
-        '⛔ 让 ' + h + ' 子局必须给出**可读的**停用原因（空字符串 = UI 只能显示一片空白）');
+      assert.strictEqual(AN.disabledReason(), 'handicap',
+        '⛔ 让 ' + h + ' 子局的停用原因码必须是 handicap（空字符串 = UI 只能显示一片空白）');
       assert.strictEqual(AN.enabled(), false);
     }
     console.log('test-analysis: ⑤ ⛔ 让子局零请求 + 原因可读 OK');
@@ -167,8 +167,8 @@ const g0 = (moves, extra) => Object.assign({ mode: 'ai', moves: moves.slice(), p
     await c.flushAll();
     await Promise.resolve();
     assert.strictEqual(AN.enabled(), false, '求解器死了之后必须停用');
-    assert.ok(/求解器|算力|不可用/.test(AN.disabledReason()),
-      '⛔ 停用原因要如实说是求解器的问题，实际是「' + AN.disabledReason() + '」');
+    assert.strictEqual(AN.disabledReason(), 'engine',
+      '⛔ 停用原因必须是**原因码** engine，实际是「' + AN.disabledReason() + '」');
     console.log('test-analysis: ⑥ ⛔ 求解器死了 ⇒ 如实停用（不吞 reject）OK');
   }
 
@@ -195,6 +195,23 @@ const g0 = (moves, extra) => Object.assign({ mode: 'ai', moves: moves.slice(), p
     assert.ok(c.calls.length >= 2,
       '⭐ 库到位后积压的请求必须自己接着跑（实际发出 ' + c.calls.length + ' 条）');
     console.log('test-analysis: ⑥b ⛔⛔ 库没就位零请求 + 到位后自动接着算 OK');
+  }
+
+  // ─────────── ⑥c ⛔⛔ 停用原因必须是**原因码**，⛔ 不是给玩家看的句子 ───────────
+  // ⚠⚠ 2026-08-06 实锤：第一版在这里写死了一句中文「这局有让子，不做精确复盘」，
+  //   于是**英文界面上直接弹出中文**（截图抓到的）。本文件是纯模块、拿不到 T()
+  //   ⇒ 它只能返回码，翻译在 main.js 的 analysisOffText()。
+  // ⇒ 这条钉死「码」这个契约：全 ASCII、无空格、短。⛔ 别再让它变回一句话。
+  {
+    const c = fakeClient();
+    AN.attach(c);
+    AN.start(g0([], { pre: [3, 3] }));
+    const code = AN.disabledReason();
+    assert.ok(/^[a-z][a-z0-9_]*$/.test(code),
+      '⛔⛔ 停用原因必须是**原因码**（小写 ASCII 标识符），实际是「' + code + '」——'
+      + ' 本模块拿不到 T()，在这里写句子 = 硬编码文案，英文界面上会弹出中文');
+    assert.ok(code.length <= 24, '原因码不该是一句话（长度 ' + code.length + '）');
+    console.log('test-analysis: ⑥c ⛔⛔ 停用原因是原因码而非句子（「' + code + '」）OK');
   }
 
   // ─────────── ⑦ ⭐ 进度：done 单调不减，且 ⛔ 永不超过 total ───────────

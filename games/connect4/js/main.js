@@ -100,6 +100,10 @@ var G = {
   brilliantCount: 0,
   lastBrilliant: null,   // { ply, col, player }
   brilliantNote: null,   // { until, col } —— 盘下那行 ✨ 还该不该画
+  // ── ⭐ 复盘页（P3 T5 · DESIGN §3.3）──
+  // ⭐ `review` 是**打开那一刻现算的快照**（⛔ 不进存档：它由 moves + 真值缓存随时重建）。
+  review: null,          // { labels, ready, done, total, tp }
+  reviewBack: null,      // 上一帧返回键画在哪（只给 E2E 取样，⛔ 不是真值源）
   askRect: null,      // 上一帧确认条画在哪（只给 E2E 取样，⛔ 不是真值源）
   askRectF2F: null,   // 对坐模式下那条**旋转 180°** 的确认条画在哪（同上）
   // ── ⭐ 限时模式（P2c T5 · DESIGN §6.10）──
@@ -984,7 +988,7 @@ function askHint() {
 
   // ⛔ 这一局不给精确提示（让子局 / 求解器不可用）⇒ **如实说**，⛔ 绝不编一个列号出来（§2.4）
   if (!hintAvailable()) {
-    G.hint = { ply: ply, level: 1, pending: false, why: C4Analysis.disabledReason() || T('game.hintOff') };
+    G.hint = { ply: ply, level: 1, pending: false, why: analysisOffText() || T('game.hintOff') };
     renderAll();
     return;
   }
@@ -1092,6 +1096,105 @@ function startBrilliantFx(col) {
 }
 /** ✨ 那一行留多久（与「时间到」那条归因同一个量级）。 */
 const BRILLIANT_NOTE_MS = 2600;
+
+// ════════ ⭐⭐ 赛后复盘（P3 Task 5 · DESIGN §3.3「最大的差异化」）════════
+//
+// §3.3：「一局 ≤42 手、盘面小，**整局每一手的真值完全算得起**：
+//   **胜负曲线** · **转折点**（「你到第 14 手为止一直是必胜的。第 14 手走了第 3 列——
+//   这一步之后变成必败。当时该走第 5 列。」）· **［从这一步重来］**」
+//
+// ⚠⚠ **措辞死线**（§3.3 原话）：口径是**陈述事实**（「这一步之后局面变了」），
+//   **不是指责**（「你犯了个错」）。⛔ 面向玩家的每一句都走 locale，且一句指责都不许有。
+//
+// ⭐ 数据全部现成：**边打边算**（T2）到终局时已经把每个前缀局面算完了（E2E 实测 100%）
+//   ⇒ 复盘几乎瞬开。⛔ 这里绝不自己发请求、绝不等待 —— 没算完就如实显示进度。
+
+/**
+ * ⭐ 把这一局摊成每一手的判据。
+ * @returns { labels, ready } —— `ready=false` 表示还有手没算到（⛔ 别拿半份数据画曲线）
+ * ⚠ 只用 `C4Analysis.get`（**只读缓存**）：⛔ 不发请求、⛔ 不等待。
+ */
+function buildReview(g) {
+  const out = { labels: [], ready: true, done: 0, total: (g && g.moves ? g.moves.length : 0) };
+  if (!g || !g.moves.length) { out.ready = false; return out; }
+  for (let k = 0; k < g.moves.length; k++) {
+    const sa = C4Analysis.get(g.moves.slice(0, k));
+    if (!sa || !Object.keys(sa).length) { out.ready = false; continue; }
+    let d;
+    try { d = C4Review.labelDetail(sa, g.moves[k]); }
+    catch (e) { out.ready = false; continue; }   // 终局/脏数据 ⇒ 这一手跳过，⛔ 别编
+    out.done++;
+    out.labels.push({
+      ply: k,
+      // ⭐ 谁下的这一手：先手位在偶数 ply。⚠ 让子局的 pre 不进 moves ⇒ 这个口径仍成立。
+      side: k % 2 === 0 ? 0 : 1,
+      col: g.moves[k], label: d.label, from: d.from, to: d.to
+    });
+  }
+  return out;
+}
+
+/** ⭐ 打开复盘页。⛔ 零广告、零消耗（§3.2 那条红线同样罩着复盘）。 */
+function openReview() {
+  if (!G.g) return;
+  G.review = buildReview(G.g);
+  if (G.review.ready) G.review.tp = C4Review.turningPoint(G.review.labels,
+    { side: G.g.mode === 'ai' ? C4State.humanPlayer(G.g) : 0 });
+  G.phase = 'REVIEW';
+  stopClock();                       // ⛔ 别让 100 ms 的 interval 在复盘页上空转
+  renderAll();
+}
+
+/**
+ * ⭐ ［从这一步重来］—— 直接用 P2a 就有的 `C4State.rewindTo`，⛔ 别新写一套。
+ * ⚠ 它会按 `p < k` 砍掉 `auto` 归因（P2c T5 已实现）⇒ 重来之后那一手不再顶着时钟的名字。
+ */
+function replayFrom(ply) {
+  const g = G.g;
+  if (!g || typeof ply !== 'number' || ply < 0) return;
+  G.aiSeq++; setThinking(false); fxStop(); forkRewind();
+  G.g = C4State.rewindTo(g, ply);
+  G.phase = 'PLAYING';
+  G.result = null; G.hoverCol = -1; G.holdCol = -1; G.notice = ''; G.undoAsk = null;
+  G.hint = null; G.brilliantNote = null; G.review = null;
+  G.overReady = false;
+  syncClock();
+  renderAll();
+  maybeAI();
+}
+
+/** ⭐ 这一局给不给复盘 + ⛔ 不给的话**如实说的那句话**（§2.4：降级必须可见）。 */
+/**
+ * ⭐⭐ 「这一局为什么不给精确评分」——**原因码 → 句子的唯一翻译入口**。
+ * ⚠⚠ analysis.js 是纯模块、拿不到 T() ⇒ 它只返回**码**；翻译只能在这一层做。
+ *   这条是截图抓出来的（2026-08-06）：第一版在 analysis.js 里写死了一句中文，
+ *   **英文界面上就直接弹出中文** —— 本仓「零硬编码文案」铁律的活教材。
+ * ⛔ 提示与复盘共用这一个函数，别各翻各的（两份一漂就会出现「提示说 A、复盘说 B」）。
+ */
+function analysisOffText() {
+  const code = C4Analysis.disabledReason();
+  if (!code) return '';
+  return T(code === 'handicap' ? 'game.offHandicap'
+         : code === 'engine' ? 'game.offEngine' : 'game.hintOff');
+}
+
+/** ⭐ 这一局给不给复盘 + ⛔ 不给的话如实说的那句话（§2.4：降级必须可见）。 */
+function reviewBlocked(g) {
+  if (!g) return T('game.hintOff');
+  if (C4Analysis.enabled()) return '';
+  return analysisOffText() || T('game.hintOff');
+}
+
+/**
+ * ⭐ 转折点那一手「当时该走哪一列」。
+ * ⚠⚠ 必须来自**那一手的** scoreAll，⛔ 不许是「现在算出来的最优」——
+ *   局面早就不同了，那是另一个问题的答案（而它看起来同样合理）。
+ */
+function bestColAt(g, ply) {
+  const sa = C4Analysis.get(g.moves.slice(0, ply));
+  if (!sa || !Object.keys(sa).length) return -1;
+  try { return C4Review.safeCols(sa)[0]; } catch (e) { return -1; }
+}
 
 /** 落这一列之后，**对方**原本的双威胁是不是没了。⛔ 零搜索（同 threats.js 的红线）。 */
 function forkBlocked(bd, col, me) {
@@ -1373,6 +1476,10 @@ function dispatch(action, data) {
     //   **双人局先问对方**。判据只有 undoNeedsConsent 一份，⛔ 别在这里再写一次 mode 比较。
     // ⭐ 提示（§3.2）：⛔ 零广告、零消耗、不限次数 —— 与 UNDO 同一条红线
     case 'HINT':       askHint(); return;
+    // ⭐ 复盘（§3.3）：⛔ 同样永远免费
+    case 'REVIEW':     openReview(); return;
+    case 'REVIEW_BACK': G.phase = 'OVER'; renderAll(); return;
+    case 'REPLAY_FROM': replayFrom(data && data.ply); return;
     case 'UNDO':       requestUndo(); return;
     case 'UNDO_OK':    answerUndo(true); return;
     case 'UNDO_NO':    answerUndo(false); return;
@@ -2098,11 +2205,14 @@ function drawPlay(L) {
     //   ⚠ 两个都是 disabled 的**留位**（转折点/复盘都要 scoreAll ⇒ P3）：
     //     disabled ⇒ btn 不注册热区 ⇒ 点不出任何反应，⛔ 不许做成「点了没反应」的活按钮
     //     —— 假按钮比没按钮更伤（玩家会以为坏了）。P3 填内容时去掉 disabled + 加 dispatch 分支。
+    // ⭐ P3 T5 已填内容 ⇒ 去掉 disabled。⚠ 两种情况都进**同一个复盘页**（输局那颗只是
+    //   叫法不同 —— ［从那一步重来］的按钮在页内，⛔ 别做成两条不同的路）。
+    //   ⚠ 让子局/求解器不可用时仍然点得进去：进去之后**如实说不给**（§2.4 降级必须可见），
+    //     ⛔ 而不是给一个灰按钮让玩家猜为什么。
     const lost = isLoss();
     if (!kd) {
       btn(marg + wMain + gap, ry, full - wMain - gap, rowH,
-          T(lost ? 'game.replayFrom' : 'game.review'), lost ? 'REPLAY_FROM' : 'REVIEW', {},
-          { disabled: true, size: 15 });
+          T(lost ? 'game.replayFrom' : 'game.review'), 'REVIEW', {}, { size: 15 });
     }
     const ry2 = ry + rowH + gap;
     const w2 = (full - gap) / 2;
@@ -2168,8 +2278,132 @@ function renderAll() {
   const L = curLayout();
   G.L = L;
   C4Render.drawBackground(L);
-  if (G.phase === 'HOME' || !G.g) drawHome(L);
+  G.hintRect = G.phase === 'PLAYING' ? G.hintRect : null;
+  if (G.phase === 'REVIEW' && G.g) drawReview(L);
+  else if (G.phase === 'HOME' || !G.g) drawHome(L);
   else drawPlay(L);
+}
+
+// ════════ ⭐⭐ 复盘页（P3 T5 · DESIGN §3.3）════════
+
+/** ⭐ 返回键：**一律左上角**（本仓 2026-08-03 铁律，全游戏统一）。
+ *  ⛔ y 必须从 `safeTop` 起算（刘海/灵动岛），⛔ 别写死；⛔ 也别放右上（那是引擎控制栏的地盘）。 */
+function backButton(L) {
+  const x = L.tray.x, y = L.safeTop + 4, w = 66, h = 34;
+  fillRR(x, y, w, h, 10, 'rgba(97,119,111,0.92)');
+  fitTxt('‹ ' + T('game.back'), x + w / 2, y + h / 2, w - 12, '#fff', 'bold', fsz(14));
+  addHit(x, y, w, h, 'REVIEW_BACK', {});
+  return { x: x, y: y, w: w, h: h };
+}
+
+/**
+ * ⭐⭐ 胜负曲线：画的是**胜负态**（三档），⛔ 不是 `score` 原值。
+ * §3.3 要的是「你到第 14 手为止一直是必胜的」这条**故事线**；而 `|score|` 的锯齿
+ * （赢得早一子/晚一子）会让曲线看起来在剧烈震荡，**而胜负态其实一直没变**。
+ * ⚠ 一律画成**玩家视角**：`side` 是谁下的这一手 ⇒ 后手那几手要翻符号，
+ *   ⛔ 否则曲线会每一手上下横跳（那是「换了个人看」，不是局势在变）。
+ */
+function drawCurve(x, y, w, h, R) {
+  fillRR(x, y, w, h, 10, 'rgba(255,255,255,0.92)');
+  const n = R.labels.length;
+  if (!n) return;
+  const padX = 10, padY = 8;
+  const x0 = x + padX, w0 = w - padX * 2, y0 = y + padY, h0 = h - padY * 2;
+  // 中线 = 和棋
+  ctx.save();
+  ctx.strokeStyle = 'rgba(47,79,67,0.18)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(x0, y0 + h0 / 2); ctx.lineTo(x0 + w0, y0 + h0 / 2); ctx.stroke();
+  // ⭐ 玩家视角：人机局看 humanPlayer，双人局看先手位（0）
+  const me = G.g.mode === 'ai' ? C4State.humanPlayer(G.g) : 0;
+  const px = i => x0 + (n === 1 ? w0 / 2 : w0 * i / (n - 1));
+  const py = v => y0 + h0 / 2 - v * (h0 / 2 - 2);
+  ctx.beginPath();
+  for (let i = 0; i < n; i++) {
+    const e = R.labels[i];
+    const v = e.side === me ? e.to : -e.to;      // ⚠ 换成玩家视角（见上面那段 ⚠）
+    const X = px(i), Y = py(v);
+    if (i === 0) ctx.moveTo(X, Y); else ctx.lineTo(X, Y);
+  }
+  ctx.strokeStyle = '#3f7f66'; ctx.lineWidth = 2.5; ctx.lineJoin = 'round'; ctx.stroke();
+  // ⭐ 转折点打一个点（⛔ 只靠颜色区分不行 —— 这里是「位置 + 一个更大的点」双编码）
+  if (R.tp) {
+    const i = R.labels.findIndex(e => e.ply === R.tp.ply);
+    if (i >= 0) {
+      const e = R.labels[i];
+      const v = e.side === me ? e.to : -e.to;
+      ctx.beginPath(); ctx.arc(px(i), py(v), 5, 0, Math.PI * 2);
+      ctx.fillStyle = '#c2601f'; ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+function drawReview(L) {
+  const g = G.g;
+  const R = G.review || { labels: [], ready: false, done: 0, total: 0 };
+  const marg = L.tray.x, full = L.tray.w;
+  G.reviewBack = backButton(L);
+
+  // 标题（⚠ 给左上角那颗按钮让出宽度：长语言的标题会压上去）
+  const titleY = L.safeTop + 4 + 34 / 2;
+  fitTxt(T('game.review'), L.SW / 2, titleY, full - 160, C4Render.PAL.hudText, 'bold', fsz(19));
+
+  let y = L.safeTop + 56;
+  const why = reviewBlocked(g);
+  const line = (txt, size, color) => {
+    fitTxt(txt, L.SW / 2, y + 12, full - 20, color || C4Render.PAL.hudText, '600', fsz(size || 14));
+    y += 30;
+  };
+
+  // ⛔ 三种「不给复盘」的诚实分支（§2.4：降级必须**可见**，⛔ 绝不显示一个编出来的数字）
+  if (why) { line(why, 15, '#7a5b3a'); }
+  else if (!R.ready) {
+    // ⭐ 还在算 ⇒ **显示进度**，⛔ 不是禁用按钮、⛔ 也不是空白页
+    line(T('game.reviewWait', { n: R.done, t: R.total }), 15, '#5a6f66');
+  } else {
+    // ⭐ 精准度（只统计玩家那一侧；限时局里时钟代落的手要剔除 —— 那不是玩家下的）
+    const skip = C4State.timedOf(g) ? C4State.autoOf(g) : [];
+    const me = g.mode === 'ai' ? C4State.humanPlayer(g) : 0;
+    const acc = C4Review.accuracyOf(R.labels, { side: me, skipPlies: skip });
+    // ⛔ null = 没算过 ⇒ 如实说，**绝不显示成 0%**（那是谎报）
+    // ⭐⭐ 整块内容**垂直居中**于「标题下 ~ 按钮上」这段净空。
+    //   ⚠ 这是被截图改过的（2026-08-06）：第一版从顶上排下来 + 曲线定高
+    //   ⇒ 曲线下方留了 350 px 的**纯空白**，一屏里最显眼的东西是「什么都没有」。
+    //   ⛔ 别靠「把曲线拉到很高」去填满：一条折线拉伸到半屏只会显得空洞 ——
+    //     正解是内容成块居中，空白平分到上下。
+    const avail = (L.bottomLimit - bht(46) - 16) - y;
+    const curveH = Math.max(64, Math.min(300, Math.round(avail * 0.46)));
+    const nLines = 1 + (R.tp ? 2 : 1) + (G.brilliantCount > 0 ? 1 : 0);   // 精准度 + 转折点 + ✨
+    const contentH = curveH + 12 + nLines * 30;
+    y += Math.max(0, Math.round((avail - contentH) / 2));
+    // 精准度那一行要跟着一起居中 ⇒ 先退回去再画（⚠ line() 会把 y 往下推）
+    y -= 30;
+    line(acc === null ? T('game.accNone') : T('game.accLine', { n: acc }), 17);
+    drawCurve(marg, y, full, curveH, R);
+    y += curveH + 12;
+    // ⭐ 转折点 —— ⚠⚠ 措辞是**陈述事实**，⛔ 不指责（§3.3 死线）
+    if (R.tp) {
+      const best = bestColAt(g, R.tp.ply);
+      line(T('game.tpLine', { n: R.tp.ply + 1, c: R.labels.find(e => e.ply === R.tp.ply).col + 1 }), 14);
+      if (best >= 0) line(T('game.tpBetter', { c: best + 1 }), 14, '#3f7f66');
+    } else {
+      line(T('game.tpNone'), 14, '#5a6f66');
+    }
+    if (G.brilliantCount > 0) line(T('game.brilliantCount', { n: G.brilliantCount }), 14, '#8a5a12');
+  }
+
+  // ─── 按钮：［从这一步重来］+［再来一局］───
+  const rowH = bht(46), gap = 12;
+  const by = L.bottomLimit - rowH - 8;
+  if (!why && R.ready && R.tp) {
+    const w2 = (full - gap) / 2;
+    btn(marg, by, w2, rowH, T('game.replayFrom'), 'REPLAY_FROM', { ply: R.tp.ply },
+        { bg: C4Render.PAL.accent, size: 15 });
+    btn(marg + w2 + gap, by, w2, rowH, T('game.again'), 'AGAIN', {}, { bg: '#61776f', size: 15 });
+  } else {
+    btn(marg, by, full, rowH, T('game.again'), 'AGAIN', {}, { bg: '#61776f', size: 15 });
+  }
 }
 
 // ════════ 启动 ════════

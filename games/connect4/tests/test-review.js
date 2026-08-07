@@ -254,6 +254,48 @@ const RV = require('../js/review.js');
   console.log('test-review: ⑭ ⭐ 妙手判据（含必败局面不给 + 与 hintLevel1 同源）OK');
 }
 
+// ─────────── ⑮ ⭐ labelDetail：标签 + 胜负态迁移（P3 T5 复盘的输入）───────────
+{
+  // 必胜 → 和：掉一档
+  let d = RV.labelDetail({ 3: 5, 4: 0 }, 4);
+  assert.strictEqual(d.label, 'slip');
+  assert.strictEqual(d.from, RV.SIGN_WIN, 'from = 落子前「最好能到什么结果」');
+  assert.strictEqual(d.to, RV.SIGN_DRAW, 'to = 落这一列之后的结果');
+
+  // 走最优 ⇒ from === to
+  d = RV.labelDetail({ 3: 5, 4: 0 }, 3);
+  assert.strictEqual(d.label, 'best');
+  assert.strictEqual(d.from, d.to, '⭐ 走最优 ⇒ 胜负态没变');
+
+  // 必败局面：from === to === LOSS（⛔ 曲线不许在这里出现「下滑」）
+  d = RV.labelDetail({ 0: -5, 3: -3 }, 0);
+  assert.strictEqual(d.from, RV.SIGN_LOSS);
+  assert.strictEqual(d.to, RV.SIGN_LOSS);
+  assert.ok(d.label === 'best' || d.label === 'good');
+
+  // ⭐⭐ 与 labelOf **必须逐条一致**（⛔ 别写成两条独立的算法：标签与曲线一旦对不上，
+  //   复盘会说「这一手是失误」而曲线纹丝不动，两边看起来都合理）
+  for (const sa of [{ 3: 5, 4: 3 }, { 3: 5, 4: -3 }, { 3: 0, 4: -3 }, { 0: -5, 3: -9 }, { 1: 2, 5: 2 }]) {
+    for (const c of Object.keys(sa).map(Number)) {
+      assert.strictEqual(RV.labelDetail(sa, c).label, RV.labelOf(sa, c),
+        '⭐⭐ labelDetail 的标签必须与 labelOf 逐条相同');
+      const dd = RV.labelDetail(sa, c);
+      const drop = dd.from - dd.to;
+      const want = drop === 0 ? ['best', 'good'] : (drop === 1 ? ['slip'] : ['loss']);
+      assert.ok(want.indexOf(dd.label) >= 0,
+        '⭐ 掉档数(' + drop + ') 必须与标签(' + dd.label + ') 自洽');
+    }
+  }
+  // ⭐ 喂给 turningPoint 能直接用
+  const labels = [
+    Object.assign({ ply: 0, side: 0 }, RV.labelDetail({ 3: 5, 4: 3 }, 3)),
+    Object.assign({ ply: 2, side: 0 }, RV.labelDetail({ 3: 5, 4: 0 }, 4))
+  ];
+  const tp = RV.turningPoint(labels, { side: 0 });
+  assert.ok(tp && tp.ply === 2, '⭐ labelDetail 的输出直接喂 turningPoint 就能用');
+  console.log('test-review: ⑮ ⭐ labelDetail（标签+胜负态迁移，与 labelOf 逐条自洽）OK');
+}
+
 // ─────────── ⑩ ⛔⛔ 源码级红线：纯函数，零 IO ───────────
 // ⚠ 剥掉注释再查 —— 本文件与 review.js 的注释里都写着这些词，不剥的话恒红。
 {
