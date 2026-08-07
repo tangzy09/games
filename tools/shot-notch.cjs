@@ -14,7 +14,12 @@ const GAMES=[
                              {label:'help',  js:"dispatch('CLOSE_OVERLAY'); dispatch('OPEN_HELP'); renderAll();"}]},
   'snake','abyssshoot',
   {id:'blockblast', extras:[{label:'home', js:"G.phase='HOME'; renderAll();"}]},
-  {id:'solitaire', extras:[{label:'home', js:"G.seenIntro=1; G.phase='HOME'; renderAll();"}]}];
+  {id:'solitaire', extras:[{label:'home', js:"G.seenIntro=1; G.phase='HOME'; renderAll();"}]},
+  // ⚠ connect4 是 2026-08-06 才上线的第七个游戏，**一度漏在这张表外**（shot-fontscale
+  //   同样漏了它，那次直接放跑了一个字号档撑破布局的线上 bug）⇒ **新游戏上线必须同时
+  //   进这两张表**，否则「跨游戏门禁」名义上全绿、实际压根没看它。
+  {id:'connect4', extras:[{label:'learn', js:"G.phase='LEARN'; renderAll();"},
+                          {label:'stats', js:"G.phase='STATS'; renderAll();"}]}];
 
 function serve(){return new Promise((res,rej)=>{const srv=http.createServer((q,r)=>{
   let u=decodeURIComponent(q.url.split('?')[0]); if(u.endsWith('/'))u+='index.html';

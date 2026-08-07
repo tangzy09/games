@@ -140,7 +140,7 @@ location /snake/assets/angels/ { alias /var/www/games/games/snake/assets/angels/
 - ⚠ **新游戏唯一要注意的**：别绕开 `txt/txtL/txtR` 直接 `ctx.font = '12px …'` + `fillText`，
   那样的字不会被缩放。
 - ⛔ 上限只到 **1.3**：canvas 不自动换行，再大就撑破布局。
-- **验收**：`node tools/shot-fontscale.cjs`（五游戏 × 三档 + 断言存得住）。
+- **验收**：`node tools/shot-fontscale.cjs`（六游戏 × 三档 + 断言存得住）。
   ⛔ **「大字有没有撑破布局」机器判不了，必须逐张看图** —— 它一次抓出两个真 bug：
   minesweeper 主页两个并排按钮**宽度写死 92** ⇒ 大号档文字互相压（已改成按实际文字宽度自适应）；
   snake 主界面横向溢出 —— `zoom` 会把宽度一起放大，补偿容器宽度之后**子元素的 `vw` 又不随容器变**
@@ -177,8 +177,14 @@ location /snake/assets/angels/ { alias /var/www/games/games/snake/assets/angels/
    `safeTop + ctrlH + 8` 起，或整块左移。
 
 **验收工具（改顶部布局后必跑）**：`node tools/shot-notch.cjs` —— 模拟 iPhone 15 Pro
-（safeTop=59，同时注入 `--sat` 让 DOM 顶栏也进入模拟），五个游戏各截一张、顶部叠红色
-灵动岛区，**红带里不该有任何内容**。产物 `C:/tmp/notch-check/*.png`。
+（safeTop=59，同时注入 `--sat` 让 DOM 顶栏也进入模拟），六个游戏各截一张（有二级页的
+再多截几屏）、顶部叠红色灵动岛区，**红带里不该有任何内容**。产物 `C:/tmp/notch-check/*.png`。
+
+⛔⛔ **新游戏上线时，必须同时把自己加进 `tools/shot-notch.cjs` 和 `tools/shot-fontscale.cjs`
+的 `GAMES` 表**（2026-08-07 实锤）：这两个「跨游戏门禁」的清单是**手写的、不是自动发现**，
+connect4 上线时两张表都漏了它 ⇒ 门禁**全绿但压根没看它**，直接放跑了一个 A⁺⁺ 档文字互相压
+的线上 bug。⚠ 同一个陷阱在 `package.json` 的 `test` 串联里也存在（见上面「常用命令」节）
+—— 本仓一切「全部游戏都会跑」的东西都是手写清单，**新游戏一律去这三处登记**。
 
 **两条部署铁律**：
 1. **改任何 js/css 必须 bump 缓存版本**：该游戏 index.html 里所有 `?v=N` 统一 +1。忘了 = 老玩家拿到新旧混装的 JS。
