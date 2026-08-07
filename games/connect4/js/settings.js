@@ -102,7 +102,9 @@
       // ⭐ 十六课的完成情况压进一个整数的低 16 位（⛔ 别用数组：settings 的合并只认标量）
       lessonsMask: 0,
       // ⭐ 诊断标签累计（§5.3 「我的弱点」页直接读它们）
-      tagUnder: 0, tagMissFork: 0, tagOffCenter: 0, tagParity: 0
+      tagUnder: 0, tagMissFork: 0, tagOffCenter: 0, tagParity: 0,
+      // ⭐ 上一个插屏的时刻（§8 的「距上次 ≥2min」判据要它）。⚠ 0 = 还没出过。
+      lastAdAt: 0
     };
   }
 

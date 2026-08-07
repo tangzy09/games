@@ -2022,6 +2022,27 @@ function recordAccuracy() {
   if (G.accWasRecord) C4Settings.set('bestAcc', S.acc);
   C4Settings.set('bestAccN', (C4Settings.get('bestAccN') | 0) + 1);
   recordMeta();
+  maybeInterstitial();
+}
+
+/**
+ * ⭐⭐ 结算时该不该放插屏（§8）。⛔ 判据**只有 C4Shop.interstitial 一份**，
+ * ⛔ 别在这里再写一次「前 50 盘」——两份一漂，商店页上那句承诺就成了谎。
+ * ⚠ 与 recordMeta 同一时机（analysis 空闲那一刻）⇒ 已经过了结算动画，⛔ 不打断庆祝。
+ * ⛔⛔ 输局永不出 —— 那一条在 C4Shop 里是**第一道闸**，这里只是把 lost 如实传进去。
+ */
+function maybeInterstitial() {
+  const g = G.g;
+  if (!g) return;
+  const r = C4Shop.interstitial({
+    rounds: C4Settings.get('games') | 0,
+    lost: isLoss(),
+    now: nowMs(),
+    lastAt: C4Settings.get('lastAdAt') | 0
+  });
+  if (!r.show) return;
+  C4Settings.set('lastAdAt', Math.round(nowMs()));
+  try { Ads.showInterstitial(); } catch (e) { /* 广告失败绝不影响这一局 */ }
 }
 
 /**

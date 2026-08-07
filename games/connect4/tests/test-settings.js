@@ -39,7 +39,7 @@ const KEY = 'c4_settings';
     ['threatHints', 'reduceMotion', 'comfort', 'handicap', 'kids', 'faceToFace', 'timed',
      'bestAcc', 'bestAccN',
      'games', 'wins', 'winsNoHint', 'brilliants', 'lessonsMask',
-     'tagUnder', 'tagMissFork', 'tagOffCenter', 'tagParity']);
+     'tagUnder', 'tagMissFork', 'tagOffCenter', 'tagParity', 'lastAdAt']);
   console.log('test-settings: 默认 threatHints=true（新手默认开）OK');
 }
 

@@ -173,6 +173,29 @@ function serve() {
     ok(true, '⑥ 点返回真的回到 HOME');
   }
 
+  console.log('\n⑧ ⛔⛔ 变现闸门真的接对了（§8）');
+  {
+    // ⭐ 直接问**产品自己的**闸门（⛔ 不在门禁里复制一份判据）
+    const early = await page.evaluate(() => C4Shop.interstitial({
+      rounds: 3, lost: false, now: 9e9, lastAt: 0 }));
+    ok(early.show === false && early.why === 'freeRounds',
+      '⑧ ⭐ 前 50 盘零插屏（第 3 盘 ⇒ show=' + early.show + ' why=' + early.why + '）'
+      + ' —— 这是写进商店页的承诺');
+    // ⛔⛔ 输局永不出（把其余条件全部拉成「该放」）
+    const lost = await page.evaluate(() => C4Shop.interstitial({
+      rounds: 100, lost: true, now: 9e9, lastAt: 0 }));
+    ok(lost.show === false && lost.why === 'lost',
+      '⑧ ⛔⛔ 输局永不出插屏 —— 刚输完弹广告会把 §6.6「让输不疼」那一整节全部抵消');
+    // ⭐ 反向对照：同样条件下赢局该放（⛔ 否则上面两条可能只是「恒不放」的假绿）
+    const won = await page.evaluate(() => C4Shop.interstitial({
+      rounds: 100, lost: false, now: 9e9, lastAt: 0 }));
+    ok(won.show === true, '⑧ ⭐ 反向对照：同样条件下赢局该放（证明这把尺子量得动）');
+    // ⛔ 激励视频位里没有那四样永远免费的
+    const slots = await page.evaluate(() => C4Shop.REWARD_SLOTS.map(x => x.id));
+    ok(!slots.some(id => ['hint', 'review', 'undo', 'lesson'].some(k => id.indexOf(k) >= 0)),
+      '⑧ ⛔⛔ 激励视频位里没有 hint/review/undo/lesson（' + slots.join('/') + '）');
+  }
+
   console.log('\n⑦ ⛔⛔ 变现红线：课程与统计全程广告 = 0');
   {
     const ads = await page.evaluate(() => window.__ads);
