@@ -1,0 +1,16 @@
+{
+  "appId": "com.aispeeds.fourinarow",
+  "appName": "Four in a Row",
+  "webDir": "www",
+  "backgroundColor": "#0a7146",
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 800,
+      "backgroundColor": "#0a7146",
+      "showSpinner": false
+    },
+    "AdMob": {
+      "initializeForTesting": false
+    }
+  }
+}
