@@ -176,6 +176,20 @@
   /** ⭐ 外部条件可能变了（库刚装好 / Worker 刚活过来）⇒ 再泵一次。⛔ 别让积压的请求永远躺着。 */
   function kick() { pump(); }
 
+  // ⭐ 「这一局的活干完了」的监听。⚠ 存在的理由：**写纪录不能放在渲染函数里**
+  //   （renderAll 每帧都跑，往存储里写就是每帧一次 IO）。⇒ 由这里在**从忙变闲**那一刻通知一次。
+  const idleFns = [];
+  let wasBusy = false;
+  function onIdle(fn) { if (typeof fn === 'function') idleFns.push(fn); }
+  /** ⚠ 只在「刚刚还在忙、现在空了」那一拍触发（⛔ 别每次 pump 都喊：那等于每帧一次）。 */
+  function fireIdle() {
+    const busy = inflight || queue.length > 0;
+    if (wasBusy && !busy) {
+      for (const fn of idleFns) { try { fn(progress()); } catch (e) { /* 监听者的错不许弄死流水线 */ } }
+    }
+    wasBusy = busy;
+  }
+
   /** 队列泵。⭐ 一次只放一个在飞（判断①）。 */
   function pump() {
     if (inflight || !enabled() || !queue.length) return;
@@ -184,6 +198,7 @@
     const item = queue.shift();
     if (cache.has(item.key)) { pump(); return; }
     inflight = true;
+    wasBusy = true;                               // ⭐ 进入「忙」（onIdle 靠它判从忙变闲）
     const ep = epoch;                             // ⭐ 这一条属于哪一局（reset 会 +1）
     let p;
     try {
@@ -224,6 +239,7 @@
       if (ep !== epoch) return;
       if (r && r.scores) cache.set(item.key, r.scores);
       else if (r && r.terminal !== null && r.terminal !== undefined) cache.set(item.key, {});
+      fireIdle();                                 // ⭐ 干完了就通知一次（见 onIdle）
       // ⚠ 同上：让出一拍（宏任务）再泵，⛔ 别在 then 里同步递归（microtask 会饿死输入事件）
       pumpSoon();
     }, function (e) {
@@ -237,7 +253,7 @@
   }
 
   const API = {
-    attach, start, reset, onMove, request, get, progress, enabled, disabledReason, keyOf, kick
+    attach, start, reset, onMove, request, get, progress, enabled, disabledReason, keyOf, kick, onIdle
   };
   // 与其余模块同样冻结：挡住 `C4Analysis.get = () => ({})` 这类「复盘永远空着但页面正常」的误用。
   Object.freeze(API);

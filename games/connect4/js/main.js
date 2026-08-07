@@ -103,6 +103,10 @@ var G = {
   // ── ⭐ 复盘页（P3 T5 · DESIGN §3.3）──
   // ⭐ `review` 是**打开那一刻现算的快照**（⛔ 不进存档：它由 moves + 真值缓存随时重建）。
   review: null,          // { labels, ready, done, total, tp }
+  // ⭐ 这一局的精准度记进纪录了没有（⛔ 幂等用，别记两次）。⚠ 不进存档：它是「这一屏的事」。
+  accRecorded: false,
+  // ⭐ 记的那一刻它**是不是新高**（⛔ 别事后拿纪录反推：写进去之后就比不出来了）
+  accWasRecord: false,
   reviewBack: null,      // 上一帧返回键画在哪（只给 E2E 取样，⛔ 不是真值源）
   askRect: null,      // 上一帧确认条画在哪（只给 E2E 取样，⛔ 不是真值源）
   askRectF2F: null,   // 对坐模式下那条**旋转 180°** 的确认条画在哪（同上）
@@ -655,6 +659,7 @@ function goHome() {
   G.phase = 'HOME'; G.g = null; G.result = null; G.hoverCol = -1; G.holdCol = -1; G.notice = '';
   G.coin = false; G.coinAnim = false; G.undoAsk = null; G.hint = null;
   G.brilliantNote = null; G.brilliantCount = 0; G.lastBrilliant = null; _brilliantPly = -99;
+  G.review = null; G.accRecorded = false; G.accWasRecord = false;
   // ⭐ 表停掉（⛔ 别让一个 100 ms 的 interval 在 HOME 上空转 —— 与 fxStop 里那条 rAF 同源）
   G.autoNote = null; G.coinUntil = 0; stopClock();
   // ⭐ 上一局的真值不许漏进下一局（缓存 key 里没有「哪一局」这一维，靠 reset 划界）
@@ -761,6 +766,7 @@ function startGame(mode, tier) {
   G.autoNote = null; G.hint = null;
   // ⭐ 妙手计数是**这一局**的（⛔ 上一局的 ✨ 不许漏进新一局）
   G.brilliantNote = null; G.brilliantCount = 0; G.lastBrilliant = null; _brilliantPly = -99;
+  G.review = null; G.accRecorded = false; G.accWasRecord = false;
   // ⭐ 儿童档只对人机局成立（双人局那一侧的答案是让子，T1）。⚠ 档位由 state.js 说了算，
   //   ⛔ 这里不许自己写 `tier = 1`：两份判据漂了就会出现「界面写儿童档、开的是别的级」。
   const kids = mode === 'ai' && kidsPref();
@@ -1921,15 +1927,72 @@ function drawSettleStats(x, y, w, h) {
   ctx.moveTo(x + half, y + 8); ctx.lineTo(x + half, y + h - 8);
   ctx.strokeStyle = C4Render.PAL.hudEdge; ctx.lineWidth = 1; ctx.stroke();
   ctx.restore();
-  const cell = (cx, label) => {
+  // ⭐ P3 T6：填真内容。⚠ 算不出来时**照旧显示占位符 —**，⛔ 绝不显示 "0%"
+  //   （那会被读成「你这局 0 分」，是编出来的信息 —— §2.4）。
+  const S = settleStats();
+  const cell = (cx, label, val, hi) => {
     fitTxt(label, cx, y + h * 0.33, half - 18, C4Render.PAL.hudSub, 'normal', fsz(11));
-    fitTxt(SETTLE_PENDING, cx, y + h * 0.71, half - 18, C4Render.PAL.hudText, 'bold', fsz(16));
+    fitTxt(val, cx, y + h * 0.71, half - 18, hi ? '#c2601f' : C4Render.PAL.hudText, 'bold', fsz(16));
   };
-  cell(x + half / 2, T('game.accuracy'));
-  cell(x + half * 1.5, T('game.turningPoint'));
+  cell(x + half / 2, T('game.accuracy'),
+       S.acc === null ? SETTLE_PENDING : (S.acc + '%' + (S.best ? ' ★' : '')), S.best);
+  cell(x + half * 1.5, T('game.turningPoint'),
+       S.tpPly === null ? SETTLE_PENDING : T('game.moveN', { n: S.tpPly + 1 }));
 }
 /** 占位符：⛔ 别换成 "0%" / "—%"（会被读成「你这局 0 分」，那是编出来的信息）。 */
 const SETTLE_PENDING = '—';
+
+/**
+ * ⭐ 结算屏那条数据条上的两个数（P3 T6 · DESIGN §4）。
+ * @returns { acc, tpPly, best } —— acc/tpPly 为 **null = 算不出来**（⛔ 不是 0）
+ * ⚠ **纯读**：⛔ 不写存储（renderAll 每帧都跑，写就是每帧一次 IO）——
+ *   纪录由 `recordAccuracy()` 在 analysis 空闲那一刻写一次（见 boot 里的 onIdle）。
+ */
+function settleStats() {
+  const g = G.g;
+  const out = { acc: null, tpPly: null, best: false };
+  if (!g || !C4Analysis.enabled()) return out;
+  const R = buildReview(g);
+  if (!R.ready) return out;
+  const me = g.mode === 'ai' ? C4State.humanPlayer(g) : 0;
+  // ⛔ 限时局里**时钟代落的那几手不是玩家下的** ⇒ 从精准度里剔除（§6.10）
+  const skip = C4State.timedOf(g) ? C4State.autoOf(g) : [];
+  out.acc = C4Review.accuracyOf(R.labels, { side: me, skipPlies: skip });
+  const tp = C4Review.turningPoint(R.labels, { side: me });
+  out.tpPly = tp ? tp.ply : null;
+  // ⭐ 「这是你的新高」——⚠ 限时局不参与纪录（§6.10 白纸黑字），所以也不标 ★
+  // ⚠⚠ **记过之后要读「当时是不是新高」这个事实**，⛔ 不能再拿现在的纪录去比：
+  //   recordAccuracy 把 49 写进纪录之后，`49 > 49` 就是假 ⇒ ★ 会在写入那一刻**自己消失**
+  //   （截图实测，2026-08-06）。玩家看到的恰恰是写入之后的那一屏。
+  out.best = out.acc !== null && !C4State.timedOf(g)
+             && (G.accRecorded ? !!G.accWasRecord : accIsRecord(out.acc));
+  return out;
+}
+
+/** 这个分数算不算新高。⚠ 判「有没有纪录」看 bestAccN，⛔ 不是 `bestAcc > 0`。 */
+function accIsRecord(acc) {
+  const n = C4Settings.get('bestAccN') | 0;
+  return n === 0 || acc > (C4Settings.get('bestAcc') | 0);
+}
+
+/**
+ * ⭐ 把这一局的精准度记进纪录。**只在 analysis 空闲那一刻调一次**（⛔ 不在渲染里）。
+ * ⛔ 三种局不计入：限时局（§6.10）· 让子局（算不出真值）· 还没算完的。
+ * ⚠ 幂等：靠 G.accRecorded 挡住同一局记两次。
+ */
+function recordAccuracy() {
+  const g = G.g;
+  if (!g || G.phase !== 'OVER' || G.accRecorded) return;
+  if (C4State.timedOf(g)) return;                 // ⛔ 限时局不计入纪录（时间压力下的失误不该污染棋力统计）
+  if (!C4Analysis.enabled()) return;              // 让子局 / 求解器不可用
+  const S = settleStats();
+  if (S.acc === null) return;                     // 还没算完 ⇒ 等下一次 idle
+  G.accRecorded = true;
+  // ⭐ 把「当时是不是新高」记下来（见 settleStats 里那段 ⚠⚠）
+  G.accWasRecord = accIsRecord(S.acc);
+  if (G.accWasRecord) C4Settings.set('bestAcc', S.acc);
+  C4Settings.set('bestAccN', (C4Settings.get('bestAccN') | 0) + 1);
+}
 
 /**
  * ⭐⭐ 儿童档「赢了大撒花」（DESIGN §6.7 的第三条）。
@@ -2452,6 +2515,9 @@ async function boot() {
   // ⭐ 边打边算（P3 T2）用的就是同一个 Worker 门面。⚠ 注入而不是让 analysis.js 自己去取，
   //   是为了让它在 node 门禁里能塞一个假 client（那里要钉的是**调度**，不是求解器）。
   C4Analysis.attach(EngineClient);
+  // ⭐ 「这一局的活干完了」⇒ 记一次纪录 + 重画（进度/精准度这时才有得显示）。
+  //   ⛔ 写存储绝不能放渲染里（renderAll 每帧都跑 = 每帧一次 IO）——这就是 onIdle 存在的理由。
+  C4Analysis.onIdle(() => { recordAccuracy(); renderAll(); });
 
   // ⭐ 首屏**不 await** 引擎：让玩家先看见界面（DESIGN §9.2）。
   // ⭐ 引擎状态一变就 kick 一下边打边算：**开局库到位的那一刻**正是它该开工的时刻

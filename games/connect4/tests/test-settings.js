@@ -36,7 +36,8 @@ const KEY = 'c4_settings';
   assert.notStrictEqual(S.defaults(), S.defaults(), 'defaults() 必须每次给新对象（⛔ 别共享常量）');
   assert.ok(Object.isFrozen(S.DEFAULTS), 'DEFAULTS 必须冻结');
   assert.deepStrictEqual(S.KEYS.slice(),
-    ['threatHints', 'reduceMotion', 'comfort', 'handicap', 'kids', 'faceToFace', 'timed']);
+    ['threatHints', 'reduceMotion', 'comfort', 'handicap', 'kids', 'faceToFace', 'timed',
+     'bestAcc', 'bestAccN']);
   console.log('test-settings: 默认 threatHints=true（新手默认开）OK');
 }
 
@@ -117,6 +118,35 @@ const KEY = 'c4_settings';
   assert.strictEqual(S.parse('{"faceToFace":true}').faceToFace, true, '合法值原样读回');
   assert.strictEqual(S.parse('{"faceToFace":"true"}').faceToFace, false, '脏类型 ⇒ 退回默认');
   console.log('test-settings: ⭐ 对坐模式（默认关 + 布尔校验 + 持久化）OK');
+}
+
+// ─────────── ①g ⭐ P3 Task 6：最高精准度纪录（DESIGN §4）───────────
+// ⚠ 它是**跨局的玩家纪录**，放设置这一侧 ⇒ ⛔ 不必 bump SAVE_VERSION。
+{
+  assert.strictEqual(S.DEFAULTS.bestAcc, 0, '默认没有纪录');
+  assert.strictEqual(S.DEFAULTS.bestAccN, 0, '默认打过 0 局');
+  assert.throws(() => S.set('bestAcc', 'x'), /类型/);
+  // ⭐⭐ 持久化只走**非默认**方向（⛔ 别断言「刷新后仍是 0」——字段没进 defaults 时那条照样绿）
+  {
+    const store = {};
+    S.attach(fakeBackend(store), KEY);
+    S.set('bestAcc', 91); S.set('bestAccN', 3);
+    assert.strictEqual(JSON.parse(store[KEY]).bestAcc, 91, '必须立刻落盘');
+    S.attach(fakeBackend(store), KEY);                  // 「刷新页面」
+    assert.strictEqual(S.get('bestAcc'), 91, '⭐⭐ 纪录没活过一次刷新（十有八九是字段没进 defaults）');
+    assert.strictEqual(S.get('bestAccN'), 3);
+  }
+  // ⭐ 「0 是合法纪录」与「还没有纪录」必须分得开 —— 判据是 bestAccN，⛔ 不是 bestAcc > 0
+  {
+    const store = {};
+    S.attach(fakeBackend(store), KEY);
+    S.set('bestAcc', 0); S.set('bestAccN', 1);
+    S.attach(fakeBackend(store), KEY);
+    assert.strictEqual(S.get('bestAcc'), 0);
+    assert.strictEqual(S.get('bestAccN'), 1,
+      '⭐ 打过一局但精准度 0 ⇒ bestAccN=1 ⇒ 有纪录（⛔ 用 bestAcc>0 判会说成「还没打过」）');
+  }
+  console.log('test-settings: ①g ⭐ 最高精准度纪录（默认 0 / 持久化非默认方向 / 0 与「没纪录」分得开）OK');
 }
 
 // ─────────── ①f ⭐⭐ P2c Task 5：限时模式（DESIGN §6.10）───────────

@@ -38,6 +38,7 @@
             "engineSlow": "Opening book unavailable: this level would take minutes per move, so it is paused",
             "offHandicap": "This game has a head start — no exact review",
             "offEngine": "Engine unavailable on this device — no exact review",
+            "moveN": "Move {n}",
             "back": "Back",
             "accLine": "Accuracy {n}%",
             "accNone": "No exact score for this game",
