@@ -12,6 +12,8 @@ const SITES = [
   ['abyssshoot',  'https://fishshoot.ai-speeds.com/'],
   ['blockblast',  'https://blocks.ai-speeds.com/'],
   ['solitaire',   'https://cards.ai-speeds.com/'],
+  // ⭐ 第七个站（2026-08-07 上线）。⚠ 对外一律叫 Four in a Row —— ⛔ 商标词一个字都不许出现。
+  ['connect4',    'https://four.ai-speeds.com/'],
 ];
 
 (async () => {
@@ -54,6 +56,6 @@ const SITES = [
     await page.close();
   }
   await browser.close();
-  console.log(fails ? `\n✕ ${fails} 个站点有问题` : '\n✓ 五个站点线上都正常');
+  console.log(fails ? `\n✕ ${fails} 个站点有问题` : '\n✓ 六个站点线上都正常');
   process.exit(fails ? 1 : 0);
 })();
