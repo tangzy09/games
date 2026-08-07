@@ -26,7 +26,11 @@ fs.mkdirSync(WWW, { recursive: true });
 
 copyDir(path.join(ROOT, 'engine'), path.join(WWW, 'engine'));
 // 游戏静态目录:有哪个拷哪个(mines 没有 css/,snake 有)
-for (const dir of ['js', 'css', 'assets', 'locales', 'fonts']) {
+// ⚠ 'data' 是 connect4 加的（3.6 MB 开局库）。⛔ 漏了它出包会是**静默**的灾难：
+//   页面照常起、AI 却在玩家落第一子后永久停摆，而提示/复盘/精准度/妙手/课程
+//   全部因为 analysis 的 bookOk() 闸而**什么都不显示**，一处报错都没有。
+//   ⚠ 其它游戏没有 data/ 目录 ⇒ 下面的 existsSync 会跳过，对它们是 no-op。
+for (const dir of ['js', 'css', 'assets', 'locales', 'fonts', 'data']) {
   const src = path.join(GAME, dir);
   if (fs.existsSync(src)) copyDir(src, path.join(WWW, dir));
 }
@@ -54,6 +58,51 @@ if (out.includes('../../engine/')) throw new Error('engine path rewrite failed')
 for (const f of ['engine/canvas.js', 'js/main.js', 'locales/en.json']) {
   if (!fs.existsSync(path.join(WWW, f))) throw new Error('missing in www: ' + f);
 }
+// ⭐⭐ 自校验:**代码 fetch 的相对路径,其顶层目录必须真的进了包**。
+//   ⚠ 这条是 2026-08-07 的 code review 抓出来的一整类静默失败:
+//     · connect4 的 data/book-classic.bin(3.6 MB 开局库)不在拷贝清单里 ⇒ 出包后
+//       AI 在玩家落第一子后永久停摆,提示/复盘/精准度/妙手/课程全部什么都不显示;
+//     · solitaire 的 data/pool-draw*.json(可解池,它的核心卖点)同样漏了,而
+//       pool.js 的 fetch 外面就是 catch(e){} ⇒ **三个已上架版本都在静默降级**。
+//   两次都是「本地全绿、包里没有」——⛔ 没有任何一条既有测试碰得到它。
+{
+  const jsDir = path.join(GAME, 'js');
+  const refs = new Set();
+  if (fs.existsSync(jsDir)) {
+    for (const fn of fs.readdirSync(jsDir).filter(x => x.endsWith('.js'))) {
+      // ⚠ **必须剥掉注释再扫**：本仓注释里到处是「见 tools/gen-sfx.js」这类**文档路径**，
+      //   不剥的话它们会被当成运行时资源，报一堆 tools/ 不在包里的误报（实测 connect4
+      //   与 blockblast 都中）。同 test-threats/test-review 的源码级检查那条老做法。
+      const src = fs.readFileSync(path.join(jsDir, fn), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+      // ⚠ 两种写法都要扫，⛔ 只扫 fetch( 是不够的：
+      //   · solitaire 直接 `fetch('data/pool-draw1.json')`
+      //   · connect4 在 worker 里写成常量 `const BOOK_URL = '../data/book-classic.bin'`
+      //     再交给 Book.load() —— 只扫 fetch( 的话**它一个都抓不到**，而它正是
+      //     3.6 MB 开局库那条（本条门禁的头号目标）。
+      //   ⇒ 扫所有**看起来像相对资源路径的字符串字面量**（带 / 且带扩展名）。
+      const RE = /[`'"]((?:\.\.\/)*[A-Za-z0-9_-]+\/[^`'"()\s]*\.[A-Za-z0-9]{2,5})[`'"]/g;
+      for (const m of src.matchAll(RE)) {
+        const p = m[1];
+        if (/^(https?:)?\/\//.test(p) || p.startsWith('/')) continue;   // 绝对/跨域的不管
+        // ⚠ 去掉开头的 ../（worker 在 js/ 下，路径是相对它自己的）
+        const rel = p.replace(/^(\.\.\/)+/, '');
+        const top = rel.split('/')[0];
+        // ⛔ engine/ 由上面的 copyDir 整份带上，js/ 是自己 ⇒ 不必查
+        if (top && top !== 'engine' && top !== 'js' && rel.includes('/')) refs.add(top);
+      }
+    }
+  }
+  for (const dir of refs) {
+    if (!fs.existsSync(path.join(WWW, dir))) {
+      throw new Error('代码 fetch 了 ' + dir + '/ 但它没进 www —— '
+        + '把它加进上面那个拷贝清单,或给游戏 package.json 加 wwwExtras。'
+        + '⛔ 这类漏拷在包里是**静默失效**(fetch 404 常被 catch 吞掉)');
+    }
+  }
+  if (refs.size) console.log('fetch 依赖的目录都在包里:', [...refs].join(', '));
+}
+
 // 共享 UI 图标库(engine/assets/ui/)必须整份进包 —— 它是 engine 的一部分,靠上面那次
 // copyDir(engine) 自动带上。⚠ 但页面里的图标路径是**运行时**由 engine/ui-icons.js
 // 从脚本标签反推的(网页 ../../engine/ vs 包内 engine/),路径错了不会报错、只会满屏
