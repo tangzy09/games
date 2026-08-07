@@ -25,6 +25,7 @@
     "test:c4:p2c": "node games/connect4/tests/e2e-p2c-t1.cjs && node games/connect4/tests/e2e-p2c-t2.cjs && node games/connect4/tests/e2e-p2c-t3.cjs && node games/connect4/tests/e2e-p2c-t4.cjs && node games/connect4/tests/e2e-p2c-t5.cjs",
     "test:c4:p3": "node games/connect4/tests/e2e-p3-t2.cjs && node games/connect4/tests/e2e-p3-t3.cjs && node games/connect4/tests/e2e-p3-t4.cjs && node games/connect4/tests/e2e-p3-t5.cjs && node games/connect4/tests/e2e-p3-t6.cjs",
     "test:c4:p45": "node games/connect4/tests/e2e-p45.cjs",
+    "test:c4:stats": "node games/connect4/tests/e2e-stats-record.cjs",
     "bench:c4review": "node games/connect4/tools/bench-review.js",
     "gen:c4sfx": "node games/connect4/tools/gen-sfx.js",
     "gen:c4book": "node games/connect4/tools/gen-book.js --ply=10",

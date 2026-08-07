@@ -59,6 +59,10 @@ var G = {
   //   ⛔ 它**不是**一把输入锁：结算的按钮从终局第一帧就注册了热区、全程点得动
   //     （本仓铁律，e2e-p2b 用真实鼠标钉死）。它只决定「那一刻画面上谁最显眼」。
   overReady: false,
+  // ⭐ adPending = 「这一局该放的插屏欠着，等庆祝演完再放」（⛔ 不进存档：纯这一屏的时序状态）。
+  //   ⚠ 存在的理由：记账现在从 checkOver 就进一次（让子/儿童档那两种局根本没有 onIdle），
+  //     而那一刻连线才刚开始画 —— 直接放插屏就是**盖在庆祝上**（§6.5）。
+  adPending: false,
   overAt: 0,          // 实测用：判出终局的时刻（ms）
   readyAt: 0,         // 实测用：主 CTA 拿到焦点态的时刻 ⇒ 两者之差就是 §6.5 那 5 秒的量法
   // ── 威胁高亮（P2b T4 · DESIGN §6.4）──
@@ -510,6 +514,8 @@ function markOverReady() {
   if (G.overReady || G.phase !== 'OVER') return;
   G.overReady = true;
   G.readyAt = nowMs();
+  // ⭐ 庆祝演完了 ⇒ 把挂起的插屏补放（见 recordAccuracy 末尾那段 ⛔）。
+  if (G.adPending) { G.adPending = false; maybeInterstitial(); }
   renderAll();
 }
 
@@ -572,6 +578,8 @@ function fxStop() {
   //   它再触发就会在**另一局**上叫醒 AI。⚠ 里面还有一道 aiSeq 校验，两层都要有。
   clearCoinTimer();
   G.overReady = false;
+  // ⛔ 挂起的插屏一起清：撤销/换局之后它再放出来，就是**上一局**欠的那个广告砸在新局面上。
+  G.adPending = false;
   C4Fx.reset();
 }
 
@@ -881,6 +889,13 @@ function checkOver() {
   //   ⛔ 也别留着 interval 空转 —— 同 fxStop 里那条 rAF 的纪律。
   syncClock();
   startWinFx();         // ⭐ 赢的那 3 秒（⚠ 此刻赢的那一枚通常**还在飞**，lead 就是等它落地）
+  // ⭐⭐ 记账**必须也从这里进一次**（2026-08-07 记账门禁 e2e-stats-record 当场抓到）：
+  //   recordAccuracy 原来**只挂在 C4Analysis.onIdle 上**，而 onIdle 只在「从忙变闲」那一拍响。
+  //   ⇒ 让子局 / 儿童档（= 让 2 子）里边打边算是**整个关掉**的，一个请求都不发 ⇒ 永远不忙
+  //     ⇒ onIdle 一次都不触发 ⇒ **那个函数压根没被调到**，里面写得再对也没用。
+  //   ⚠ 这不是重复记账：recordAccuracy 自己用 `G.accRecorded` 去重，而且**算得分的局**
+  //     在这一刻精准度还没算完 ⇒ 它会早退且**不置** accRecorded，照旧等 onIdle 那一趟。
+  recordAccuracy();
   setThinking(false);   // ⚠ 放最后：它会重画一帧，前面的字段得先摆好
   return true;
 }
@@ -2064,7 +2079,11 @@ function recordAccuracy() {
   }
   // ⭐ 这两条**无条件**跑：限时局/让子局也是真的打了一局。
   recordMeta();
-  maybeInterstitial();
+  // ⛔ 插屏绝不许打断庆祝（§6.5 那 1.5 秒）。⚠ 记账现在也从 checkOver 进（见那里的 ⭐⭐），
+  //   那一刻连线才刚开始画 ⇒ 直接放就是**盖在庆祝上**。⇒ 没演完就挂起，由 markOverReady 补放。
+  //   ⚠ 顺序不能反：maybeInterstitial 读的 `rounds` 就是 recordMeta 刚 +1 的那个 games。
+  if (G.overReady) maybeInterstitial();
+  else G.adPending = true;
 }
 
 /**
