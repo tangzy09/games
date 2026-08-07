@@ -94,6 +94,12 @@ var G = {
   //   level: 0 没按 / 1 只说关不关键（不剧透）/ 2 指出走哪列 + 一句机械导出的理由
   hint: null,         // { ply, level, kind, safe, total, col, reason, pending, why }
   hintRect: null,     // 上一帧提示条画在哪（只给 E2E 取样，⛔ 不是真值源）
+  // ── ⭐ 妙手 ✨（P3 T4 · DESIGN §3.4）──
+  // ⭐ 计数与最近一次**只给 E2E / 调试看**（⛔ 不是真值源：妙手是 (真值, 落子) 的纯函数，
+  //   随时现算得出来 ⇒ ⛔ 不进存档、不必 bump SAVE_VERSION）。
+  brilliantCount: 0,
+  lastBrilliant: null,   // { ply, col, player }
+  brilliantNote: null,   // { until, col } —— 盘下那行 ✨ 还该不该画
   askRect: null,      // 上一帧确认条画在哪（只给 E2E 取样，⛔ 不是真值源）
   askRectF2F: null,   // 对坐模式下那条**旋转 180°** 的确认条画在哪（同上）
   // ── ⭐ 限时模式（P2c T5 · DESIGN §6.10）──
@@ -644,6 +650,7 @@ function goHome() {
   G.aiSeq++; setThinking(false); fxStop(); resetFork();
   G.phase = 'HOME'; G.g = null; G.result = null; G.hoverCol = -1; G.holdCol = -1; G.notice = '';
   G.coin = false; G.coinAnim = false; G.undoAsk = null; G.hint = null;
+  G.brilliantNote = null; G.brilliantCount = 0; G.lastBrilliant = null; _brilliantPly = -99;
   // ⭐ 表停掉（⛔ 别让一个 100 ms 的 interval 在 HOME 上空转 —— 与 fxStop 里那条 rAF 同源）
   G.autoNote = null; G.coinUntil = 0; stopClock();
   // ⭐ 上一局的真值不许漏进下一局（缓存 key 里没有「哪一局」这一维，靠 reset 划界）
@@ -748,6 +755,8 @@ function startGame(mode, tier) {
   G.aiSeq++; setThinking(false); fxStop(); resetFork();
   G.result = null; G.hoverCol = -1; G.holdCol = -1; G.notice = ''; G.undoAsk = null;
   G.autoNote = null; G.hint = null;
+  // ⭐ 妙手计数是**这一局**的（⛔ 上一局的 ✨ 不许漏进新一局）
+  G.brilliantNote = null; G.brilliantCount = 0; G.lastBrilliant = null; _brilliantPly = -99;
   // ⭐ 儿童档只对人机局成立（双人局那一侧的答案是让子，T1）。⚠ 档位由 state.js 说了算，
   //   ⛔ 这里不许自己写 `tier = 1`：两份判据漂了就会出现「界面写儿童档、开的是别的级」。
   const kids = mode === 'ai' && kidsPref();
@@ -858,6 +867,7 @@ function applyMove(col, auto) {
   // ⚠ 落点与执子方必须在 play **之前**读：落完盘面就变了，那时候 h[col] 已经加过一。
   //   ⭐ 这个 row 直接就是落定音的编号（land0 = 最底行 = 最低音，DESIGN §6.3）。
   const bdBefore = C4State.boardOf(G.g);      // ⭐ T5 的双威胁判据要「落子之前」那一份
+  const movesBefore = G.g.moves.slice();      // ⭐ P3 T4：妙手判据要「落子之前」那份手数列表
   const row = C4Render.landingRow(bdBefore, col);
   const player = C4State.turnOf(G.g);
   G.g = auto ? C4State.playAuto(G.g, col) : C4State.play(G.g, col);
@@ -879,6 +889,9 @@ function applyMove(col, auto) {
   C4Analysis.onMove(G.g);
   // ⭐ 上一手的提示当场过期（⛔ 别让它挂在这一手上 —— 那是「看起来完全合法」的错答案）
   expireHint();
+  // ⭐ 妙手 ✨（§3.4）。⚠ 必须在 onMove **之后**（那一手的真值可能刚被排进来）、
+  //   在 checkOver **之前**（终局那一手同样可以是妙手）。⛔ 它只读缓存、绝不等待。
+  maybeBrilliant(movesBefore, col);
   const over = checkOver();
   renderAll();
   if (!over) maybeAI();
@@ -1015,6 +1028,70 @@ function askHint() {
   G.hint = h;
   renderAll();
 }
+
+// ════════ ⭐ 妙手 ✨（P3 Task 4 · DESIGN §3.4）════════
+//
+// §3.4：「只有 1 列不输、而你找到了 ⇒ 当场弹 ✨妙手。成本几乎为零（数据已在算），
+//   但它把『我下了步好棋』变成**可量化、可炫耀的事件**。」
+//
+// ⭐⭐ 判据只有 `C4Review.isBrilliant` 一份（= hintLevel1 那一个）⇒ ⛔ 这里不再判一次。
+//
+// ⭐⭐ ─── 时机：这是本 task 唯一的难点（§9.2 点名过）───
+//   真值来自边打边算。**n ≥ 16 段实测几乎全是 0 ms** ⇒ 落完子那一刻真值多半**已经在缓存里**
+//   ⇒ 当场弹，爽感全在。而 n ≤ 15 可能还没算到 —— §9.2 的裁定是 ⛔ **别等**：
+//   等 1.7 秒会让 ✨ 弹在玩家下一手都想好之后，**爽点全丢**。
+//   ⇒ 判据写成一句话：**缓存里现在有就判，没有就不判**（⛔ 不发请求、⛔ 不排队、⛔ 不等待）。
+//     漏掉的那些由**赛后复盘**一次性兑现（那时整局的真值本来就都算完了）——
+//     ⚠ 两条路读的是**同一个** isBrilliant，⛔ 别写两份（两份一漂，局中弹了 3 个、
+//       结算说 2 个，而没人看得出是哪边错了）。
+//
+// ⚠ 妙手**不进存档**：它是 (局面真值, 实际落子) 的纯函数 ⇒ 随时现算得出来
+//   ⇒ ⛔ 不必 bump SAVE_VERSION，也不会有「存了但和现算对不上」这种病。
+
+/** 冷却：连着好几手都是「唯一解」是真会发生的（残局尤其），⛔ 别让 ✨ 刷屏。 */
+const BRILLIANT_MIN_GAP = 2;
+let _brilliantPly = -99;
+
+/**
+ * ⭐ 刚落的那一手是不是妙手 —— **只在真值已经在缓存里时判**（见上面那段 ⭐⭐）。
+ * @param movesBefore 落子**之前**的手数列表
+ * @param col 落的列
+ */
+function maybeBrilliant(movesBefore, col) {
+  const g = G.g;
+  if (!g || !C4Analysis.enabled()) return;
+  const sa = C4Analysis.get(movesBefore);
+  if (!sa) return;                          // ⛔ 还没算到 ⇒ **不等**（赛后复盘兑现）
+  let good = false;
+  try { good = C4Review.isBrilliant(sa, col); }
+  catch (e) { return; }                     // 终局/脏数据 ⇒ 静默跳过（⛔ 别为一个特效炸掉一局）
+  if (!good) return;
+  const ply = movesBefore.length;
+  if (ply - _brilliantPly < BRILLIANT_MIN_GAP) return;
+  _brilliantPly = ply;
+  G.brilliantCount++;
+  G.lastBrilliant = { ply: ply, col: col, player: ply % 2 === 0 ? 0 : 1 };
+  startBrilliantFx(col);
+}
+
+/**
+ * ⭐ 妙手的表现：盘下那条上打一行 ✨ + 复用 P2b-T5 的 `fork` 音。
+ * ⚠⚠ **没有用 `C4Fx.startFork` 的光环**，理由是实测出来的：它的 `normLine` 要求 **≥2 个点**
+ *   （那是「双威胁」的形状：两个格子）——而妙手是**一格**。硬传一格会被静默判成非法形状
+ *   （返回 null、什么都不画、零报错）；凑第二个点则是**画一条语义错误的线**。
+ *   ⇒ 要真做单格光环得动 `fx.js`（它有 dt 幂等等严格契约 + 自己的门禁）——那是打磨，
+ *     ⛔ 不值得为它冒险，也 ⛔ 不许为了「有个动画」去传一个假形状。
+ * ⚠ 音效不吃减弱动态（§6.8 关的是**运动**，⛔ 不是信息与声音）。
+ */
+function startBrilliantFx(col) {
+  // ⭐ 妙手有**自己的音**（A5→E6→A6，收尾单音长鸣）。⛔ 别借 fork 的：
+  //   双威胁 = 两条路（收尾两个音同响），妙手 = 唯一解（收尾一个音）—— 声音本身说清了两件事；
+  //   而且借用会污染 e2e-p2b-t5 那条「fork 音恰好响一次」的门禁（2026-08-06 实锤）。
+  Sfx.play('brilliant');
+  G.brilliantNote = { until: nowMs() + BRILLIANT_NOTE_MS, col: col };
+}
+/** ✨ 那一行留多久（与「时间到」那条归因同一个量级）。 */
+const BRILLIANT_NOTE_MS = 2600;
 
 /** 落这一列之后，**对方**原本的双威胁是不是没了。⛔ 零搜索（同 threats.js 的红线）。 */
 function forkBlocked(bd, col, me) {
@@ -1946,8 +2023,13 @@ function drawPlay(L) {
   //   ⛔ 它不读任何已经画出去的东西，提前算逐位不变。
   // ⭐ 提示条只在对局中、且**真的按出了内容**时占位（⛔ 没按提示时一个像素都不占）
   expireHint();
-  const showHint = G.phase === 'PLAYING' && !!G.hint && !G.undoAsk;
-  const plan = trayPlan(L, G.phase === 'OVER', showHint);
+  // ⭐ 妙手那行 ✨ 到点自己撤（⛔ 别赖在屏幕上：下一手开始之后它就不是「现在发生的事」了）
+  if (G.brilliantNote && nowMs() >= G.brilliantNote.until) G.brilliantNote = null;
+  // ⚠ 两者共用盘下那一条（⛔ 别为 ✨ 再发明一块几何）。⭐ 妙手**压过**提示：
+  //   它是刚刚发生的事，而提示是玩家几秒前按的。
+  const showBrilliant = G.phase === 'PLAYING' && !!G.brilliantNote && !G.undoAsk;
+  const showHint = G.phase === 'PLAYING' && !!G.hint && !G.undoAsk && !showBrilliant;
+  const plan = trayPlan(L, G.phase === 'OVER', showHint || showBrilliant);
   const gap = plan.gap, rowH = plan.rowH;
 
   // ⭐⭐ 对坐模式（P2c T3 · §6.7）：盘上方那条**旋转 180°** 的第二 HUD —— 给坐在对面
@@ -2035,8 +2117,8 @@ function drawPlay(L) {
   } else {
     // ⭐ 提示条（§3.2）画在按钮行**上方** —— 紧挨着按出它的那颗按钮。
     //   ⚠ plan.hintH 为 0 = 这一屏实在放不下（最窄屏 + 舒适模式）⇒ 不画，⛔ 但按钮照旧在。
-    if (showHint && plan.hintH) {
-      G.hintRect = drawHintBar(marg, ry, full, plan.hintH);
+    if ((showHint || showBrilliant) && plan.hintH) {
+      G.hintRect = drawHintBar(marg, ry, full, plan.hintH, showBrilliant);
       ry += plan.hintH + gap;
     } else G.hintRect = null;
     if (G.undoAsk) G.askRect = drawConsentBar(marg, ry, full, rowH, false);
@@ -2062,11 +2144,12 @@ function drawPlay(L) {
  * ⚠ 文案过 `fitTxt` 的 maxW（canvas 不自动换行，⛔ 长语言会静默溢出）。
  * @returns 它画在哪（只给 E2E 取样，⛔ 不是真值源）
  */
-function drawHintBar(x, y, w, h) {
-  fillRR(x, y, w, h, 10, 'rgba(255,255,255,0.92)');
-  const txt = hintText(G.hint);
-  fitTxt(txt, x + w / 2, y + h / 2, w - 20, '#2f4f43', '600', fsz(14));
-  return { x: x, y: y, w: w, h: h, text: txt };
+function drawHintBar(x, y, w, h, brilliant) {
+  // ⭐ 妙手用一张**更亮**的底 + 金色字：它是这一局的高光时刻，⛔ 别和提示长得一模一样。
+  fillRR(x, y, w, h, 10, brilliant ? 'rgba(255,247,224,0.97)' : 'rgba(255,255,255,0.92)');
+  const txt = brilliant ? T('game.brilliant') : hintText(G.hint);
+  fitTxt(txt, x + w / 2, y + h / 2, w - 20, brilliant ? '#8a5a12' : '#2f4f43', '700', fsz(14));
+  return { x: x, y: y, w: w, h: h, text: txt, brilliant: !!brilliant };
 }
 
 /** ⭐ 双人局那颗按钮写的是「悔棋」而不是「撤销」（P2c T4）：按下去**不会**当场撤掉，

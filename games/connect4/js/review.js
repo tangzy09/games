@@ -198,10 +198,36 @@
     return { col: c, reason: reason };
   }
 
+  // ════════ ⭐ 妙手（P3 Task 4 · DESIGN §3.4）════════
+  //
+  // §3.4：「求解器知道一个局面**有几列不输**。**只有 1 列不输、而你找到了** ⇒ 当场弹 ✨妙手，
+  //   结算页统计，可截图分享。成本几乎为零（数据已在算），但它把『我下了步好棋』变成
+  //   **可量化、可炫耀的事件**。竞品做不出来。」
+  //
+  // ⭐⭐ 判据**就是 hintLevel1 那一个**（`kind === 'only'` + 走的正是那一列）——
+  //   ⛔ 绝不另立一套：两套判据一漂，就会出现「提示说只有这一列，走了却不给妙手」
+  //   （或反过来），而两边看起来都合理。
+  //
+  // ⚠ **必败局面里不给妙手**：那时 `safeCols` 是「输得最慢」的一列，找到它当然不坏，
+  //   但把它庆祝成妙手是**谎报**（§2.4）—— 玩家会以为自己下了步好棋，其实局面早就没了。
+  //   ⇒ `kind === 'only'` 天然排除了它（lost 是单独一档）。
+
+  /**
+   * ⭐ 这一手是不是妙手：**只有 1 列不输，而他走的正是那一列**。
+   * @param sa  落子**之前**那个局面的 scoreAll
+   * @param col 实际落的列
+   * ⚠ 终局/脏输入由 hintLevel1 抛（同一条 fail-fast）。
+   */
+  function isBrilliant(sa, col) {
+    const l1 = hintLevel1(sa);
+    if (l1.kind !== 'only') return false;      // ⛔ 含必败局面（lost）—— 见上面那段 ⚠
+    return safeCols(sa).indexOf(Number(col)) >= 0;
+  }
+
   const API = {
     SIGN_WIN, SIGN_DRAW, SIGN_LOSS, SCORE_OF_LABEL,
     signOf, labelOf, accuracyOf, turningPoint,
-    hintLevel1, safeCols, hintLevel2
+    hintLevel1, safeCols, hintLevel2, isBrilliant
   };
   // 与其余模块同样冻结：挡住 `C4Review.labelOf = () => 'best'` 这类「精准度永远 100%」
   // 的误用 —— 画面正常、零报错，本仓最怕的失败模式。

@@ -36,6 +36,7 @@
             "bookLoading": "Loading opening book…",
             "engineDown": "Engine unavailable on this device — computer play is off",
             "engineSlow": "Opening book unavailable: this level would take minutes per move, so it is paused",
+            "brilliant": "✨ Brilliant · the only column that holds",
             "hint": "Hint",
             "hintNext": "Which column?",
             "hintWin": "{n} of {t} columns keep your win — take your pick",

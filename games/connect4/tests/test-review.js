@@ -220,6 +220,40 @@ const RV = require('../js/review.js');
   console.log('test-review: ⑬ ⭐ 提示第二按（四条机械理由 + 指的列恒最优）OK');
 }
 
+// ─────────── ⑭ ⭐ 妙手：只有 1 列不输、而他走的正是那一列（P3 T4 · §3.4）───────────
+{
+  const only = { 0: -5, 3: 2, 6: -9 };        // 只有第 3 列通向必胜
+  assert.strictEqual(RV.isBrilliant(only, 3), true, '⭐ 走对唯一那列 ⇒ 妙手');
+  assert.strictEqual(RV.isBrilliant(only, 0), false, '⛔ 走错 ⇒ 不给（反向对照）');
+  assert.strictEqual(RV.isBrilliant(only, 6), false, '⛔ 走错 ⇒ 不给');
+
+  // ⛔ 有多列都不输时**不是**妙手 —— 那一手没什么了不起
+  assert.strictEqual(RV.isBrilliant({ 0: 5, 3: 5, 6: -1 }, 3), false,
+    '⛔ 两列都通向必胜 ⇒ 走对了也不是妙手（§3.4 的价值全在「只有 1 列」）');
+
+  // ⭐⭐ **必败局面里绝不给妙手**（这条最容易被写漏）
+  assert.strictEqual(RV.isBrilliant({ 0: -5, 3: -3, 6: -9 }, 3), false,
+    '⭐⭐ 必败局面里 safeCols 是「输得最慢」的那列，找到它当然不坏，'
+    + '但庆祝成妙手是**谎报**（§2.4）—— 玩家会以为自己下了步好棋，其实局面早就没了');
+
+  // 和棋局面里「只有一列守得住」同样算妙手（守和也是本事）
+  assert.strictEqual(RV.isBrilliant({ 0: -5, 3: 0, 6: -9 }, 3), true,
+    '和棋局面里唯一守得住的那列 ⇒ 妙手（守和也是本事）');
+
+  // ⭐ 判据必须与 hintLevel1 **是同一个**（⛔ 别另立一套：漂了就会出现
+  //   「提示说只有这一列，走了却不给妙手」，而两边看起来都合理）
+  for (const sa of [only, { 0: 5, 3: 5 }, { 0: -5, 3: -3 }, { 0: 0, 3: -3 }]) {
+    const l1 = RV.hintLevel1(sa);
+    const cols = RV.safeCols(sa);
+    for (const c of Object.keys(sa).map(Number)) {
+      assert.strictEqual(RV.isBrilliant(sa, c),
+        l1.kind === 'only' && cols.indexOf(c) >= 0,
+        '⭐ isBrilliant 必须恒等于「hintLevel1().kind === only 且落在 safeCols 里」');
+    }
+  }
+  console.log('test-review: ⑭ ⭐ 妙手判据（含必败局面不给 + 与 hintLevel1 同源）OK');
+}
+
 // ─────────── ⑩ ⛔⛔ 源码级红线：纯函数，零 IO ───────────
 // ⚠ 剥掉注释再查 —— 本文件与 review.js 的注释里都写着这些词，不剥的话恒红。
 {

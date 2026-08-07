@@ -35,6 +35,7 @@
             "bookLoading": "开局库加载中…",
             "engineDown": "本机引擎不可用 —— 人机对战暂不可用",
             "engineSlow": "开局库不可用：这一档每手要几秒到几分钟，已暂停",
+            "brilliant": "✨ 妙手 · 唯一守得住的一列",
             "hint": "提示",
             "hintNext": "走哪一列？",
             "hintWin": "{t} 列里有 {n} 列都保住胜势 —— 随便走",

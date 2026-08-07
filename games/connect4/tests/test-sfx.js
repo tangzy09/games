@@ -24,7 +24,7 @@ const TAU = Math.PI * 2;
 //    故意不 require 那个脚本 —— 从生成器读表就成了自我印证，改错数字照样绿。
 const LAND_GOLD = [147, 165, 196, 220, 262, 294];
 // 每个音的时长预算（秒）。wav 要进包，⛔ 别让谁哪天顺手做出一个 3 秒的庆祝音。
-const DUR_MAX = { drop: 0.10, land: 0.20, fork: 0.35, win: 0.70, lose: 0.60, undo: 0.20 };
+const DUR_MAX = { drop: 0.10, land: 0.20, fork: 0.35, brilliant: 0.40, win: 0.70, lose: 0.60, undo: 0.20 };
 const DUR_MIN = 0.04;
 const RMS_MIN = 0.02;   // 低于这个基本就是静音/几乎静音
 const TOTAL_KB_MAX = 400;
@@ -75,7 +75,7 @@ function fundamental(x, sr, { lo = 60, hi = 1200, skip = 0.012, span = 0.09 } = 
 function rms(x) { let s = 0; for (let i = 0; i < x.length; i++) s += x[i] * x[i]; return Math.sqrt(s / x.length); }
 
 // ═══ 1. 十一个文件都在，格式全部是 44.1 kHz / 16 bit / mono PCM ═══
-const NAMES = ['drop', 'fork', 'win', 'lose', 'undo', ...LAND_GOLD.map((_, r) => 'land' + r)];
+const NAMES = ['drop', 'fork', 'brilliant', 'win', 'lose', 'undo', ...LAND_GOLD.map((_, r) => 'land' + r)];
 const wavs = {};
 let totalBytes = 0;
 for (const name of NAMES) {
@@ -88,7 +88,7 @@ for (const name of NAMES) {
   assert.strictEqual(w.fmt.sampleRate, 44100, name + ': 采样率必须 44100');
   assert.strictEqual(w.fmt.bits, 16, name + ': 位深必须 16');
 }
-console.log('test-sfx: 11 个 wav 格式 44.1kHz/16bit/mono OK，共 ' + (totalBytes / 1024).toFixed(1) + ' KB');
+console.log('test-sfx: ' + NAMES.length + ' 个 wav 格式 44.1kHz/16bit/mono OK，共 ' + (totalBytes / 1024).toFixed(1) + ' KB');
 assert.ok(totalBytes / 1024 < TOTAL_KB_MAX,
   '音效总体积 ' + (totalBytes / 1024).toFixed(1) + ' KB 超预算 —— 这些 wav 是要进包的');
 
@@ -142,6 +142,20 @@ assert.ok(forkF > measured[5] * 1.6,
   '⛔ fork(' + forkF.toFixed(0) + ' Hz) 没有明显高于最高的 land5(' + measured[5].toFixed(0) + ' Hz)' +
   ' —— 双威胁的音听起来会像又落了一子，那这个「事件」就白做了');
 
+// ═══ 4b. ⭐ 妙手音必须**听得出**不是 fork（P3 T4 · DESIGN §3.4）═══
+// ⛔ 妙手最初是**借用** fork 音的，两件不同的事听起来一样：玩家分不清，
+//    而且它污染了 e2e-p2b-t5 那条「fork 音恰好响一次」的门禁（2026-08-06 实锤）。
+// ⇒ 现在它有自己的音，这里把「听得出区别」钉死：首音基频至少差 25%。
+const brilF = fundamental(wavs.brilliant.x, 44100, { lo: 200, hi: 2400, skip: 0.005, span: 0.04 });
+console.log('test-sfx: brilliant 首音基频 = ' + brilF.toFixed(2) + ' Hz（fork = ' + forkF.toFixed(2) + '）');
+assert.ok(Math.abs(brilF - forkF) / forkF > 0.25,
+  '⛔ brilliant(' + brilF.toFixed(0) + ' Hz) 与 fork(' + forkF.toFixed(0) + ' Hz) 太接近'
+  + ' —— 双威胁与妙手是**两件不同的事**，听起来一样等于没做区分');
+assert.ok(brilF > measured[5] * 1.6,
+  '⛔ brilliant 也必须明显高于最高的 land5，否则听起来像又落了一子');
+console.log('test-sfx: ⭐ brilliant 与 fork 听得出区别（差 '
+  + (Math.abs(brilF - forkF) / forkF * 100).toFixed(0) + '%）OK');
+
 // ═══ 5. ⚠ lose 不许是惩罚性的（DESIGN §6.6 让「输」不疼）═══
 // 判据取能量：lose 的 RMS 必须明显低于 win —— 输的时候不该比赢还响。
 const lr = rms(wavs.lose.x), wr = rms(wavs.win.x);
@@ -156,6 +170,6 @@ for (const name of NAMES) {
   assert.ok(re.test(html), '⛔ index.html 的 GAME_CONFIG.sfx 里没有 ' + name +
     ' → assets/audio/' + name + '.wav —— 合成了但没接上，Sfx.play(\'' + name + '\') 会静默什么都不做');
 }
-console.log('test-sfx: GAME_CONFIG.sfx 11 条接线 OK');
+console.log('test-sfx: GAME_CONFIG.sfx ' + NAMES.length + ' 条接线 OK');
 
 console.log('test-sfx: 全部通过');
