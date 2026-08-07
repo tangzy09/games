@@ -50,8 +50,12 @@ function serve() {
   });
 }
 
+// ⭐ `--base=https://four.ai-speeds.com` ⇒ 直接打**线上**（部署后的真值复查）。
+//   ⚠ 不给就照常起本地静态服务器打工作区（默认、也是 npm 脚本走的那条）。
+const LIVE = (process.argv.find(a => a.startsWith('--base=')) || '').slice(7);
+
 (async () => {
-  const srv = await serve();
+  const srv = LIVE ? null : await serve();
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport: { width: 414, height: 896 } });
   const page = await ctx.newPage();
@@ -77,7 +81,9 @@ function serve() {
   const has = async a => page.evaluate(x => hitAreas.some(h => h.action === x), a);
 
   async function boot() {
-    await page.goto('http://127.0.0.1:' + PORT + '/games/connect4/index.html', { waitUntil: 'load' });
+    const url = LIVE ? LIVE.replace(/\/+$/, '') + '/'
+                     : 'http://127.0.0.1:' + PORT + '/games/connect4/index.html';
+    await page.goto(url, { waitUntil: 'load' });
     await page.waitForFunction(() => typeof G !== 'undefined' && G.phase === 'HOME' && (hitAreas || []).length > 0,
       null, { timeout: 15000 });
     await page.waitForFunction(() => EngineClient.bookReady(), null, { timeout: 60000 });
@@ -188,7 +194,7 @@ function serve() {
   console.log('\n⑥ 收尾');
   ok(errs.length === 0, '⑥ 全程零报错' + (errs.length ? '：' + errs[0] : ''));
 
-  await browser.close(); srv.close();
+  await browser.close(); if (srv) srv.close();
   console.log(failed ? '\n✗ ' + failed + ' 条不过' : '\n✓ 记账门禁全部通过（四种局都进统计，精准度仍分模式）');
   process.exit(failed ? 1 : 0);
 })().catch(e => { console.error('崩了：', e); process.exit(1); });
