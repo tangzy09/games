@@ -73,9 +73,21 @@ def main():
           % ('#%02X%02X%02X' % cbg))
 
     # ── 网页那几张 ──
-    for name, size in [('favicon-32', 32), ('icon-192', 192),
-                       ('apple-touch-icon-180', 180), ('icon-512', 512)]:
-        rgb.resize((size, size), Image.LANCZOS).save(os.path.join(ICONS, name + '.png'))
+    # ⭐ favicon 可以用**另一张更简单的主图**（第二个位置参数）。
+    #   skill 原话：「A gameplay icon that works at 60px still turns to mush at a **32px favicon**.
+    #   Accept it, or generate a **separate** simplified favicon (one element only).」
+    #   ⚠ 实拍：本作主图（环 + 光柱 + 一排三枚）缩到 32px 就是**一小团黄**，什么都读不出。
+    #   ⛔ 别为了照顾 32px 去把主图改简单 —— 60px 那关才是主屏真身，两者是**两个问题**。
+    fav_rgb = rgb
+    if len(sys.argv) > 2:
+        f = Image.open(sys.argv[2])
+        if f.size[0] != f.size[1]:
+            die('favicon 主图不是正方形：%s' % (f.size,))
+        fav_rgb = f.convert('RGB')
+        print('  · favicon 用单独的主图：%s' % os.path.basename(sys.argv[2]))
+    for name, size, src_im in [('favicon-32', 32, fav_rgb), ('icon-192', 192, rgb),
+                               ('apple-touch-icon-180', 180, rgb), ('icon-512', 512, rgb)]:
+        src_im.resize((size, size), Image.LANCZOS).save(os.path.join(ICONS, name + '.png'))
     print('  ✓ assets/icons/            favicon-32 / icon-192 / apple-touch-icon-180 / icon-512')
 
     # ── ⭐ Apple squircle 遮罩下的 60px 实拍（放大到 180 好看清）──

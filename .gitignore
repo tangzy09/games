@@ -9,3 +9,9 @@ games/*/android/
 # ⚠ 成品 games/connect4/data/book-classic.bin 是**入库**的(DESIGN §9.2:它是进包资产)
 games/*/data/*.parts/
 games/*/data/gen-book.log
+
+# 图标候选图（每轮几张 1024 PNG，一轮就 10+ MB）。⚠ **选中的主图是入库的**
+# （games/<name>/assets/art/icon.png / favicon-master.png），prompt 存档也入库
+# （icon-v2-PROMPTS.txt）—— 落选的那些重跑 gen-icon*.cjs 即可再生，别占仓库。
+games/*/assets/art/icon-candidates/
+games/*/assets/art/icon-v2/
