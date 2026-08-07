@@ -73,7 +73,13 @@ const Th = require('../js/threats.js');
   // ⭐ 走在对方威胁正下方 —— 新手最致命的一错，优先级最高
   assert.strictEqual(LS.tagOf({ 3: 5, 4: -3 }, 4, { underCols: [4] }), 'under');
   // 漏挡对方的双威胁
-  assert.strictEqual(LS.tagOf({ 3: 5, 4: -3 }, 4, { antiforkCols: [3] }), 'missFork');
+  // ⭐⭐ 极性：`givesForkCols` = 走了就把叉送给对方的列 ⇒ **落在里面**才是 missFork。
+  //   ⚠ 2026-08-07 抓到旧断言是反的（传 [3] 却落 4，靠「不在里面」命中）——
+  //     与 main.js 的 tagCtx 实际算出来的相反 ⇒ 弱点页统计反了、推错课。
+  assert.strictEqual(LS.tagOf({ 3: 5, 4: -3 }, 4, { givesForkCols: [4] }), 'missFork',
+    '走进送叉列 ⇒ missFork');
+  assert.notStrictEqual(LS.tagOf({ 3: 5, 4: -3 }, 4, { givesForkCols: [3] }), 'missFork',
+    '⛔ 反向对照：避开了送叉列的那一手**不该**被记成漏挡双威胁');
   // 弃中路（中列本来是最优之一）
   assert.strictEqual(LS.tagOf({ 3: 5, 4: 0 }, 4, {}), 'offCenter');
   // 兜底：说不清类型的掉档
@@ -115,7 +121,7 @@ const Th = require('../js/threats.js');
     function ctxOf(bd) {
       const me = bd.turn;
       const legal = R.moves(bd);
-      const underCols = [], forkCols = [], antiforkCols = [];
+      const underCols = [], forkCols = [], givesForkCols = [];
       const theirThreats = Th.forPlayer(bd, me ^ 1);
       for (const c of legal) {
         const nb = B.play(bd, c);
@@ -127,9 +133,9 @@ const Th = require('../js/threats.js');
         if (f && f.player === me) forkCols.push(c);
         // 不走这列，对方下一手就能形成双威胁 ⇒ 这列是「反叉」的关键
         const ob = B.clone(nb); ob.turn = me ^ 1;
-        if (R.winningMoves(ob).length >= 2) antiforkCols.push(c);
+        if (R.winningMoves(ob).length >= 2) givesForkCols.push(c);
       }
-      return { n: bd.n, underCols, forkCols, antiforkCols };
+      return { n: bd.n, underCols, forkCols, givesForkCols };
     }
 
     /** ⭐ 出题器：确定性伪随机走 N 手，筛符合本课概念的局面（⛔ 禁 Math.random）。 */

@@ -69,7 +69,8 @@
   //   · center   最优列**只有中列**（中列参与 13 条四连线、边列只有 3 条）
   //   · under    ⭐ 存在一列「走了就当场输」，而它正在对方威胁的正下方（新手最致命的一错）
   //   · fork     走某列之后自己形成双威胁
-  //   · antifork 不走某列，对方下一手就能形成双威胁
+  //   · antifork ⭐ 存在「走了就把叉送给对方」的列（givesForkCols 非空）——
+  //     那正是「提前破坏对方的叉」这一课要教的局面
   //   · opening  n 很小（开局理论）
   //   · endgame  n 很大（⭐ 第 15 课的「倒着教」：从残局往前推）
   //
@@ -79,7 +80,7 @@
   /**
    * ⭐ 这个局面符不符合某一课的概念。**纯函数**。
    * @param sa   `scoreAll(该局面)`
-   * @param ctx  { n, threats:{mine:[],theirs:[]}, forkCols:[], antiforkCols:[] }
+   * @param ctx  { n, underCols:[], forkCols:[], givesForkCols:[] }
    * @returns bool
    */
   function matches(concept, sa, ctx) {
@@ -103,7 +104,7 @@
       case 'fork':
         return !!(c.forkCols && c.forkCols.length);
       case 'antifork':
-        return !!(c.antiforkCols && c.antiforkCols.length);
+        return !!(c.givesForkCols && c.givesForkCols.length);
       case 'opening':
         return c.n !== undefined && c.n <= 6 && l1.kind !== 'lost';
       case 'endgame':
@@ -160,7 +161,7 @@
    * ⭐ 给一次失误打标签。**纯函数**（盘面信息由调用方用零搜索判据算好传进来）。
    * @param sa  落子前的 scoreAll
    * @param col 实际落的列
-   * @param ctx { underCols, antiforkCols, n }
+   * @param ctx { underCols, givesForkCols, n }
    * @returns 标签字符串，或 null（这一手没失误 / 认不出类型）
    * ⚠ 只给**真的掉了档**的手打标签（label 是 slip/loss）——
    *   ⛔ 别给「次优但没掉档」打标签：那会让「我的弱点」页统计出一堆根本不是错的东西。
@@ -172,7 +173,12 @@
     const c = ctx || {};
     // ⚠ 判定顺序 = 严重性顺序（一手可能同时命中好几类，取最该教的那一条）
     if (c.underCols && c.underCols.indexOf(col) >= 0) return 'under';
-    if (c.antiforkCols && c.antiforkCols.length && c.antiforkCols.indexOf(col) < 0) return 'missFork';
+    // ⭐⭐ 极性：`givesForkCols` = **走了就把叉送给对方**的列 ⇒ 落在里面才是 missFork。
+    //   ⚠ 2026-08-07 抓到：原来这里读成「必须走的防守列」(indexOf < 0 就算漏挡)，与
+    //     main.js 的 tagCtx 实际算出来的**正好相反** ⇒ 真的送叉那一手落到兜底、
+    //     而避开了送叉的反倒被记成 missFork ⇒ 「我的弱点」页统计反了、推错课。
+    //   ⇒ 生产端已改名为 givesForkCols，名字自己挡住再读反一次。
+    if (c.givesForkCols && c.givesForkCols.indexOf(col) >= 0) return 'missFork';
     if (col !== 3 && RV.safeCols(sa).indexOf(3) >= 0) return 'offCenter';
     return 'parity';    // ⚠ 兜底：说不清类型的掉档都算「深层理论没学」——⛔ 别丢掉（丢了统计就漏）
   }

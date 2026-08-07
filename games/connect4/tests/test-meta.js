@@ -112,11 +112,22 @@ const M = require('../js/meta.js');
   assert.strictEqual(a.length, 3, '§7.4：每日**三个**任务');
   assert.strictEqual(new Set(a).size, 3, '⛔ 三个任务不许重复');
   // 换一天要真的换（否则「每日」没有意义）
-  let differ = 0;
-  for (let d = 20000; d < 20030; d++) {
-    if (M.questsOf(d).map(q => q.id).join() !== a.join()) differ++;
-  }
-  assert.ok(differ >= 20, '⭐ 不同的天要给出不同的任务组合（30 天里只有 ' + differ + ' 天不同）');
+  // ⛔⛔ 判据必须是**集合**，不是有序列表（2026-08-07 实锤）：
+  //   LCG 因 float64 尾数溢出退化成「恒偶数」时，抽出来的**永远是同三个任务**，
+  //   只是顺序在变 —— 用 `.join()` 比有序列表照样绿，而玩家看到的是**每天一模一样**。
+  const setOf = d => M.questsOf(d).map(q => q.id).slice().sort().join(',');
+  const sets = new Set();
+  const seen = new Set();
+  for (let d = 20000; d < 20060; d++) { sets.add(setOf(d)); M.questsOf(d).forEach(q => seen.add(q.id)); }
+  assert.ok(sets.size >= 8,
+    '⭐⭐ 60 天里只有 ' + sets.size + ' 种任务**组合** —— 十有八九是 LCG 溢出退化了'
+    + '（`x * 1103515245` 超 53 位尾数 ⇒ x 恒偶 ⇒ x%6 只出 0/2/4）。用 Math.imul。');
+  assert.strictEqual(seen.size, M.QUESTS.length,
+    '⛔ 六个任务里只有 ' + seen.size + ' 个出现过 —— 其余的玩家永远看不到');
+  const top = Math.max(...[...sets].map(s => {
+    let n = 0; for (let d = 20000; d < 20060; d++) if (setOf(d) === s) n++; return n;
+  }));
+  assert.ok(top <= 20, '⛔ 某一组任务占了 60 天里的 ' + top + ' 天，分布太偏');
   // 进度
   const p = M.questProgress(20000, { games: 99, wins: 0 });
   assert.strictEqual(p.length, 3);

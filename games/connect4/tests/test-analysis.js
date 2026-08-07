@@ -251,14 +251,21 @@ const g0 = (moves, extra) => Object.assign({ mode: 'ai', moves: moves.slice(), p
     };
     AN.attach(c);
     AN.start(g0([]));
-    AN.onMove(g0([3]));
+    AN.onMove(g0([3]));   // ⚠ 这一句排 2 个前缀局面（k=0、k=1）
     // ⚠ 等若干个**宏任务**：忙循环的话 calls 会爆掉（第一版实测直接把主线程转死）
-    for (let i = 0; i < 20; i++) await new Promise(r => setTimeout(r, 0));
-    assert.ok(calls <= 12,
-      '⛔⛔ 恒 stale 的情况下发了 ' + calls + ' 次请求 —— 它必须有上限（STALE_MAX），'
-      + '否则就是一条把输入事件饿死的 microtask 忙循环（页面看着好好的，鼠标就是点不动）');
+    for (let i = 0; i < 40; i++) await new Promise(r => setTimeout(r, 0));
+    // ⭐⭐ 上限按 **per-item** 算（2026-08-07 改）：重试计数挂在每条请求上，⛔ 不是模块级。
+    //   模块级那两版都不对，而且方向相反：不归零 ⇒ 丢过一次后**每条只给一次机会**；
+    //   归零 ⇒ 每 8 次重置一遍，**变回无限重试**。per-item 两头都对，代价是总量
+    //   变成「item 数 × STALE_MAX」而不是一个常数 —— 它仍然**有界**，那才是这条要守的。
+    const items = 2;
+    const cap = items * (8 /* STALE_MAX */ + 1);
+    assert.ok(calls <= cap,
+      '⛔⛔ 恒 stale 的情况下发了 ' + calls + ' 次请求（上限 ' + cap + ' = ' + items
+      + ' 条 × (STALE_MAX+1)）—— 它必须**有界**，否则就是一条把输入事件饿死的'
+      + ' microtask 忙循环（页面看着好好的，鼠标就是点不动）');
     assert.ok(calls >= 1, '前提：至少真的发过一次（否则这条是空过的）');
-    console.log('test-analysis: ⑦b ⛔⛔ 恒 stale 有上限（' + calls + ' 次），不转成忙循环 OK');
+    console.log('test-analysis: ⑦b ⛔⛔ 恒 stale 有界（' + calls + ' ≤ ' + cap + '），不转成忙循环 OK');
   }
 
   // ─────────── ⑦c ⭐ 换局：在飞的旧答案不许写进新一局 ───────────

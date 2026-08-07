@@ -21,7 +21,9 @@
   'use strict';
 
   // ⚠ 相对 **index.html**（Worker 的 URL 按文档 base 解析），不是相对本文件。
-  const WORKER_URL = 'js/solver.worker.js?v=1';
+  // ⚠ 与 index.html 的 ?v= 保持一致：钉死在 ?v=1 的话，求解器改了之后老玩家
+//   会拿到**旧 worker + 新主线程**（2026-08-07 抓到）。改 js 时这里要跟着 bump。
+const WORKER_URL = 'js/solver.worker.js?v=14';
 
   // ⭐ 启动探针的超时。3s 是「够慢的手机把 3.6 MB 之外的六个脚本解析完」与
   //   「玩家还没开始怀疑页面坏了」之间的取值；⚠ 它**只管启动**，

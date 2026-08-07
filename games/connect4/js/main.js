@@ -365,13 +365,24 @@ function curLayout() {
 }
 
 /** 单行文字**缩到装得下**（canvas 的 fillText 不换行也不截断，德/俄膨胀会直接压到隔壁）。 */
+/**
+ * ⭐⭐ 缩到放得下再画。**量的时候必须带上 `GameGlobal.fontScale`**（2026-08-07 抓到）：
+ *   `txt/txtL/txtR` 会把 font 串过一遍 `sfont()`，那里按字号档乘 1 / 1.15 / **1.3**；
+ *   而这里原来用**原始**字号去 measure ⇒ 收敛出来的宽度随后被放大 15-30% ⇒
+ *   **A⁺⁺ 档下 HOME 的四个档位按钮、HUD 那行全都互相压**。
+ * ⇒ 量与画用同一个 `sfont()`，⛔ 别再各算各的。
+ */
+/** ⭐ 量宽时把 font 串过 engine 的 `sfont()`，与 `txt/txtL/txtR` 画字用同一个字号档。
+ *  ⚠ 防御 typeof：`sfont` 是 engine/canvas.js 的全局函数，本文件在没有它的环境里也不该炸。 */
+function SF(f) { return (typeof sfont === 'function' ? sfont(f) : f); }
+
+function measureAtScale(s, weight, px) {
+  ctx.font = SF(weight + ' ' + px + 'px sans-serif');
+  return ctx.measureText(clean(s)).width;
+}
 function fitTxt(s, cx, cy, maxW, color, weight, size) {
   let px = size;
-  ctx.font = weight + ' ' + px + 'px sans-serif';
-  while (px > 10 && ctx.measureText(clean(s)).width > maxW) {
-    px -= 1;
-    ctx.font = weight + ' ' + px + 'px sans-serif';
-  }
+  while (px > 10 && measureAtScale(s, weight, px) > maxW) px -= 1;
   txt(s, cx, cy, color, weight + ' ' + px + 'px sans-serif');
 }
 
@@ -1173,6 +1184,10 @@ function replayFrom(ply) {
   G.phase = 'PLAYING';
   G.result = null; G.hoverCol = -1; G.holdCol = -1; G.notice = ''; G.undoAsk = null;
   G.hint = null; G.brilliantNote = null; G.review = null;
+  // ⛔ autoNote 也要清：checkOver 会把它的 until 设成 Infinity（终局后不再自动撤），
+  //   而 doUndo 清了、replayFrom 没清 ⇒ 「时间到 · 第 N 列由时钟落下」会赖在屏幕上，
+  //   指着一手**已经不在盘上**的棋（2026-08-07 抓到）。
+  G.autoNote = null;
   G.overReady = false;
   syncClock();
   renderAll();
@@ -1210,6 +1225,20 @@ function bestColAt(g, ply) {
   const sa = C4Analysis.get(g.moves.slice(0, ply));
   if (!sa || !Object.keys(sa).length) return -1;
   try { return C4Review.safeCols(sa)[0]; } catch (e) { return -1; }
+}
+
+/**
+ * ⭐ 真值回来了 ⇒ 把挂着的那条提示补完（⛔ 别让 pending 永远挂着，见 boot 里 onIdle 那段 ⛔⛔）。
+ * ⚠ 只处理「还是同一手」的情况：换手了直接清掉（那条提示已经过期）。
+ */
+function resumeHint() {
+  const g = G.g, h = G.hint;
+  if (!g || !h || !h.pending) return;
+  if (h.ply !== g.moves.length) { G.hint = null; renderAll(); return; }
+  const sa = C4Analysis.get(g.moves);
+  if (!sa || !Object.keys(sa).length) { renderAll(); return; }   // 还没到 ⇒ 继续等
+  G.hint = null;          // ⚠ 先清掉 pending 那一条，askHint 才会重新按 level 1 算
+  askHint();              // ⚠ 它自己会 renderAll
 }
 
 /** 落这一列之后，**对方**原本的双威胁是不是没了。⛔ 零搜索（同 threats.js 的红线）。 */
@@ -1541,11 +1570,11 @@ function settingRow(bx, y, bw, h, label, value, hot, action, icon, px) {
   const tx = icon ? icon(bx, gy, h) : bx + 14;
   // ⚠ px 由 drawHome 的块栈给（矮屏上整栈会一起缩，⛔ 字号不跟着缩就会互相压，见 drawHome）
   const f = 'bold ' + (px || fsz(14)) + 'px sans-serif';
-  ctx.font = f;
+  ctx.font = SF(f);
   const vw = Math.min(bw * 0.5, ctx.measureText(clean(value)).width);
   const vDrawn = wrapLines(value, bw * 0.5, 1)[0];
   txtR(vDrawn, bx + bw - 14, gy, hot ? C4Render.PAL.accent : C4Render.PAL.hudSub, f);
-  ctx.font = f;
+  ctx.font = SF(f);
   const lDrawn = wrapLines(label, Math.max(30, bx + bw - 22 - vw - tx), 1)[0];
   txtL(lDrawn, tx, gy, C4Render.PAL.hudText, f);
   // ⭐ 把**真的画上去的那两串**（截过断的那一份）记下来，⛔ 只给 E2E / 调试看，不是真值源。
@@ -1792,7 +1821,7 @@ function drawHome(L) {
   if (note) {
     b = S.at('note');
     const f = b.px + 'px sans-serif';
-    ctx.font = f;
+    ctx.font = SF(f);
     const lh = Math.round(b.px * 1.35);
     wrapLines(note, bw, 2).forEach((ln, i) =>
       txt(ln, SW / 2, b.y + lh * 0.7 + i * lh, dead ? '#a33' : C4Render.PAL.hudSub, f));
@@ -1806,7 +1835,7 @@ function drawDropBand(L) {
   if (G.thinking) {
     const label = T(kidsGame() ? 'kids.thinking' : 'game.thinking');
     const f = 'bold ' + fsz(14) + 'px sans-serif';
-    ctx.font = f;
+    ctx.font = SF(f);
     const tw = ctx.measureText(clean(label)).width;
     const bw = Math.min(L.drop.w - 8, tw + 60);
     fillRR(cx - bw / 2, cy - 17, bw, 34, 17, 'rgba(255,255,255,0.92)');
@@ -1831,7 +1860,7 @@ function drawDropBand(L) {
   }
   if (G.notice) {
     const f = fsz(12) + 'px sans-serif';
-    ctx.font = f;
+    ctx.font = SF(f);
     wrapLines(G.notice, L.drop.w - 24, 2).forEach((ln, i) =>
       txt(ln, cx, cy - 7 + i * 15, '#a33', f));
     return;
@@ -1844,7 +1873,7 @@ function drawDropBand(L) {
   if (G.autoNote) {
     const label = T('game.timeUp', { n: G.autoNote.col + 1 });
     const f = 'bold ' + fsz(12) + 'px sans-serif';
-    ctx.font = f;
+    ctx.font = SF(f);
     const lines = wrapLines(label, L.drop.w - 56, 2);
     const gs = Math.min(fsz(20), Math.round(L.drop.h * 0.62));
     const tw = Math.max.apply(null, lines.map(s => ctx.measureText(s).width));
@@ -1873,7 +1902,7 @@ function drawDropBand(L) {
       ? T('game.nearWinYou', { n: nw.ply })
       : T('game.nearWinP', { p: seatName(g, nw.player), n: nw.ply });
     const f = 'bold ' + fsz(12) + 'px sans-serif';
-    ctx.font = f;
+    ctx.font = SF(f);
     const lines = wrapLines(label, L.drop.w - 40, 2);
     const bw = Math.min(L.drop.w - 8, Math.max.apply(null, lines.map(s => ctx.measureText(s).width)) + 30);
     const bh = lines.length > 1 ? 40 : 30;
@@ -2012,15 +2041,28 @@ function accIsRecord(acc) {
 function recordAccuracy() {
   const g = G.g;
   if (!g || G.phase !== 'OVER' || G.accRecorded) return;
-  if (C4State.timedOf(g)) return;                 // ⛔ 限时局不计入纪录（时间压力下的失误不该污染棋力统计）
-  if (!C4Analysis.enabled()) return;              // 让子局 / 求解器不可用
-  const S = settleStats();
-  if (S.acc === null) return;                     // 还没算完 ⇒ 等下一次 idle
+
+  // ⭐⭐ **精准度记不记** 与 **这一局算不算打过** 是两件事（2026-08-07 code review 抓到）。
+  //   原来这里四个 early return 一起挡在最前面 ⇒ 儿童档（= 让 2 子）、限时局、
+  //   以及求解器起不来的那些局，**局数/胜负/妙手/诊断标签全都不记** ——
+  //   一个孩子在儿童档打 100 局，统计页永远是 `games 0 / 胜率 — / 1 级 / 零成就`，
+  //   而三行之下 recordMeta 的注释白纸黑字写着「仍然计入局数与胜负，只有精准度不计入」。
+  //   ⇒ 注释是对的，代码是错的。现在分成两段：**先无条件记账，再按条件记精准度**。
+  const timed = C4State.timedOf(g);
+  const canScore = !timed && C4Analysis.enabled();
+  const S = canScore ? settleStats() : { acc: null };
+  // ⚠ 精准度还没算完 ⇒ 这一整轮都先不落盘，等下一次 idle（⛔ 否则记账会先跑、
+  //   而 accRecorded 一置就再也不会回来记精准度了）。
+  if (canScore && S.acc === null) return;
+
   G.accRecorded = true;
-  // ⭐ 把「当时是不是新高」记下来（见 settleStats 里那段 ⚠⚠）
-  G.accWasRecord = accIsRecord(S.acc);
-  if (G.accWasRecord) C4Settings.set('bestAcc', S.acc);
-  C4Settings.set('bestAccN', (C4Settings.get('bestAccN') | 0) + 1);
+  if (canScore) {
+    // ⭐ 把「当时是不是新高」记下来（见 settleStats 里那段 ⚠⚠）
+    G.accWasRecord = accIsRecord(S.acc);
+    if (G.accWasRecord) C4Settings.set('bestAcc', S.acc);
+    C4Settings.set('bestAccN', (C4Settings.get('bestAccN') | 0) + 1);
+  }
+  // ⭐ 这两条**无条件**跑：限时局/让子局也是真的打了一局。
   recordMeta();
   maybeInterstitial();
 }
@@ -2034,14 +2076,19 @@ function recordAccuracy() {
 function maybeInterstitial() {
   const g = G.g;
   if (!g) return;
+  // ⛔⛔ 时间基准必须是**墙钟**（Date.now），⛔ 不是 nowMs()/performance.now()：
+  //   后者是「本次页面加载以来的毫秒」，每次启动归零，而 lastAdAt 是**持久化**的
+  //   ⇒ 下次启动要连续开着 app ~17 分钟才可能再出插屏，且这个门槛每展示一次还往上爬
+  //   （2026-08-07 抓到）。⚠ 墙钟 ~1.75e12 会被 |0 截断 ⇒ shop.js 那边也一起改了。
+  const wall = Date.now();
   const r = C4Shop.interstitial({
     rounds: C4Settings.get('games') | 0,
     lost: isLoss(),
-    now: nowMs(),
-    lastAt: C4Settings.get('lastAdAt') | 0
+    now: wall,
+    lastAt: Number(C4Settings.get('lastAdAt')) || 0
   });
   if (!r.show) return;
-  C4Settings.set('lastAdAt', Math.round(nowMs()));
+  C4Settings.set('lastAdAt', wall);
   try { Ads.showInterstitial(); } catch (e) { /* 广告失败绝不影响这一局 */ }
 }
 
@@ -2095,19 +2142,24 @@ function collectTags(g) {
   return out;
 }
 
-/** 打标签要的那两组列（**零搜索**）。⚠ 与课程出题用的是同一套判据。 */
+/**
+ * 打标签要的那两组列（**零搜索**）。⚠ 与课程出题用的是同一套判据。
+ * ⭐ `givesForkCols` = 「**走了这一列，对方下一手就能形成双威胁**」——
+ *   即**该躲开**的列。⚠ 它以前叫 antiforkCols，而消费端按「必须走的防守列」在读，
+ *   两边正好反了（2026-08-07 抓到）⇒ 改成这个名字，让它自己说清是哪一边。
+ */
 function tagCtx(bd, me) {
   const legal = RulesClassic.moves(bd);
   const theirs = C4Threats.forPlayer(bd, me ^ 1);
-  const underCols = [], antiforkCols = [];
+  const underCols = [], givesForkCols = [];
   for (const c of legal) {
     const nb = Bitboard.play(bd, c);
     const loses = RulesClassic.moves(nb).some(d => Bitboard.isWinningMove(nb, d));
     if (loses && theirs.some(t => t.c === c)) underCols.push(c);
     const ob = Bitboard.clone(nb); ob.turn = me ^ 1;
-    if (RulesClassic.winningMoves(ob).length >= 2) antiforkCols.push(c);
+    if (RulesClassic.winningMoves(ob).length >= 2) givesForkCols.push(c);
   }
-  return { underCols: underCols, antiforkCols: antiforkCols, n: bd.n };
+  return { underCols: underCols, givesForkCols: givesForkCols, n: bd.n };
 }
 
 /**
@@ -2668,7 +2720,17 @@ function nextQuestion() {
 /** 真值回来了 ⇒ 看这道题符不符合本课概念；不符合就换一道（⛔ 别塞不相关的题给玩家）。 */
 function applyQuestion(sa) {
   const st = G.lesson;
-  if (!st || !sa || !Object.keys(sa).length) return;
+  if (!st || !sa) return;
+  // ⛔ 空对象 = 这个局面已终局（solver 的约定）。⚠ 早退但**不清 loading** 的话，
+  //   页面会永远停在「正在出题…」，而 onIdle 每次重入都走同一条早退（2026-08-07 抓到）。
+  //   ⇒ 换一道题；连换 40 次都不成就如实停下，⛔ 别把玩家晾在转圈上。
+  if (!Object.keys(sa).length) {
+    if (st.tries < 40) { nextQuestion(); return; }
+    st.loading = false;
+    st.why = T('game.hintOff');
+    renderAll();
+    return;
+  }
   const bd = Bitboard.fromMoves(st.moves);
   const ctx = Object.assign({ n: bd.n }, tagCtx(bd, bd.turn));
   ctx.forkCols = RulesClassic.moves(bd).filter(function (c) {
@@ -2686,8 +2748,17 @@ function answerLesson(col) {
   if (!st || st.loading || !st.sa || st.judged) return;
   let j;
   // ⚠ 带上 n：judge 靠它认出「当场连四」那条理由（⛔ 否则第 1 课会说成「最稳的一列」）
-  try { j = C4Lessons.judge(st.sa, col, { col: col, n: Bitboard.fromMoves(st.moves).n }); }
-  catch (e) { return; }
+  // ⭐ 并把出题时算好的 fork 上下文一并传进去（st.ctx 在 applyQuestion 里存的）。
+  //   ⛔ 少了它，hintLevel2 永远回不了 makeFork/blockFork ⇒ **第 7/8 课（双威胁）
+  //     判对之后说的却是「这一列最稳」** —— 与第 1 课那条已修的教学违和是同一个毛病。
+  const qbd = Bitboard.fromMoves(st.moves);
+  try {
+    j = C4Lessons.judge(st.sa, col, Object.assign({}, st.ctx || {}, {
+      col: col, n: qbd.n,
+      makesFork: !!(st.ctx && st.ctx.forkCols && st.ctx.forkCols.indexOf(col) >= 0),
+      blocksFork: forkBlocked(qbd, col, qbd.turn)
+    }));
+  } catch (e) { return; }
   st.picked = col;
   st.judged = j;
   Sfx.play(j.ok ? 'brilliant' : 'undo');
@@ -2817,7 +2888,9 @@ function drawStats(L) {
        T('meta.rate', { n: s.rate === null ? '—' : s.rate + '%' }), 14);
   // ⭐ §7.8：零提示胜率才是拿去炫的那个口径
   line(T('meta.rateClean', { n: s.noHintRate === null ? '—' : s.noHintRate + '%' }), 14, '#2f8f6a');
-  line(T('game.accuracy') + ' ★ ' + ((C4Settings.get('bestAccN') | 0) ? st.bestAcc + '%' : '—'), 14);
+  // ⚠ 这一处的 ★ 只是**装饰**（旁边还有文字与数字），豆腐了也读得懂 ⇒ 保留字面量；
+  //   ⛔ 成就格那处不行（★ 是那一格唯一的内容）—— 那里已改成 drawStar。
+  line(T('game.accuracy') + ' ' + ((C4Settings.get('bestAccN') | 0) ? st.bestAcc + '%' : '—'), 14);
   y += 4;
   // ⭐ 「我的弱点」（§5.3）——⚠ 措辞是**陈述事实**，⛔ 不指责
   const w = C4Lessons.weakness(tagCounts());
@@ -2834,8 +2907,12 @@ function drawStats(L) {
   ach.forEach(function (a, i) {
     const bx = marg + (i % cols) * (bw + gap), by = y + Math.floor(i / cols) * (bh + gap);
     fillRR(bx, by, bw, bh, 8, a.got ? '#37a87c' : 'rgba(97,119,111,0.26)');
-    fitTxt(a.got ? '★' : String(a.need), bx + bw / 2, by + bh / 2, bw - 6,
-           a.got ? '#fff' : 'rgba(38,74,61,0.55)', 'bold', fsz(12));
+    // ⛔ 别用 '★' 字面量：部分安卓 WebView 会落到缺字回退框（豆腐块），而这一格里
+    //   它是**唯一**内容 ⇒ 整行成豆腐（2026-08-07 抓到）。drawStar 是现成的矢量星，
+    //   drawKidsCheer / drawMark 早就是为同一条理由改的。
+    if (a.got) drawStar(bx + bw / 2, by + bh / 2, Math.min(bw, bh) * 0.30, '#fff');
+    else fitTxt(String(a.need), bx + bw / 2, by + bh / 2, bw - 6,
+                'rgba(38,74,61,0.55)', 'bold', fsz(12));
   });
   const rowH = bht(46);
   btn(marg, L.bottomLimit - rowH - 8, full, rowH, T('menu.learn'), 'LEARN', {},
@@ -2899,6 +2976,12 @@ async function boot() {
       const sa = C4Analysis.get(G.lesson.moves);
       if (sa) { applyQuestion(sa); return; }      // ⚠ applyQuestion 自己会重画
     }
+    // ⭐⭐ 提示也在等真值 ⇒ 回来了就把它补完。
+    //   ⛔ 少了这一句有两个后果，第二个很严重（2026-08-07 code review 抓到）：
+    //   ① 提示条永远停在「正在算」，玩家得再按一次；
+    //   ② **限时局里时钟被永久冻结** —— clockBlock() 在 hint.pending 时返回 'engine'，
+    //      而 pending 从来没人清 ⇒ 表停住再也不走，那一手变成无限思考时间。
+    if (G.hint && G.hint.pending) { resumeHint(); return; }   // ⚠ resumeHint 自己会重画
     renderAll();
   });
 

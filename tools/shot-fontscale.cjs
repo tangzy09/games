@@ -10,7 +10,10 @@ const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..'), PORT = 8191, SHOT = 'C:/tmp/fontscale';
 const MIME = { '.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json',
                '.webp':'image/webp','.png':'image/png','.jpg':'image/jpeg','.wav':'audio/wav' };
-const GAMES = ['minesweeper', 'snake', 'abyssshoot', 'blockblast', 'solitaire'];
+// ⚠⚠ connect4 是 2026-08-07 补进来的 —— 在那之前它**从没被这条门禁覆盖过**，
+//   于是「量宽用原始字号、画字过 sfont 放大 1.3 倍」的溢出一路活到了线上。
+//   ⇒ 新游戏上线时**必须同时加进这张表**，否则这条门禁对它等于不存在。
+const GAMES = ['minesweeper', 'snake', 'abyssshoot', 'blockblast', 'solitaire', 'connect4'];
 
 function serve() { return new Promise((res, rej) => {
   const srv = http.createServer((q, r) => {

@@ -24,6 +24,12 @@
 // ════════════════════════════════════════
 (function (root) {
   'use strict';
+  // ⭐⭐ 量宽必须和画字用**同一个字号**：txt/txtL/txtR 会把 font 串过 engine 的 sfont()，
+  //   那里按字号档乘 1 / 1.15 / 1.3。⛔ 用原始字号 measureText ⇒ 收敛出的宽度随后被放大
+  //   15-30%，A⁺⁺ 档下文字互相压（2026-08-07 抓到，而仓库的 shot-fontscale 门禁
+  //   当时根本没把 connect4 列进去，所以从没抓到过）。
+  //   ⚠ 防御 typeof：本文件在 node 门禁里被 require（只跑 layout 那半边），那时没有 sfont。
+  const SF = f => (typeof sfont === 'function' ? sfont(f) : f);
   const inNode = (typeof module !== 'undefined' && module.exports);
 
   const W = 7, H = 6;
@@ -805,7 +811,7 @@
     //   「Player 1 to play」被压成了「Play…」—— 而那是全屏最该读到的一行（截图肉眼可见）。
     let rightW = 0, rightStr = '', leftStr = '';
     if (info.right) {
-      ctx.font = rightFont;
+      ctx.font = SF(rightFont);
       rightStr = wrapLines(String(info.right), h.w * 0.42, 1)[0];
       rightW = ctx.measureText(clean(rightStr)).width + 16;
     }
@@ -823,9 +829,9 @@
       //   ⚠ 下限 11px（再小就该让它截断了，读不清的字不算信息）。
       let px = Math.round(16 * k);
       let f = 'bold ' + px + 'px sans-serif';
-      ctx.font = f;
+      ctx.font = SF(f);
       while (px > 11 && ctx.measureText(clean(info.left)).width > leftMaxW) {
-        px -= 1; f = 'bold ' + px + 'px sans-serif'; ctx.font = f;
+        px -= 1; f = 'bold ' + px + 'px sans-serif'; ctx.font = SF(f);
       }
       leftStr = wrapLines(info.left, leftMaxW, 1)[0];
       txtL(leftStr, tx, cy, PAL.hudText, f);
@@ -892,9 +898,9 @@
     let px = Math.round(14 * k);
     let f = 'bold ' + px + 'px sans-serif';
     const maxTxt = L.drop.w - gs - 60;
-    ctx.font = f;
+    ctx.font = SF(f);
     while (px > 10 && ctx.measureText(clean(label || '')).width > maxTxt) {
-      px -= 1; f = 'bold ' + px + 'px sans-serif'; ctx.font = f;
+      px -= 1; f = 'bold ' + px + 'px sans-serif'; ctx.font = SF(f);
     }
     const tw = label ? ctx.measureText(clean(label)).width : 0;
     const bw = Math.min(L.drop.w - 6, gs + tw + 46);

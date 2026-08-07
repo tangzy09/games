@@ -92,7 +92,8 @@
     inflight = false;
     off = '';
     curPre = [];
-    stale = 0;
+    // ⚠ 重试计数现在挂在每个 item 上（见 pump 的 stale 分支）⇒ queue 清空即随之消失，
+    //   ⛔ 这里不必也不能再动模块级变量（它已经不存在了）。
     // ⭐ 换局：在飞的那一条回来时会看到 epoch 变了 ⇒ 自己作废
     //   （⛔ 否则上一局的答案会被写进这一局的缓存，而两局的 moves 前缀经常一模一样 ⇒
     //     盘面完全正确、评分却是别的局的，零报错）
@@ -170,7 +171,18 @@
    *   ⚠ 但这**不是「停用」** —— 库到位后 kick() 会把积压的接着算完。
    */
   function bookOk() {
-    return !!(client && typeof client.bookReady === 'function' && client.bookReady());
+    if (!client || typeof client.bookReady !== 'function') return false;
+    if (client.bookReady()) return true;
+    // ⛔⛔ **失败终态要如实停用**（2026-08-07 code review 抓到）：
+    //   Worker 起不来（file:// / CSP / ping 超时）或 book-classic.bin 404 时，
+    //   bookReady() 会**永远**为假 —— 而这里原来只是 return false、从不 disable ⇒
+    //   enabled() 恒 true ⇒ 提示永远停在「正在算」、复盘永远 0/42、课程永远「正在出题」，
+    //   **降级完全不可见**（违反 §2.4）。对照组：AI 那条路是如实显示 game.engineSlow 的。
+    //   ⚠ 只认**终态**（failed / dead）：'none' 与 'loading' 是「还没到时候」，⛔ 别停用。
+    const st = (typeof client.state === 'function') ? client.state() : null;
+    const dead = (typeof client.alive === 'function') && !client.alive();
+    if (dead || (st && (st.book === 'failed' || st.worker === 'dead'))) disable(OFF_ENGINE);
+    return false;
   }
 
   /** ⭐ 外部条件可能变了（库刚装好 / Worker 刚活过来）⇒ 再泵一次。⛔ 别让积压的请求永远躺着。 */
@@ -212,6 +224,15 @@
       return;
     }
     p.then(function (r) {
+      // ⭐⭐ **作废判据必须在最前面**（2026-08-07 code review 抓到）。
+      //   原来它排在 stale 分支之后 ⇒ 换局时上一局那条在飞的请求回来，会：
+      //   ① 把 `inflight` 打回 false（而**新一局的请求真的在飞**）⇒ 下一拍又发一条，
+      //      被 engine-client 的 latest-only 顶掉新的 ⇒ 两条互相蚕食；
+      //   ② 把**上一局的 item** unshift 进新一局的队首。
+      //   实测：换局后新一局只有 3 个前缀要算，却发出 11 条 scores，最终 done=0/3 ——
+      //   **新一局一个局面都没算出来**。
+      //   ⚠ 单测没抓到是因为它的假 client 不实现 latest-only，永远不回 { stale:true }。
+      if (ep !== epoch) return;
       inflight = false;
       // ⚠ 被顶掉的旧请求 resolve 成 { stale:true }（engine-client 的约定）——
       //   它不是错误，重新排一次即可。
@@ -222,11 +243,19 @@
         //   表现是「页面还能截图、evaluate 也答得动，但鼠标点不动了」，**零报错**。
         //   （2026-08-06 实锤：e2e-p2b-t7 在结算屏点［再来一局］卡死 3 分钟，就是这条。）
         // ⇒ ① 重排次数封顶；② 用宏任务（setTimeout 0）让出一拍，别在 microtask 里接着转。
-        stale++;
-        if (stale > STALE_MAX) {
+        // ⭐⭐ 重试次数挂在**这一条**上，⛔ 不是模块级计数（2026-08-07 抓到）。
+        //   模块级那版有两个反向的毛病，一个换一个：
+        //   · 不归零 ⇒ 丢过一次之后，后面**每一条**被顶一次就直接丢（只给一次机会）；
+        //   · 归零   ⇒ 恒 stale 时每 8 次重置一遍 ⇒ **变回无限重试的忙循环**（单测当场抓到，18 次）。
+        //   ⇒ per-item 计数两头都对：每条各有自己的 8 次，且总量有界。
+        item.stale = (item.stale | 0) + 1;
+        if (item.stale > STALE_MAX) {
           if (typeof console !== 'undefined' && console.warn) {
-            console.warn('[analysis] 连续 ' + stale + ' 次 stale，放弃这一条（⛔ 别转成忙循环）');
+            console.warn('[analysis] 这一条连续 ' + item.stale + ' 次被顶掉，放弃（⛔ 别转成忙循环）');
           }
+          // ⛔ 丢弃也要通知：若被丢的是**最后一条**，队列排空但「从忙变闲」那一拍永远不来
+          //   ⇒ 挂在 onIdle 上的 recordAccuracy / 课程出题 / 提示补完**全都不会发生**。
+          fireIdle();
           pumpSoon();
           return;
         }
@@ -234,7 +263,7 @@
         pumpSoon();
         return;
       }
-      stale = 0;
+      // ⚠ 成功了 ⇒ 这一条的重试计数随 item 一起作废（per-item，见 stale 分支）
       // ⭐ 换局了 ⇒ 这一条是**上一局**的答案，⛔ 别写进新一局的缓存、也别接着泵它的队列
       if (ep !== epoch) return;
       if (r && r.scores) cache.set(item.key, r.scores);
@@ -244,11 +273,14 @@
       pumpSoon();
     }, function (e) {
       // ⛔ 绝不吞掉 reject：吞掉的表现是「进度条停在 60% 再也不动」，零报错（§2.4）
+      if (ep !== epoch) return;
       inflight = false;
       disable(OFF_ENGINE);
       if (typeof console !== 'undefined' && console.warn) {
         console.warn('[analysis] 求解器请求失败：' + String((e && e.message) || e));
       }
+      // ⛔ 失败同样要通知（理由同上：否则 onIdle 上挂的那三件事永远等不到）
+      fireIdle();
     });
   }
 

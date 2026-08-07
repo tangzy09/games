@@ -47,8 +47,11 @@
     // 每 10 盘至多一个
     if (rounds % EVERY_N !== 0) return { show: false, why: 'cadence' };
     // 距上次 ≥2min
-    const last = c.lastAt | 0;
-    if (last > 0 && (c.now | 0) - last < MIN_GAP_MS) return { show: false, why: 'tooSoon' };
+    // ⛔ 别用 |0：调用方传的是**墙钟**（Date.now ≈ 1.75e12），|0 会按 int32 回绕
+    //   ⇒ 间隔比较大约每 49.7 天就变成一个没有意义的数（2026-08-07 抓到）。
+    const last = Number(c.lastAt) || 0;
+    const now = Number(c.now) || 0;
+    if (last > 0 && now - last < MIN_GAP_MS) return { show: false, why: 'tooSoon' };
     return { show: true, why: '' };
   }
 
