@@ -57,7 +57,12 @@ const LOAD_ORDER = [
   // ⭐ P3 T1/T2：判分层与边打边算的调度（DESIGN §4 / §3.3 / §9.2）。两者都无跨模块依赖，
   //   但 `root.C4Review = API` / `root.C4Analysis = API` 那条浏览器分支同样只有本文件覆盖得到。
   path.join(JS_DIR, 'review.js'),
-  path.join(JS_DIR, 'analysis.js')
+  path.join(JS_DIR, 'analysis.js'),
+  // ⭐ P4/P5：课程引擎 / 元游戏 / 变现闸门。三者无跨模块依赖（lessons 吃 review），
+  //   但 root.C4Xxx = API 那条浏览器分支同样只有本文件覆盖得到。
+  path.join(JS_DIR, 'lessons.js'),
+  path.join(JS_DIR, 'meta.js'),
+  path.join(JS_DIR, 'shop.js')
 ];
 
 /** 造一个尽量像浏览器的沙箱：有 self、有 console，⛔ **没有 module / require / exports**
@@ -96,7 +101,8 @@ console.log('test-browser: ' + LOAD_ORDER.length + ' 个 <script> 按序求值�
   assert.strictEqual(vm.runInContext('typeof PRNG.create', sandbox), 'function');
   // 反过来，五个游戏模块用的是 `root.X = API` ⇒ 必须是 self 的属性
   const NAMES = ['Bitboard', 'RulesClassic', 'Solver', 'Book', 'ConnectAI', 'C4State', 'C4Render', 'C4Fx',
-                 'C4Threats', 'C4Settings', 'C4Clock', 'C4Review', 'C4Analysis'];
+                 'C4Threats', 'C4Settings', 'C4Clock', 'C4Review', 'C4Analysis',
+                 'C4Lessons', 'C4Meta', 'C4Shop'];
   for (const name of NAMES) {
     assert.strictEqual(vm.runInContext('typeof self.' + name, sandbox), 'object',
       'self.' + name + ' 没挂上（模块结尾的 root.' + name + ' = API 没生效？）');

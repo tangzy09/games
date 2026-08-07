@@ -107,6 +107,13 @@ var G = {
   accRecorded: false,
   // ⭐ 记的那一刻它**是不是新高**（⛔ 别事后拿纪录反推：写进去之后就比不出来了）
   accWasRecord: false,
+  // ⭐ 这一局用过提示没有（§7.8 的「零提示胜率」判据）。⚠ 不进存档：它是「这一局的事」。
+  hintUsed: false,
+  // ── ⭐ 课程（P4 · §5）──
+  // ⭐ `lesson` = 「现在在上哪一课、这道题是什么」。⛔ 不进存档（题目由求解器无限供给，
+  //   存了反而会把一道过期的题带回来）；**做完哪几课**存在 settings 的 lessonsMask 位图里。
+  lesson: null,          // { id, moves, sa, picked, judged, loading, why }
+  pageBack: null,        // 二级页返回键画在哪（只给 E2E 取样）
   reviewBack: null,      // 上一帧返回键画在哪（只给 E2E 取样，⛔ 不是真值源）
   askRect: null,      // 上一帧确认条画在哪（只给 E2E 取样，⛔ 不是真值源）
   askRectF2F: null,   // 对坐模式下那条**旋转 180°** 的确认条画在哪（同上）
@@ -659,7 +666,7 @@ function goHome() {
   G.phase = 'HOME'; G.g = null; G.result = null; G.hoverCol = -1; G.holdCol = -1; G.notice = '';
   G.coin = false; G.coinAnim = false; G.undoAsk = null; G.hint = null;
   G.brilliantNote = null; G.brilliantCount = 0; G.lastBrilliant = null; _brilliantPly = -99;
-  G.review = null; G.accRecorded = false; G.accWasRecord = false;
+  G.review = null; G.accRecorded = false; G.accWasRecord = false; G.hintUsed = false;
   // ⭐ 表停掉（⛔ 别让一个 100 ms 的 interval 在 HOME 上空转 —— 与 fxStop 里那条 rAF 同源）
   G.autoNote = null; G.coinUntil = 0; stopClock();
   // ⭐ 上一局的真值不许漏进下一局（缓存 key 里没有「哪一局」这一维，靠 reset 划界）
@@ -766,7 +773,7 @@ function startGame(mode, tier) {
   G.autoNote = null; G.hint = null;
   // ⭐ 妙手计数是**这一局**的（⛔ 上一局的 ✨ 不许漏进新一局）
   G.brilliantNote = null; G.brilliantCount = 0; G.lastBrilliant = null; _brilliantPly = -99;
-  G.review = null; G.accRecorded = false; G.accWasRecord = false;
+  G.review = null; G.accRecorded = false; G.accWasRecord = false; G.hintUsed = false;
   // ⭐ 儿童档只对人机局成立（双人局那一侧的答案是让子，T1）。⚠ 档位由 state.js 说了算，
   //   ⛔ 这里不许自己写 `tier = 1`：两份判据漂了就会出现「界面写儿童档、开的是别的级」。
   const kids = mode === 'ai' && kidsPref();
@@ -987,6 +994,9 @@ function expireHint() {
 function askHint() {
   const g = G.g;
   if (!g || G.phase !== 'PLAYING' || C4State.isOver(g)) return;
+  // ⭐ 这一局用过提示了（§7.8 的零提示胜率 / §7.7 的 ★2 都读它）。
+  //   ⚠ 提示**永远免费**（§3.2）—— 这个标记只影响「怎么记账」，⛔ 不影响能不能按。
+  G.hintUsed = true;
   // ⚠ 不是玩家的回合就别提示（AI 在想，盘上也落不了子）
   if (!C4State.isHumanTurn(g)) return;
   expireHint();
@@ -1484,6 +1494,13 @@ function dispatch(action, data) {
     case 'HINT':       askHint(); return;
     // ⭐ 复盘（§3.3）：⛔ 同样永远免费
     case 'REVIEW':     openReview(); return;
+    // ⭐ 课程与统计（P4/P5）：⛔ 同样永远免费、零广告
+    case 'LEARN':      openLearn(); return;
+    case 'STATS':      G.phase = 'STATS'; renderAll(); return;
+    case 'PAGE_BACK':  G.phase = 'HOME'; G.g = G.g; renderAll(); return;
+    case 'LESSON':     startLesson(data && data.id); return;
+    case 'LESSON_COL': answerLesson(data && data.col); return;
+    case 'LESSON_NEXT': nextQuestion(); return;
     case 'REVIEW_BACK': G.phase = 'OVER'; renderAll(); return;
     case 'REPLAY_FROM': replayFrom(data && data.ply); return;
     case 'UNDO':       requestUndo(); return;
@@ -1577,7 +1594,9 @@ function homeStack(L) {
       //   （homeStack 的 hk 迭代自己会处理），门禁 e2e-p2b-t7 ⑤/⑤b 逐块量重叠与墨迹越界。
       { k: 'timed',  h: B(46),                    gap: 12, px: F(14) },
       { k: 'ai',     h: B(52),                    gap: 12, px: F(16) },
-      { k: 'human',  h: B(52),                    gap: 18, px: F(16) },
+      { k: 'human',  h: B(52),                    gap: 12, px: F(16) },
+      // ⭐ 课程 / 统计（P4/P5）：两个按钮**共用这一块**（并排）⇒ ⛔ 别占两行。
+      { k: 'meta',   h: B(42),                    gap: 18, px: F(14) },
       { k: 'set1',   h: B(46),                    gap: 8,  px: F(14) },
       { k: 'set2',   h: B(46),                    gap: 8,  px: F(14) },
       { k: 'set3',   h: B(46),                    gap: 14, px: F(14) },
@@ -1722,6 +1741,16 @@ function drawHome(L) {
   btn(bx, b.y, bw, b.h, T('menu.vsAI'), 'PLAY_AI', {}, { disabled: dead, px: b.px });
   b = S.at('human');
   btn(bx, b.y, bw, b.h, T('menu.vsHuman'), 'PLAY_HUMAN', {}, { bg: '#61776f', px: b.px });
+
+  // ⭐ 课程 / 统计两个入口（P4/P5）。⚠ **两个按钮共用一块**（并排）⇒ ⛔ 不多占一行高度：
+  //   HOME 的块栈在最窄屏上排得很满，P2b-T7 的版面门禁逐块量重叠与墨迹越界。
+  //   ⛔ 两者都**永远免费**（§3.2 那条红线罩着课程）。
+  b = S.at('meta');
+  {
+    const gap2 = 10, w2 = (bw - gap2) / 2;
+    btn(bx, b.y, w2, b.h, T('menu.learn'), 'LEARN', {}, { bg: '#61776f', px: b.px });
+    btn(bx + w2 + gap2, b.y, w2, b.h, T('menu.stats'), 'STATS', {}, { bg: '#61776f', px: b.px });
+  }
 
   // ⭐ 设置入口（P2b T4 一行 + T6 两行）。⚠ 这里仍然不做完整设置页 —— 三行还压得住，
   //   做成页反而多一次点击（⚠ 再多就该收进页里了）。
@@ -1992,6 +2021,72 @@ function recordAccuracy() {
   G.accWasRecord = accIsRecord(S.acc);
   if (G.accWasRecord) C4Settings.set('bestAcc', S.acc);
   C4Settings.set('bestAccN', (C4Settings.get('bestAccN') | 0) + 1);
+  recordMeta();
+}
+
+/**
+ * ⭐ 元游戏计数器（P5 · §7）：局数 / 胜 / **零提示胜** / 妙手 / 诊断标签。
+ * ⚠ 与 recordAccuracy 同一时机（analysis 空闲那一刻）⇒ ⛔ 不在渲染里写存储。
+ * ⚠ 幂等由 G.accRecorded 一起罩住（它在上面刚被置 true）。
+ * ⛔ 让子局/限时局仍然计入**局数与胜负**（那是真的打了一局）—— 只有**精准度**不计入。
+ *   ⇒ 两件事分开，别混（§6.10 说的是「不计入精准度纪录」，不是「这局不算」）。
+ */
+function recordMeta() {
+  const g = G.g;
+  if (!g) return;
+  const won = G.result && G.result.winner !== null
+              && G.result.winner === (g.mode === 'ai' ? C4State.humanPlayer(g) : 0);
+  const inc = (k, d) => C4Settings.set(k, (C4Settings.get(k) | 0) + (d | 0));
+  inc('games', 1);
+  if (won) {
+    inc('wins', 1);
+    // ⭐ §7.8 的「零提示胜率」——⚠ 判据是**这一局用没用过提示**（G.hintUsed）
+    if (!G.hintUsed) inc('winsNoHint', 1);
+  }
+  if (G.brilliantCount > 0) inc('brilliants', G.brilliantCount);
+  // ⭐ 诊断标签（§5.2.3 → §5.3 的「我的弱点」）。⚠ 只统计**玩家自己**的手。
+  const tags = collectTags(g);
+  for (const k of Object.keys(tags)) if (tags[k]) inc('tag' + k.charAt(0).toUpperCase() + k.slice(1), tags[k]);
+}
+
+/**
+ * ⭐ 把这一局玩家的失误分类计数（§5.2.3）。
+ * ⚠ 只读缓存、⛔ 不发请求（算不出来就少统计一点，⛔ 绝不为了统计去卡住玩家）。
+ * ⚠ 盘面判据全是**零搜索**的（C4Threats）——⛔ 别为打标签去调求解器。
+ */
+function collectTags(g) {
+  const out = {};
+  if (!C4Analysis.enabled()) return out;
+  const me = g.mode === 'ai' ? C4State.humanPlayer(g) : 0;
+  let bd = C4State.boardOf(C4State.rewindTo(g, 0));
+  for (let k = 0; k < g.moves.length; k++) {
+    const col = g.moves[k];
+    const side = k % 2 === 0 ? 0 : 1;
+    if (side === me) {
+      const sa = C4Analysis.get(g.moves.slice(0, k));
+      if (sa && Object.keys(sa).length) {
+        const t = C4Lessons.tagOf(sa, col, tagCtx(bd, side));
+        if (t) out[t] = (out[t] | 0) + 1;
+      }
+    }
+    bd = Bitboard.play(bd, col);
+  }
+  return out;
+}
+
+/** 打标签要的那两组列（**零搜索**）。⚠ 与课程出题用的是同一套判据。 */
+function tagCtx(bd, me) {
+  const legal = RulesClassic.moves(bd);
+  const theirs = C4Threats.forPlayer(bd, me ^ 1);
+  const underCols = [], antiforkCols = [];
+  for (const c of legal) {
+    const nb = Bitboard.play(bd, c);
+    const loses = RulesClassic.moves(nb).some(d => Bitboard.isWinningMove(nb, d));
+    if (loses && theirs.some(t => t.c === c)) underCols.push(c);
+    const ob = Bitboard.clone(nb); ob.turn = me ^ 1;
+    if (RulesClassic.winningMoves(ob).length >= 2) antiforkCols.push(c);
+  }
+  return { underCols: underCols, antiforkCols: antiforkCols, n: bd.n };
 }
 
 /**
@@ -2343,6 +2438,8 @@ function renderAll() {
   C4Render.drawBackground(L);
   G.hintRect = G.phase === 'PLAYING' ? G.hintRect : null;
   if (G.phase === 'REVIEW' && G.g) drawReview(L);
+  else if (G.phase === 'LEARN') drawLearn(L);
+  else if (G.phase === 'STATS') drawStats(L);
   else if (G.phase === 'HOME' || !G.g) drawHome(L);
   else drawPlay(L);
 }
@@ -2469,6 +2566,261 @@ function drawReview(L) {
   }
 }
 
+
+// ════════ ⭐⭐ 课程页（P4 · DESIGN §5）════════
+//
+// §5：「有真值 ⇒ 教程可以**自动出题、自动判分、无限供给、还能诊断你哪儿不会**。」
+// ⛔ 课程**永远免费**（§3.2 那条红线同样罩着它）。
+//
+// ⚠ 出题要真值 ⇒ 走 C4Analysis 的插队请求；**没算出来之前如实说「正在出题」**，
+//   ⛔ 不是转到天荒地老、更不是先给一道判不了分的题。
+
+/** 这一课做完了没有（存在 settings 的 lessonsMask 位图里）。 */
+function lessonDone(id) { return !!((C4Settings.get('lessonsMask') | 0) & (1 << (id - 1))); }
+function markLessonDone(id) {
+  const m = C4Settings.get('lessonsMask') | 0;
+  C4Settings.set('lessonsMask', m | (1 << (id - 1)));
+}
+/** 做完几课（⇒ 成就/XP 读它）。 */
+function lessonsDoneCount() {
+  let m = C4Settings.get('lessonsMask') | 0, n = 0;
+  while (m) { n += m & 1; m >>>= 1; }
+  return n;
+}
+/** 诊断标签的累计（§5.3 的数据源）。 */
+function tagCounts() {
+  return {
+    under: C4Settings.get('tagUnder') | 0,
+    missFork: C4Settings.get('tagMissFork') | 0,
+    offCenter: C4Settings.get('tagOffCenter') | 0,
+    parity: C4Settings.get('tagParity') | 0
+  };
+}
+function doneLessonIds() {
+  const out = [];
+  for (const L of C4Lessons.LESSONS) if (lessonDone(L.id)) out.push(L.id);
+  return out;
+}
+
+function openLearn() { G.phase = 'LEARN'; G.lesson = null; renderAll(); }
+
+/** ⭐ 开一课。 */
+function startLesson(id) {
+  const L = C4Lessons.lessonOf(id | 0);
+  if (!L) return;
+  G.lesson = { id: L.id, concept: L.concept, moves: [], sa: null, picked: -1,
+               judged: null, loading: true, tries: 0, ctx: null };
+  nextQuestion();
+}
+
+/**
+ * ⭐ 出下一道题。**确定性伪随机**走几手（⛔ 禁 Math.random：同一课的题目序列要可重放），
+ * 然后问 C4Analysis 要真值；筛不中就换一道（有上限，⛔ 别无限转）。
+ */
+function nextQuestion() {
+  const st = G.lesson;
+  if (!st) return;
+  const L = C4Lessons.lessonOf(st.id);
+  st.picked = -1; st.judged = null; st.loading = true;
+  let x = ((st.id * 2654435761) ^ ((st.tries + 1) * 0x9e3779b9)) >>> 0;
+  let bd = Bitboard.newBoard();
+  const moves = [];
+  const depth = L.concept === 'opening' ? 2 + (st.tries % 4)
+              : L.concept === 'endgame' ? 20 + (st.tries % 8)
+              : 6 + (st.tries % 14);
+  for (let d = 0; d < depth; d++) {
+    if (RulesClassic.terminal(bd) !== null) break;
+    const legal = RulesClassic.moves(bd);
+    x = (x * 1103515245 + 12345) >>> 0;
+    const c = legal[x % legal.length];
+    moves.push(c);
+    bd = Bitboard.play(bd, c);
+  }
+  st.moves = moves;
+  st.tries++;
+  if (RulesClassic.terminal(bd) !== null) { if (st.tries < 40) return nextQuestion(); }
+  C4Analysis.request(moves, { priority: true });
+  const sa = C4Analysis.get(moves);
+  if (sa) applyQuestion(sa); else renderAll();
+}
+
+/** 真值回来了 ⇒ 看这道题符不符合本课概念；不符合就换一道（⛔ 别塞不相关的题给玩家）。 */
+function applyQuestion(sa) {
+  const st = G.lesson;
+  if (!st || !sa || !Object.keys(sa).length) return;
+  const bd = Bitboard.fromMoves(st.moves);
+  const ctx = Object.assign({ n: bd.n }, tagCtx(bd, bd.turn));
+  ctx.forkCols = RulesClassic.moves(bd).filter(function (c) {
+    const fk = C4Threats.forkOf(bd, Bitboard.play(bd, c));
+    return fk && fk.player === bd.turn;
+  });
+  if (!C4Lessons.matches(st.concept, sa, ctx) && st.tries < 40) { nextQuestion(); return; }
+  st.sa = sa; st.ctx = ctx; st.loading = false;
+  renderAll();
+}
+
+/** ⭐ 玩家点了一列 ⇒ 求解器**立刻**判对错 + 给机械导出的理由（§5.2.2）。 */
+function answerLesson(col) {
+  const st = G.lesson;
+  if (!st || st.loading || !st.sa || st.judged) return;
+  let j;
+  // ⚠ 带上 n：judge 靠它认出「当场连四」那条理由（⛔ 否则第 1 课会说成「最稳的一列」）
+  try { j = C4Lessons.judge(st.sa, col, { col: col, n: Bitboard.fromMoves(st.moves).n }); }
+  catch (e) { return; }
+  st.picked = col;
+  st.judged = j;
+  Sfx.play(j.ok ? 'brilliant' : 'undo');
+  if (j.ok) markLessonDone(st.id);
+  renderAll();
+}
+
+/** ⭐ 二级页通用返回键（**左上角**，本仓铁律；y 从 safeTop 起算）。 */
+function pageBack(L, action) {
+  const x = L.tray.x, y = L.safeTop + 4, w = 66, h = 34;
+  fillRR(x, y, w, h, 10, 'rgba(97,119,111,0.92)');
+  fitTxt('‹ ' + T('game.back'), x + w / 2, y + h / 2, w - 12, '#fff', 'bold', fsz(14));
+  addHit(x, y, w, h, action || 'PAGE_BACK', {});
+  return { x: x, y: y, w: w, h: h };
+}
+
+function drawLearn(L) {
+  const marg = L.tray.x, full = L.tray.w;
+  G.pageBack = pageBack(L, G.lesson ? 'LEARN' : 'PAGE_BACK');
+  fitTxt(T('menu.learn'), L.SW / 2, L.safeTop + 21, full - 160, C4Render.PAL.hudText, 'bold', fsz(19));
+  const st = G.lesson;
+
+  if (!st) {
+    let y = L.safeTop + 56;
+    const done = lessonsDoneCount();
+    fitTxt(T('learn.progress', { n: done, t: C4Lessons.LESSONS.length }),
+           L.SW / 2, y + 10, full - 20, C4Render.PAL.hudSub, '600', fsz(13));
+    y += 30;
+    // ⭐ 「下一个目标」：由**诊断**推的那一课（§5.2.3 的自适应课程）
+    const next = C4Lessons.nextLesson(tagCounts(), doneLessonIds());
+    fitTxt(T('learn.next', { n: next }), L.SW / 2, y + 10, full - 20, '#c2601f', 'bold', fsz(13));
+    y += 32;
+    const cols = 4, gap = 8;
+    const bw = (full - gap * (cols - 1)) / cols, bh = bht(40);
+    for (const Ls of C4Lessons.LESSONS) {
+      const i = Ls.id - 1;
+      const bx = marg + (i % cols) * (bw + gap);
+      const by = y + Math.floor(i / cols) * (bh + gap);
+      const okDone = lessonDone(Ls.id);
+      btn(bx, by, bw, bh, String(Ls.id), 'LESSON', { id: Ls.id },
+          { bg: okDone ? '#37a87c' : (Ls.id === next ? C4Render.PAL.accent : '#61776f'), size: 15 });
+    }
+    return;
+  }
+
+  let y = L.safeTop + 52;
+  fitTxt(T('learn.' + C4Lessons.lessonOf(st.id).key), L.SW / 2, y + 10, full - 20,
+         C4Render.PAL.hudText, 'bold', fsz(15));
+  y += 30;
+  if (st.loading) {
+    fitTxt(T('learn.making'), L.SW / 2, y + 10, full - 20, C4Render.PAL.hudSub, '600', fsz(13));
+  } else if (st.judged) {
+    const j = st.judged;
+    const why = T('game.r' + j.reason.charAt(0).toUpperCase() + j.reason.slice(1));
+    // ⭐ 把**玩家点的那一列**写进这句话。⚠ 截图实测：只在盘上给那格描一圈边，
+    //   在手机尺寸下**根本看不出来** —— 而「我到底点了哪一列」是这一屏最要紧的信息。
+    fitTxt(T(j.ok ? 'learn.right' : 'learn.wrong') + ' · '
+             + T('game.hintCol', { n: st.picked + 1 }) + ' · ' + why,
+           L.SW / 2, y + 10, full - 20, j.ok ? '#2f8f6a' : '#c2601f', 'bold', fsz(14));
+    if (!j.ok) {
+      fitTxt(T('game.hintCol', { n: j.best[0] + 1 }), L.SW / 2, y + 32, full - 20,
+             C4Render.PAL.hudSub, '600', fsz(13));
+    }
+  } else {
+    fitTxt(T('learn.yourTurn'), L.SW / 2, y + 10, full - 20, C4Render.PAL.hudSub, '600', fsz(13));
+  }
+
+  // 盘面。⚠ 列热区用 LESSON_COL，⛔ 别复用 COL（那会真的落子）
+  const bd = Bitboard.fromMoves(st.moves);
+  const rowH = bht(46);
+  const avail = (L.bottomLimit - rowH - 16) - (y + 44);
+  const cell = Math.max(24, Math.min(Math.floor(full / 7), Math.floor(avail / 6)));
+  const bw2 = cell * 7, bx2 = Math.round((L.SW - bw2) / 2), by2 = y + 44, bh2 = cell * 6;
+  fillRR(bx2 - 6, by2 - 6, bw2 + 12, bh2 + 12, 12, C4Render.PAL.slab);
+  for (let c = 0; c < 7; c++) {
+    for (let r = 0; r < 6; r++) {
+      const cx = bx2 + cell * (c + 0.5), cy = by2 + cell * (5 - r + 0.5);
+      const who = C4Render.cellOwner(bd, c, r);
+      ctx.beginPath();
+      ctx.arc(cx, cy, cell * 0.38, 0, Math.PI * 2);
+      ctx.fillStyle = who === 0 ? C4Render.PAL.p0Fill : (who === 1 ? C4Render.PAL.p1Fill : C4Render.PAL.well);
+      ctx.fill();
+      // ⭐ 判过之后**把玩家点的那枚子真的画上去**（⛔ 只描一圈边在截图里根本看不出来
+      //   ——「我到底点了哪一列」是这一屏最要紧的信息）。
+      if (who === null && st.judged && st.picked === c && r === C4Render.landingRow(bd, c)) {
+        ctx.fillStyle = bd.turn === 0 ? C4Render.PAL.p0Fill : C4Render.PAL.p1Fill;
+        ctx.fill();
+        ctx.strokeStyle = st.judged.ok ? '#2f8f6a' : '#c2601f';
+        ctx.lineWidth = 4;
+        ctx.stroke();
+      }
+    }
+  }
+  if (!st.loading && !st.judged) {
+    for (const c of RulesClassic.moves(bd)) addHit(bx2 + cell * c, by2, cell, bh2, 'LESSON_COL', { col: c });
+  }
+  if (st.judged) {
+    btn(marg, L.bottomLimit - rowH - 8, full, rowH, T('learn.next2'), 'LESSON_NEXT', {},
+        { bg: C4Render.PAL.accent, size: 15 });
+  }
+}
+
+// ════════ ⭐ 统计 / 成就 / 「我的弱点」（P5 · §7.7-7.9 + §5.3）════════
+function drawStats(L) {
+  const marg = L.tray.x, full = L.tray.w;
+  G.pageBack = pageBack(L);
+  fitTxt(T('menu.stats'), L.SW / 2, L.safeTop + 21, full - 160, C4Render.PAL.hudText, 'bold', fsz(19));
+  const st = {
+    games: C4Settings.get('games') | 0, wins: C4Settings.get('wins') | 0,
+    winsNoHint: C4Settings.get('winsNoHint') | 0, brilliants: C4Settings.get('brilliants') | 0,
+    bestAcc: C4Settings.get('bestAcc') | 0, lessonsDone: lessonsDoneCount()
+  };
+  const s = C4Meta.stats(st);
+  const p = C4Meta.levelProgress(C4Meta.xpOf(st));
+  let y = L.safeTop + 52;
+  const line = function (txt, size, color) {
+    fitTxt(txt, L.SW / 2, y + 10, full - 20, color || C4Render.PAL.hudText, '600', fsz(size || 14));
+    y += 28;
+  };
+
+  line(T('meta.level', { n: p.lv }) + ' · ' + T(C4Meta.titleKey(p.lv)), 17);
+  fillRR(marg + 20, y, full - 40, 8, 4, 'rgba(255,255,255,0.85)');
+  fillRR(marg + 20, y, (full - 40) * p.frac, 8, 4, C4Render.PAL.accent);
+  y += 22;
+  // ⛔ 0 局时 rate 是 null ⇒ 显示占位符，绝不显示 0%
+  line(T('meta.games', { n: s.games }) + ' · ' +
+       T('meta.rate', { n: s.rate === null ? '—' : s.rate + '%' }), 14);
+  // ⭐ §7.8：零提示胜率才是拿去炫的那个口径
+  line(T('meta.rateClean', { n: s.noHintRate === null ? '—' : s.noHintRate + '%' }), 14, '#2f8f6a');
+  line(T('game.accuracy') + ' ★ ' + ((C4Settings.get('bestAccN') | 0) ? st.bestAcc + '%' : '—'), 14);
+  y += 4;
+  // ⭐ 「我的弱点」（§5.3）——⚠ 措辞是**陈述事实**，⛔ 不指责
+  const w = C4Lessons.weakness(tagCounts());
+  if (w.length) {
+    line(T('meta.weak'), 13, C4Render.PAL.hudSub);
+    for (const it of w.slice(0, 3)) line(T('tag.' + it.tag) + ' · ' + it.n, 13, '#c2601f');
+  } else {
+    line(T('meta.weakNone'), 13, C4Render.PAL.hudSub);
+  }
+  y += 4;
+  const ach = C4Meta.achievements(st);
+  line(T('meta.ach', { n: ach.filter(function (a) { return a.got; }).length, t: ach.length }), 13, C4Render.PAL.hudSub);
+  const cols = 5, gap = 6, bw = (full - gap * (cols - 1)) / cols, bh = bht(28);
+  ach.forEach(function (a, i) {
+    const bx = marg + (i % cols) * (bw + gap), by = y + Math.floor(i / cols) * (bh + gap);
+    fillRR(bx, by, bw, bh, 8, a.got ? '#37a87c' : 'rgba(97,119,111,0.26)');
+    fitTxt(a.got ? '★' : String(a.need), bx + bw / 2, by + bh / 2, bw - 6,
+           a.got ? '#fff' : 'rgba(38,74,61,0.55)', 'bold', fsz(12));
+  });
+  const rowH = bht(46);
+  btn(marg, L.bottomLimit - rowH - 8, full, rowH, T('menu.learn'), 'LEARN', {},
+      { bg: C4Render.PAL.accent, size: 15 });
+}
+
 // ════════ 启动 ════════
 
 async function boot() {
@@ -2517,7 +2869,17 @@ async function boot() {
   C4Analysis.attach(EngineClient);
   // ⭐ 「这一局的活干完了」⇒ 记一次纪录 + 重画（进度/精准度这时才有得显示）。
   //   ⛔ 写存储绝不能放渲染里（renderAll 每帧都跑 = 每帧一次 IO）——这就是 onIdle 存在的理由。
-  C4Analysis.onIdle(() => { recordAccuracy(); renderAll(); });
+  C4Analysis.onIdle(() => {
+    recordAccuracy();
+    // ⭐⭐ 课程正等着这道题的真值 ⇒ 回来了就推进。
+    //   ⛔ 少了这一句，`G.lesson.loading` 会永远挂着（页面上就是「正在出题…」转到天荒地老，
+    //   而请求其实早算完了）—— 2026-08-06 被 e2e-p45 当场抓出。
+    if (G.phase === 'LEARN' && G.lesson && G.lesson.loading) {
+      const sa = C4Analysis.get(G.lesson.moves);
+      if (sa) { applyQuestion(sa); return; }      // ⚠ applyQuestion 自己会重画
+    }
+    renderAll();
+  });
 
   // ⭐ 首屏**不 await** 引擎：让玩家先看见界面（DESIGN §9.2）。
   // ⭐ 引擎状态一变就 kick 一下边打边算：**开局库到位的那一刻**正是它该开工的时刻

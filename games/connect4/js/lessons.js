@@ -127,10 +127,16 @@
     const label = RV.labelOf(sa, col);            // ⚠ 脏输入的 fail-fast 全在它那儿
     const best = RV.safeCols(sa);
     const h = RV.hintLevel2(sa, ctx || {});
+    let reason = h.reason;
+    // ⭐ **当场连四**要有自己的理由。⚠ 截图实测：第 1 课「一步取胜」判对之后说的却是
+    //   「这一列最稳」—— 逻辑没错（它确实不是唯一解、也不是双威胁），但**教学上完全违和**：
+    //   那一课要教的恰恰是「这一手直接连四」。⇒ 分数等于最大可能分（CELLS - n）就是它。
+    const c2 = ctx || {};
+    if (c2.n !== undefined && sa[col] === (42 - c2.n)) reason = 'win';
     return {
       ok: label === 'best' || label === 'good',
       label: label,
-      reason: h.reason,
+      reason: reason,
       best: best
     };
   }

@@ -37,7 +37,9 @@ const KEY = 'c4_settings';
   assert.ok(Object.isFrozen(S.DEFAULTS), 'DEFAULTS 必须冻结');
   assert.deepStrictEqual(S.KEYS.slice(),
     ['threatHints', 'reduceMotion', 'comfort', 'handicap', 'kids', 'faceToFace', 'timed',
-     'bestAcc', 'bestAccN']);
+     'bestAcc', 'bestAccN',
+     'games', 'wins', 'winsNoHint', 'brilliants', 'lessonsMask',
+     'tagUnder', 'tagMissFork', 'tagOffCenter', 'tagParity']);
   console.log('test-settings: 默认 threatHints=true（新手默认开）OK');
 }
 
