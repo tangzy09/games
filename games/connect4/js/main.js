@@ -577,6 +577,9 @@ function fxStop() {
   // ⭐ 猜先那个「等演完再让 AI 走」的计时器一起清（同 _overTimer 的理由）：撤销/换局之后
   //   它再触发就会在**另一局**上叫醒 AI。⚠ 里面还有一道 aiSeq 校验，两层都要有。
   clearCoinTimer();
+  // ⛔ AI 那个「等够半秒」的计时器一起清（同 _coinTimer 的理由）：撤销/换局之后它再触发
+  //   会在**另一局**上落子。⚠ 里面还有一道 fresh() 校验，两层都要有。
+  clearAiTimer();
   G.overReady = false;
   // ⛔ 挂起的插屏一起清：撤销/换局之后它再放出来，就是**上一局**欠的那个广告砸在新局面上。
   G.adPending = false;
@@ -1399,9 +1402,18 @@ function maybeAI() {
   requestAI();
 }
 
+/** ⭐ 电脑落子的**最短思考时间**（ms，2026-08-07 用户定）。
+ *  ⚠ 是**下限不是延时**：算得慢的那些手一毫秒都不加（求解器档本来就要想）。
+ *    低档 + 有开局库时引擎往往几毫秒就回来，人一按对面就啪地落下，读起来像「它早就想好了」
+ *    ——把节奏拖到半秒，落子才像一次「回应」。 */
+const AI_MIN_MS = 500;
+let _aiTimer = null;
+function clearAiTimer() { if (_aiTimer) { clearTimeout(_aiTimer); _aiTimer = null; } }
+
 function requestAI() {
   const g = G.g;
   const my = ++G.aiSeq;
+  clearAiTimer();   // ⛔ 上一手欠着的那个「等够半秒」别落到这一手上
   // ⭐⭐ 传给引擎的 position 是**盘面对象**，⛔ 不是手数列表（P2c T1 · DESIGN §6.7）：
   //   让子的预置子不在 `g.moves` 里 ⇒ 传手数列表的话 AI 看到的是一个**少了两枚子的盘**，
   //   它会照着那个不存在的局面走 —— 落子照常、零报错，而整局的应对全是错的。
@@ -1419,15 +1431,28 @@ function requestAI() {
   const took = () => Math.round(((typeof performance !== 'undefined' && performance.now)
     ? performance.now() : Date.now()) - t0);
 
+  /** ⭐ 把 fn 推到「这一手至少想满 AI_MIN_MS」那一刻。
+   *  ⚠ 到点还要再查一次 fresh()：等的这半秒里玩家完全可能撤销或换局。 */
+  const settle = fn => {
+    const wait = AI_MIN_MS - took();
+    if (wait <= 0) { fn(); return; }
+    clearAiTimer();
+    _aiTimer = setTimeout(() => { _aiTimer = null; if (fresh()) fn(); }, wait);
+  };
+
   const fire = () => EngineClient.ai(pos, tier, seed).then(r => {
     if (!fresh()) return;                 // 撤销 / 换局把它作废了
     if (r && r.stale) return;             // 被更新的一次顶掉（engine-client 的约定，不是错误）
-    setThinking(false);
+    // ⚠ lastAiMs 记的是**引擎真实耗时**（DESIGN §9.2 那条「中位 21 ms」的量法）
+    //   ⛔ 别把下面那段等待算进去 —— 那是节奏，不是性能。
     G.lastAiMs = took();
-    G.notice = '';                        // 这次成功了 ⇒ 上一次的降级措辞该撤下（⛔ 别让红字赖着）
-    // ⛔ 兜底也要**响**：Worker 回了个落不下去的列（列满 / 越界 / undefined）时，
-    //    静默不动 = 棋局永远停在 AI 的回合，玩家只看到「思考中」消失了却没人落子。
-    if (!applyMove(r.col)) { G.notice = T('game.engineDown'); renderAll(); }
+    settle(() => {
+      setThinking(false);                 // ⚠ 菊花留到真正落子那一刻再收（⛔ 别先收再干等）
+      G.notice = '';                      // 这次成功了 ⇒ 上一次的降级措辞该撤下（⛔ 别让红字赖着）
+      // ⛔ 兜底也要**响**：Worker 回了个落不下去的列（列满 / 越界 / undefined）时，
+      //    静默不动 = 棋局永远停在 AI 的回合，玩家只看到「思考中」消失了却没人落子。
+      if (!applyMove(r.col)) { G.notice = T('game.engineDown'); renderAll(); }
+    });
   }, e => {
     if (!fresh()) return;
     setThinking(false);
@@ -2701,7 +2726,7 @@ function startLesson(id) {
   const L = C4Lessons.lessonOf(id | 0);
   if (!L) return;
   G.lesson = { id: L.id, concept: L.concept, moves: [], sa: null, picked: -1,
-               judged: null, loading: true, tries: 0, ctx: null };
+               judged: null, loading: true, tries: 0, asked: 0, pre: 0, ctx: null };
   nextQuestion();
 }
 
@@ -2714,7 +2739,10 @@ function nextQuestion() {
   if (!st) return;
   const L = C4Lessons.lessonOf(st.id);
   st.picked = -1; st.judged = null; st.loading = true;
-  let x = ((st.id * 2654435761) ^ ((st.tries + 1) * 0x9e3779b9)) >>> 0;
+  // ⛔⛔ 必须用 Math.imul（同 meta.js 每日任务那处已修的坑）：`x * 1103515245` 的乘积约 2^62，
+  //   **超过 float64 的 53 位尾数** ⇒ 低位被抹平、x 恒偶、周期塌成很短的一圈
+  //   ⇒ 换 40 道题其实在**反复抽同几个局面**，本课概念一直筛不中 ⇒ 白等还可能退化成不合概念的题。
+  let x = (Math.imul(st.id, 2654435761) ^ Math.imul(st.tries + 1, 0x9e3779b9)) >>> 0;
   let bd = Bitboard.newBoard();
   const moves = [];
   const depth = L.concept === 'opening' ? 2 + (st.tries % 4)
@@ -2723,17 +2751,55 @@ function nextQuestion() {
   for (let d = 0; d < depth; d++) {
     if (RulesClassic.terminal(bd) !== null) break;
     const legal = RulesClassic.moves(bd);
-    x = (x * 1103515245 + 12345) >>> 0;
+    x = (Math.imul(x, 1103515245) + 12345) >>> 0;
     const c = legal[x % legal.length];
     moves.push(c);
     bd = Bitboard.play(bd, c);
   }
   st.moves = moves;
   st.tries++;
-  if (RulesClassic.terminal(bd) !== null) { if (st.tries < 40) return nextQuestion(); }
+  if (RulesClassic.terminal(bd) !== null) { if (st.asked < ASK_MAX) return nextQuestion(); }
+  // ⭐⭐ **零搜索预筛**（2026-08-07 试玩后加）：`under` / `fork` / `antifork` 三种概念的
+  //   筛选条件**完全不吃求解器**（C4Lessons.matches 里那三条只读 ctx）。原来每换一道题都要
+  //   走一次 Worker 往返（~300 ms）⇒ 第 5/12 课要换满 40 道 ⇒ **「正在出题…」转了 13 秒**，
+  //   最后还退化成一道**不符合本课概念**的题（到上限就直接接受）。
+  //   ⇒ 先在本地判一次；判不过就当场重抽，⛔ 一次 Worker 都不问。
+  //   ⚠⚠ 预筛的重抽**绝不许算进 st.asked**（那是「问过求解器几次」）——算进去的话
+  //     上限会被本地重抽吃光，预筛等于没做。⛔ 这就是把两个计数分开的全部理由。
+  if (st.pre < PRE_MAX && !ctxPreOk(L.concept, bd)) { st.pre++; return nextQuestion(); }
+  st.asked++;
   C4Analysis.request(moves, { priority: true });
   const sa = C4Analysis.get(moves);
   if (sa) applyQuestion(sa); else renderAll();
+}
+
+/** 一道题最多问几次求解器（⚠ 每次都是一趟 Worker 往返）。 */
+const ASK_MAX = 40;
+/** 零搜索预筛最多本地重抽几次（⚠ 纯 CPU、微秒级，⛔ 不走 Worker）。 */
+const PRE_MAX = 400;
+
+/**
+ * ⭐ 概念的**零搜索**必要条件 —— 判得了就当场判，判不了返回 true（交给求解器那一关）。
+ * ⛔ 这里只放**必要条件**：判据的唯一真相仍是 `C4Lessons.matches`，
+ *   这一层只负责**省掉注定不合格的那些 Worker 往返**，⛔ 绝不许放宽或收紧最终结果。
+ */
+function ctxPreOk(concept, bd) {
+  if (concept === 'under' || concept === 'fork' || concept === 'antifork') {
+    const c = tagCtx(bd, bd.turn);
+    if (concept === 'under') return c.underCols.length > 0;
+    if (concept === 'antifork') return c.givesForkCols.length > 0;
+    // fork：走了就给**自己**造出双威胁的列（与 applyQuestion 里 forkCols 同一判据）
+    return RulesClassic.moves(bd).some(function (col) {
+      const fk = C4Threats.forkOf(bd, Bitboard.play(bd, col));
+      return fk && fk.player === bd.turn;
+    });
+  }
+  // ⭐ win1 的判据在分数上是 `sa[best] === 42 - n`（solver.js 的「当场制胜」锚点）
+  //   ⇔ **此刻就有一步连四** ⇒ 零搜索判得出来，且是**充要**的（⛔ 不是近似）。
+  if (concept === 'win1') return RulesClassic.winningMoves(bd).length > 0;
+  if (concept === 'opening') return bd.n <= 6;
+  if (concept === 'endgame') return bd.n >= 20;
+  return true;                                  // block1 / only / center：必须问求解器
 }
 
 /** 真值回来了 ⇒ 看这道题符不符合本课概念；不符合就换一道（⛔ 别塞不相关的题给玩家）。 */
@@ -2744,7 +2810,7 @@ function applyQuestion(sa) {
   //   页面会永远停在「正在出题…」，而 onIdle 每次重入都走同一条早退（2026-08-07 抓到）。
   //   ⇒ 换一道题；连换 40 次都不成就如实停下，⛔ 别把玩家晾在转圈上。
   if (!Object.keys(sa).length) {
-    if (st.tries < 40) { nextQuestion(); return; }
+    if (st.asked < ASK_MAX) { nextQuestion(); return; }
     st.loading = false;
     st.why = T('game.hintOff');
     renderAll();
@@ -2756,7 +2822,7 @@ function applyQuestion(sa) {
     const fk = C4Threats.forkOf(bd, Bitboard.play(bd, c));
     return fk && fk.player === bd.turn;
   });
-  if (!C4Lessons.matches(st.concept, sa, ctx) && st.tries < 40) { nextQuestion(); return; }
+  if (!C4Lessons.matches(st.concept, sa, ctx) && st.asked < ASK_MAX) { nextQuestion(); return; }
   st.sa = sa; st.ctx = ctx; st.loading = false;
   renderAll();
 }
@@ -2827,6 +2893,8 @@ function drawLearn(L) {
   fitTxt(T('learn.' + C4Lessons.lessonOf(st.id).key), L.SW / 2, y + 10, full - 20,
          C4Render.PAL.hudText, 'bold', fsz(15));
   y += 30;
+  // ⚠ 提前到这里算：下面「你执哪一色」要用 bd.turn（原来 bd 在盘面那一段才建）。
+  const bd = Bitboard.fromMoves(st.moves);
   if (st.loading) {
     fitTxt(T('learn.making'), L.SW / 2, y + 10, full - 20, C4Render.PAL.hudSub, '600', fsz(13));
   } else if (st.judged) {
@@ -2842,31 +2910,69 @@ function drawLearn(L) {
              C4Render.PAL.hudSub, '600', fsz(13));
     }
   } else {
-    fitTxt(T('learn.yourTurn'), L.SW / 2, y + 10, full - 20, C4Render.PAL.hudSub, '600', fsz(13));
+    // ⭐⭐ 「我执哪一色」是这一屏的**前提**：第 1 课要你「一步取胜」，不知道自己是哪一色
+    //   根本无从下手 —— 而 2026-08-07 试玩前，整屏没有任何一处说过（棋盘上黑白都有）。
+    //   ⇒ 在提示语左边画一枚**真的棋子**，用的就是它自己那一色。
+    //   ⚠ 图与字必须**分开量宽**再排（本仓通例：把图标拼进字符串靠 measureText 猜位置必叠字）。
+    const s = T('learn.yourTurn');
+    const px = fsz(13);
+    // ⚠ 圆点的半径必须**跟着字号档一起放大**（A/A⁺/A⁺⁺），⛔ 别用未缩放的 px ——
+    //   否则大号档下字变大、点没变，看起来像掉了一块。
+    const k = (typeof GameGlobal !== 'undefined' && GameGlobal.fontScale) || 1;
+    const R = px * k * 0.52, gap = 7;
+    const tw = measureAtScale(s, '600', px);      // ⚠ 它量的已经是**缩放后**的宽度
+    const x0 = L.SW / 2 - (tw + R * 2 + gap) / 2;
+    // ⭐ 用**盘上同一套造型**画（六边形 / 圆环）：这枚点的全部意义就是「盘上哪些子是我的」，
+    //   画成一个不相干的圆点等于又要玩家再翻译一次。⚠ drawPiece 吃的是 cell 不是半径 ⇒
+    //   按各自的比例反推，好让两种造型的**视觉大小一致**。
+    const cellEq = R / (bd.turn === 0 ? C4Render.HEX_R : C4Render.RING_R);
+    C4Render.drawPiece(bd.turn, x0 + R, y + 10, cellEq);
+    // ⛔ 传**未缩放**的 font 串：txtL 内部自己会过一遍 sfont（传 SF(...) 会二次放大）。
+    txtL(s, x0 + R * 2 + gap, y + 10, C4Render.PAL.hudSub, '600 ' + px + 'px sans-serif');
   }
 
   // 盘面。⚠ 列热区用 LESSON_COL，⛔ 别复用 COL（那会真的落子）
-  const bd = Bitboard.fromMoves(st.moves);
   const rowH = bht(46);
   const avail = (L.bottomLimit - rowH - 16) - (y + 44);
   const cell = Math.max(24, Math.min(Math.floor(full / 7), Math.floor(avail / 6)));
-  const bw2 = cell * 7, bx2 = Math.round((L.SW - bw2) / 2), by2 = y + 44, bh2 = cell * 6;
+  const bw2 = cell * 7, bx2 = Math.round((L.SW - bw2) / 2), bh2 = cell * 6;
+  // ⭐ 盘面在剩余空间里**竖直居中**：cell 受宽度约束（full/7 通常比 avail/6 小）⇒ 顶对齐时
+  //   下方会空掉一大片（实拍 ~330 px），整屏看着像没画完。⚠ 用 max(0,…) 兜住 —— 矮屏上
+  //   avail 可能比盘面还小，那时必须仍从 y+44 开始，⛔ 别让它往上跑进标题里。
+  const by2 = y + 44 + Math.max(0, Math.floor((avail - bh2) / 2));
+  // ⚠ 上一帧课程盘画在哪（**只给门禁取样**，⛔ 不是真值源 —— 同 G.coinRect / G.f2fRect）。
+  G.lessonRect = { x: bx2, y: by2, cell: cell };
   fillRR(bx2 - 6, by2 - 6, bw2 + 12, bh2 + 12, 12, C4Render.PAL.slab);
   for (let c = 0; c < 7; c++) {
     for (let r = 0; r < 6; r++) {
       const cx = bx2 + cell * (c + 0.5), cy = by2 + cell * (5 - r + 0.5);
       const who = C4Render.cellOwner(bd, c, r);
-      ctx.beginPath();
-      ctx.arc(cx, cy, cell * 0.38, 0, Math.PI * 2);
-      ctx.fillStyle = who === 0 ? C4Render.PAL.p0Fill : (who === 1 ? C4Render.PAL.p1Fill : C4Render.PAL.well);
-      ctx.fill();
+      // ⭐ 空格才画井；有子的一律走 `C4Render.drawPiece` —— 对局盘用的就是它
+      //   （0 = 六边形 / 1 = 圆环，**形状 + 颜色双编码**，灰度也分得出）。
+      //   ⛔ 这里原来自己画两个一样的圆 ⇒ **恰恰在教学屏丢掉了那层双编码**，
+      //     而这一屏还要求玩家分辨敌我（2026-08-07 试玩发现）。
+      if (who < 0) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, cell * 0.38, 0, Math.PI * 2);
+        ctx.fillStyle = C4Render.PAL.well;
+        ctx.fill();
+      } else {
+        C4Render.drawPiece(who, cx, cy, cell);
+      }
       // ⭐ 判过之后**把玩家点的那枚子真的画上去**（⛔ 只描一圈边在截图里根本看不出来
       //   ——「我到底点了哪一列」是这一屏最要紧的信息）。
-      if (who === null && st.judged && st.picked === c && r === C4Render.landingRow(bd, c)) {
-        ctx.fillStyle = bd.turn === 0 ? C4Render.PAL.p0Fill : C4Render.PAL.p1Fill;
-        ctx.fill();
+      // ⛔⛔ 判据是 `who < 0`，⛔ 不是 `who === null` —— `cellOwner` 空格返回的是 **-1**
+      //   ⇒ 原来那句**永远不成立**，玩家点的那枚子**从来没画上去过**（2026-08-07 试玩
+      //   截图发现：答对了写着「第 4 列 · 当场就赢」，而盘上第 4 列空空如也）。
+      //   ⚠ 上面那行 fillStyle 之所以没事，是因为它显式比的是 0 / 1。
+      if (who < 0 && st.judged && st.picked === c && r === C4Render.landingRow(bd, c)) {
+        C4Render.drawPiece(bd.turn, cx, cy, cell);      // ⭐ 与盘上其余棋子同一套造型
+        ctx.beginPath();
+        // ⚠ 半径必须**大于** RING_R(0.425) 与 HEX_R(0.455)，⛔ 别用 0.42 ——
+        //   那正好压在圆环外径上，把棋子本身的颜色盖掉（实拍：那一格变成一个纯绿环）。
+        ctx.arc(cx, cy, cell * 0.49, 0, Math.PI * 2);
         ctx.strokeStyle = st.judged.ok ? '#2f8f6a' : '#c2601f';
-        ctx.lineWidth = 4;
+        ctx.lineWidth = 3;
         ctx.stroke();
       }
     }

@@ -68,6 +68,8 @@ function serve() { return new Promise((res, rej) => {
     await page.close();
   }
   await browser.close(); srv.close();
-  console.log(fails ? `\n✕ ${fails} 处不对 → ${SHOT}` : `\n✓ 五个游戏都能调字号 → ${SHOT}（⛔ 大字有没有撑破布局**必须看图**）`);
+  // ⚠ 数量从 GAMES 现算，⛔ 别写死 —— 上一版写死「五个游戏」，connect4 加进来之后
+  //   这句话就开始撒谎（而它恰恰是给人看「覆盖了几个」的那一句）。
+  console.log(fails ? `\n✕ ${fails} 处不对 → ${SHOT}` : `\n✓ ${GAMES.length} 个游戏都能调字号 → ${SHOT}（⛔ 大字有没有撑破布局**必须看图**）`);
   process.exit(fails ? 1 : 0);
 })();
