@@ -13,7 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **各游戏成熟度差很多，动手前先看它自己的 CLAUDE.md/DESIGN.md**（游戏内的 `DESIGN.md` 是该游戏玩法/数值的**权威规格**，改核心前必查）：
 | 目录 | 状态 |
 |---|---|
-| `minesweeper` | 已上线 web；**⛔ iOS 1.0 于 2026-08-07 被拒（Guideline 5.6 开发者行为准则，「审核期被隐藏的功能」）—— 见下面 5.6 那一节**。完整。 |
+| `minesweeper` | 已上线 web；**iOS 1.0 于 2026-08-07 被拒（Guideline 5.6，「审核期被隐藏的功能」）→ 剔除远程脚本注入后 build 2 已于 2026-08-08 重新提交，`WAITING_FOR_REVIEW` —— 见下面 5.6 那一节**。完整。 |
 | `snake` | **已上线 App Store**(Snake Angel: Retro Arcade)。完整 + 爽感 FX/每日天使/星级/奖励关/收集进度/本机 Flux 道具美术。**1.0.1 已过审上线**；**⭐ 1.0.2 已提交审核（2026-08-02，`WAITING_FOR_REVIEW`，过审自动上架）—— 带 624 张截图（39 语 × 手机/iPad × 8）+ 英文预览片 + 39 语 ASO**，web 已上线四批：①全仓元游戏对齐(插屏闸门 2 关→前50关免/每10关、每日任务、统计页、求好评、推送)②**AI 代打免费开放 + 揭图提速 + 激励视频七个位**(结算屏/图鉴/每日礼物/开局礼包/皮肤/任务/复活,`AD_REWARD`+`AD_CAPS` 两张表即全部数值)③**页面视觉打磨**(主界面极光+光环、图鉴缩略图、皮肤真盘面预览、云海填高屏留白)④**粘度层 `js/meta.js`**(等级/称号 XP 条、**天使榜** 20 个预设角色、连续奖励阶梯 3/7/14/30、「下一个目标」条) + **UI 图标 engine 级共享库**⑤**天使图随机化**(主界面主视觉每次进来换一张、每关揭的图随机且优先未解锁) + **复活加厚到 10 条命 + 30 秒无敌**(按钮/toast/HUD 三处提示)。 |
 | `abyssshoot` | **整改后已重新提交，1.0 自 2026-07-23 起 `WAITING_FOR_REVIEW`（⚠ 已 12 天没动，见下面「审核卡住」一节）**（2026-07-22 因 4.3(a) 拒审后改名「Fish Cannon: Deep Sea Merge」+ 盘面去数字化）。玩法/美术/图鉴/道具/广告全备，线上 <https://fishshoot.ai-speeds.com>。 |
 | `blockblast` | **iOS 1.0 / 1.0.1 均已上架 READY_FOR_SALE**（1.0.1 带 624 张截图（39 语 × 手机/iPad × 8）+ 英文预览片 + 39 语 ASO）。**⭐ 2026-08-04 爽感批（web 已提交、未部署；iOS 下个包 1.0.2）**：⚡ 快速放置加分（**纯增益**，慢了不扣分、每日/挑战不给 —— 同种子分数必须可比）· 消行特效按条数递增（冲击波环 0→4 个是档位差最直观的一维）· 清屏特效三档（perfect 独享全屏闪）· 过关画面可爱化（天使祝贺 + 星星逐颗弹出 + 彩色纸屑）。（ASC 名「Cube Blast: Block Puzzle」）。8×8 消除拼图；卖点是**预生成块流**（出块序列落子前就定死、种子可查）。**2026-08-02 门面批（✅ web 已上线，线上冒烟过：300 关/30 章/par 全覆盖/送方块不动块流）**：主界面 canvas 天国装饰（极光/圣光/云海/星光）· **关卡提成和 ▶ 同等大的主按钮** · **30 关 → 300 关 / 30 章**（生成器程序化铺关 + `npm run fix:levels` 自动收敛通关率门禁 + 标定 par）· **🧱 看广告送方块**（接下来 2 手全是 1×1，⛔ 不动块流 ⇒ 公平承诺不变）· 音效重做（6 → 12 个音 + 离线渲染验收）。**2026-08-01 教练批**：`js/coach.js` 把验关卡的求解器搬进运行时 ⇒ **提示 / 死亡复盘「第 N 手换个位置还能再走 X 步」/ 妙手 / 我的弱点页**（公平承诺不变，单测钉死块流不受影响）；激励视频 **4 位 → 8 位 + `AD_CAPS` 每日额度**（原来「看广告领币」零 cap 可无限刷）；金币出口扩容（+4 款高价皮肤，共 20 套）；等级称号 XP 条（抽出 `engine/meta.js`）；**天使画像去重 -26MB**（走 `engine/angels.js`）；5 种水晶形状双编码。**1.0.1 的内容（已随 1.0.1 上架）**：30关3章/拼块水晶/天使画廊500张/天使榜/每日任务/连续奖励+补签/日历补玩/图鉴/16皮肤/统计/新广告模型（前50盘零插屏）/GC+推送+求好评+反馈（原生件）/**🏠 主界面**（天使 hero + 智能续继 + 六格角标入口）/**🗺 关卡地图瘦身成纯选关**（去掉与主界面重复的一切）/**结算卡**（胜负与无尽共用一张不透明卡）/**系统 emoji 换共享 UI 图标**/**主视觉每次随机**。线上 <https://blocks.ai-speeds.com>。 |
@@ -40,6 +40,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ① 出包时把 `portal.js` 换成**惰性 stub**（⛔ 不能直接不拷：`ads.js` 会碰 `Portal.active`，
 文件没了就是 ReferenceError 白屏）；② **出包禁忌扫描**，www 里出现
 `createElement('script')` / `eval` / `new Function` / 三家门户域名即 **throw**（已做反证）。
+
+**已闭环（2026-08-08）**：build 2 出包 → 挂上 1.0 → 重新提交，`WAITING_FOR_REVIEW`。
+说明写进了 **App Review Notes**（`appStoreReviewDetail.notes` 是 API 可写的，审核员打开版本就看得到，
+不依赖对方读不读 Resolution Center）；⚠ **Resolution Center 的回复没有 API，只能人工在 ASC 后台点**
+（文案存 `C:\tmp\games\dungeonsweep-resolution-center-reply.txt`）。
+⚠ 重提踩到的坑：旧 submission 直接 `PATCH {submitted:true}` **恒 409**「Version is not ready
+to be submitted yet」——必须先 `{canceled:true}` 撤销、等它从 CANCELING 变 COMPLETE（**实测 ~7 分钟，
+不是 skill 原文写的「几秒」**，已回写 skill）再建新购物车。
+⚠ **已上架的 snake / blockblast / solitaire 包里也带着同一段代码**，下次发版会自动带上修复
+（出包必经 `build-www.cjs`）。
 
 ## ⚠ 审核卡住：两个 app 长期停在 WAITING_FOR_REVIEW（2026-08-04 查出）
 
